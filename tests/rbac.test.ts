@@ -19,6 +19,24 @@ describe('RBAC permission matrix', () => {
     expect(can('TOURIST', 'booking.create')).toBe(true);
   });
 
+  it('TOURIST can cancel bookings but not confirm them (operator-only)', () => {
+    expect(can('TOURIST', 'booking.cancel')).toBe(true);
+    expect(can('TOURIST', 'booking.confirm')).toBe(false);
+  });
+
+  it('TOUR_OPERATOR can create, confirm, and cancel bookings', () => {
+    expect(can('TOUR_OPERATOR', 'booking.create')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'booking.confirm')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'booking.cancel')).toBe(true);
+  });
+
+  it('TOUR_GUIDE and DRIVER cannot confirm or cancel bookings', () => {
+    expect(can('TOUR_GUIDE', 'booking.confirm')).toBe(false);
+    expect(can('TOUR_GUIDE', 'booking.cancel')).toBe(false);
+    expect(can('DRIVER', 'booking.confirm')).toBe(false);
+    expect(can('DRIVER', 'booking.cancel')).toBe(false);
+  });
+
   it('IMMIGRATION_OFFICER is strictly read-only', () => {
     expect(can('IMMIGRATION_OFFICER', 'immigration.read')).toBe(true);
     expect(can('IMMIGRATION_OFFICER', 'documents.write')).toBe(false);

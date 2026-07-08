@@ -25,7 +25,16 @@ async function seedOrg(name: string): Promise<string> {
   });
   // Insert the tenant's package within that tenant's scope (WITH CHECK passes).
   await withOrg(org.id, (tx) =>
-    tx.tourPackage.create({ data: { organizationId: org.id, title: `${name} Safari` } }),
+    tx.tourPackage.create({
+      data: {
+        organizationId: org.id,
+        title: `${name} Safari`,
+        description: 'Cross-tenant RLS fixture package.',
+        country: 'NA',
+        priceMinor: 10000,
+        currency: 'USD',
+      },
+    }),
   );
   return org.id;
 }
@@ -68,7 +77,16 @@ describe('Row-Level Security: tenant isolation', () => {
   it('cannot write a package into another tenant (WITH CHECK)', async () => {
     await expect(
       withOrg(orgB, (tx) =>
-        tx.tourPackage.create({ data: { organizationId: orgA, title: 'smuggled' } }),
+        tx.tourPackage.create({
+          data: {
+            organizationId: orgA,
+            title: 'smuggled',
+            description: 'n/a',
+            country: 'NA',
+            priceMinor: 100,
+            currency: 'USD',
+          },
+        }),
       ),
     ).rejects.toThrow();
   });

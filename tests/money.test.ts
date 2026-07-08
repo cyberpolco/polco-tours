@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { money, add, taxOf, format } from '../src/lib/money';
+import { money, add, taxOf, format, scale } from '../src/lib/money';
 
 describe('money (minor units, per-country tax)', () => {
   it('adds same-currency amounts', () => {
@@ -20,5 +20,14 @@ describe('money (minor units, per-country tax)', () => {
 
   it('formats to currency', () => {
     expect(format(money(1050, 'USD'))).toContain('10.50');
+  });
+
+  it('scales a unit price by seat count', () => {
+    expect(scale(money(1000, 'USD'), 3)).toEqual({ minor: 3000, currency: 'USD' });
+  });
+
+  it('scale rejects non-integer or negative factors', () => {
+    expect(() => scale(money(1000, 'USD'), 1.5)).toThrow();
+    expect(() => scale(money(1000, 'USD'), -1)).toThrow();
   });
 });

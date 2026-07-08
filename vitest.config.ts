@@ -9,6 +9,19 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 20000,
     hookTimeout: 20000,
+    coverage: {
+      provider: 'v8',
+      // Service-layer logic only (CLAUDE.md: >=80% coverage target) --
+      // route handlers/schema/scripts are exercised by CI's API/RLS tests
+      // against real Postgres instead of unit-test line coverage.
+      include: ['src/lib/**', 'src/modules/**'],
+      thresholds: {
+        lines: 80,
+        statements: 80,
+        functions: 80,
+        branches: 70,
+      },
+    },
   },
   resolve: {
     alias: {

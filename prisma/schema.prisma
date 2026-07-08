@@ -10,8 +10,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")       // pooled (Neon -pooler) at runtime
-  directUrl = env("DIRECT_URL")         // direct connection for migrations
+  url       = env("DATABASE_URL") // pooled (Neon -pooler) at runtime
+  directUrl = env("DIRECT_URL") // direct connection for migrations
 }
 
 // ----------------------------------------------------------------- enums
@@ -39,19 +39,41 @@ enum PackageStatus {
   ARCHIVED
 }
 
+enum Currency {
+  USD
+  EUR
+  NAD
+  CDF
+}
+
+enum DepartureStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingStatus {
+  HELD
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
-  id        String        @id @default(uuid()) @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
   name      String
   countries String[] // ISO-3166 alpha-2, e.g. ["NA","CD"]
-  status    OrgStatus     @default(PENDING)
-  isPrimary Boolean       @default(false)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  status    OrgStatus @default(PENDING)
+  isPrimary Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  members  Membership[]
-  packages TourPackage[]
+  members    Membership[]
+  packages   TourPackage[]
+  departures Departure[]
+  bookings   Booking[]
 
   @@map("organizations")
 }
@@ -69,6 +91,7 @@ model User {
 
   memberships Membership[]
   sessions    Session[]
+  bookings    Booking[]
 
   @@index([organizationId])
   @@map("users")
@@ -76,11 +99,11 @@ model User {
 
 // A user's role within a specific organization (multi-tenant membership).
 model Membership {
-  id             String       @id @default(uuid()) @db.Uuid
-  userId         String       @db.Uuid
-  organizationId String       @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  organizationId String   @db.Uuid
   role           Role
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime @default(now())
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -138,20 +161,81 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ------------------------------------------------- tenant-scoped (RLS demo)
-// Representative operator-owned table. RLS policies in rls.sql enforce that a
-// request only sees rows for the organization in the session GUC `app.org_id`.
+// ------------------------------------------------------------ catalog (Vol. 1)
+// Tenant-scoped. RLS policies in rls.sql enforce that a request only sees rows
+// for the organization in the session GUC `app.org_id`.
 model TourPackage {
   id             String        @id @default(uuid()) @db.Uuid
   organizationId String        @db.Uuid
   title          String
+  description    String
+  country        String // ISO-3166 alpha-2; matches TaxRate.country for invoicing
+  priceMinor     Int // per-seat unit price, integer minor units (BR-02)
+  currency       Currency
+  durationDays   Int?
   status         PackageStatus @default(DRAFT)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departures   Departure[]
 
   @@index([organizationId])
   @@map("tour_packages")
+}
+
+// A scheduled instance of a TourPackage. Capacity lives here (not on the
+// package) because two departures of the same package can run different
+// group/vehicle sizes.
+model Departure {
+  id                 String          @id @default(uuid()) @db.Uuid
+  organizationId     String          @db.Uuid
+  tourPackageId      String          @db.Uuid
+  startDate          DateTime
+  endDate            DateTime?
+  capacity           Int
+  priceOverrideMinor Int? // null = inherit TourPackage.priceMinor/currency
+  status             DepartureStatus @default(SCHEDULED)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tourPackage  TourPackage  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+
+  @@index([organizationId])
+  @@index([tourPackageId])
+  @@map("departures")
+}
+
+// A tourist's seat reservation on a Departure. A "hold" is not a separate
+// entity — it's this same row with status=HELD and holdExpiresAt set; DB lazy
+// expiry means any read that cares about current capacity treats an expired,
+// not-yet-flipped HELD row as not occupying a seat (see booking module).
+// Deliberately no deletedAt: booking history must survive cancellation for
+// audit/reconciliation — status already encodes the lifecycle.
+model Booking {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  departureId    String        @db.Uuid
+  touristUserId  String        @db.Uuid
+  seats          Int
+  status         BookingStatus @default(HELD)
+  holdExpiresAt  DateTime? // set only while status = HELD
+  priceMinor     Int // seats * effective unit price, snapshotted at hold time
+  currency       Currency
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departure    Departure    @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  tourist      User         @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([departureId])
+  @@index([touristUserId])
+  @@index([status, holdExpiresAt]) // cheap index scan for the expiry sweep
+  @@map("bookings")
 }

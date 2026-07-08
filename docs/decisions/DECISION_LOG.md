@@ -21,6 +21,7 @@ template and the Definition of Done (Vol. 10 §10.3).
 | DR-008 | 2026-07-07 | Phase 0 foundation scaffolded: repo, CI (GitHub→Vercel), Prisma schema + RLS, Better Auth + RBAC skeleton, design tokens, tax table, observability baseline. Implements DR-001/004/005/006. | V5, V6, V9, V10 |
 | DR-009 | 2026-07-08 | Security-driven dependency bump on the DR-001 stack: Next.js 15.1.6 → 15.5.20, better-auth → 1.6.23, zod → 4.4.3, Playwright → 1.61.1. No stack change, patched releases of already-approved majors. | V9 |
 | DR-010 | 2026-07-08 | OI-04 resolved: object storage on **Vercel Blob**, region `fra1` (matches DR-004 hosting region). Chosen over Cloudflare R2 / AWS S3 to avoid a second infra vendor/credential model alongside the existing Vercel deployment. Passport/visa documents (NFR: encryption + short-lived signed URLs + access logging, DB stores references only) will use this store starting when document upload lands (Phase 2). | V8, V9 |
+| DR-011 | 2026-07-08 | Phase 1 Increment 1 (booking core, no payments): `TourPackage` extended with real catalog fields; new `Departure` (scheduled instance, own capacity) and `Booking` models — a "hold" is `Booking.status=HELD` + `holdExpiresAt`, not a separate table, using DB lazy expiry (no Redis/QStash for this increment). New permissions `booking.confirm`/`booking.cancel`. New tourists auto-join the primary org (Lam) at signup via a better-auth hook. DPO payments/invoicing/notifications/i18n explicitly deferred to later increments (OI-01 still open). | V1, V4, V6, V7 |
 
 ## Open items
 

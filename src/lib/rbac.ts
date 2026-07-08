@@ -13,6 +13,8 @@ export type Permission =
   | 'catalog.write'
   | 'booking.create'
   | 'booking.read'
+  | 'booking.confirm'
+  | 'booking.cancel'
   | 'assignment.write'
   | 'finance.read'
   | 'documents.read'
@@ -39,7 +41,10 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   TOUR_OPERATOR: [
     'catalog.read',
     'catalog.write',
+    'booking.create', // phone/walk-in bookings entered on a tourist's behalf
     'booking.read',
+    'booking.confirm',
+    'booking.cancel',
     'assignment.write',
     'finance.read',
     'documents.read',
@@ -49,7 +54,13 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   VEHICLE_OWNER: ['catalog.read', 'finance.read'],
   VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process'],
   IMMIGRATION_OFFICER: ['immigration.read'], // strictly read-only (BR-10)
-  TOURIST: ['catalog.read', 'booking.create', 'booking.read', 'documents.write'],
+  TOURIST: [
+    'catalog.read',
+    'booking.create',
+    'booking.read',
+    'booking.cancel', // own bookings only -- enforced in booking/service.ts, not here
+    'documents.write',
+  ],
 };
 
 export function can(role: Role, permission: Permission): boolean {

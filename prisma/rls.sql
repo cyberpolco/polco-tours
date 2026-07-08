@@ -44,3 +44,24 @@ CREATE POLICY audit_select ON audit_logs
     OR "organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid
   );
 -- No UPDATE/DELETE policy exists -> those commands are denied for all rows.
+
+-- ------------------------------------------------------------------ departures
+ALTER TABLE departures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE departures FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON departures;
+CREATE POLICY tenant_isolation ON departures
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- -------------------------------------------------------------------- bookings
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON bookings;
+CREATE POLICY tenant_isolation ON bookings
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- RLS isolates by organizationId only. It does NOT stop tourist A from
+-- reading tourist B's booking in the same org -- that ownership check is
+-- enforced in booking/service.ts and covered by tests/api/bookings.security.test.ts.

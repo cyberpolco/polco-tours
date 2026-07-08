@@ -22,6 +22,14 @@ export function add(a: Money, b: Money): Money {
   return { minor: a.minor + b.minor, currency: a.currency };
 }
 
+/** Multiply a unit price by an integer quantity (e.g. seats). */
+export function scale(m: Money, factor: number): Money {
+  if (!Number.isInteger(factor) || factor < 0) {
+    throw new Error('Money.scale factor must be a non-negative integer');
+  }
+  return { minor: m.minor * factor, currency: m.currency };
+}
+
 /** Apply a tax rate given in basis points (1600 = 16%), rounding half-up. */
 export function taxOf(base: Money, rateBp: number): Money {
   const tax = Math.round((base.minor * rateBp) / 10000);
