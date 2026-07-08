@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+
+    # Real Postgres so the RLS cross-tenant test (Phase 0 exit criterion) runs.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: polco
+          POSTGRES_PASSWORD: polco
+          POSTGRES_DB: polco_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U polco"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://polco:polco@localhost:5432/polco_test
+      DIRECT_URL: postgresql://polco:polco@localhost:5432/polco_test
+      BETTER_AUTH_SECRET: ci-secret-not-for-production
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Prepare database (schema + RLS + seed)
+        run: |
+          npm run db:push
+          npm run db:rls
+          npm run db:seed
+
+      - name: Unit + RLS tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  # Non-blocking scan surface; hardened further in Vol. 8 §8.6.
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high || true

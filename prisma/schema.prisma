@@ -1,0 +1,157 @@
+// POLCO TOURS — Prisma schema (Phase 0 foundation)
+// Implements the Vol. 6 identity/tenancy/finance/system core plus a single
+// tenant-scoped table (tour_packages) used to prove Row-Level Security.
+// Full ERD grows here phase by phase; every structural change is recorded in
+// docs/decisions (DR-007, living-document mandate).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")       // pooled (Neon -pooler) at runtime
+  directUrl = env("DIRECT_URL")         // direct connection for migrations
+}
+
+// ----------------------------------------------------------------- enums
+enum Role {
+  SUPERADMIN
+  PLATFORM_ADMIN
+  TOUR_OPERATOR
+  TOUR_GUIDE
+  DRIVER
+  VEHICLE_OWNER
+  VISA_FACILITATOR
+  IMMIGRATION_OFFICER
+  TOURIST
+}
+
+enum OrgStatus {
+  PENDING
+  VERIFIED
+  SUSPENDED
+}
+
+enum PackageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// ------------------------------------------------------------- identity
+model Organization {
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String
+  countries String[] // ISO-3166 alpha-2, e.g. ["NA","CD"]
+  status    OrgStatus     @default(PENDING)
+  isPrimary Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deletedAt DateTime?
+
+  members  Membership[]
+  packages TourPackage[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  name           String?
+  role           Role      @default(TOURIST)
+  emailVerified  Boolean   @default(false)
+  organizationId String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  memberships Membership[]
+  sessions    Session[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// A user's role within a specific organization (multi-tenant membership).
+model Membership {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  organizationId String       @db.Uuid
+  role           Role
+  createdAt      DateTime     @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// --------------------------------------------------------------- finance
+// Per-country, effective-dated tax (DR-006 / BR-01). Rate in basis points.
+model TaxRate {
+  id        String    @id @default(uuid()) @db.Uuid
+  country   String // ISO-3166 alpha-2
+  taxType   String    @default("VAT")
+  rateBp    Int // 1600 = 16.00%
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+
+  @@index([country, taxType, validFrom])
+  @@map("tax_rates")
+}
+
+// ---------------------------------------------------------------- system
+// Append-only. INSERT/UPDATE/DELETE grants are locked down in rls.sql.
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  actorUserId    String?  @db.Uuid
+  actorRole      Role?
+  action         String
+  resourceType   String
+  resourceId     String?
+  organizationId String?  @db.Uuid
+  ip             String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------------- tenant-scoped (RLS demo)
+// Representative operator-owned table. RLS policies in rls.sql enforce that a
+// request only sees rows for the organization in the session GUC `app.org_id`.
+model TourPackage {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  title          String
+  status         PackageStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("tour_packages")
+}

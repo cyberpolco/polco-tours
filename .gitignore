@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next / build
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# env
+.env
+.env*.local
+
+# test / coverage
+/coverage
+/test-results
+/playwright-report
+/.playwright
+
+# prisma
+/prisma/*.db
+
+# os / editor
+.DS_Store
+*.pem
+.vscode/*
+!.vscode/extensions.json
+.idea
