@@ -5,11 +5,21 @@ import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 
 const sql = readFileSync(new URL('../prisma/rls.sql', import.meta.url), 'utf8');
-// Split on statement boundaries, ignoring blank lines and comment-only lines.
-const statements = sql
+// Strip `--` comments BEFORE splitting on ';' — a semicolon inside a comment
+// (e.g. "without FORCE, owners bypass RLS.") would otherwise break the naive
+// split and get sent to Postgres as a stray statement. See CLAUDE.md gotchas.
+const withoutComments = sql
+  .split('\n')
+  .map((line) => {
+    const idx = line.indexOf('--');
+    return idx === -1 ? line : line.slice(0, idx);
+  })
+  .join('\n');
+
+const statements = withoutComments
   .split(';')
   .map((s) => s.trim())
-  .filter((s) => s.length > 0 && !s.split('\n').every((l) => l.trim().startsWith('--')));
+  .filter((s) => s.length > 0);
 
 const prisma = new PrismaClient();
 try {

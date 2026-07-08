@@ -231,7 +231,9 @@ Surface these to the human — don't invent answers.
 - Missing `package-lock.json` breaks `npm ci` + Actions npm cache — keep it
   committed and in sync.
 - `apply-rls.mjs` strips SQL comments before splitting on `;` — don't
-  reintroduce naive splitting (a semicolon in a comment broke it once).
+  reintroduce naive splitting (a semicolon in a comment broke it once, then
+  broke CI again on 2026-07-08 when the split-before-strip order regressed —
+  `rls.sql`'s FORCE-policy comment contains "...policies; without FORCE...").
 - `prisma generate` (postinstall) downloads engines from `binaries.prisma.sh`
   — fine on Vercel/GitHub, may be blocked in restricted sandboxes.
 - better-auth needs `npx @better-auth/cli generate` to emit its tables into the
