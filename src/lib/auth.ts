@@ -30,6 +30,13 @@ export const authConfig = {
   },
   advanced: {
     cookiePrefix: 'polco',
+    // Every id/organizationId/userId column in our schema is Postgres `uuid`
+    // (@db.Uuid), but Better Auth's default id generator produces its own
+    // non-UUID strings and passes them explicitly on insert (bypassing our
+    // @default(uuid())). Without this, the very first real sign-in fails
+    // with "Error creating UUID, invalid character" on the Session insert --
+    // caught by tests/api/*.test.ts, not by hand.
+    database: { generateId: 'uuid' as const },
   },
   databaseHooks: {
     user: {

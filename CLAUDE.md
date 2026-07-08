@@ -252,6 +252,13 @@ human rather than fabricating volume content.
   — fine on Vercel/GitHub, may be blocked in restricted sandboxes.
 - better-auth needs `npx @better-auth/cli generate` to emit its tables into the
   schema before `db:push`.
+- better-auth's default ID generator produces non-UUID strings and passes them
+  explicitly on insert (bypassing Prisma's `@default(uuid())`) — every column
+  it writes to (`User.id`, `Session.id`, `Account.id`, etc.) is `@db.Uuid`, so
+  the very first real sign-in fails with "Error creating UUID, invalid
+  character" on the `Session` insert. Fixed via `advanced.database.generateId:
+  'uuid'` in `src/lib/auth.ts`'s `authConfig` — caught by the API tests
+  (`tests/api/*.test.ts`) on 2026-07-08, not by hand; don't remove that option.
 - `prisma/schema.prisma` maps table names to snake_case (`@@map("tour_packages")`)
   but never `@map`s individual fields — so DB columns stay camelCase
   (`"organizationId"`, quoted). `rls.sql` policies must reference the quoted
