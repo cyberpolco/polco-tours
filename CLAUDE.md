@@ -280,3 +280,12 @@ human rather than fabricating volume content.
   placeholder for that GUC resets to `''` (not NULL) afterwards, so a later
   unscoped query on the same reused connection throws an `invalid input syntax
   for type uuid` cast error instead of failing closed with zero rows.
+- `src/lib/audit.ts`'s `audit()` must use `withOrg(organizationId, ...)` when
+  the entry has an `organizationId`, not the plain global `prisma` client.
+  Prisma's `create()` does an implicit `RETURNING`, which acts as a SELECT on
+  the just-inserted row; `audit_select`'s policy (`organizationId IS NULL OR
+  matches app.org_id`) can't see a tenant-scoped row from an unscoped
+  connection, so Postgres throws "new row violates row-level security policy"
+  even though `audit_insert`'s `WITH CHECK (true)` allowed the insert itself.
+  This bug existed since Phase 0 but nothing called `audit()` with a non-null
+  organizationId until Phase 1's booking module did (2026-07-08).

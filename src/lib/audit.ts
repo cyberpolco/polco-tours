@@ -1,4 +1,4 @@
-import { prisma } from './db';
+import { prisma, withOrg } from './db';
 import type { Role } from '@prisma/client';
 
 /**
@@ -18,16 +18,27 @@ export interface AuditEntry {
 }
 
 export async function audit(entry: AuditEntry): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      actorUserId: entry.actorUserId,
-      actorRole: entry.actorRole,
-      action: entry.action,
-      resourceType: entry.resourceType,
-      resourceId: entry.resourceId,
-      organizationId: entry.organizationId,
-      ip: entry.ip,
-      metadata: (entry.metadata ?? {}) as object,
-    },
-  });
+  const data = {
+    actorUserId: entry.actorUserId,
+    actorRole: entry.actorRole,
+    action: entry.action,
+    resourceType: entry.resourceType,
+    resourceId: entry.resourceId,
+    organizationId: entry.organizationId,
+    ip: entry.ip,
+    metadata: (entry.metadata ?? {}) as object,
+  };
+
+  // audit_select (rls.sql) only makes a row visible when its organizationId
+  // is NULL or matches app.org_id. Prisma's create() implicitly does a
+  // RETURNING, which acts as a SELECT on the just-inserted row -- so writing
+  // a tenant-scoped entry via the plain global `prisma` client (app.org_id
+  // unset) throws "new row violates row-level security policy" even though
+  // the INSERT's own WITH CHECK (true) would have allowed it. Scope the
+  // write with withOrg whenever we have an org to scope it to.
+  if (entry.organizationId) {
+    await withOrg(entry.organizationId, (tx) => tx.auditLog.create({ data }));
+  } else {
+    await prisma.auditLog.create({ data });
+  }
 }
