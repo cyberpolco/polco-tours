@@ -13,7 +13,12 @@ import { prisma } from './db';
  * review the diff by hand, see Gotchas in CLAUDE.md) if this config changes
  * in a way that affects Better Auth's managed schema.
  */
-export const auth = betterAuth({
+// Exported separately (not inlined into betterAuth() below) so
+// tests/helpers/test-auth.ts can build a test-only auth instance with the
+// exact same cookie/session settings plus the testUtils plugin -- if the two
+// instances' cookie-affecting config ever drifted, a test-minted session
+// cookie wouldn't be recognized by this production instance's getSession.
+export const authConfig = {
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
   emailAndPassword: {
     enabled: true,
@@ -40,6 +45,8 @@ export const auth = betterAuth({
       },
     },
   },
-});
+};
+
+export const auth = betterAuth(authConfig);
 
 export type Auth = typeof auth;

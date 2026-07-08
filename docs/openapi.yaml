@@ -1,0 +1,395 @@
+openapi: 3.0.3
+info:
+  title: POLCO TOURS API
+  version: 0.2.0
+  description: >
+    Phase 1 Increment 1 (booking core: catalog, departures, availability,
+    booking + holds). Payments/invoicing/notifications land in later
+    increments -- see docs/decisions/DECISION_LOG.md DR-011. Started with
+    this PR; extend it as new endpoints are added (do not let it drift).
+servers:
+  - url: https://polcotours.com/api/v1
+  - url: http://localhost:3000/api/v1
+security:
+  - sessionCookie: []
+
+paths:
+  /catalog/packages:
+    get:
+      summary: List tour packages
+      description: Non-operator roles only ever see PUBLISHED packages.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  packages:
+                    type: array
+                    items: { $ref: '#/components/schemas/TourPackage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a tour package
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePackageInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package: { $ref: '#/components/schemas/TourPackage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /catalog/packages/{packageId}:
+    parameters:
+      - $ref: '#/components/parameters/packageId'
+    get:
+      summary: Get a tour package
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package: { $ref: '#/components/schemas/TourPackage' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a tour package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePackageInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package: { $ref: '#/components/schemas/TourPackage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /catalog/packages/{packageId}/departures:
+    parameters:
+      - $ref: '#/components/parameters/packageId'
+    get:
+      summary: List departures for a package
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departures:
+                    type: array
+                    items: { $ref: '#/components/schemas/Departure' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Schedule a departure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDepartureInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departure: { $ref: '#/components/schemas/Departure' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /departures/{departureId}:
+    parameters:
+      - $ref: '#/components/parameters/departureId'
+    get:
+      summary: Get departure detail with inline availability
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departure: { $ref: '#/components/schemas/Departure' }
+                  packageStatus: { type: string }
+                  packageCountry: { type: string }
+                  effectiveUnitPrice: { $ref: '#/components/schemas/Money' }
+                  bookable: { type: boolean }
+                  seatsAvailable: { type: integer }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /departures/{departureId}/availability:
+    parameters:
+      - $ref: '#/components/parameters/departureId'
+    get:
+      summary: Lightweight pre-submit availability recheck
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Availability' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings:
+    get:
+      summary: List bookings
+      description: Tourist -> own bookings only. Staff -> the full org manifest.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: array
+                    items: { $ref: '#/components/schemas/Booking' }
+    post:
+      summary: Place a seat hold (30-minute expiry)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBookingInput' }
+      responses:
+        '201':
+          description: Held
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Departure is sold out or not bookable
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    get:
+      summary: Get a booking
+      description: A tourist may only fetch their own booking (404 if not theirs, not 403 -- avoids leaking existence).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Confirm a held booking (operator only -- no DPO payment gate yet, OI-01 open)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Cancel a booking
+      description: A tourist may only cancel their own booking; an operator may cancel any booking in their org.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: polco.session_token
+      description: Better Auth session cookie (advanced.cookiePrefix = "polco").
+
+  parameters:
+    packageId:
+      name: packageId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    departureId:
+      name: departureId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    bookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Forbidden:
+      description: Caller lacks the required permission, or is not authenticated
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource not found (or hidden -- see anti-BOLA notes above)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationFailed:
+      description: Request body failed schema validation
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      description: RFC 9457 problem+json (src/lib/errors.ts). Never contains stack traces or internals.
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        traceId: { type: string }
+
+    Money:
+      type: object
+      properties:
+        minor: { type: integer, description: 'Integer minor units, e.g. 1050 = 10.50 (BR-02, never a float)' }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+
+    TourPackage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        country: { type: string, description: ISO-3166 alpha-2 }
+        priceMinor: { type: integer }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        durationDays: { type: integer, nullable: true }
+        status: { type: string, enum: [DRAFT, PUBLISHED, ARCHIVED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreatePackageInput:
+      type: object
+      required: [title, description, country, priceMinor, currency]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, minLength: 1 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        priceMinor: { type: integer, minimum: 0 }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        durationDays: { type: integer, minimum: 1 }
+
+    UpdatePackageInput:
+      allOf:
+        - $ref: '#/components/schemas/CreatePackageInput'
+        - type: object
+          properties:
+            status: { type: string, enum: [DRAFT, PUBLISHED, ARCHIVED] }
+      description: All fields optional (partial update).
+
+    Departure:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        tourPackageId: { type: string, format: uuid }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time, nullable: true }
+        capacity: { type: integer }
+        priceOverrideMinor: { type: integer, nullable: true }
+        status: { type: string, enum: [SCHEDULED, CANCELLED, COMPLETED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateDepartureInput:
+      type: object
+      required: [startDate, capacity]
+      properties:
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 1 }
+        priceOverrideMinor: { type: integer, minimum: 0 }
+
+    Availability:
+      type: object
+      properties:
+        capacity: { type: integer }
+        seatsAvailable: { type: integer }
+
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        departureId: { type: string, format: uuid }
+        touristUserId: { type: string, format: uuid }
+        seats: { type: integer }
+        status: { type: string, enum: [HELD, CONFIRMED, CANCELLED, EXPIRED] }
+        holdExpiresAt: { type: string, format: date-time, nullable: true }
+        priceMinor: { type: integer }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateBookingInput:
+      type: object
+      required: [departureId, seats]
+      properties:
+        departureId: { type: string, format: uuid }
+        seats: { type: integer, minimum: 1 }
+        touristUserId:
+          type: string
+          format: uuid
+          description: Staff-only -- lets an operator book on a tourist's behalf (phone/walk-in). Ignored for a tourist caller.
