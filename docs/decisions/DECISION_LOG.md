@@ -20,6 +20,7 @@ template and the Definition of Done (Vol. 10 §10.3).
 | DR-007 | 2026-07-07 | Living-document mandate adopted (this policy). | All |
 | DR-008 | 2026-07-07 | Phase 0 foundation scaffolded: repo, CI (GitHub→Vercel), Prisma schema + RLS, Better Auth + RBAC skeleton, design tokens, tax table, observability baseline. Implements DR-001/004/005/006. | V5, V6, V9, V10 |
 | DR-009 | 2026-07-08 | Security-driven dependency bump on the DR-001 stack: Next.js 15.1.6 → 15.5.20, better-auth → 1.6.23, zod → 4.4.3, Playwright → 1.61.1. No stack change, patched releases of already-approved majors. | V9 |
+| DR-010 | 2026-07-08 | OI-04 resolved: object storage on **Vercel Blob**, region `fra1` (matches DR-004 hosting region). Chosen over Cloudflare R2 / AWS S3 to avoid a second infra vendor/credential model alongside the existing Vercel deployment. Passport/visa documents (NFR: encryption + short-lived signed URLs + access logging, DB stores references only) will use this store starting when document upload lands (Phase 2). | V8, V9 |
 
 ## Open items
 
@@ -28,7 +29,7 @@ template and the Definition of Done (Vol. 10 §10.3).
 | OI-01 | DPO written commercial terms (fee %, EUR, mobile money, settlement SLA, reserve %). | Founder | Phase 1 finance | OPEN |
 | OI-02 | Trademark clearance for polcotours / POLCO TOURS in NA + DRC. | Founder / counsel | Public launch | OPEN |
 | OI-03 | Lam per-market legal registrations (NTB/BIPA/NamRA; DARA/DGI/Min. Tourism). | Lam / ops | Go-live | OPEN |
-| OI-04 | Object-storage provider + EU region confirmation (documents + Neon). | Tech lead | Phase 0 close | OPEN |
+| OI-04 | Object-storage provider + EU region confirmation (documents + Neon). | Tech lead | Phase 0 close | RESOLVED — DR-010, 2026-07-08 |
 
 ## How to add a decision
 

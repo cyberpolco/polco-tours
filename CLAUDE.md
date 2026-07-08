@@ -75,7 +75,7 @@ same major; record a DR for any security-driven bump.
 
 ---
 
-## Tech stack (approved — DR-001, DR-004)
+## Tech stack (approved — DR-001, DR-004, DR-010)
 
 | Layer | Choice |
 |-------|--------|
@@ -84,6 +84,7 @@ same major; record a DR for any security-driven bump.
 | Database | Neon PostgreSQL (EU region), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB) |
 | Validation | zod `4.4.3` |
+| Object storage | Vercel Blob, region `fra1` — wired in Phase 2 (documents/visas) |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — wired in Phase 1 |
 | Cache / queue | Upstash Redis + QStash — Phase 1 |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Phase 1/2 |
@@ -186,16 +187,15 @@ ink, rule. Keep product surfaces visually coherent with the documents.
 
 ## Phase status
 
-- **Phase 0 — Foundation: exit gate met 2026-07-08.** Repo, GitHub→Vercel
-  pipeline, Prisma schema + RLS, auth/RBAC skeleton, Lam seed, tax table,
-  observability baseline, design tokens. **Exit gate:** `npm test` green
-  (cross-tenant RLS proven) + `main` deployed on Vercel — both confirmed green
-  on commit `51a924d`. CI had been red since the DR-008 scaffold landed; three
-  real bugs were found and fixed to get here (see Gotchas: `apply-rls.mjs`
-  comment splitting, the `organizationId` column-name mismatch, the CI
-  superuser bypassing RLS, and the GUC placeholder reset value). **Phase 0
-  close is still blocked on OI-04** (object-storage provider decision) — start
-  Phase 1 work once that's resolved.
+- **Phase 0 — Foundation: closed 2026-07-08.** Repo, GitHub→Vercel pipeline,
+  Prisma schema + RLS, auth/RBAC skeleton, Lam seed, tax table, observability
+  baseline, design tokens. **Exit gate met:** `npm test` green (cross-tenant
+  RLS proven) + `main` deployed on Vercel, confirmed on commit `51a924d`. CI
+  had been red since the DR-008 scaffold landed; four real bugs were found and
+  fixed to get here (see Gotchas: `apply-rls.mjs` comment splitting, the
+  `organizationId` column-name mismatch, the CI superuser bypassing RLS, and
+  the GUC placeholder reset value). OI-04 (last blocker) resolved via DR-010
+  (Vercel Blob, `fra1`). **Next: start Phase 1 (Core Booking).**
 - **Phase 1 — Core Booking (next):** catalog, departures, availability,
   booking + holds (30-min expiry), DPO deposit/balance, invoicing with
   per-country tax, email notifications, EN/FR. Pilot with Lam.
@@ -214,9 +214,10 @@ Maintained in `docs/decisions/DECISION_LOG.md`. Current: DR-001 stack ·
 DR-002 DPO locked · DR-003 brand polcotours · DR-004 Vercel · DR-005 Lam
 superadmin · DR-006 per-country tax · DR-007 living-doc mandate · DR-008
 Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
-1.6.23, zod 4.4.3, playwright 1.61.1).
+1.6.23, zod 4.4.3, playwright 1.61.1) · DR-010 object storage = Vercel Blob,
+`fra1` (resolves OI-04).
 
-## Open items — cannot be decided in code (see log OI-01..04)
+## Open items — cannot be decided in code (see log OI-01..03; OI-04 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -224,10 +225,18 @@ Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
   (existing Greek tourism brand + US "Polco"). Blocks public launch.
 - **OI-03** Lam per-market legal registrations (Namibia NTB/BIPA/NamRA; DRC
   DARA/DGI/Ministry of Tourism). Blocks go-live.
-- **OI-04** Object-storage provider + EU region confirmation. Blocks Phase 0
+- ~~**OI-04** Object-storage provider + EU region confirmation.~~ Resolved
+  2026-07-08 — DR-010: Vercel Blob, `fra1`. Not yet wired up in code (no
+  document upload feature exists until Phase 2); this just unblocks Phase 0
   close.
 
-Surface these to the human — don't invent answers.
+Surface OI-01..03 to the human — don't invent answers.
+
+**Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
+structural/integration decision must update) does not exist in the repo yet —
+only `docs/decisions/DECISION_LOG.md` is populated. DR-010's "Affects: V8, V9"
+tag can't be made concrete until those volumes are added. Flag this to the
+human rather than fabricating volume content.
 
 ---
 
