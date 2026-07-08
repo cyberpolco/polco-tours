@@ -186,10 +186,16 @@ ink, rule. Keep product surfaces visually coherent with the documents.
 
 ## Phase status
 
-- **Phase 0 — Foundation: in progress / stabilizing CI.** Repo, GitHub→Vercel
+- **Phase 0 — Foundation: exit gate met 2026-07-08.** Repo, GitHub→Vercel
   pipeline, Prisma schema + RLS, auth/RBAC skeleton, Lam seed, tax table,
   observability baseline, design tokens. **Exit gate:** `npm test` green
-  (cross-tenant RLS proven) + `main` deployed on Vercel.
+  (cross-tenant RLS proven) + `main` deployed on Vercel — both confirmed green
+  on commit `51a924d`. CI had been red since the DR-008 scaffold landed; three
+  real bugs were found and fixed to get here (see Gotchas: `apply-rls.mjs`
+  comment splitting, the `organizationId` column-name mismatch, the CI
+  superuser bypassing RLS, and the GUC placeholder reset value). **Phase 0
+  close is still blocked on OI-04** (object-storage provider decision) — start
+  Phase 1 work once that's resolved.
 - **Phase 1 — Core Booking (next):** catalog, departures, availability,
   booking + holds (30-min expiry), DPO deposit/balance, invoicing with
   per-country tax, email notifications, EN/FR. Pilot with Lam.
