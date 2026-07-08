@@ -100,20 +100,29 @@ Do not swap any of these without a DR entry.
 ```
 src/
   app/                 # Next.js App Router (UI + /api/v1 route handlers)
-    api/v1/health/     # liveness probe
-  lib/                 # shared kernel: db, auth, rbac, errors, money, audit, logger
+    api/v1/health/                        # liveness probe
+    api/v1/catalog/packages/...           # catalog module routes
+    api/v1/departures/[departureId]/...   # departure detail + availability
+    api/v1/bookings/...                   # booking module routes
+  lib/                 # shared kernel: db, auth, rbac, errors, money, audit,
+                       #   logger, route-guard (withAuth: session+RBAC+errors)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
-  middleware.ts        # trace id + locale (rate limit / session hook in Phase 1)
+    catalog/           # TourPackage + Departure (DR-011)
+    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) (DR-011)
+  middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
   rls.sql              # Row-Level Security policies (applied AFTER db push)
   seed.ts              # Lam operator + superadmin + per-country tax
 scripts/apply-rls.mjs  # runs rls.sql
-tests/                 # Vitest: RLS cross-tenant, RBAC, money
+tests/                 # Vitest: RLS cross-tenant (one file per tenant table),
+                       #   RBAC, money, catalog/booking domain, api/ (route-
+                       #   level, real session via tests/helpers/test-auth.ts)
 e2e/                   # Playwright smoke
 docs/decisions/        # DECISION_LOG.md (DR-007 living record)
 docs/design-package/   # the 11 volumes (put the master PDF/markdown here)
+docs/openapi.yaml      # started in DR-011's PR — keep it current with routes
 .github/               # CI workflow + PR template (enforces the DR gate)
 ```
 
@@ -196,9 +205,18 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `organizationId` column-name mismatch, the CI superuser bypassing RLS, and
   the GUC placeholder reset value). OI-04 (last blocker) resolved via DR-010
   (Vercel Blob, `fra1`). **Next: start Phase 1 (Core Booking).**
-- **Phase 1 — Core Booking (next):** catalog, departures, availability,
-  booking + holds (30-min expiry), DPO deposit/balance, invoicing with
-  per-country tax, email notifications, EN/FR. Pilot with Lam.
+- **Phase 1 — Core Booking, Increment 1 done 2026-07-08 (DR-011):** catalog
+  (`TourPackage`/`Departure`) + booking/holds shipped — `src/modules/catalog/`,
+  `src/modules/booking/`, 13 routes under `src/app/api/v1/{catalog,departures,
+  bookings}/...`, `docs/openapi.yaml` started, CI green + deployed on commit
+  `33f6994`. Deliberately **not yet done**: DPO deposit/balance (OI-01 still
+  open), invoicing with per-country tax, email notifications, EN/FR — those
+  are Increment 2 (payments/invoicing) and Increment 3 (notifications/i18n).
+  Booking confirm is manual-operator-only until DPO lands. Two real bugs
+  found building this increment (see Gotchas): Better Auth's non-UUID default
+  IDs vs. our `@db.Uuid` columns, and a Phase-0-era `audit()` RLS bug that
+  nothing had triggered until this increment's first tenant-scoped audit call.
+  Pilot with Lam once Increment 2 lands.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -215,7 +233,8 @@ DR-002 DPO locked · DR-003 brand polcotours · DR-004 Vercel · DR-005 Lam
 superadmin · DR-006 per-country tax · DR-007 living-doc mandate · DR-008
 Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
 1.6.23, zod 4.4.3, playwright 1.61.1) · DR-010 object storage = Vercel Blob,
-`fra1` (resolves OI-04).
+`fra1` (resolves OI-04) · DR-011 Phase 1 Increment 1: catalog + departures +
+booking/holds, no payments yet.
 
 ## Open items — cannot be decided in code (see log OI-01..03; OI-04 resolved)
 
