@@ -252,3 +252,10 @@ Surface these to the human — don't invent answers.
   NOBYPASSRLS` right after `npm ci` and points `DATABASE_URL`/`DIRECT_URL` at
   it for the rest of the job (`.github/workflows/ci.yml`) — keep DB creds
   pointed at that role, not the bootstrap `polco` user, in any future CI edits.
+- RLS policies must wrap `current_setting('app.org_id', true)` in
+  `NULLIF(..., '')` before casting to `::uuid`. It only returns real `NULL` the
+  first time a custom GUC is touched on a connection; once any transaction on
+  a pooled connection has done `SET LOCAL app.org_id = ...`, Postgres's
+  placeholder for that GUC resets to `''` (not NULL) afterwards, so a later
+  unscoped query on the same reused connection throws an `invalid input syntax
+  for type uuid` cast error instead of failing closed with zero rows.

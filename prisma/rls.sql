@@ -3,10 +3,17 @@
 -- Proves the Vol. 4 §4.3 / Vol. 8 defense-in-depth tenancy model at the DB layer.
 --
 -- Isolation contract: a query only sees rows whose "organizationId" matches
--- the session setting `app.org_id`. When the setting is absent, current_setting
--- (.., true) returns NULL and every tenant predicate fails closed — deny by
--- default. Column is quoted camelCase: Prisma maps table names to snake_case
--- via @@map but never @map's the organizationId field itself (see schema.prisma).
+-- the session setting `app.org_id`. Column is quoted camelCase: Prisma maps
+-- table names to snake_case via @@map but never @map's the organizationId
+-- field itself (see schema.prisma).
+--
+-- NULLIF(..., '') before the ::uuid cast matters: current_setting(name, true)
+-- returns NULL only the FIRST time a custom GUC is referenced on a connection.
+-- Once any transaction on that (pooled) connection has done `SET LOCAL
+-- app.org_id = ...`, Postgres registers a placeholder for it whose reset value
+-- is '' (empty string) — so an unscoped query on a *reused* connection would
+-- otherwise throw "invalid input syntax for type uuid" instead of failing
+-- closed. NULLIF maps that '' back to NULL so the predicate is simply false.
 --
 -- FORCE is used so the table owner (the connection Prisma uses) is ALSO subject
 -- to the policies; without FORCE, owners bypass RLS.
@@ -17,8 +24,8 @@ ALTER TABLE tour_packages FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS tenant_isolation ON tour_packages;
 CREATE POLICY tenant_isolation ON tour_packages
-  USING ("organizationId" = current_setting('app.org_id', true)::uuid)
-  WITH CHECK ("organizationId" = current_setting('app.org_id', true)::uuid);
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
 -- ------------------------------------------------------------------ audit_logs
 -- Append-only: readable within tenant scope (or platform-wide when org unset by
@@ -34,6 +41,6 @@ DROP POLICY IF EXISTS audit_select ON audit_logs;
 CREATE POLICY audit_select ON audit_logs
   FOR SELECT USING (
     "organizationId" IS NULL
-    OR "organizationId" = current_setting('app.org_id', true)::uuid
+    OR "organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid
   );
 -- No UPDATE/DELETE policy exists -> those commands are denied for all rows.
