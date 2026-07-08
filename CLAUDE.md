@@ -244,3 +244,11 @@ Surface these to the human — don't invent answers.
   camelCase column, not `organization_id` — this broke CI on 2026-07-08. When
   adding a new tenant-scoped table's RLS policy, match the actual column name
   in the schema, don't assume snake_case from the table name.
+- CI's `postgres:16` service image makes `POSTGRES_USER` the initdb bootstrap
+  **superuser** — and superusers always bypass Row-Level Security, even with
+  `FORCE ROW LEVEL SECURITY`. Connecting as that user silently no-ops every
+  policy, so the cross-tenant test would pass/fail independent of whether the
+  policies actually work. CI now creates a `polco_app` role with `NOSUPERUSER
+  NOBYPASSRLS` right after `npm ci` and points `DATABASE_URL`/`DIRECT_URL` at
+  it for the rest of the job (`.github/workflows/ci.yml`) — keep DB creds
+  pointed at that role, not the bootstrap `polco` user, in any future CI edits.
