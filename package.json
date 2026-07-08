@@ -2,7 +2,7 @@
   "name": "polco-tours",
   "version": "0.1.0",
   "private": true,
-  "description": "POLCO TOURS — Tourism Operating System for Namibia & the DRC. Phase 0 foundation.",
+  "description": "POLCO TOURS \u2014 Tourism Operating System for Namibia & the DRC. Phase 0 foundation.",
   "engines": {
     "node": ">=20.11.0"
   },
@@ -28,21 +28,21 @@
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
-    "better-auth": "1.2.7",
-    "next": "15.1.6",
+    "better-auth": "1.6.23",
+    "next": "15.5.20",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "zod": "3.24.1"
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.49.1",
+    "@playwright/test": "1.61.1",
     "@eslint/eslintrc": "3.2.0",
     "@types/node": "20.17.12",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",
     "autoprefixer": "10.4.20",
     "eslint": "9.18.0",
-    "eslint-config-next": "15.1.6",
+    "eslint-config-next": "15.5.20",
     "postcss": "8.5.1",
     "prisma": "5.22.0",
     "tailwindcss": "3.4.17",
