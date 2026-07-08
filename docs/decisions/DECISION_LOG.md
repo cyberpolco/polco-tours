@@ -19,6 +19,7 @@ template and the Definition of Done (Vol. 10 §10.3).
 | DR-006 | 2026-07-07 | Per-country effective-dated tax (DRC 16% / Namibia 15%), superseding flat 16%. | V1, V2, V3 |
 | DR-007 | 2026-07-07 | Living-document mandate adopted (this policy). | All |
 | DR-008 | 2026-07-07 | Phase 0 foundation scaffolded: repo, CI (GitHub→Vercel), Prisma schema + RLS, Better Auth + RBAC skeleton, design tokens, tax table, observability baseline. Implements DR-001/004/005/006. | V5, V6, V9, V10 |
+| DR-009 | 2026-07-08 | Security-driven dependency bump on the DR-001 stack: Next.js 15.1.6 → 15.5.20, better-auth → 1.6.23, zod → 4.4.3, Playwright → 1.61.1. No stack change, patched releases of already-approved majors. | V9 |
 
 ## Open items
 

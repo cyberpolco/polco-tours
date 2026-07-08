@@ -213,9 +213,8 @@ Full roadmap and testing strategy: Volume 10.
 Maintained in `docs/decisions/DECISION_LOG.md`. Current: DR-001 stack ·
 DR-002 DPO locked · DR-003 brand polcotours · DR-004 Vercel · DR-005 Lam
 superadmin · DR-006 per-country tax · DR-007 living-doc mandate · DR-008
-Phase 0 scaffold. **Pending to record: DR-009 — dependency security bump
-(Next 15.1.6 → 15.5.20, better-auth 1.6.23, zod 4.4.3, playwright 1.61.1).**
-Add it if not yet present.
+Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
+1.6.23, zod 4.4.3, playwright 1.61.1).
 
 ## Open items — cannot be decided in code (see log OI-01..04)
 
