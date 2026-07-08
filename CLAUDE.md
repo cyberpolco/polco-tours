@@ -238,3 +238,9 @@ Surface these to the human — don't invent answers.
   — fine on Vercel/GitHub, may be blocked in restricted sandboxes.
 - better-auth needs `npx @better-auth/cli generate` to emit its tables into the
   schema before `db:push`.
+- `prisma/schema.prisma` maps table names to snake_case (`@@map("tour_packages")`)
+  but never `@map`s individual fields — so DB columns stay camelCase
+  (`"organizationId"`, quoted). `rls.sql` policies must reference the quoted
+  camelCase column, not `organization_id` — this broke CI on 2026-07-08. When
+  adding a new tenant-scoped table's RLS policy, match the actual column name
+  in the schema, don't assume snake_case from the table name.
