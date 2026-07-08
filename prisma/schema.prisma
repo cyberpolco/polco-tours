@@ -84,6 +84,7 @@ model User {
   name           String?
   role           Role      @default(TOURIST)
   emailVerified  Boolean   @default(false)
+  image          String? // better-auth: avatar URL
   organizationId String?   @db.Uuid
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -91,6 +92,7 @@ model User {
 
   memberships Membership[]
   sessions    Session[]
+  accounts    Account[]
   bookings    Booking[]
 
   @@index([organizationId])
@@ -118,9 +120,10 @@ model Session {
   userId    String   @db.Uuid
   token     String   @unique
   expiresAt DateTime
-  ip        String?
+  ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -238,4 +241,36 @@ model Booking {
   @@index([touristUserId])
   @@index([status, holdExpiresAt]) // cheap index scan for the expiry sweep
   @@map("bookings")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid // matches User.id's native type -- required for the FK to work
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
 }

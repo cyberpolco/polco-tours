@@ -7,8 +7,11 @@ import { prisma } from './db';
  * Neon DB (EU residency, no per-MAU fee). Email + password with mandatory
  * verification (FR-A01) and session timeouts (FR-A03).
  *
- * Setup note: run `npx @better-auth/cli@latest generate` after install to emit
- * Better Auth's own tables into the Prisma schema, then `npm run db:push`.
+ * Better Auth's own tables (Account, Verification; Session/User extended with
+ * ipAddress/image) were generated via `npx @better-auth/cli@latest generate`
+ * and are committed in prisma/schema.prisma -- re-run that command (and
+ * review the diff by hand, see Gotchas in CLAUDE.md) if this config changes
+ * in a way that affects Better Auth's managed schema.
  */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -22,6 +25,20 @@ export const auth = betterAuth({
   },
   advanced: {
     cookiePrefix: 'polco',
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // DR-005/DR-011: single-tenant launch -- every new tourist joins the
+        // primary org (Lam) at signup. organizationId stays nullable in the
+        // schema for the future multi-operator case; this hook is the only
+        // place that decides the default.
+        async before() {
+          const primary = await prisma.organization.findFirst({ where: { isPrimary: true } });
+          return { data: { organizationId: primary?.id ?? null } };
+        },
+      },
+    },
   },
 });
 

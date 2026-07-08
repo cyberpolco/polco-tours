@@ -41,6 +41,9 @@ export const Errors = {
   conflict: (detail?: string) => new ApiError(409, 'conflict', 'Conflict', detail),
   rateLimited: (detail?: string) =>
     new ApiError(429, 'rate-limited', 'Too many requests', detail),
+  // Deliberately no `detail` param -- an unhandled/unexpected error must never
+  // leak internals or a stack trace to the client (Vol. 8, A05).
+  internal: () => new ApiError(500, 'internal', 'Something went wrong'),
 } as const;
 
 export function problemResponse(err: ApiError, opts?: { instance?: string; traceId?: string }) {
