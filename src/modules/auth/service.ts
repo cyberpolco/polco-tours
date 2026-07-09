@@ -1,14 +1,23 @@
 // auth module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import { can, type Permission } from '@lib/rbac';
+import { assertCan, can, type Permission } from '@lib/rbac';
 import { auth } from '@lib/auth';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
-import type { AuthContext, PublicUser } from './domain';
+import type { AuthContext, PublicUser, UpdateProfileInput } from './domain';
 
 export const authService = {
   async getUser(id: string): Promise<PublicUser | null> {
     return authRepository.findUserById(id);
+  },
+
+  /** Self-service only -- ctx.userId is always the target, no ownership
+   * param exists to check (DR-013). assertCan is redundant with the route's
+   * withAuth gate but matches every other business-action service method's
+   * double-check convention (unlike this module's identity primitives). */
+  async updateProfile(ctx: AuthContext, input: UpdateProfileInput): Promise<PublicUser> {
+    assertCan(ctx.role, 'profile.write');
+    return authRepository.updateProfile(ctx.userId, input);
   },
 
   /** Central authorization check other modules rely on. */

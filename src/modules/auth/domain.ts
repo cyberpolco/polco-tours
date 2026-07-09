@@ -1,7 +1,8 @@
 // auth module — domain types & rules. Pure; no framework or DB imports.
 // Reference implementation of the Vol. 5 §5.2 module shape:
 //   domain (types/rules) · service (logic) · repository (Prisma) · index (public API)
-import type { Role } from '@prisma/client';
+import type { Locale, Role } from '@prisma/client';
+import { z } from 'zod';
 
 export interface AuthContext {
   userId: string;
@@ -17,7 +18,18 @@ export interface PublicUser {
   role: Role;
   organizationId: string | null;
   emailVerified: boolean;
+  phone: string | null;
+  preferredLocale: Locale;
 }
+
+// E.164: optional leading +, 1-15 digits, first digit non-zero.
+const E164 = /^\+?[1-9]\d{6,14}$/;
+
+export const UpdateProfileInput = z.object({
+  phone: z.string().regex(E164).nullable().optional(),
+  preferredLocale: z.enum(['EN', 'FR']).optional(),
+});
+export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>;
 
 /** A membership must exist before a user may act within an organization. */
 export function isOrgMember(ctx: AuthContext, organizationId: string): boolean {
