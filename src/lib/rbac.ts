@@ -17,6 +17,9 @@ export type Permission =
   | 'booking.cancel'
   | 'assignment.write'
   | 'finance.read'
+  | 'invoice.read'
+  | 'payment.initiate'
+  | 'payment.resolve'
   | 'documents.read'
   | 'documents.write'
   | 'visa.process'
@@ -48,6 +51,9 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'assignment.write',
     'finance.read',
     'documents.read',
+    'invoice.read',
+    'payment.initiate',
+    'payment.resolve',
   ],
   TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read'],
   DRIVER: ['catalog.read', 'booking.read'],
@@ -60,6 +66,11 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'booking.read',
     'booking.cancel', // own bookings only -- enforced in booking/service.ts, not here
     'documents.write',
+    'invoice.read', // own invoice only -- enforced in invoicing/service.ts, not here
+    'payment.initiate', // own invoice only -- enforced in invoicing/service.ts, not here
+    // Deliberately no payment.resolve: only staff resolve a payment
+    // (mirrors the future DPO webhook actor) -- a tourist self-marking
+    // their own payment succeeded would be a fraud vector (DR-012).
   ],
 };
 

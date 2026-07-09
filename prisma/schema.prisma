@@ -59,6 +59,25 @@ enum BookingStatus {
   EXPIRED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum PaymentKind {
+  DEPOSIT
+  BALANCE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -74,6 +93,8 @@ model Organization {
   packages   TourPackage[]
   departures Departure[]
   bookings   Booking[]
+  invoices   Invoice[]
+  payments   Payment[]
 
   @@map("organizations")
 }
@@ -235,12 +256,68 @@ model Booking {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departure    Departure    @relation(fields: [departureId], references: [id], onDelete: Cascade)
   tourist      User         @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
+  invoice      Invoice?
 
   @@index([organizationId])
   @@index([departureId])
   @@index([touristUserId])
   @@index([status, holdExpiresAt]) // cheap index scan for the expiry sweep
   @@map("bookings")
+}
+
+// A 1:1 financial record for a Booking, created lazily on first access
+// (invoicing/service.ts:getOrCreateInvoiceForBooking), not at hold time --
+// tax jurisdiction + effective rate are snapshotted here so a later TaxRate
+// change never mutates an already-issued invoice. DPO payments are stubbed
+// this increment (OI-01 commercial terms still open) -- see Payment/gateway.ts.
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  bookingId      String        @unique @db.Uuid
+  currency       Currency
+  subtotalMinor  Int // = Booking.priceMinor at invoice-creation time
+  taxRateBp      Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
+  taxMinor       Int
+  totalMinor     Int // subtotalMinor + taxMinor
+  depositMinor   Int // 40% of totalMinor, half-up (DR-012)
+  balanceMinor   Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
+  status         InvoiceStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payments     Payment[]
+
+  @@index([organizationId])
+  @@map("invoices")
+}
+
+// A single payment attempt against an Invoice (deposit or balance leg). The
+// DPO gateway is stubbed this increment: initiate() fabricates a PENDING
+// record + fake redirect; a staff-only "resolve" route flips it to
+// SUCCEEDED/FAILED, standing in for DPO's future webhook. See
+// PaymentGateway (invoicing/gateway.ts) -- only the adapter changes when
+// real DPO commercial terms land, no caller does.
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  invoiceId      String        @db.Uuid
+  kind           PaymentKind
+  amountMinor    Int
+  currency       Currency
+  provider       String        @default("DPO")
+  providerRef    String? // fake reference/redirect token from the stub gateway
+  status         PaymentStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([invoiceId])
+  @@map("payments")
 }
 
 model Account {

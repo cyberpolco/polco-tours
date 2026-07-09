@@ -42,4 +42,23 @@ describe('RBAC permission matrix', () => {
     expect(can('IMMIGRATION_OFFICER', 'documents.write')).toBe(false);
     expect(can('IMMIGRATION_OFFICER', 'booking.create')).toBe(false);
   });
+
+  it('TOUR_OPERATOR can read invoices and both initiate and resolve payments', () => {
+    expect(can('TOUR_OPERATOR', 'invoice.read')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'payment.initiate')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'payment.resolve')).toBe(true);
+  });
+
+  it('TOURIST can read invoices and initiate payments but not resolve them (DR-012)', () => {
+    expect(can('TOURIST', 'invoice.read')).toBe(true);
+    expect(can('TOURIST', 'payment.initiate')).toBe(true);
+    expect(can('TOURIST', 'payment.resolve')).toBe(false);
+  });
+
+  it('TOUR_GUIDE and DRIVER have no invoicing/payment grants', () => {
+    expect(can('TOUR_GUIDE', 'invoice.read')).toBe(false);
+    expect(can('TOUR_GUIDE', 'payment.initiate')).toBe(false);
+    expect(can('DRIVER', 'invoice.read')).toBe(false);
+    expect(can('DRIVER', 'payment.initiate')).toBe(false);
+  });
 });

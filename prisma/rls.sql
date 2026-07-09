@@ -65,3 +65,27 @@ CREATE POLICY tenant_isolation ON bookings
 -- RLS isolates by organizationId only. It does NOT stop tourist A from
 -- reading tourist B's booking in the same org -- that ownership check is
 -- enforced in booking/service.ts and covered by tests/api/bookings.security.test.ts.
+
+-- -------------------------------------------------------------------- invoices
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON invoices;
+CREATE POLICY tenant_isolation ON invoices
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Same anti-BOLA caveat as bookings: this isolates by org only, not by
+-- tourist ownership -- that check lives in invoicing/service.ts, covered by
+-- tests/api/invoices.security.test.ts.
+
+-- -------------------------------------------------------------------- payments
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON payments;
+CREATE POLICY tenant_isolation ON payments
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- No policy for tax_rates: it is platform-wide reference data with no
+-- organizationId column (DR-006) -- not tenant-scoped, intentionally.
