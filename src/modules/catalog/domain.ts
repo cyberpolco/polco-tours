@@ -1,5 +1,5 @@
 // catalog module — domain types & rules. Pure; no framework or DB imports.
-import type { Currency, DepartureStatus, PackageStatus, Role } from '@prisma/client';
+import type { AddonCode, Currency, DepartureStatus, PackageStatus, Role } from '@prisma/client';
 import { z } from 'zod';
 import { money, type Money } from '@lib/money';
 
@@ -76,4 +76,15 @@ export function isPackageVisible(pkg: TourPackageView, role: Role): boolean {
 /** Non-operator roles only ever see scheduled departures. */
 export function isDepartureVisible(dep: DepartureView, role: Role): boolean {
   return isOperatorRole(role) || dep.status === 'SCHEDULED';
+}
+
+export interface AddonServiceView {
+  id: string;
+  organizationId: string;
+  code: AddonCode;
+  name: string;
+  description: string;
+  priceMinor: number;
+  currency: Currency;
+  active: boolean;
 }

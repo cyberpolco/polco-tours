@@ -89,3 +89,39 @@ CREATE POLICY tenant_isolation ON payments
 
 -- No policy for tax_rates: it is platform-wide reference data with no
 -- organizationId column (DR-006) -- not tenant-scoped, intentionally.
+
+-- ------------------------------------------------------------------- travelers
+ALTER TABLE travelers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE travelers FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON travelers;
+CREATE POLICY tenant_isolation ON travelers
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------------------- documents
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON documents;
+CREATE POLICY tenant_isolation ON documents
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- -------------------------------------------------------------- addon_services
+ALTER TABLE addon_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE addon_services FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON addon_services;
+CREATE POLICY tenant_isolation ON addon_services
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- -------------------------------------------------------------- booking_addons
+ALTER TABLE booking_addons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE booking_addons FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON booking_addons;
+CREATE POLICY tenant_isolation ON booking_addons
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

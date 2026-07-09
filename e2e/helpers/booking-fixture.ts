@@ -7,7 +7,8 @@ import { prisma, withOrg } from '../../src/lib/db';
  * `quality` CI job), so a raw unscoped create would be invisible to the
  * dashboard and fail the test confusingly.
  */
-export async function seedStaffAndBooking(): Promise<{ staffUserId: string; bookingId: string }> {
+export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ staffUserId: string; bookingId: string }> {
+  const seats = opts?.seats ?? 1;
   const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -46,8 +47,8 @@ export async function seedStaffAndBooking(): Promise<{ staffUserId: string; book
         organizationId: org.id,
         departureId: departure.id,
         touristUserId: tourist.id,
-        seats: 1,
-        priceMinor: 10000,
+        seats,
+        priceMinor: 10000 * seats,
         currency: 'USD',
       },
     });

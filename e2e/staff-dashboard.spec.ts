@@ -44,4 +44,42 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.goto(`/staff/bookings/${bookingId}`);
     await expect(page.getByText('HELD')).toBeVisible();
   });
+
+  // DR-015: booking-setup wizard. Stops at the passport step's upload form
+  // rather than actually submitting a file -- the real Vercel Blob upload
+  // (documentsService.uploadPassport) needs a live BLOB_READ_WRITE_TOKEN this
+  // e2e environment does not provision, same category of gap as OI-05/06/07
+  // for notification providers. Full upload+download coverage (with the Blob
+  // gateway boundary mocked) lives in tests/api/booking-setup.api.test.ts.
+  test('booking detail routes into the setup wizard and walks the traveler loop', async ({ page }) => {
+    const { staffUserId, bookingId } = await seedStaffAndBooking({ seats: 2 });
+    await page.context().addCookies(await sessionCookiesFor(staffUserId));
+
+    await page.goto(`/staff/bookings/${bookingId}`);
+    await expect(page.getByText('BOOKING SETUP')).toBeVisible();
+    await expect(page.getByText('Travelers (0/2)')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Continue setup' }).click();
+    await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/travelers/new`));
+    await expect(page.getByRole('heading', { name: 'Traveler 1 of 2' })).toBeVisible();
+
+    await page.getByLabel('First name').fill('Lead');
+    await page.getByLabel('Last name').fill('Traveler');
+    await page.getByLabel('Age').fill('35');
+    await page.getByLabel('ID / passport number').fill('LEADE2E1');
+    await expect(page.getByLabel(/Tour lead/)).toBeChecked();
+    await page.getByRole('button', { name: 'Add traveler & continue' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Traveler 2 of 2' })).toBeVisible();
+    await page.getByLabel('First name').fill('Companion');
+    await page.getByLabel('Last name').fill('Traveler');
+    await page.getByLabel('Age').fill('28');
+    await page.getByLabel('ID / passport number').fill('COMPE2E1');
+    await expect(page.getByLabel(/Tour lead/)).toBeDisabled();
+    await page.getByRole('button', { name: 'Finish travelers' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/passport`));
+    await expect(page.getByText("Lead Traveler's passport")).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Upload & continue' })).toBeVisible();
+  });
 });

@@ -6,6 +6,9 @@ import {
   occupiesCapacity,
   computeAvailability,
   canTransition,
+  canAddTraveler,
+  hasExactlyOneTourLead,
+  isTravelerManifestComplete,
 } from '../src/modules/booking/domain';
 
 describe('booking domain', () => {
@@ -89,6 +92,52 @@ describe('booking domain', () => {
       expect(canTransition('CANCELLED', 'HELD')).toBe(false);
       expect(canTransition('EXPIRED', 'CONFIRMED')).toBe(false);
       expect(canTransition('EXPIRED', 'HELD')).toBe(false);
+    });
+  });
+
+  describe('canAddTraveler', () => {
+    it('allows adding while below the seat count', () => {
+      expect(canAddTraveler(0, 2)).toBe(true);
+      expect(canAddTraveler(1, 2)).toBe(true);
+    });
+
+    it('rejects once every seat has a traveler', () => {
+      expect(canAddTraveler(2, 2)).toBe(false);
+    });
+  });
+
+  describe('hasExactlyOneTourLead', () => {
+    it('is false with zero tour leads', () => {
+      expect(hasExactlyOneTourLead([{ isTourLead: false }, { isTourLead: false }])).toBe(false);
+    });
+
+    it('is true with exactly one', () => {
+      expect(hasExactlyOneTourLead([{ isTourLead: true }, { isTourLead: false }])).toBe(true);
+    });
+
+    it('is false with more than one (should never happen, defensive)', () => {
+      expect(hasExactlyOneTourLead([{ isTourLead: true }, { isTourLead: true }])).toBe(false);
+    });
+  });
+
+  describe('isTravelerManifestComplete', () => {
+    const lead = { isTourLead: true, passportDocumentId: 'doc-1' };
+    const companion = { isTourLead: false, passportDocumentId: null };
+
+    it('is false if fewer travelers than seats', () => {
+      expect(isTravelerManifestComplete([lead], 2)).toBe(false);
+    });
+
+    it('is false if no traveler is the tour lead', () => {
+      expect(isTravelerManifestComplete([companion, { ...companion }], 2)).toBe(false);
+    });
+
+    it('is false if the tour lead has no passport yet', () => {
+      expect(isTravelerManifestComplete([{ ...lead, passportDocumentId: null }, companion], 2)).toBe(false);
+    });
+
+    it('is true once seats are filled, exactly one tour lead, passport on file', () => {
+      expect(isTravelerManifestComplete([lead, companion], 2)).toBe(true);
     });
   });
 });

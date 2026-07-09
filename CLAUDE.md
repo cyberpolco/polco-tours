@@ -84,7 +84,7 @@ same major; record a DR for any security-driven bump.
 | Database | Neon PostgreSQL (EU region), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB) |
 | Validation | zod `4.4.3` |
-| Object storage | Vercel Blob, region `fra1` — wired in Phase 2 (documents/visas) |
+| Object storage | Vercel Blob, region `fra1` — wired for passports (DR-015); visa docs land in Phase 2 |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — wired in Phase 1 |
 | Cache / queue | Upstash Redis + QStash — Phase 1 |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Phase 1/2 |
@@ -105,22 +105,29 @@ src/
     api/v1/departures/[departureId]/...   # departure detail + availability
     api/v1/bookings/...                   # booking module routes
     api/v1/bookings/[bookingId]/invoice   # invoicing module routes (DR-012)
+    api/v1/bookings/[bookingId]/travelers, /travelers/[travelerId]/passport,
+      /addons                             # booking-setup wizard routes (DR-015)
     api/v1/invoices/[invoiceId]/payments  #   ...
     api/v1/payments/[paymentId]/resolve   #   ...
     api/v1/users/me                       # profile self-service (DR-013)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
-    staff/(dashboard)/...                 # staff pilot dashboard (DR-014)
+    staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
+      bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
   lib/                 # shared kernel: db, auth, auth-client, rbac, errors,
                        #   money, audit, logger, route-guard (withAuth: HTTP
                        #   routes), staff-guard (requireStaffContext: Server
-                       #   Components/Actions, DR-014)
+                       #   Components/Actions, DR-014), country-codes (phone/
+                       #   flag + nationality picker data, no dependency, DR-015)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
-    catalog/           # TourPackage + Departure (DR-011)
-    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) (DR-011)
+    catalog/           # TourPackage + Departure + AddonService (DR-011, DR-015)
+    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt);
+                       #   Traveler + BookingAddon folded in (DR-011, DR-015)
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
     notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
+    documents/         # Document metadata + Vercel Blob gateway, access:
+                       #   'private' (DR-015; first real DR-010 usage)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -188,6 +195,9 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   VAT 15%. Never hardcode a flat rate — read `tax_rates`.
 - **Documents (passports/visas):** object storage + encryption + short-lived
   signed URLs + access logging; DB stores references only; retention limits.
+  Passports implemented (DR-015, `src/modules/documents/`) via Vercel Blob
+  `access: 'private'` + an authenticated streaming route — no retention-limit
+  job exists yet. Visa documents are still Phase 2.
 - **Audit (NFR-07):** append-only `audit_logs` (UPDATE/DELETE denied at DB).
   Log payments, document access, role/permission changes, assignments.
 - **Errors:** RFC 9457 `application/problem+json` via `src/lib/errors.ts`. No
@@ -277,6 +287,22 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   next** — no further increment is blocking it; OI-01/02/03/05/06/07 remain
   founder/ops items, not engineering ones. Tourist-facing self-serve site
   (package "tailor your trip" quiz → book → pay) is the planned fast-follow.
+- **Booking-setup wizard (staff tooling) done 2026-07-09 (DR-015):** extends
+  the DR-014 "new booking" staff flow into a multi-step wizard — per-seat
+  `Traveler` records (name/age/sex/nationality/ID-or-passport/phone/
+  disabilities/allergies/drinkPreference), exactly one flagged `isTourLead`
+  regardless of group size, that traveler's passport PDF (first real DR-010
+  Vercel Blob usage, `access: 'private'`, streamed back only through an
+  audited API route — never a public URL), and priced add-on services
+  (`AddonService` in `catalog`, selection in `booking`) that now flow into
+  the invoice subtotal via new `bookingService.getBillableTotal`.
+  `GET /bookings/{id}/invoice` now 409s until travelers + passport + add-ons
+  are all complete — the staff booking-detail page gates on this instead of
+  eagerly creating the invoice. Still staff-only (no tourist self-serve
+  equivalent yet). New OI-08: no `BLOB_READ_WRITE_TOKEN` provisioned in any
+  environment yet, so real end-to-end passport upload is only verified with
+  the Blob gateway mocked at the test boundary; production needs the token
+  configured before this ships live.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -300,9 +326,14 @@ DR-013 Phase 1 Increment 3: notifications module (real, env-gated
 Resend/WhatsApp Cloud/Africa's Talking adapters, OI-05/06/07 open) +
 `profile.write` self-service + notification-template EN/FR · DR-014 staff
 dashboard: first authenticated frontend, Better Auth HTTP route mounted,
-staff can only book for already-registered tourists, new e2e CI job.
+staff can only book for already-registered tourists, new e2e CI job ·
+DR-015 booking-setup wizard: `Traveler`/`Document`/`AddonService`/
+`BookingAddon` tables, add-ons flow into the invoice via
+`getBillableTotal`, first real Vercel Blob usage (`access: 'private'`,
+resolves how DR-010 actually gets exercised), `TOUR_OPERATOR` gains
+`documents.write`, new OI-08 (no `BLOB_READ_WRITE_TOKEN` provisioned yet).
 
-## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04 resolved)
+## Open items — cannot be decided in code (see log OI-01..03, 05..08; OI-04 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -318,8 +349,13 @@ staff can only book for already-registered tourists, new e2e CI job.
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number). Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
+- **OI-08** `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) not yet provisioned in
+  any environment (CI, e2e, local, or production Vercel). Blocks real
+  end-to-end passport upload verification — `tests/api/booking-setup.api.test.ts`
+  mocks the Blob gateway boundary instead, and the Playwright e2e spec stops
+  at the passport step's upload form rather than submitting a real file.
 
-Surface OI-01..03/05..07 to the human — don't invent answers.
+Surface OI-01..03/05..08 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —
@@ -464,3 +500,28 @@ human rather than fabricating volume content.
   `additionalFields` — fine today (nothing sets them via a better-auth hook
   or the sign-up body), but the same silent-drop trap applies if a future
   increment ever tries to.
+- `@vercel/blob` (2.6.1) actually supports real `access: 'private'` storage
+  (`put(..., { access: 'private' })`) plus an authenticated `get(pathname,
+  { access: 'private' })` for retrieval — there is no bare public-URL-only
+  limitation to work around. Don't assume Vercel Blob is public-only without
+  checking `node_modules/@vercel/blob/dist/*.d.ts` first; `documents/gateway.ts`
+  (DR-015) uses `access: 'private'` + `get()`, so a passport's Blob pathname
+  genuinely has no public URL at all, not just an unguessable one.
+- The RBAC matrix (`src/lib/rbac.ts`) had `TOUR_OPERATOR` with `documents.read`
+  but **not** `documents.write` — fine while no feature exercised it, but
+  DR-015's staff-uploaded passport needed it added. If a future increment adds
+  a staff-facing write path for an existing resource, check the matrix
+  actually grants that role the permission; it may have been scoped for a
+  different (e.g. tourist-self-serve) caller than the one you're building.
+- `invoicing/service.ts`'s `getOrCreateInvoiceForBooking` now calls
+  `bookingService.getBillableTotal`, which throws (409) until the traveler
+  manifest/passport/add-ons wizard steps are complete (DR-015) — this broke
+  `tests/api/invoices.api.test.ts`'s fixture, which relied on the invoice
+  being lazily created on a bare booking with no travelers. Fixed by seeding a
+  complete manifest (one `Traveler` with `isTourLead: true` + a fixture
+  `Document`) directly in that fixture's `beforeAll`, same as any other
+  raw-fixture test. `tests/api/invoices.security.test.ts` and both
+  `rls.cross-tenant.{invoices,payments}.test.ts` were unaffected because they
+  create the `Invoice` row directly (bypassing the service's lazy-create path
+  entirely) — check which pattern a given invoice fixture uses before assuming
+  a service-layer gating change needs a fixture update.

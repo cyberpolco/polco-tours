@@ -1,7 +1,8 @@
 // POLCO TOURS — database seed (Phase 0)
 // Real launch records: single operator "Lam" (Namibia + DRC) with SUPERADMIN,
 // and per-country effective-dated tax (DRC 16% / Namibia 15%). DR-005 / DR-006.
-import { PrismaClient, Role, OrgStatus } from '@prisma/client';
+import { PrismaClient, Role, OrgStatus, AddonCode, Currency } from '@prisma/client';
+import { withOrg } from '@lib/db';
 
 const prisma = new PrismaClient();
 
@@ -52,7 +53,25 @@ async function main() {
     }
   }
 
-  console.log('Seeded:', { operator: lam.name, superadmin: admin.email, taxRates: taxes.length });
+  // --- Add-on services (DR-015) -- staff-managed catalog, seeded for now ---
+  const addons: Array<{ code: AddonCode; name: string; description: string; priceMinor: number }> = [
+    { code: AddonCode.PHOTOGRAPHY, name: 'Photography', description: 'A dedicated photographer for the trip', priceMinor: 15000 },
+    { code: AddonCode.VIDEOGRAPHY, name: 'Videography', description: 'A dedicated videographer for the trip', priceMinor: 25000 },
+    { code: AddonCode.TRANSLATOR, name: 'Translator', description: 'An on-tour translator/interpreter', priceMinor: 10000 },
+    { code: AddonCode.VISA_ASSISTANCE, name: 'Visa assistance', description: 'Help preparing and lodging visa paperwork', priceMinor: 5000 },
+  ];
+  await withOrg(lam.id, async (tx) => {
+    for (const a of addons) {
+      const existing = await tx.addonService.findFirst({ where: { code: a.code } });
+      if (!existing) {
+        await tx.addonService.create({
+          data: { organizationId: lam.id, currency: Currency.USD, active: true, ...a },
+        });
+      }
+    }
+  });
+
+  console.log('Seeded:', { operator: lam.name, superadmin: admin.email, taxRates: taxes.length, addonServices: addons.length });
 }
 
 main()

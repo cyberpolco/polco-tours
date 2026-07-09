@@ -1,7 +1,14 @@
 // catalog module — repository. The only place that touches the DB for this module.
-import type { Departure, PackageStatus, TourPackage } from '@prisma/client';
+import type { AddonService, Departure, PackageStatus, TourPackage } from '@prisma/client';
 import { withOrg } from '@lib/db';
-import type { CreateDepartureInput, CreatePackageInput, DepartureView, TourPackageView, UpdatePackageInput } from './domain';
+import type {
+  AddonServiceView,
+  CreateDepartureInput,
+  CreatePackageInput,
+  DepartureView,
+  TourPackageView,
+  UpdatePackageInput,
+} from './domain';
 
 function toPackageView(p: TourPackage): TourPackageView {
   return {
@@ -16,6 +23,19 @@ function toPackageView(p: TourPackage): TourPackageView {
     status: p.status,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
+  };
+}
+
+function toAddonServiceView(a: AddonService): AddonServiceView {
+  return {
+    id: a.id,
+    organizationId: a.organizationId,
+    code: a.code,
+    name: a.name,
+    description: a.description,
+    priceMinor: a.priceMinor,
+    currency: a.currency,
+    active: a.active,
   };
 }
 
@@ -99,6 +119,20 @@ export const catalogRepository = {
         orderBy: { startDate: 'asc' },
       });
       return rows.map(toDepartureView);
+    });
+  },
+
+  async listActiveAddonServices(organizationId: string): Promise<AddonServiceView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.addonService.findMany({ where: { active: true }, orderBy: { code: 'asc' } });
+      return rows.map(toAddonServiceView);
+    });
+  },
+
+  async findAddonServiceById(organizationId: string, id: string): Promise<AddonServiceView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.addonService.findUnique({ where: { id } });
+      return a ? toAddonServiceView(a) : null;
     });
   },
 };

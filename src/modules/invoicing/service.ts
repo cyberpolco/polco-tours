@@ -45,7 +45,11 @@ export const invoicingService = {
       throw Errors.conflict('No tax rate configured for this country');
     }
 
-    const subtotal = money(booking.priceMinor, booking.currency);
+    // Base seat price + finalized add-ons (DR-015) -- throws until the
+    // traveler manifest/passport/add-ons wizard steps are all complete, so an
+    // invoice's subtotal can never be created before add-ons are decided.
+    const billable = await bookingService.getBillableTotal(ctx, bookingId);
+    const subtotal = money(billable.totalMinor, billable.currency);
     const tax = taxOf(subtotal, rateBp);
     const totalMinor = subtotal.minor + tax.minor;
     const { depositMinor, balanceMinor } = splitDeposit(totalMinor);

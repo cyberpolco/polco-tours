@@ -9,6 +9,7 @@ import {
   isBookable,
   isDepartureVisible,
   isPackageVisible,
+  type AddonServiceView,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
@@ -94,5 +95,19 @@ export const catalogService = {
       effectiveUnitPrice: effectivePrice(pkg, departure),
       bookable: isBookable(pkg, departure),
     };
+  },
+
+  /** Staff-managed, read-only for now -- seeded via prisma/seed.ts. */
+  async listActiveAddonServices(ctx: AuthContext): Promise<AddonServiceView[]> {
+    assertCan(ctx.role, 'catalog.read');
+    return catalogRepository.listActiveAddonServices(requireOrg(ctx));
+  },
+
+  /** The cross-module entry point the booking module calls to price-snapshot a selection. */
+  async getAddonService(ctx: AuthContext, addonServiceId: string): Promise<AddonServiceView> {
+    assertCan(ctx.role, 'catalog.read');
+    const addon = await catalogRepository.findAddonServiceById(requireOrg(ctx), addonServiceId);
+    if (!addon || !addon.active) throw Errors.notFound('Add-on service not found');
+    return addon;
   },
 };

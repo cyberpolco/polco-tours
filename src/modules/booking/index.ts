@@ -1,5 +1,5 @@
 // booking module — public interface. Other modules import ONLY from here.
 export { bookingService } from './service';
-export type { Availability } from './service';
-export { CreateBookingInput } from './domain';
-export type { BookingView } from './domain';
+export type { Availability, BillableTotal } from './service';
+export { AddTravelerInput, CreateBookingInput, SetAddonsInput } from './domain';
+export type { BookingAddonView, BookingView, TravelerView } from './domain';

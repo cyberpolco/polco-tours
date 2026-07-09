@@ -1,5 +1,5 @@
 // booking module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingStatus, Currency } from '@prisma/client';
+import type { BookingStatus, Currency, Sex } from '@prisma/client';
 import { z } from 'zod';
 
 export const HOLD_DURATION_MINUTES = 30;
@@ -14,6 +14,7 @@ export interface BookingView {
   holdExpiresAt: Date | null;
   priceMinor: number;
   currency: Currency;
+  addonsFinalizedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -56,3 +57,82 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
+
+// -------------------------------------------------------------- travelers
+
+export interface TravelerView {
+  id: string;
+  organizationId: string;
+  bookingId: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  sex: Sex;
+  nationality: string;
+  idOrPassportNumber: string;
+  phone: string | null;
+  disabilities: string | null;
+  allergies: string | null;
+  drinkPreference: string | null;
+  isTourLead: boolean;
+  passportDocumentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// E.164: optional leading +, 1-15 digits, first digit non-zero (same shape as auth/domain.ts).
+const E164 = /^\+?[1-9]\d{6,14}$/;
+
+export const AddTravelerInput = z.object({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  age: z.number().int().min(0).max(120),
+  sex: z.enum(['M', 'F', 'X']),
+  nationality: z.string().length(2), // ISO-3166 alpha-2
+  idOrPassportNumber: z.string().min(1).max(50),
+  phone: z.string().regex(E164).optional(),
+  disabilities: z.string().max(500).optional(),
+  allergies: z.string().max(500).optional(),
+  drinkPreference: z.string().max(200).optional(),
+  isTourLead: z.boolean().optional().default(false),
+});
+export type AddTravelerInput = z.infer<typeof AddTravelerInput>;
+
+/** A Booking accepts one Traveler per seat -- no more. */
+export function canAddTraveler(existingCount: number, seats: number): boolean {
+  return existingCount < seats;
+}
+
+export function hasExactlyOneTourLead(travelers: Pick<TravelerView, 'isTourLead'>[]): boolean {
+  return travelers.filter((t) => t.isTourLead).length === 1;
+}
+
+/** Gate for invoicing (see bookingService.getBillableTotal): the manifest is
+ * only complete once every seat has a traveler, exactly one is the tour
+ * lead, and that tour lead has a passport on file. */
+export function isTravelerManifestComplete(
+  travelers: Pick<TravelerView, 'isTourLead' | 'passportDocumentId'>[],
+  seats: number,
+): boolean {
+  if (travelers.length !== seats) return false;
+  if (!hasExactlyOneTourLead(travelers)) return false;
+  const lead = travelers.find((t) => t.isTourLead);
+  return lead?.passportDocumentId != null;
+}
+
+// -------------------------------------------------------------- add-ons
+
+export interface BookingAddonView {
+  id: string;
+  organizationId: string;
+  bookingId: string;
+  addonServiceId: string;
+  priceMinor: number;
+  currency: Currency;
+  createdAt: Date;
+}
+
+export const SetAddonsInput = z.object({
+  addonServiceIds: z.array(z.string().uuid()),
+});
+export type SetAddonsInput = z.infer<typeof SetAddonsInput>;

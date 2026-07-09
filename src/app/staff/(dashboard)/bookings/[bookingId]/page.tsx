@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
@@ -18,6 +19,43 @@ export default async function BookingDetailPage({ params }: Props) {
     booking = await bookingService.getById(ctx, bookingId);
   } catch {
     notFound();
+  }
+
+  const travelers = await bookingService.listTravelers(ctx, bookingId);
+  const lead = travelers.find((t) => t.isTourLead);
+  const travelersDone = travelers.length >= booking.seats;
+  const passportDone = !!lead?.passportDocumentId;
+  const addonsDone = !!booking.addonsFinalizedAt;
+  const setupComplete = travelersDone && passportDone && addonsDone;
+
+  if (!setupComplete) {
+    const nextHref = !travelersDone
+      ? `/staff/bookings/${bookingId}/travelers/new`
+      : !passportDone
+        ? `/staff/bookings/${bookingId}/passport`
+        : `/staff/bookings/${bookingId}/addons`;
+
+    return (
+      <div className="max-w-md space-y-6">
+        <div>
+          <p className="text-xs tracking-survey text-mist">BOOKING SETUP</p>
+          <h1 className="mt-1 text-2xl font-bold text-navy">{booking.id}</h1>
+          <p className="mt-1 text-mist">
+            {booking.seats} seat(s) · {booking.status} · {format(money(booking.priceMinor, booking.currency))}
+          </p>
+        </div>
+        <ul className="space-y-2 text-sm">
+          <li className={travelersDone ? 'text-forest' : 'text-ink'}>
+            {travelersDone ? '✓' : '○'} Travelers ({travelers.length}/{booking.seats})
+          </li>
+          <li className={passportDone ? 'text-forest' : 'text-ink'}>{passportDone ? '✓' : '○'} Tour lead passport</li>
+          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
+        </ul>
+        <Link href={nextHref} className="inline-block rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
+          Continue setup
+        </Link>
+      </div>
+    );
   }
 
   const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);

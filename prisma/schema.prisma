@@ -83,6 +83,20 @@ enum Locale {
   FR
 }
 
+// ICAO 9303 passport MRZ sex convention (matches what a passport encodes).
+enum Sex {
+  M
+  F
+  X
+}
+
+enum AddonCode {
+  PHOTOGRAPHY
+  VIDEOGRAPHY
+  TRANSLATOR
+  VISA_ASSISTANCE
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -94,12 +108,16 @@ model Organization {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  members    Membership[]
-  packages   TourPackage[]
-  departures Departure[]
-  bookings   Booking[]
-  invoices   Invoice[]
-  payments   Payment[]
+  members       Membership[]
+  packages      TourPackage[]
+  departures    Departure[]
+  bookings      Booking[]
+  invoices      Invoice[]
+  payments      Payment[]
+  travelers     Traveler[]
+  documents     Document[]
+  addonServices AddonService[]
+  bookingAddons BookingAddon[]
 
   @@map("organizations")
 }
@@ -248,28 +266,130 @@ model Departure {
 // Deliberately no deletedAt: booking history must survive cancellation for
 // audit/reconciliation — status already encodes the lifecycle.
 model Booking {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  departureId    String        @db.Uuid
-  touristUserId  String        @db.Uuid
-  seats          Int
-  status         BookingStatus @default(HELD)
-  holdExpiresAt  DateTime? // set only while status = HELD
-  priceMinor     Int // seats * effective unit price, snapshotted at hold time
-  currency       Currency
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                String        @id @default(uuid()) @db.Uuid
+  organizationId    String        @db.Uuid
+  departureId       String        @db.Uuid
+  touristUserId     String        @db.Uuid
+  seats             Int
+  status            BookingStatus @default(HELD)
+  holdExpiresAt     DateTime? // set only while status = HELD
+  priceMinor        Int // seats * effective unit price, snapshotted at hold time
+  currency          Currency
+  // Set when the add-ons wizard step is submitted, even choosing none --
+  // gates invoice creation so the invoice's subtotal always reflects the
+  // final add-on selection (see bookingService.getBillableTotal).
+  addonsFinalizedAt DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departure    Departure    @relation(fields: [departureId], references: [id], onDelete: Cascade)
-  tourist      User         @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departure    Departure      @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  tourist      User           @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
   invoice      Invoice?
+  travelers    Traveler[]
+  addons       BookingAddon[]
 
   @@index([organizationId])
   @@index([departureId])
   @@index([touristUserId])
   @@index([status, holdExpiresAt]) // cheap index scan for the expiry sweep
   @@map("bookings")
+}
+
+// One row per seat on a Booking -- captures who is actually traveling.
+// Exactly one Traveler per Booking has isTourLead = true (a solo booking's
+// one traveler is trivially its own tour lead); only that traveler needs a
+// passport upload (see Document).
+model Traveler {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @db.Uuid
+  bookingId          String   @db.Uuid
+  firstName          String
+  lastName           String
+  age                Int
+  sex                Sex
+  nationality        String // ISO-3166 alpha-2, matches TourPackage.country
+  idOrPassportNumber String
+  phone              String? // E.164
+  disabilities       String?
+  allergies          String?
+  drinkPreference    String?
+  isTourLead         Boolean  @default(false)
+  passportDocumentId String?  @unique @db.Uuid
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking          Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  passportDocument Document?    @relation(fields: [passportDocumentId], references: [id])
+
+  @@index([organizationId])
+  @@index([bookingId])
+  @@map("travelers")
+}
+
+// Generic document reference -- object storage holds the bytes, this table
+// holds only metadata (Documents rule, CLAUDE.md). Reusable by Phase 2 visa
+// documents later; `kind` is a plain string (not an enum) so that doesn't
+// need a migration. blobPathname is never sent to the client -- downloads go
+// through an authenticated route that streams the bytes server-side.
+model Document {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  kind             String // "PASSPORT" for now
+  blobPathname     String // Vercel Blob pathname, access: 'private' -- never sent to the client
+  contentType      String
+  sizeBytes        Int
+  uploadedByUserId String   @db.Uuid
+  createdAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  traveler     Traveler?
+
+  @@index([organizationId])
+  @@map("documents")
+}
+
+// Org-scoped catalog of priced add-on services (photography, video,
+// translator, visa assistance) -- same family as TourPackage.
+model AddonService {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  code           AddonCode
+  name           String
+  description    String
+  priceMinor     Int
+  currency       Currency
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookingAddons BookingAddon[]
+
+  @@index([organizationId])
+  @@map("addon_services")
+}
+
+// A selected add-on on a Booking. priceMinor/currency are snapshotted at
+// selection time (same pattern as Booking.priceMinor) so a later catalog
+// price change never mutates an already-selected add-on.
+model BookingAddon {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  bookingId      String   @db.Uuid
+  addonServiceId String   @db.Uuid
+  priceMinor     Int
+  currency       Currency
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addonService AddonService @relation(fields: [addonServiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([bookingId])
+  @@map("booking_addons")
 }
 
 // A 1:1 financial record for a Booking, created lazily on first access

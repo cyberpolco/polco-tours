@@ -80,12 +80,44 @@ beforeAll(async () => {
       },
     });
     bookingId = booking.id;
+
+    // DR-015: invoicing now gates on the traveler manifest + finalized
+    // add-ons (bookingService.getBillableTotal) -- seed a complete one
+    // directly (raw fixture, not through the wizard) so this file keeps
+    // testing invoicing/payments, not the booking-setup wizard itself.
+    const passport = await tx.document.create({
+      data: {
+        organizationId: orgId,
+        kind: 'PASSPORT',
+        blobPathname: 'fixtures/not-a-real-blob.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 1,
+        uploadedByUserId: operatorId,
+      },
+    });
+    await tx.traveler.create({
+      data: {
+        organizationId: orgId,
+        bookingId,
+        firstName: 'Fixture',
+        lastName: 'Traveler',
+        age: 30,
+        sex: 'X',
+        nationality: 'NA',
+        idOrPassportNumber: 'FIXTURE123',
+        isTourLead: true,
+        passportDocumentId: passport.id,
+      },
+    });
+    await tx.booking.update({ where: { id: bookingId }, data: { addonsFinalizedAt: new Date() } });
   });
 });
 
 afterAll(async () => {
   await withOrg(orgId, (tx) => tx.payment.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.invoice.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.traveler.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.document.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));

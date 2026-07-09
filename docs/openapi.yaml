@@ -1,17 +1,16 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.4.0
+  version: 0.5.0
   description: >
-    Phase 1 Increment 3 adds a self-service profile endpoint (phone +
-    preferred locale) and wires booking confirm/cancel + payment resolve to
-    a notifications module -- see docs/decisions/DECISION_LOG.md DR-013.
-    Notification content is bilingual (EN/FR); existing error messages stay
-    English-only for now. Notifications have no REST surface of their own
-    (a fire-and-forget side effect, not a queryable resource) and no
-    provider credentials exist yet (OI-05/06/07), so every send degrades to
-    "unavailable" until those are configured. Extend this file as new
-    endpoints are added (do not let it drift).
+    DR-015 adds the booking-setup wizard: per-seat travelers, a tour lead's
+    passport PDF (first real Vercel Blob usage, DR-010), and priced add-on
+    services that now flow into the invoice subtotal via
+    bookingService.getBillableTotal. GET /bookings/{bookingId}/invoice now
+    409s until the traveler manifest, tour-lead passport, and add-ons step
+    are all complete. Passport bytes are streamed through this API server-side
+    (Vercel Blob access: 'private') and never exposed as a raw URL. Extend
+    this file as new endpoints are added (do not let it drift).
 servers:
   - url: https://polcotours.com/api/v1
   - url: http://localhost:3000/api/v1
@@ -260,8 +259,9 @@ paths:
       description: >-
         Idempotent get-or-create -- an invoice is created on first access, not
         at hold time. Snapshots per-country tax (DR-006) and the 40/60
-        deposit/balance split (DR-012). Ownership is inherited from the
-        booking's own anti-BOLA check.
+        deposit/balance split (DR-012). Subtotal is the booking's seat price
+        plus any finalized add-ons (DR-015, bookingService.getBillableTotal).
+        Ownership is inherited from the booking's own anti-BOLA check.
       responses:
         '200':
           description: OK
@@ -273,10 +273,142 @@ paths:
                   invoice: { $ref: '#/components/schemas/Invoice' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: No effective tax rate configured for this country
+          description: >-
+            No effective tax rate configured for this country, OR the
+            traveler manifest / tour-lead passport / add-ons wizard steps
+            (DR-015) are not all complete yet.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+
+  /bookings/{bookingId}/travelers:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    get:
+      summary: List a booking's travelers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  travelers:
+                    type: array
+                    items: { $ref: '#/components/schemas/Traveler' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Add a traveler to the booking (DR-015)
+      description: >-
+        One Traveler per seat, no more (409 once seats are filled). Exactly
+        one may be isTourLead=true per booking; only that traveler needs a
+        passport upload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddTravelerInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  traveler: { $ref: '#/components/schemas/Traveler' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: All seats already have a traveler, or a tour lead is already set
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/passport:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    get:
+      summary: Download the tour lead's passport (DR-015)
+      description: >-
+        Streams the PDF bytes server-side from Vercel Blob (access: 'private')
+        -- there is no public URL for this document. Every access is audited
+        (Documents rule, CLAUDE.md).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Upload the tour lead's passport (DR-015)
+      description: Only the traveler flagged isTourLead may have a passport attached.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [passport]
+              properties:
+                passport: { type: string, format: binary, description: 'PDF, up to 10MB' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: This traveler is not the tour lead
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/addons:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Finalize the booking's add-on selection (DR-015)
+      description: >-
+        Replace-all semantics -- meant to be called once, including with an
+        empty list (choosing none). Snapshots each AddonService's price/
+        currency onto the Booking and stamps addonsFinalizedAt, which gates
+        invoice creation (GET /bookings/{bookingId}/invoice).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetAddonsInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addons:
+                    type: array
+                    items: { $ref: '#/components/schemas/BookingAddon' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: An add-on's currency does not match the booking's currency
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /invoices/{invoiceId}/payments:
     parameters:
@@ -394,6 +526,11 @@ components:
       schema: { type: string, format: uuid }
     bookingId:
       name: bookingId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    travelerId:
+      name: travelerId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -518,8 +655,80 @@ components:
         holdExpiresAt: { type: string, format: date-time, nullable: true }
         priceMinor: { type: integer }
         currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        addonsFinalizedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set once the add-ons wizard step is submitted (DR-015), even choosing none. Gates invoicing.
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    Traveler:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+        age: { type: integer }
+        sex: { type: string, enum: [M, F, X], description: ICAO 9303 passport MRZ convention }
+        nationality: { type: string, description: ISO-3166 alpha-2 }
+        idOrPassportNumber: { type: string }
+        phone: { type: string, nullable: true, description: E.164 }
+        disabilities: { type: string, nullable: true }
+        allergies: { type: string, nullable: true }
+        drinkPreference: { type: string, nullable: true }
+        isTourLead: { type: boolean, description: Exactly one per booking; only this traveler needs a passport }
+        passportDocumentId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AddTravelerInput:
+      type: object
+      required: [firstName, lastName, age, sex, nationality, idOrPassportNumber]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        lastName: { type: string, minLength: 1, maxLength: 100 }
+        age: { type: integer, minimum: 0, maximum: 120 }
+        sex: { type: string, enum: [M, F, X] }
+        nationality: { type: string, minLength: 2, maxLength: 2 }
+        idOrPassportNumber: { type: string, minLength: 1, maxLength: 50 }
+        phone: { type: string, description: E.164 }
+        disabilities: { type: string, maxLength: 500 }
+        allergies: { type: string, maxLength: 500 }
+        drinkPreference: { type: string, maxLength: 200 }
+        isTourLead: { type: boolean, default: false }
+
+    DocumentSummary:
+      type: object
+      description: Never includes the underlying Vercel Blob pathname (Documents rule, CLAUDE.md).
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, description: '"PASSPORT" for now' }
+        contentType: { type: string }
+        sizeBytes: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    BookingAddon:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        addonServiceId: { type: string, format: uuid }
+        priceMinor: { type: integer, description: Snapshotted from AddonService at selection time }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        createdAt: { type: string, format: date-time }
+
+    SetAddonsInput:
+      type: object
+      required: [addonServiceIds]
+      description: Replace-all -- an empty array is valid (choosing no add-ons).
+      properties:
+        addonServiceIds:
+          type: array
+          items: { type: string, format: uuid }
 
     CreateBookingInput:
       type: object

@@ -1,8 +1,8 @@
 // booking module — repository. The only place that touches the DB for this module.
-import type { Booking, BookingStatus, Currency } from '@prisma/client';
+import type { Booking, BookingAddon, BookingStatus, Currency, Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
 import { canTransition, holdExpiryFrom } from './domain';
-import type { BookingView } from './domain';
+import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
 
@@ -26,8 +26,43 @@ function toBookingView(b: Booking): BookingView {
     holdExpiresAt: b.holdExpiresAt,
     priceMinor: b.priceMinor,
     currency: b.currency,
+    addonsFinalizedAt: b.addonsFinalizedAt,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
+  };
+}
+
+function toTravelerView(t: Traveler): TravelerView {
+  return {
+    id: t.id,
+    organizationId: t.organizationId,
+    bookingId: t.bookingId,
+    firstName: t.firstName,
+    lastName: t.lastName,
+    age: t.age,
+    sex: t.sex,
+    nationality: t.nationality,
+    idOrPassportNumber: t.idOrPassportNumber,
+    phone: t.phone,
+    disabilities: t.disabilities,
+    allergies: t.allergies,
+    drinkPreference: t.drinkPreference,
+    isTourLead: t.isTourLead,
+    passportDocumentId: t.passportDocumentId,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
+function toBookingAddonView(a: BookingAddon): BookingAddonView {
+  return {
+    id: a.id,
+    organizationId: a.organizationId,
+    bookingId: a.bookingId,
+    addonServiceId: a.addonServiceId,
+    priceMinor: a.priceMinor,
+    currency: a.currency,
+    createdAt: a.createdAt,
   };
 }
 
@@ -123,6 +158,52 @@ export const bookingRepository = {
         data: { status: to, holdExpiresAt: to === 'HELD' ? existing.holdExpiresAt : null },
       });
       return toBookingView(b);
+    });
+  },
+
+  async createTraveler(
+    organizationId: string,
+    bookingId: string,
+    input: AddTravelerInput,
+  ): Promise<TravelerView> {
+    return withOrg(organizationId, async (tx) => {
+      const t = await tx.traveler.create({ data: { organizationId, bookingId, ...input } });
+      return toTravelerView(t);
+    });
+  },
+
+  async listTravelersForBooking(organizationId: string, bookingId: string): Promise<TravelerView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.traveler.findMany({ where: { bookingId }, orderBy: { createdAt: 'asc' } });
+      return rows.map(toTravelerView);
+    });
+  },
+
+  async setTravelerPassport(organizationId: string, travelerId: string, documentId: string): Promise<void> {
+    await withOrg(organizationId, (tx) => tx.traveler.update({ where: { id: travelerId }, data: { passportDocumentId: documentId } }));
+  },
+
+  async listAddonsForBooking(organizationId: string, bookingId: string): Promise<BookingAddonView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.bookingAddon.findMany({ where: { bookingId } });
+      return rows.map(toBookingAddonView);
+    });
+  },
+
+  /** Replace-all semantics -- this wizard step is meant to be finalized once. */
+  async replaceAddons(
+    organizationId: string,
+    bookingId: string,
+    items: Array<{ addonServiceId: string; priceMinor: number; currency: Currency }>,
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.bookingAddon.deleteMany({ where: { bookingId } });
+      if (items.length > 0) {
+        await tx.bookingAddon.createMany({
+          data: items.map((i) => ({ organizationId, bookingId, ...i })),
+        });
+      }
+      await tx.booking.update({ where: { id: bookingId }, data: { addonsFinalizedAt: new Date() } });
     });
   },
 };

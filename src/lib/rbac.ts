@@ -52,6 +52,7 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'assignment.write',
     'finance.read',
     'documents.read',
+    'documents.write', // staff upload a tour lead's passport on their behalf (DR-015)
     'invoice.read',
     'payment.initiate',
     'payment.resolve',

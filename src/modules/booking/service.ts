@@ -5,9 +5,19 @@ import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
-import { scale } from '@lib/money';
+import { add, money, scale, type Money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
-import { computeAvailability, type BookingView, type CreateBookingInput } from './domain';
+import {
+  canAddTraveler,
+  computeAvailability,
+  isTravelerManifestComplete,
+  type AddTravelerInput,
+  type BookingAddonView,
+  type BookingView,
+  type CreateBookingInput,
+  type SetAddonsInput,
+  type TravelerView,
+} from './domain';
 import { bookingRepository, SoldOutError } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
@@ -25,6 +35,26 @@ function isStaff(ctx: AuthContext): boolean {
 export interface Availability {
   capacity: number;
   seatsAvailable: number;
+}
+
+export interface BillableTotal {
+  baseMinor: number;
+  addonsMinor: number;
+  totalMinor: number;
+  currency: BookingView['currency'];
+}
+
+/** Anti-BOLA: a tourist may only act on their own booking; staff act on any
+ * booking in their org. Shared by every method below that resolves a booking
+ * by id -- don't leak existence of another tourist's booking via a 403 vs
+ * 404 distinction. */
+async function getOwnedBooking(ctx: AuthContext, organizationId: string, bookingId: string): Promise<BookingView> {
+  const booking = await bookingRepository.findById(organizationId, bookingId);
+  if (!booking) throw Errors.notFound('Booking not found');
+  if (!isStaff(ctx) && booking.touristUserId !== ctx.userId) {
+    throw Errors.notFound('Booking not found');
+  }
+  return booking;
 }
 
 export const bookingService = {
@@ -99,14 +129,7 @@ export const bookingService = {
     assertCan(ctx.role, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
-    const existing = await bookingRepository.findById(organizationId, bookingId);
-    if (!existing) throw Errors.notFound('Booking not found');
-    // Anti-BOLA: a tourist may only cancel their own booking. Don't leak
-    // existence of another tourist's booking via a 403 vs 404 distinction.
-    if (!isStaff(ctx) && existing.touristUserId !== ctx.userId) {
-      throw Errors.notFound('Booking not found');
-    }
-
+    await getOwnedBooking(ctx, organizationId, bookingId);
     const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'CANCELLED');
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
@@ -126,12 +149,7 @@ export const bookingService = {
   async getById(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx.role, 'booking.read');
     const organizationId = requireOrg(ctx);
-    const booking = await bookingRepository.findById(organizationId, bookingId);
-    if (!booking) throw Errors.notFound('Booking not found');
-    if (!isStaff(ctx) && booking.touristUserId !== ctx.userId) {
-      throw Errors.notFound('Booking not found');
-    }
-    return booking;
+    return getOwnedBooking(ctx, organizationId, bookingId);
   },
 
   /** Tourist -> their own bookings only. Staff -> the full org manifest. */
@@ -141,5 +159,114 @@ export const bookingService = {
     return isStaff(ctx)
       ? bookingRepository.listForOrg(organizationId)
       : bookingRepository.listMine(organizationId, ctx.userId);
+  },
+
+  async addTraveler(ctx: AuthContext, bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
+    assertCan(ctx.role, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const existing = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
+    if (!canAddTraveler(existing.length, booking.seats)) {
+      throw Errors.conflict('This booking already has a traveler for every seat');
+    }
+    if (input.isTourLead && existing.some((t) => t.isTourLead)) {
+      throw Errors.conflict('This booking already has a tour lead');
+    }
+
+    const traveler = await bookingRepository.createTraveler(organizationId, bookingId, input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'booking.traveler_added',
+      resourceType: 'Traveler',
+      resourceId: traveler.id,
+      organizationId,
+    });
+    return traveler;
+  },
+
+  async listTravelers(ctx: AuthContext, bookingId: string): Promise<TravelerView[]> {
+    assertCan(ctx.role, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
+    return bookingRepository.listTravelersForBooking(organizationId, bookingId);
+  },
+
+  /** Attaches an uploaded passport Document to the booking's tour lead. The
+   * Document itself is created by documentsService -- this just records the
+   * link, keeping the module boundary intact (booking never touches Blob). */
+  async setTravelerPassport(ctx: AuthContext, bookingId: string, travelerId: string, documentId: string): Promise<void> {
+    assertCan(ctx.role, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
+    const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
+    const traveler = travelers.find((t) => t.id === travelerId);
+    if (!traveler) throw Errors.notFound('Traveler not found');
+    if (!traveler.isTourLead) throw Errors.conflict('Only the tour lead needs a passport upload');
+    await bookingRepository.setTravelerPassport(organizationId, travelerId, documentId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'booking.traveler_passport_set',
+      resourceType: 'Traveler',
+      resourceId: travelerId,
+      organizationId,
+    });
+  },
+
+  /** Replace-all: the add-ons wizard step is meant to be finalized once,
+   * including choosing none -- stamps addonsFinalizedAt either way, which is
+   * what gates invoicing (see getBillableTotal). */
+  async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
+    assertCan(ctx.role, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const items = [];
+    for (const addonServiceId of input.addonServiceIds) {
+      const addon = await catalogService.getAddonService(ctx, addonServiceId);
+      if (addon.currency !== booking.currency) {
+        throw Errors.conflict('Add-on currency does not match the booking currency');
+      }
+      items.push({ addonServiceId, priceMinor: addon.priceMinor, currency: addon.currency });
+    }
+
+    await bookingRepository.replaceAddons(organizationId, bookingId, items);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'booking.addons_finalized',
+      resourceType: 'Booking',
+      resourceId: bookingId,
+      organizationId,
+    });
+    return bookingRepository.listAddonsForBooking(organizationId, bookingId);
+  },
+
+  /** The cross-module entry point invoicing calls instead of reading
+   * Booking.priceMinor directly -- combines the seat price with the
+   * finalized add-on selection. Throws until the traveler manifest + add-ons
+   * step are both complete (see domain.isTravelerManifestComplete). */
+  async getBillableTotal(ctx: AuthContext, bookingId: string): Promise<BillableTotal> {
+    assertCan(ctx.role, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
+    if (!isTravelerManifestComplete(travelers, booking.seats) || !booking.addonsFinalizedAt) {
+      throw Errors.conflict('Complete travelers, the tour lead passport, and add-ons before invoicing');
+    }
+
+    const addons = await bookingRepository.listAddonsForBooking(organizationId, bookingId);
+    const base = money(booking.priceMinor, booking.currency);
+    const total = addons.reduce<Money>((sum, a) => add(sum, money(a.priceMinor, a.currency)), base);
+
+    return {
+      baseMinor: base.minor,
+      addonsMinor: total.minor - base.minor,
+      totalMinor: total.minor,
+      currency: total.currency,
+    };
   },
 };
