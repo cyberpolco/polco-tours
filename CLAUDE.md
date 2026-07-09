@@ -299,10 +299,11 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `GET /bookings/{id}/invoice` now 409s until travelers + passport + add-ons
   are all complete — the staff booking-detail page gates on this instead of
   eagerly creating the invoice. Still staff-only (no tourist self-serve
-  equivalent yet). New OI-08: no `BLOB_READ_WRITE_TOKEN` provisioned in any
-  environment yet, so real end-to-end passport upload is only verified with
-  the Blob gateway mocked at the test boundary; production needs the token
-  configured before this ships live.
+  equivalent yet). OI-08 (`BLOB_READ_WRITE_TOKEN`) partially resolved
+  2026-07-09: `polco-tours-documents` Blob store created (`fra1`, private) and
+  connected to Production/Preview/Development on Vercel via `vercel blob
+  create-store`. Not yet a GitHub Actions secret, so CI still mocks the Blob
+  gateway boundary in tests rather than hitting it for real.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -331,7 +332,8 @@ DR-015 booking-setup wizard: `Traveler`/`Document`/`AddonService`/
 `BookingAddon` tables, add-ons flow into the invoice via
 `getBillableTotal`, first real Vercel Blob usage (`access: 'private'`,
 resolves how DR-010 actually gets exercised), `TOUR_OPERATOR` gains
-`documents.write`, new OI-08 (no `BLOB_READ_WRITE_TOKEN` provisioned yet).
+`documents.write`, OI-08 (`BLOB_READ_WRITE_TOKEN`) partially resolved —
+provisioned on Vercel, still not in CI.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..08; OI-04 resolved)
 
@@ -349,11 +351,14 @@ resolves how DR-010 actually gets exercised), `TOUR_OPERATOR` gains
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number). Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
-- **OI-08** `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) not yet provisioned in
-  any environment (CI, e2e, local, or production Vercel). Blocks real
-  end-to-end passport upload verification — `tests/api/booking-setup.api.test.ts`
-  mocks the Blob gateway boundary instead, and the Playwright e2e spec stops
-  at the passport step's upload form rather than submitting a real file.
+- ~~**OI-08** `BLOB_READ_WRITE_TOKEN` provisioning.~~ Partially resolved
+  2026-07-09: `polco-tours-documents` Blob store (`fra1`, private) created and
+  connected to Production/Preview/Development on Vercel via `vercel blob
+  create-store`. Still not a GitHub Actions secret, so CI keeps mocking the
+  Blob gateway boundary (`tests/api/booking-setup.api.test.ts`) and the
+  Playwright e2e spec still stops at the passport step's upload form rather
+  than submitting a real file. Add it as a repo secret if a CI job ever needs
+  to hit real Blob.
 
 Surface OI-01..03/05..08 to the human — don't invent answers.
 

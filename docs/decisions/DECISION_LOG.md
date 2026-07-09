@@ -38,7 +38,7 @@ template and the Definition of Done (Vol. 10 §10.3).
 | OI-05 | Resend account + API key. | Founder / ops | Real email notifications | OPEN |
 | OI-06 | WhatsApp Cloud API access (Meta Business verification, phone number). | Founder / ops | Real WhatsApp notifications | OPEN |
 | OI-07 | Africa's Talking account + API key (SMS). | Founder / ops | Real SMS notifications | OPEN |
-| OI-08 | `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) not yet provisioned in CI/e2e/local envs. | Tech lead / ops | Real end-to-end passport upload verification (unit/API tests mock the gateway boundary instead; production Vercel deploys need it configured before DR-015 ships for real) | OPEN |
+| OI-08 | `BLOB_READ_WRITE_TOKEN` (Vercel Blob store) not yet provisioned in CI/e2e/local envs. | Tech lead / ops | Real end-to-end passport upload verification (unit/API tests mock the gateway boundary instead; production Vercel deploys need it configured before DR-015 ships for real) | PARTIALLY RESOLVED — 2026-07-09: `polco-tours-documents` Blob store created (`fra1`, `access: private`) and connected to the `polco-tours` Vercel project's Production/Preview/Development env vars via `vercel blob create-store`. Still not set as a GitHub Actions secret, so CI's `quality`/`e2e` jobs still can't exercise the real Blob path (tests keep mocking the gateway boundary) — add `BLOB_READ_WRITE_TOKEN` to the repo's Actions secrets if/when a CI job needs to hit real Blob. |
 
 ## How to add a decision
 
