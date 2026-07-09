@@ -107,6 +107,7 @@ src/
     api/v1/bookings/[bookingId]/invoice   # invoicing module routes (DR-012)
     api/v1/invoices/[invoiceId]/payments  #   ...
     api/v1/payments/[paymentId]/resolve   #   ...
+    api/v1/users/me                       # profile self-service (DR-013)
   lib/                 # shared kernel: db, auth, rbac, errors, money, audit,
                        #   logger, route-guard (withAuth: session+RBAC+errors)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
@@ -114,6 +115,7 @@ src/
     catalog/           # TourPackage + Departure (DR-011)
     booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) (DR-011)
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
+    notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -233,6 +235,26 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   uncoupled from invoice/payment status (that coupling waits for real DPO),
   plus email notifications and EN/FR — those are Increment 3. Pilot with Lam
   once Increment 3 lands.
+- **Phase 1 — Core Booking, Increment 3 done 2026-07-09 (DR-013):** notifications
+  + notification-content i18n shipped — new `src/modules/notifications/`
+  (deliberately no `repository.ts`; delivery outcomes go through the existing
+  `audit()` log, not a bespoke table) wired into booking confirm/cancel and
+  invoicing payment-resolve. Real (not permanently-stubbed) HTTP adapters for
+  Resend/WhatsApp Cloud API/Africa's Talking behind a shared
+  `NotificationChannelGateway` interface (charter rule 8) — no provider
+  credentials exist yet in any environment (OI-05/06/07), so every send
+  degrades gracefully to "unavailable" and falls through the WhatsApp→SMS→
+  email chain without ever failing the triggering request. New
+  `User.phone`/`preferredLocale` + a `profile.write` self-service
+  `PATCH /users/me` (every role except `IMMIGRATION_OFFICER`). i18n scope
+  this increment is notification templates only (EN/FR) — existing API error
+  messages stay English-only, deferred (would need locale threaded through
+  `AuthContext`). Two real findings while building this increment (see
+  Gotchas): Next 15's `after()` can't be used here (throws outside the
+  request scope this repo's route-handler tests run in), and `audit_logs`
+  reads are RLS-protected too, not just writes. **Pilot with Lam next** — no
+  further increment is blocking it; OI-01/02/03/05/06/07 remain founder/ops
+  items, not engineering ones.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -251,9 +273,12 @@ Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
 1.6.23, zod 4.4.3, playwright 1.61.1) · DR-010 object storage = Vercel Blob,
 `fra1` (resolves OI-04) · DR-011 Phase 1 Increment 1: catalog + departures +
 booking/holds, no payments yet · DR-012 Phase 1 Increment 2: invoicing +
-40/60 deposit split + DPO stubbed behind `PaymentGateway` (OI-01 still open).
+40/60 deposit split + DPO stubbed behind `PaymentGateway` (OI-01 still open) ·
+DR-013 Phase 1 Increment 3: notifications module (real, env-gated
+Resend/WhatsApp Cloud/Africa's Talking adapters, OI-05/06/07 open) +
+`profile.write` self-service + notification-template EN/FR.
 
-## Open items — cannot be decided in code (see log OI-01..03; OI-04 resolved)
+## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -265,8 +290,12 @@ booking/holds, no payments yet · DR-012 Phase 1 Increment 2: invoicing +
   2026-07-08 — DR-010: Vercel Blob, `fra1`. Not yet wired up in code (no
   document upload feature exists until Phase 2); this just unblocks Phase 0
   close.
+- **OI-05** Resend account + API key. Blocks real email notifications.
+- **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
+  number). Blocks real WhatsApp notifications.
+- **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
 
-Surface OI-01..03 to the human — don't invent answers.
+Surface OI-01..03/05..07 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —
@@ -332,3 +361,17 @@ human rather than fabricating volume content.
   even though `audit_insert`'s `WITH CHECK (true)` allowed the insert itself.
   This bug existed since Phase 0 but nothing called `audit()` with a non-null
   organizationId until Phase 1's booking module did (2026-07-08).
+- `audit_logs`' RLS policy (`audit_select`) protects **reads**, not just
+  writes — a test/script querying it via the raw admin `PrismaClient` (no
+  `withOrg`) sees zero rows for any tenant-scoped entry, same deny-by-default
+  behavior as every other RLS table. Go through `withOrg(organizationId, tx
+  => tx.auditLog.findFirst(...))` to actually see them (caught writing
+  Increment 3's notification-wiring tests, 2026-07-09).
+- Next.js 15's `after()` (from `next/server`) throws synchronously (`E468`)
+  when called outside a request handled by Next's own pipeline — confirmed by
+  reading `next/dist/server/after/after.js`. This repo's `tests/api/*.test.ts`
+  call exported route handlers directly (bypassing that pipeline), so
+  `after()` cannot be used inside any `src/modules/*/service.ts` without
+  breaking every test that exercises the affected code path. Use a plain
+  `await` for fire-and-forget side effects instead (Increment 3, DR-013) —
+  there is no lighter-weight degrade-gracefully-outside-request-scope variant.
