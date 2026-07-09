@@ -105,6 +105,12 @@ jobs:
       BETTER_AUTH_SECRET: ci-secret-not-for-production
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # Real Vercel Blob store (polco-tours-documents, fra1, DR-015/OI-08) --
+      # the current e2e spec still stops at the passport step's upload form
+      # rather than submitting a real file, so this isn't exercised yet; it's
+      # here so a future increment can extend that spec without a second trip
+      # to wire up CI.
+      BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
