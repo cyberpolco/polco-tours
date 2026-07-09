@@ -14,15 +14,14 @@ export async function createVerifiedStaffUser(): Promise<{ email: string; passwo
   const email = `e2e-staff-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
   const password = 'E2E-test-password-1!';
 
-  const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
+  // organizationId is set by authConfig's databaseHooks.user.create.before
+  // (DR-011) at signup time -- relying on that here (rather than setting it
+  // explicitly) doubles as a regression check on the hook itself, which
+  // tests/auth-signup-hook.test.ts also verifies directly (see Gotchas).
   const result = await auth.api.signUpEmail({ body: { name: 'E2E Staff', email, password } });
-  // Explicitly set organizationId rather than relying on authConfig's
-  // databaseHooks.user.create.before -- see the Gotcha in CLAUDE.md: that
-  // hook did not visibly take effect for this signUpEmail call in CI, an
-  // unresolved finding tracked separately from what this test verifies.
   await prisma.user.update({
     where: { id: result.user.id },
-    data: { role: 'TOUR_OPERATOR', emailVerified: true, organizationId: org.id },
+    data: { role: 'TOUR_OPERATOR', emailVerified: true },
   });
 
   return { email, password };

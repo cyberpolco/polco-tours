@@ -20,6 +20,20 @@ import { prisma } from './db';
 // cookie wouldn't be recognized by this production instance's getSession.
 export const authConfig = {
   database: prismaAdapter(prisma, { provider: 'postgresql' }),
+  // Better Auth only writes columns it knows about -- its adapter factory's
+  // transformInput() builds the create/update payload by iterating ITS OWN
+  // schema (core fields + additionalFields declared here), silently
+  // dropping anything else, even a value databaseHooks.user.create.before
+  // correctly merges into the payload. organizationId must be declared or
+  // the hook below computes the right value and it still never reaches
+  // Postgres (root-caused via CI diagnostics, 2026-07-09 -- see Gotchas).
+  // input: false means a client can never set this directly via the
+  // sign-up request body; only the server-side hook may.
+  user: {
+    additionalFields: {
+      organizationId: { type: 'string', required: false, input: false } as const,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
@@ -45,13 +59,8 @@ export const authConfig = {
         // primary org (Lam) at signup. organizationId stays nullable in the
         // schema for the future multi-operator case; this hook is the only
         // place that decides the default.
-        async before(user: Record<string, unknown>) {
+        async before() {
           const primary = await prisma.organization.findFirst({ where: { isPrimary: true } });
-          // TEMP DIAGNOSTIC -- remove once DR-011's auto-join-org gap is root-caused.
-          console.error('[auth-hook-debug] user.create.before fired', {
-            incomingUser: user,
-            primaryOrgId: primary?.id ?? null,
-          });
           return { data: { organizationId: primary?.id ?? null } };
         },
       },
