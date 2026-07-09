@@ -42,6 +42,7 @@ let bookingId: string;
 let addonServiceId: string;
 let touristAId: string;
 let guideId: string;
+let operatorId: string;
 let leadTravelerId: string;
 
 function jsonRequest(method: string, url: string, headers: Headers, body?: unknown): NextRequest {
@@ -58,12 +59,14 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [touristA, guide] = await Promise.all([
+  const [touristA, guide, operator] = await Promise.all([
     admin.user.create({ data: { email: `setup-a-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `setup-g-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
+    admin.user.create({ data: { email: `setup-op-${Date.now()}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgId } }),
   ]);
   touristAId = touristA.id;
   guideId = guide.id;
+  operatorId = operator.id;
 
   await withOrg(orgId, async (tx) => {
     const pkg = await tx.tourPackage.create({
@@ -233,8 +236,8 @@ describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/passport', 
     expect(uploadMock).toHaveBeenCalledOnce();
   });
 
-  it('streams the passport bytes back and audits the access (200)', async () => {
-    const headers = await loginAs(touristAId);
+  it('streams the passport bytes back and audits the access (200 -- staff only, TOURIST lacks documents.read)', async () => {
+    const headers = await loginAs(operatorId);
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${leadTravelerId}/passport`, {
       headers,
     });
