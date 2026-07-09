@@ -439,3 +439,23 @@ human rather than fabricating volume content.
   real-credential-login test (DR-014, 2026-07-09), the first thing in this
   repo to call `auth.api.signUpEmail` for real. Fixed by adding
   `@default(uuid())` to both, matching `User`/`Session`'s pattern.
+- **UNRESOLVED, flag to the human:** that same first-ever real
+  `signUpEmail` call surfaced a second issue — the new user's
+  `organizationId` came back `null`, meaning `src/lib/auth.ts`'s
+  `databaseHooks.user.create.before` hook (DR-011's "new tourists auto-join
+  the primary org at signup") did not visibly take effect, even though its
+  wiring looks correct by reading better-auth's source
+  (`options.databaseHooks` → `hooksEntries` → `createWithHooks` merges the
+  hook's returned `{data}` via `{...actualData, ...result.data}`) and the
+  primary org definitely exists (other tests confirm it). This is a
+  previously **completely untested** DR-011 business rule — every other
+  test creates users via a raw `PrismaClient`, bypassing better-auth (and
+  this hook) entirely, so nothing had ever exercised it before. Worked
+  around in `e2e/helpers/staff-user.ts` (sets `organizationId` explicitly,
+  same as `e2e/helpers/booking-fixture.ts` already did) so the dashboard e2e
+  suite doesn't depend on this hook's correctness. Added
+  `tests/auth-signup-hook.test.ts` to isolate and directly verify the hook's
+  actual behavior in CI — **read its result before trusting real tourist
+  signup to auto-join Lam's org**; if it fails, the hook itself needs a real
+  fix (not just another workaround), since this would otherwise silently
+  break every future real self-service signup.
