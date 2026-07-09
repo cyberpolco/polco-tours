@@ -1,12 +1,13 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.2.0
+  version: 0.3.0
   description: >
-    Phase 1 Increment 1 (booking core: catalog, departures, availability,
-    booking + holds). Payments/invoicing/notifications land in later
-    increments -- see docs/decisions/DECISION_LOG.md DR-011. Started with
-    this PR; extend it as new endpoints are added (do not let it drift).
+    Phase 1 Increment 2 adds invoicing with per-country tax and a stubbed DPO
+    payment flow (deposit/balance, staff-resolved -- no live gateway yet,
+    OI-01 still open) -- see docs/decisions/DECISION_LOG.md DR-012.
+    Notifications/i18n land in a later increment. Extend this file as new
+    endpoints are added (do not let it drift).
 servers:
   - url: https://polcotours.com/api/v1
   - url: http://localhost:3000/api/v1
@@ -215,7 +216,9 @@ paths:
     parameters:
       - $ref: '#/components/parameters/bookingId'
     post:
-      summary: Confirm a held booking (operator only -- no DPO payment gate yet, OI-01 open)
+      summary: >-
+        Confirm a held booking (operator only -- deliberately uncoupled from
+        invoice/payment status this increment, no DPO payment gate yet, OI-01 open)
       responses:
         '200':
           description: OK
@@ -245,6 +248,103 @@ paths:
                   booking: { $ref: '#/components/schemas/Booking' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /bookings/{bookingId}/invoice:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    get:
+      summary: Get (or lazily create) the invoice for a booking
+      description: >-
+        Idempotent get-or-create -- an invoice is created on first access, not
+        at hold time. Snapshots per-country tax (DR-006) and the 40/60
+        deposit/balance split (DR-012). Ownership is inherited from the
+        booking's own anti-BOLA check.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: No effective tax rate configured for this country
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /invoices/{invoiceId}/payments:
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    get:
+      summary: List payment attempts for an invoice
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments:
+                    type: array
+                    items: { $ref: '#/components/schemas/Payment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Initiate a deposit or balance payment (stubbed DPO gateway)
+      description: >-
+        DPO's real commercial terms are still pending (OI-01) -- this returns
+        a fake redirect URL and a PENDING payment; a staff-only
+        /payments/{paymentId}/resolve action stands in for DPO's future
+        webhook. The balance leg cannot be initiated until the deposit has
+        succeeded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InitiatePaymentInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: '#/components/schemas/Payment' }
+                  redirectUrl: { type: string, format: uri }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: This payment leg cannot be initiated in the invoice's current state
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /payments/{paymentId}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/paymentId'
+    post:
+      summary: Resolve a pending payment (staff only -- stands in for a future DPO webhook)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolvePaymentInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: '#/components/schemas/Payment' }
+                  invoice: { $ref: '#/components/schemas/Invoice' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -266,6 +366,16 @@ components:
       schema: { type: string, format: uuid }
     bookingId:
       name: bookingId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    invoiceId:
+      name: invoiceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    paymentId:
+      name: paymentId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -393,3 +503,47 @@ components:
           type: string
           format: uuid
           description: Staff-only -- lets an operator book on a tourist's behalf (phone/walk-in). Ignored for a tourist caller.
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        subtotalMinor: { type: integer }
+        taxRateBp: { type: integer, description: Snapshotted at invoice-issue time (DR-006) }
+        taxMinor: { type: integer }
+        totalMinor: { type: integer }
+        depositMinor: { type: integer, description: 40% of totalMinor, half-up (DR-012) }
+        balanceMinor: { type: integer, description: totalMinor - depositMinor }
+        status: { type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        invoiceId: { type: string, format: uuid }
+        kind: { type: string, enum: [DEPOSIT, BALANCE] }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        provider: { type: string, description: 'Always "DPO" this increment -- gateway is stubbed (OI-01)' }
+        providerRef: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, SUCCEEDED, FAILED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    InitiatePaymentInput:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [DEPOSIT, BALANCE] }
+
+    ResolvePaymentInput:
+      type: object
+      required: [outcome]
+      properties:
+        outcome: { type: string, enum: [SUCCEEDED, FAILED] }
