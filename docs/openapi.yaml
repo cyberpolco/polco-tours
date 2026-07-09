@@ -1,12 +1,16 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.3.0
+  version: 0.4.0
   description: >
-    Phase 1 Increment 2 adds invoicing with per-country tax and a stubbed DPO
-    payment flow (deposit/balance, staff-resolved -- no live gateway yet,
-    OI-01 still open) -- see docs/decisions/DECISION_LOG.md DR-012.
-    Notifications/i18n land in a later increment. Extend this file as new
+    Phase 1 Increment 3 adds a self-service profile endpoint (phone +
+    preferred locale) and wires booking confirm/cancel + payment resolve to
+    a notifications module -- see docs/decisions/DECISION_LOG.md DR-013.
+    Notification content is bilingual (EN/FR); existing error messages stay
+    English-only for now. Notifications have no REST surface of their own
+    (a fire-and-forget side effect, not a queryable resource) and no
+    provider credentials exist yet (OI-05/06/07), so every send degrades to
+    "unavailable" until those are configured. Extend this file as new
     endpoints are added (do not let it drift).
 servers:
   - url: https://polcotours.com/api/v1
@@ -345,6 +349,30 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /users/me:
+    patch:
+      summary: Update your own phone / preferred notification locale
+      description: >-
+        The first "no target id" endpoint -- ctx.userId is always the
+        subject, so there is no ownership id to spoof. Denied to
+        IMMIGRATION_OFFICER (BR-10).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -547,3 +575,21 @@ components:
       required: [outcome]
       properties:
         outcome: { type: string, enum: [SUCCEEDED, FAILED] }
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string, nullable: true }
+        role: { type: string }
+        organizationId: { type: string, format: uuid, nullable: true }
+        emailVerified: { type: boolean }
+        phone: { type: string, nullable: true, description: E.164 }
+        preferredLocale: { type: string, enum: [EN, FR] }
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        phone: { type: string, nullable: true, description: E.164 }
+        preferredLocale: { type: string, enum: [EN, FR] }

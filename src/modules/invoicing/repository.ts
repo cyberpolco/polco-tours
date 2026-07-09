@@ -110,7 +110,7 @@ export const invoicingRepository = {
     organizationId: string,
     paymentId: string,
     outcome: PaymentStatus,
-  ): Promise<{ payment: PaymentView; invoice: InvoiceView } | null> {
+  ): Promise<{ payment: PaymentView; invoice: InvoiceView; touristUserId: string } | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.payment.findUnique({ where: { id: paymentId } });
       if (!existing) return null;
@@ -122,13 +122,22 @@ export const invoicingRepository = {
       const allPayments = await tx.payment.findMany({ where: { invoiceId: existing.invoiceId } });
       const nextStatus: InvoiceStatus = nextInvoiceStatusAfterPayment(allPayments);
 
-      const currentInvoice = await tx.invoice.findUniqueOrThrow({ where: { id: existing.invoiceId } });
+      // touristUserId is only needed to notify the recipient (DR-013) --
+      // never returned to the invoicing service's own callers as invoice data.
+      const currentInvoice = await tx.invoice.findUniqueOrThrow({
+        where: { id: existing.invoiceId },
+        include: { booking: { select: { touristUserId: true } } },
+      });
       const invoice =
         nextStatus === currentInvoice.status
           ? currentInvoice
           : await tx.invoice.update({ where: { id: currentInvoice.id }, data: { status: nextStatus } });
 
-      return { payment: toPaymentView(updatedPayment), invoice: toInvoiceView(invoice) };
+      return {
+        payment: toPaymentView(updatedPayment),
+        invoice: toInvoiceView(invoice),
+        touristUserId: currentInvoice.booking.touristUserId,
+      };
     });
   },
 };

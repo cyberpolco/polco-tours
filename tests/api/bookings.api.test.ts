@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { POST as createBooking } from '../../src/app/api/v1/bookings/route';
+import { POST as confirmBooking } from '../../src/app/api/v1/bookings/[bookingId]/confirm/route';
 
 /**
  * First API-level test in the repo: drives the real route handler (session
@@ -21,9 +22,11 @@ const admin = new PrismaClient();
 
 let orgId: string;
 let departureId: string;
+let bookingId: string;
 let touristAId: string;
 let touristBId: string;
 let guideId: string;
+let operatorId: string;
 
 function jsonRequest(url: string, headers: Headers, body: unknown): NextRequest {
   const h = new Headers(headers);
@@ -37,14 +40,16 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [touristA, touristB, guide] = await Promise.all([
+  const [touristA, touristB, guide, operator] = await Promise.all([
     admin.user.create({ data: { email: `a-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `b-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `g-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
+    admin.user.create({ data: { email: `op-${Date.now()}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgId } }),
   ]);
   touristAId = touristA.id;
   touristBId = touristB.id;
   guideId = guide.id;
+  operatorId = operator.id;
 
   await withOrg(orgId, async (tx) => {
     const pkg = await tx.tourPackage.create({
@@ -90,6 +95,7 @@ describe('POST /api/v1/bookings', () => {
     const body = await res.json();
     expect(body.booking.status).toBe('HELD');
     expect(body.booking.touristUserId).toBe(touristAId);
+    bookingId = body.booking.id;
   });
 
   it('rejects once the departure is sold out (409)', async () => {
@@ -106,5 +112,30 @@ describe('POST /api/v1/bookings', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings', headers, { departureId, seats: 1 });
     const res = await createBooking(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/v1/bookings/:bookingId/confirm', () => {
+  it('an operator confirms the held booking (200), notifying without slowing/failing the response', async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/confirm`, {
+      method: 'POST',
+      headers,
+    });
+    const res = await confirmBooking(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.booking.status).toBe('CONFIRMED');
+
+    // No provider credentials exist in this environment (OI-05/06/07) --
+    // notify() falls through every channel and audits the exhaustion.
+    // audit_logs is RLS-protected even for reads, so this must go through
+    // withOrg, not the raw admin client.
+    const notified = await withOrg(orgId, (tx) =>
+      tx.auditLog.findFirst({
+        where: { organizationId: orgId, action: 'notification.failed', resourceType: 'Notification' },
+      }),
+    );
+    expect(notified).not.toBeNull();
   });
 });

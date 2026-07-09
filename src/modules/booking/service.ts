@@ -2,6 +2,7 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
+import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { scale } from '@lib/money';
@@ -88,6 +89,9 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
+    await notificationsService.notify('BOOKING_CONFIRMED', updated.touristUserId, organizationId, {
+      bookingId: updated.id,
+    });
     return updated;
   },
 
@@ -112,6 +116,9 @@ export const bookingService = {
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
+    });
+    await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
+      bookingId: updated.id,
     });
     return updated;
   },

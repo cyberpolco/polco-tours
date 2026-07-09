@@ -4,6 +4,7 @@ import type { PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { money, taxOf } from '@lib/money';
@@ -143,6 +144,14 @@ export const invoicingService = {
       resourceId: result.payment.id,
       organizationId,
     });
-    return result;
+    await notificationsService.notify(
+      outcome === 'SUCCEEDED' ? 'PAYMENT_SUCCEEDED' : 'PAYMENT_FAILED',
+      result.touristUserId,
+      organizationId,
+      { amountMinor: result.payment.amountMinor, currency: result.payment.currency },
+    );
+    // Rebuilt explicitly (not `return result`) -- touristUserId is only for
+    // notify() above, never part of this endpoint's response contract.
+    return { payment: result.payment, invoice: result.invoice };
   },
 };

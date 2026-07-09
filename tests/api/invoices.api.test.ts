@@ -179,6 +179,21 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     const body = await res.json();
     expect(body.payment.status).toBe('SUCCEEDED');
     expect(body.invoice.status).toBe('PARTIALLY_PAID');
+    // touristUserId is resolved internally to notify the recipient (DR-013)
+    // but must never leak into this endpoint's response contract.
+    expect(body).not.toHaveProperty('touristUserId');
+
+    // No provider credentials exist in this environment (OI-05/06/07) --
+    // notify() falls through every channel and audits the exhaustion,
+    // without the response above being slowed down or failed. audit_logs
+    // is RLS-protected (rls.sql) even for reads, so this must go through
+    // withOrg, not the raw admin client.
+    const notified = await withOrg(orgId, (tx) =>
+      tx.auditLog.findFirst({
+        where: { organizationId: orgId, action: 'notification.failed', resourceType: 'Notification' },
+      }),
+    );
+    expect(notified).not.toBeNull();
   });
 
   it('now allows initiating the BALANCE leg (201)', async () => {
