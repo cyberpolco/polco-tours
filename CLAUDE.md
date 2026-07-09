@@ -423,3 +423,19 @@ human rather than fabricating volume content.
   role as the `quality` job), so an unscoped insert is invisible to the app
   and fails the test confusingly rather than with a clear error (DR-014,
   `e2e/helpers/booking-fixture.ts`).
+- `Account.id`/`Verification.id` had no `@default(uuid())` (unlike every
+  other model, incl. `User`/`Session`) — `authConfig`'s `generateId: 'uuid'`
+  (`src/lib/auth.ts`) tells better-auth's Postgres adapter to OMIT the id and
+  let the database generate it (`gen_random_uuid()`), but nothing in
+  `rls.sql`/`schema.prisma` ever added that as an actual column default —
+  `User`/`Session` only ever "worked" because Prisma's own client-side
+  `@default(uuid())` silently filled the gap when better-auth's adapter left
+  `id` out. `Account`/`Verification` had no such fallback, so the very first
+  real `signUpEmail` call (creating the credential `Account` row) threw
+  "Argument `id` is missing" at the Prisma layer. Nothing had ever exercised
+  real signup before — every existing test used `testUtils()`'s
+  `ctx.test.login()` shortcut, which mints a `Session` directly and never
+  touches `Account` at all. Caught by `e2e/staff-dashboard.spec.ts`'s
+  real-credential-login test (DR-014, 2026-07-09), the first thing in this
+  repo to call `auth.api.signUpEmail` for real. Fixed by adding
+  `@default(uuid())` to both, matching `User`/`Session`'s pattern.
