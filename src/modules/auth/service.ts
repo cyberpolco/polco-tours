@@ -11,6 +11,13 @@ export const authService = {
     return authRepository.findUserById(id);
   },
 
+  /** Internal backend-to-backend lookup (mirrors getUser) -- used by staff
+   * booking-on-behalf-of-a-client flows to resolve an existing tourist by
+   * email. No internal permission check; the caller gates first. */
+  async getUserByEmail(email: string): Promise<PublicUser | null> {
+    return authRepository.findUserByEmail(email);
+  },
+
   /** Self-service only -- ctx.userId is always the target, no ownership
    * param exists to check (DR-013). assertCan is redundant with the route's
    * withAuth gate but matches every other business-action service method's
