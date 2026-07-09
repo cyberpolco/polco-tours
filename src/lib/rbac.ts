@@ -20,6 +20,7 @@ export type Permission =
   | 'invoice.read'
   | 'payment.initiate'
   | 'payment.resolve'
+  | 'profile.write'
   | 'documents.read'
   | 'documents.write'
   | 'visa.process'
@@ -54,11 +55,16 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'invoice.read',
     'payment.initiate',
     'payment.resolve',
+    'profile.write',
   ],
-  TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read'],
-  DRIVER: ['catalog.read', 'booking.read'],
-  VEHICLE_OWNER: ['catalog.read', 'finance.read'],
-  VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process'],
+  TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read', 'profile.write'],
+  DRIVER: ['catalog.read', 'booking.read', 'profile.write'],
+  VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write'],
+  VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process', 'profile.write'],
+  // Deliberately no profile.write either: BR-10's "strictly read-only" is
+  // interpreted broadly here to preserve this role's single-permission
+  // footprint, even though a self-service phone/locale update isn't itself
+  // an immigration-data write (DR-013).
   IMMIGRATION_OFFICER: ['immigration.read'], // strictly read-only (BR-10)
   TOURIST: [
     'catalog.read',
@@ -71,6 +77,7 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     // Deliberately no payment.resolve: only staff resolve a payment
     // (mirrors the future DPO webhook actor) -- a tourist self-marking
     // their own payment succeeded would be a fraud vector (DR-012).
+    'profile.write', // set own phone/preferredLocale for notifications (DR-013)
   ],
 };
 

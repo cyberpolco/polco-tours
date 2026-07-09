@@ -78,6 +78,11 @@ enum PaymentStatus {
   FAILED
 }
 
+enum Locale {
+  EN
+  FR
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -100,16 +105,18 @@ model Organization {
 }
 
 model User {
-  id             String    @id @default(uuid()) @db.Uuid
-  email          String    @unique
-  name           String?
-  role           Role      @default(TOURIST)
-  emailVerified  Boolean   @default(false)
-  image          String? // better-auth: avatar URL
-  organizationId String?   @db.Uuid
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  name            String?
+  role            Role      @default(TOURIST)
+  emailVerified   Boolean   @default(false)
+  image           String? // better-auth: avatar URL
+  phone           String? // E.164 -- WhatsApp/SMS addressing (DR-013)
+  preferredLocale Locale    @default(EN)
+  organizationId  String?   @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   memberships Membership[]
   sessions    Session[]

@@ -61,4 +61,14 @@ describe('RBAC permission matrix', () => {
     expect(can('DRIVER', 'invoice.read')).toBe(false);
     expect(can('DRIVER', 'payment.initiate')).toBe(false);
   });
+
+  it('every role except IMMIGRATION_OFFICER can self-service their profile (DR-013)', () => {
+    expect(can('TOUR_OPERATOR', 'profile.write')).toBe(true);
+    expect(can('TOURIST', 'profile.write')).toBe(true);
+    expect(can('TOUR_GUIDE', 'profile.write')).toBe(true);
+    expect(can('DRIVER', 'profile.write')).toBe(true);
+    expect(can('VEHICLE_OWNER', 'profile.write')).toBe(true);
+    expect(can('VISA_FACILITATOR', 'profile.write')).toBe(true);
+    expect(can('IMMIGRATION_OFFICER', 'profile.write')).toBe(false);
+  });
 });
