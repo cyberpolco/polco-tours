@@ -108,8 +108,13 @@ src/
     api/v1/invoices/[invoiceId]/payments  #   ...
     api/v1/payments/[paymentId]/resolve   #   ...
     api/v1/users/me                       # profile self-service (DR-013)
-  lib/                 # shared kernel: db, auth, rbac, errors, money, audit,
-                       #   logger, route-guard (withAuth: session+RBAC+errors)
+    api/auth/[...all]/                    # Better Auth's own mount (DR-014)
+    staff/login, staff/forbidden          # outside the auth gate (DR-014)
+    staff/(dashboard)/...                 # staff pilot dashboard (DR-014)
+  lib/                 # shared kernel: db, auth, auth-client, rbac, errors,
+                       #   money, audit, logger, route-guard (withAuth: HTTP
+                       #   routes), staff-guard (requireStaffContext: Server
+                       #   Components/Actions, DR-014)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
     catalog/           # TourPackage + Departure (DR-011)
@@ -125,7 +130,9 @@ scripts/apply-rls.mjs  # runs rls.sql
 tests/                 # Vitest: RLS cross-tenant (one file per tenant table),
                        #   RBAC, money, catalog/booking domain, api/ (route-
                        #   level, real session via tests/helpers/test-auth.ts)
-e2e/                   # Playwright smoke
+e2e/                   # Playwright: smoke + staff-dashboard (DR-014, has its
+                       #   own CI job -- Postgres bootstrap isn't shared with
+                       #   the `quality` job)
 docs/decisions/        # DECISION_LOG.md (DR-007 living record)
 docs/design-package/   # the 11 volumes (put the master PDF/markdown here)
 docs/openapi.yaml      # started in DR-011's PR — keep it current with routes
@@ -252,9 +259,24 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `AuthContext`). Two real findings while building this increment (see
   Gotchas): Next 15's `after()` can't be used here (throws outside the
   request scope this repo's route-handler tests run in), and `audit_logs`
-  reads are RLS-protected too, not just writes. **Pilot with Lam next** — no
-  further increment is blocking it; OI-01/02/03/05/06/07 remain founder/ops
-  items, not engineering ones.
+  reads are RLS-protected too, not just writes.
+- **Staff dashboard (pilot tooling) done 2026-07-09 (DR-014):** the repo's
+  first authenticated frontend — `src/app/staff/...` (login outside the
+  auth gate, a `(dashboard)` route group for everything else), backed by
+  Better Auth's HTTP route mounted for the first time
+  (`toNextJsHandler`/`createAuthClient`) and `src/lib/staff-guard.ts`
+  (`requireStaffContext`, the Server-Component/Action equivalent of
+  `withAuth`). Lets Lam log in, list/confirm/cancel bookings, view an
+  invoice, send a deposit/balance payment link, and mark a payment resolved
+  by hand (real money still goes through cash/bank transfer this pilot —
+  DPO stays stubbed, OI-01 still open). Staff can only book on behalf of a
+  tourist who **already has an account** (found by email) — creating one on
+  the spot is explicitly deferred, `Booking.touristUserId` is a hard FK and
+  no such capability exists yet. First real Playwright coverage + a new CI
+  job (`e2e`, own Postgres bootstrap, mirrors `quality`). **Pilot with Lam
+  next** — no further increment is blocking it; OI-01/02/03/05/06/07 remain
+  founder/ops items, not engineering ones. Tourist-facing self-serve site
+  (package "tailor your trip" quiz → book → pay) is the planned fast-follow.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -276,7 +298,9 @@ booking/holds, no payments yet · DR-012 Phase 1 Increment 2: invoicing +
 40/60 deposit split + DPO stubbed behind `PaymentGateway` (OI-01 still open) ·
 DR-013 Phase 1 Increment 3: notifications module (real, env-gated
 Resend/WhatsApp Cloud/Africa's Talking adapters, OI-05/06/07 open) +
-`profile.write` self-service + notification-template EN/FR.
+`profile.write` self-service + notification-template EN/FR · DR-014 staff
+dashboard: first authenticated frontend, Better Auth HTTP route mounted,
+staff can only book for already-registered tourists, new e2e CI job.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04 resolved)
 
@@ -375,3 +399,27 @@ human rather than fabricating volume content.
   breaking every test that exercises the affected code path. Use a plain
   `await` for fire-and-forget side effects instead (Increment 3, DR-013) —
   there is no lighter-weight degrade-gracefully-outside-request-scope variant.
+- No Better Auth HTTP route existed anywhere until DR-014 (`src/app/api/auth/
+  [...all]/route.ts`) — `auth.api.getSession`/etc. worked fine for already-
+  authenticated requests (nothing about session resolution needs the route),
+  but there was no way to actually sign in over HTTP. If a future increment
+  needs email verification or password reset to really work end-to-end, that
+  also flows through this same mount, via `toNextJsHandler`.
+- `prisma/seed.ts` seeds Lam with `emailVerified: true` but **no password**
+  (no `Account`/credential row) — it also runs against real environments via
+  `db:setup`, so never hardcode a test password there. For anything that
+  needs a real credentialed login (e2e), create a throwaway user via
+  `auth.api.signUpEmail` + a direct `prisma.user.update({emailVerified:true})`
+  instead (see `e2e/helpers/staff-user.ts`, DR-014) — never touches Lam's row.
+- **Route-group gate placement matters.** `src/app/staff/(dashboard)/layout.tsx`
+  calls `requireStaffContext` (redirects to `/staff/login` if unauthenticated);
+  `/staff/login` and `/staff/forbidden` are siblings OUTSIDE the `(dashboard)`
+  group specifically so they never inherit that gate. Adding a
+  `src/app/staff/layout.tsx` "for shared chrome" later would apply to
+  login/forbidden too and reintroduce a redirect loop — don't.
+- e2e fixtures for tenant-scoped tables (packages/departures/bookings/etc.)
+  MUST be seeded through `withOrg(...)`, not a raw unscoped `prisma.create` —
+  RLS is live for the app under test in CI (same non-superuser `polco_app`
+  role as the `quality` job), so an unscoped insert is invisible to the app
+  and fails the test confusingly rather than with a clear error (DR-014,
+  `e2e/helpers/booking-fixture.ts`).
