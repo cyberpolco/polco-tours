@@ -45,8 +45,13 @@ export const authConfig = {
         // primary org (Lam) at signup. organizationId stays nullable in the
         // schema for the future multi-operator case; this hook is the only
         // place that decides the default.
-        async before() {
+        async before(user: Record<string, unknown>) {
           const primary = await prisma.organization.findFirst({ where: { isPrimary: true } });
+          // TEMP DIAGNOSTIC -- remove once DR-011's auto-join-org gap is root-caused.
+          console.error('[auth-hook-debug] user.create.before fired', {
+            incomingUser: user,
+            primaryOrgId: primary?.id ?? null,
+          });
           return { data: { organizationId: primary?.id ?? null } };
         },
       },
