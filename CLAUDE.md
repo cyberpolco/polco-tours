@@ -104,12 +104,16 @@ src/
     api/v1/catalog/packages/...           # catalog module routes
     api/v1/departures/[departureId]/...   # departure detail + availability
     api/v1/bookings/...                   # booking module routes
+    api/v1/bookings/[bookingId]/invoice   # invoicing module routes (DR-012)
+    api/v1/invoices/[invoiceId]/payments  #   ...
+    api/v1/payments/[paymentId]/resolve   #   ...
   lib/                 # shared kernel: db, auth, rbac, errors, money, audit,
                        #   logger, route-guard (withAuth: session+RBAC+errors)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
     catalog/           # TourPackage + Departure (DR-011)
     booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) (DR-011)
+    invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -216,7 +220,19 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   found building this increment (see Gotchas): Better Auth's non-UUID default
   IDs vs. our `@db.Uuid` columns, and a Phase-0-era `audit()` RLS bug that
   nothing had triggered until this increment's first tenant-scoped audit call.
-  Pilot with Lam once Increment 2 lands.
+- **Phase 1 — Core Booking, Increment 2 done 2026-07-09 (DR-012):** invoicing
+  with per-country tax + a stubbed DPO payment flow shipped — new
+  `src/modules/invoicing/` (Invoice 1:1 with Booking, Payment folded in as a
+  sub-concept per DR-011's precedent), `src/lib/tax.ts` (first `TaxRate`
+  reader), 4 new routes, `docs/openapi.yaml` updated. New business rule:
+  40%/60% deposit/balance split, half-up, on the post-tax total. DPO is
+  stubbed behind a `PaymentGateway` interface (charter rule 8) — a staff-only
+  route resolves a `PENDING` payment to `SUCCEEDED`/`FAILED`, standing in for
+  DPO's future webhook; only the adapter changes when OI-01's commercial
+  terms land. Deliberately **not yet done**: booking confirmation is still
+  uncoupled from invoice/payment status (that coupling waits for real DPO),
+  plus email notifications and EN/FR — those are Increment 3. Pilot with Lam
+  once Increment 3 lands.
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -234,7 +250,8 @@ superadmin · DR-006 per-country tax · DR-007 living-doc mandate · DR-008
 Phase 0 scaffold · DR-009 dependency security bump (Next 15.5.20, better-auth
 1.6.23, zod 4.4.3, playwright 1.61.1) · DR-010 object storage = Vercel Blob,
 `fra1` (resolves OI-04) · DR-011 Phase 1 Increment 1: catalog + departures +
-booking/holds, no payments yet.
+booking/holds, no payments yet · DR-012 Phase 1 Increment 2: invoicing +
+40/60 deposit split + DPO stubbed behind `PaymentGateway` (OI-01 still open).
 
 ## Open items — cannot be decided in code (see log OI-01..03; OI-04 resolved)
 
@@ -269,6 +286,13 @@ human rather than fabricating volume content.
   `rls.sql`'s FORCE-policy comment contains "...policies; without FORCE...").
 - `prisma generate` (postinstall) downloads engines from `binaries.prisma.sh`
   — fine on Vercel/GitHub, may be blocked in restricted sandboxes.
+- DB-backed tests (`tests/rls.cross-tenant.*`, `tests/api/*`, `tests/lib/tax.test.ts`)
+  need a reachable Postgres via `DATABASE_URL`/`DIRECT_URL` (`.env`) — a
+  sandbox with no `.env` and no passwordless local Postgres access (as of
+  2026-07-09, this repo's dev sandbox has neither) can still run lint/
+  typecheck/build/pure-domain-unit tests, but those DB-backed suites only get
+  verified in CI (which provisions its own `postgres:16` service) or against
+  a real local/Neon DB with credentials.
 - better-auth needs `npx @better-auth/cli generate` to emit its tables into the
   schema before `db:push`.
 - better-auth's default ID generator produces non-UUID strings and passes them
