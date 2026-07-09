@@ -10,4 +10,12 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Builds + starts the real app against whatever DB the env vars point at
+  // (CI provisions its own Postgres, same role/seed as the `quality` job).
+  webServer: {
+    command: 'npm run build && npm run start',
+    url: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 180000,
+  },
 });

@@ -77,6 +77,66 @@ jobs:
       - name: Build
         run: npm run build
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: quality
+
+    # Jobs don't share services -- mirrors `quality`'s Postgres bootstrap
+    # exactly (own service, own polco_app role, own db:setup) since the app
+    # under test needs a real seeded, RLS-enforcing DB (DR-014).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: polco
+          POSTGRES_PASSWORD: polco
+          POSTGRES_DB: polco_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U polco"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://polco_app:polco_app@localhost:5432/polco_test
+      DIRECT_URL: postgresql://polco_app:polco_app@localhost:5432/polco_test
+      BETTER_AUTH_SECRET: ci-secret-not-for-production
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Create non-superuser app role (RLS must actually apply)
+        run: |
+          PGPASSWORD=polco psql -h localhost -U polco -d polco_test -v ON_ERROR_STOP=1 -c "
+            CREATE ROLE polco_app LOGIN PASSWORD 'polco_app' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+            GRANT ALL PRIVILEGES ON DATABASE polco_test TO polco_app;
+            GRANT ALL ON SCHEMA public TO polco_app;
+          "
+
+      - name: Prepare database (schema + RLS + seed)
+        run: |
+          npm run db:push
+          npm run db:rls
+          npm run db:seed
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
   # Non-blocking scan surface; hardened further in Vol. 8 §8.6.
   security:
     name: Dependency audit
