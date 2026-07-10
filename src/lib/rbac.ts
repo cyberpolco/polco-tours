@@ -75,8 +75,19 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   // booking.read is needed to resolve a traveler by bookingId+travelerId
   // (visa/service.ts's findTraveler, same pattern the passport route uses)
   // -- without it every visa route 500s, since bookingService.listTravelers
-  // itself asserts booking.read (DR-019 CI failure, fixed here).
-  VISA_FACILITATOR: ['booking.read', 'documents.read', 'documents.write', 'visa.process', 'profile.write'],
+  // itself asserts booking.read. catalog.read is needed because
+  // submitApplication also calls catalogService.getDepartureDetail (to
+  // snapshot the destination country) -- both caught by real CI failures,
+  // not locally (this sandbox has no DB to run tests/api/visa.api.test.ts
+  // against), fixed here (DR-019).
+  VISA_FACILITATOR: [
+    'catalog.read',
+    'booking.read',
+    'documents.read',
+    'documents.write',
+    'visa.process',
+    'profile.write',
+  ],
   // Deliberately no profile.write either: BR-10's "strictly read-only" is
   // interpreted broadly here to preserve this role's single-permission
   // footprint, even though a self-service phone/locale update isn't itself

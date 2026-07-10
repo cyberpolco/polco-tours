@@ -109,12 +109,14 @@ describe('RBAC permission matrix', () => {
     expect(can('TOURIST', 'assignment.read')).toBe(false);
   });
 
-  it('VISA_FACILITATOR can process visas, read bookings/documents, but not immigration.read (DR-019)', () => {
+  it('VISA_FACILITATOR can process visas, read catalog/bookings/documents, but not immigration.read (DR-019)', () => {
     expect(can('VISA_FACILITATOR', 'visa.process')).toBe(true);
     expect(can('VISA_FACILITATOR', 'documents.read')).toBe(true);
-    // Needed to resolve a traveler by bookingId+travelerId (findTraveler) --
-    // missing this caused every visa route to 500 in CI.
+    // Needed to resolve a traveler by bookingId+travelerId (findTraveler) and
+    // to snapshot the destination country (catalogService.getDepartureDetail)
+    // -- missing these caused every visa route to 500 in CI.
     expect(can('VISA_FACILITATOR', 'booking.read')).toBe(true);
+    expect(can('VISA_FACILITATOR', 'catalog.read')).toBe(true);
     expect(can('VISA_FACILITATOR', 'immigration.read')).toBe(false);
   });
 
