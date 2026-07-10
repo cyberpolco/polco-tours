@@ -22,6 +22,7 @@
     "db:rls": "node scripts/apply-rls.mjs",
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "npm run db:push && npm run db:rls && npm run db:seed",
+    "staff:create": "tsx scripts/create-staff-user.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
