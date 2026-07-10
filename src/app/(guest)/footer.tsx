@@ -34,7 +34,12 @@ export function GuestFooter() {
           <p className="eyebrow text-mist">Namibia · DRC</p>
         </div>
         <div className="survey-rule mt-8 opacity-20" />
-        <p className="mt-6 text-xs text-mist">&copy; {year} Polco Tours.</p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-xs text-mist">&copy; {year} Polco Tours.</p>
+          <Link href="/staff/login" className="text-xs text-mist hover:text-amber">
+            Admin Access
+          </Link>
+        </div>
       </div>
     </footer>
   );
