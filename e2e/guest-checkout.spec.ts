@@ -21,6 +21,14 @@ test.describe('guest checkout (DR-016)', () => {
     await page.locator('input[name="localNumber"]').fill('811234567');
     await page.getByRole('button', { name: 'Start my booking' }).click();
 
+    // Diagnostic: surface whatever visible error the form produced (if any)
+    // in the test failure message itself, instead of a bare URL-mismatch
+    // timeout that gives no clue why the flow didn't advance.
+    const bookingFormError = page.locator('form p.text-amber');
+    if (await bookingFormError.isVisible({ timeout: 8000 }).catch(() => false)) {
+      throw new Error(`Guest booking form showed an error: ${await bookingFormError.innerText()}`);
+    }
+
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]+$/);
     await expect(page.getByText('BOOKING SETUP')).toBeVisible();
     await page.getByRole('link', { name: 'Continue setup' }).click();
