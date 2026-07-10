@@ -1,6 +1,12 @@
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { complianceStatus, fleetService } from '@modules/fleet';
+import { Alert } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
+import { FormField } from '@/components/ui/FormField';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SubmitButton } from '@/components/ui/SubmitButton';
+import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { updateVehicleAction, uploadVehicleDocumentAction } from './actions';
 
 interface Props {
@@ -13,13 +19,6 @@ const VEHICLE_DOCUMENT_KINDS = [
   { kind: 'VEHICLE_INSURANCE', label: 'Insurance' },
   { kind: 'VEHICLE_INSPECTION', label: 'Inspection' },
 ] as const;
-
-const STATUS_CLASS: Record<string, string> = {
-  MISSING: 'text-mist',
-  VALID: 'text-forest',
-  EXPIRING_SOON: 'text-amber',
-  EXPIRED: 'font-semibold text-amber',
-};
 
 export default async function VehicleDetailPage({ params, searchParams }: Props) {
   const { vehicleId } = await params;
@@ -38,101 +37,45 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
 
   return (
     <div className="max-w-2xl space-y-8">
-      <div>
-        <p className="text-xs tracking-survey text-mist">VEHICLE</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">
-          {vehicle.make} {vehicle.model} · {vehicle.plateNumber}
-        </h1>
-      </div>
+      <PageHeader eyebrow="Vehicle" title={`${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}`} />
 
-      <form action={updateVehicleAction.bind(null, vehicleId)} className="space-y-4 border-t border-rule pt-6">
+      <form action={updateVehicleAction.bind(null, vehicleId)} className="space-y-4">
+        <div className="survey-rule mb-2" />
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="plateNumber" className="mb-1 block text-sm text-mist">
-              Plate number
-            </label>
-            <input
-              id="plateNumber"
-              name="plateNumber"
-              defaultValue={vehicle.plateNumber}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </div>
-          <div>
-            <label htmlFor="status" className="mb-1 block text-sm text-mist">
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={vehicle.status}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+          <FormField label="Plate number" htmlFor="plateNumber">
+            <input name="plateNumber" defaultValue={vehicle.plateNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Status" htmlFor="status">
+            <select name="status" defaultValue={vehicle.status} className="w-full rounded-survey border border-rule px-3 py-2">
               <option value="ACTIVE">ACTIVE</option>
               <option value="MAINTENANCE">MAINTENANCE</option>
               <option value="RETIRED">RETIRED</option>
             </select>
-          </div>
+          </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="make" className="mb-1 block text-sm text-mist">
-              Make
-            </label>
-            <input
-              id="make"
-              name="make"
-              defaultValue={vehicle.make}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </div>
-          <div>
-            <label htmlFor="model" className="mb-1 block text-sm text-mist">
-              Model
-            </label>
-            <input
-              id="model"
-              name="model"
-              defaultValue={vehicle.model}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </div>
+          <FormField label="Make" htmlFor="make">
+            <input name="make" defaultValue={vehicle.make} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Model" htmlFor="model">
+            <input name="model" defaultValue={vehicle.model} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="vehicleType" className="mb-1 block text-sm text-mist">
-              Type
-            </label>
+          <FormField label="Type" htmlFor="vehicleType">
+            <input name="vehicleType" defaultValue={vehicle.vehicleType} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Year" htmlFor="year" optional>
             <input
-              id="vehicleType"
-              name="vehicleType"
-              defaultValue={vehicle.vehicleType}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </div>
-          <div>
-            <label htmlFor="year" className="mb-1 block text-sm text-mist">
-              Year
-            </label>
-            <input
-              id="year"
               name="year"
               type="number"
               defaultValue={vehicle.year ?? undefined}
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
-          </div>
+          </FormField>
         </div>
-        <div>
-          <label htmlFor="seatCapacity" className="mb-1 block text-sm text-mist">
-            Seat capacity
-          </label>
+        <FormField label="Seat capacity" htmlFor="seatCapacity">
           <input
-            id="seatCapacity"
             name="seatCapacity"
             type="number"
             min={1}
@@ -140,16 +83,23 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             required
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
-        </div>
-        <button type="submit" className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-          Save changes
-        </button>
+        </FormField>
+        <SubmitButton>Save changes</SubmitButton>
       </form>
 
-      <div className="border-t border-rule pt-6">
-        <p className="text-xs tracking-survey text-mist">COMPLIANCE DOCUMENTS</p>
-        {error === 'missing_file' && <p className="mt-2 text-sm text-amber">Choose a file to upload.</p>}
-        {error === 'invalid_kind' && <p className="mt-2 text-sm text-amber">Choose a document type.</p>}
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Compliance documents</p>
+        {error === 'missing_file' && (
+          <div className="mt-2">
+            <Alert tone="error">Choose a file to upload.</Alert>
+          </div>
+        )}
+        {error === 'invalid_kind' && (
+          <div className="mt-2">
+            <Alert tone="error">Choose a document type.</Alert>
+          </div>
+        )}
         <div className="mt-4 space-y-6">
           {VEHICLE_DOCUMENT_KINDS.map(({ kind, label }) => {
             const latest = documents
@@ -161,7 +111,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
               <div key={kind} className="border-b border-rule pb-4">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-ink">{label}</span>
-                  <span className={STATUS_CLASS[status]}>{status}</span>
+                  <Badge tone={COMPLIANCE_STATUS_TONE[status]}>{status}</Badge>
                 </div>
                 {latest && (
                   <p className="mt-1 text-sm text-mist">
@@ -184,9 +134,9 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
                     <label className="mb-1 block text-xs text-mist">Expires on</label>
                     <input type="date" name="expiresAt" className="rounded-survey border border-rule px-2 py-1 text-sm" />
                   </div>
-                  <button type="submit" className="rounded-survey border border-rule px-3 py-1 text-sm text-ink">
+                  <SubmitButton variant="secondary" size="compact" pendingLabel="Uploading…">
                     Upload
-                  </button>
+                  </SubmitButton>
                 </form>
               </div>
             );

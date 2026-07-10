@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
+import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
+import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 export default async function BookingsPage() {
   const ctx = await requireStaffContext('booking.read');
@@ -9,36 +13,38 @@ export default async function BookingsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-navy">Bookings</h1>
+      <PageHeader eyebrow="Dashboard" title="Bookings" />
       {bookings.length === 0 ? (
-        <p className="text-mist">No bookings yet.</p>
+        <p className="mt-6 text-mist">No bookings yet.</p>
       ) : (
-        <table className="w-full text-left text-sm">
+        <Table className="mt-6">
           <thead>
-            <tr className="border-b border-rule text-mist">
-              <th className="py-2">Status</th>
-              <th className="py-2">Seats</th>
-              <th className="py-2">Price</th>
-              <th className="py-2">Created</th>
-              <th className="py-2" />
-            </tr>
+            <TableHeaderRow>
+              <Th>Status</Th>
+              <Th>Seats</Th>
+              <Th>Price</Th>
+              <Th>Created</Th>
+              <Th />
+            </TableHeaderRow>
           </thead>
           <tbody>
             {bookings.map((b) => (
-              <tr key={b.id} className="border-b border-rule">
-                <td className="py-2">{b.status}</td>
-                <td className="py-2">{b.seats}</td>
-                <td className="py-2">{format(money(b.priceMinor, b.currency))}</td>
-                <td className="py-2">{b.createdAt.toLocaleDateString()}</td>
-                <td className="py-2">
+              <Tr key={b.id}>
+                <Td>
+                  <Badge tone={BOOKING_STATUS_TONE[b.status]}>{b.status}</Badge>
+                </Td>
+                <Td>{b.seats}</Td>
+                <Td>{format(money(b.priceMinor, b.currency))}</Td>
+                <Td>{b.createdAt.toLocaleDateString()}</Td>
+                <Td>
                   <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
                     View
                   </Link>
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       )}
     </div>
   );

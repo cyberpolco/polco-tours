@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
+import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { format, money } from '@lib/money';
+import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
 
 interface Props {
   searchParams: Promise<{ packageId?: string }>;
@@ -19,17 +22,20 @@ export default async function DeparturesPage({ searchParams }: Props) {
     const departures = await catalogService.listDepartures(ctx, packageId);
     return (
       <div>
-        <p className="text-xs tracking-survey text-mist">DEPARTURES</p>
+        <p className="eyebrow text-mist">Departures</p>
         {departures.length === 0 ? (
           <p className="mt-4 text-mist">No departures scheduled for this package.</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {departures.map((d) => (
-              <li key={d.id}>
-                <Link href={`/staff/departures/${d.id}`} className="text-forest hover:underline">
-                  {d.startDate.toLocaleDateString()} · capacity {d.capacity} · {d.status}
+              <Card as="li" key={d.id}>
+                <Link href={`/staff/departures/${d.id}`} className="flex items-center justify-between text-forest hover:underline">
+                  <span>
+                    {d.startDate.toLocaleDateString()} · capacity {d.capacity}
+                  </span>
+                  <Badge tone={DEPARTURE_STATUS_TONE[d.status]}>{d.status}</Badge>
                 </Link>
-              </li>
+              </Card>
             ))}
           </ul>
         )}
@@ -43,17 +49,17 @@ export default async function DeparturesPage({ searchParams }: Props) {
   const packages = await catalogService.listPackages(ctx);
   return (
     <div>
-      <p className="text-xs tracking-survey text-mist">DEPARTURES · CHOOSE PACKAGE</p>
+      <p className="eyebrow text-mist">Departures · Choose package</p>
       {packages.length === 0 ? (
         <p className="mt-4 text-mist">No packages yet.</p>
       ) : (
         <ul className="mt-4 space-y-2">
           {packages.map((p) => (
-            <li key={p.id}>
-              <Link href={`/staff/departures?packageId=${p.id}`} className="text-forest hover:underline">
+            <Card as="li" key={p.id}>
+              <Link href={`/staff/departures?packageId=${p.id}`} className="block text-forest hover:underline">
                 {p.title} · {p.country} · {format(money(p.priceMinor, p.currency))}
               </Link>
-            </li>
+            </Card>
           ))}
         </ul>
       )}

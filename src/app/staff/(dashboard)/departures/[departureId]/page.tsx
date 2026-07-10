@@ -4,7 +4,13 @@ import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
+import { Alert } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
+import { FormField } from '@/components/ui/FormField';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format } from '@lib/money';
+import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
 import { createAssignmentAction, removeAssignmentAction } from './actions';
 
 interface Props {
@@ -49,21 +55,27 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <p className="text-xs tracking-survey text-mist">DEPARTURE</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">
-          {departure.startDate.toLocaleDateString()} · {packageCountry}
-        </h1>
-        <p className="mt-1 text-mist">
-          Capacity {departure.capacity} · {departure.status} · {format(effectiveUnitPrice)}/seat
+        <PageHeader eyebrow="Departure" title={`${departure.startDate.toLocaleDateString()} · ${packageCountry}`} />
+        <p className="mt-1 flex items-center gap-2 text-mist">
+          Capacity {departure.capacity} · <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{departure.status}</Badge> ·{' '}
+          {format(effectiveUnitPrice)}/seat
         </p>
         <p className="mt-1 text-sm text-mist">
           Seats covered by assigned vehicles: {seatsCovered}/{departure.capacity}
         </p>
       </div>
 
-      <div className="border-t border-rule pt-6">
-        <p className="text-xs tracking-survey text-mist">ASSIGNMENTS</p>
-        {error && <p className="mt-2 text-sm text-amber">{ERROR_MESSAGES[error] ?? 'Something went wrong.'}{detail ? ` (${detail})` : ''}</p>}
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Assignments</p>
+        {error && (
+          <div className="mt-2">
+            <Alert tone="error">
+              {ERROR_MESSAGES[error] ?? 'Something went wrong.'}
+              {detail ? ` (${detail})` : ''}
+            </Alert>
+          </div>
+        )}
         {assignments.length === 0 ? (
           <p className="mt-4 text-mist">No assignments yet.</p>
         ) : (
@@ -80,7 +92,9 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                     {guide && ` · Guide: ${guide.name ?? guide.email}`}
                   </span>
                   <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
-                    <button className="rounded-survey border border-rule px-3 py-1 text-xs text-ink">Remove</button>
+                    <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                      Remove
+                    </SubmitButton>
                   </form>
                 </li>
               );
@@ -89,11 +103,8 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
         )}
 
         <form action={createAssignmentAction.bind(null, departureId)} className="mt-6 space-y-4">
-          <div>
-            <label htmlFor="vehicleId" className="mb-1 block text-sm text-mist">
-              Vehicle
-            </label>
-            <select id="vehicleId" name="vehicleId" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <FormField label="Vehicle" htmlFor="vehicleId">
+            <select name="vehicleId" required className="w-full rounded-survey border border-rule px-3 py-2">
               <option value="">Select a vehicle</option>
               {activeVehicles.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -101,17 +112,9 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label htmlFor="driverProfileId" className="mb-1 block text-sm text-mist">
-              Driver
-            </label>
-            <select
-              id="driverProfileId"
-              name="driverProfileId"
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+          </FormField>
+          <FormField label="Driver" htmlFor="driverProfileId">
+            <select name="driverProfileId" required className="w-full rounded-survey border border-rule px-3 py-2">
               <option value="">Select a driver</option>
               {activeDriverProfiles.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -119,21 +122,11 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label htmlFor="guideEmail" className="mb-1 block text-sm text-mist">
-              Guide email (optional -- existing TOUR_GUIDE account)
-            </label>
-            <input
-              id="guideEmail"
-              name="guideEmail"
-              type="email"
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </div>
-          <button type="submit" className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-            Add assignment
-          </button>
+          </FormField>
+          <FormField label="Guide email (optional -- existing TOUR_GUIDE account)" htmlFor="guideEmail" optional>
+            <input name="guideEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <SubmitButton>Add assignment</SubmitButton>
         </form>
       </div>
     </div>

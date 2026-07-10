@@ -5,7 +5,7 @@ import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { format, money } from '@lib/money';
-import { BOOKING_STATUS_TONE } from '../../badge-tones';
+import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 interface Props {
   searchParams: Promise<{ confirmationCode?: string; lastName?: string }>;

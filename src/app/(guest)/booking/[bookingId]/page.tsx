@@ -9,7 +9,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '../../badge-tones';
+import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
 import { cancelBookingAction, initiatePaymentAction } from './actions';
 

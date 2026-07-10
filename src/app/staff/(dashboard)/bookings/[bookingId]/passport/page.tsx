@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
+import { Alert } from '@/components/ui/Alert';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { uploadPassportAction } from './actions';
 
 interface Props {
@@ -30,12 +33,13 @@ export default async function PassportPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <p className="text-xs tracking-survey text-mist">BOOKING SETUP · PASSPORT</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">
-        {lead.firstName} {lead.lastName}&apos;s passport
-      </h1>
+      <PageHeader eyebrow="Booking setup · Passport" title={`${lead.firstName} ${lead.lastName}'s passport`} />
       <p className="mt-1 text-sm text-mist">Upload a PDF of the tour lead&apos;s passport (required for immigration).</p>
-      {error === 'missing_file' && <p className="mt-3 text-sm text-amber">Choose a PDF file to upload.</p>}
+      {error === 'missing_file' && (
+        <div className="mt-3">
+          <Alert tone="error">Choose a PDF file to upload.</Alert>
+        </div>
+      )}
       <form action={uploadPassportAction.bind(null, bookingId, lead.id)} className="mt-6 space-y-4">
         <input
           type="file"
@@ -44,9 +48,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
           required
           className="w-full rounded-survey border border-rule px-3 py-2"
         />
-        <button type="submit" className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-          Upload & continue
-        </button>
+        <SubmitButton pendingLabel="Uploading…">Upload &amp; continue</SubmitButton>
       </form>
     </div>
   );

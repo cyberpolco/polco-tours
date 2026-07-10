@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
+import { StaffNav } from './nav';
 import { SignOutButton } from './sign-out-button';
 
 // Route group -- applies ONLY to routes nested here, not to sibling
@@ -12,12 +12,9 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
   return (
     <div className="min-h-screen bg-bone text-ink">
       <nav className="flex items-center justify-between border-b border-rule bg-navy px-8 py-4 text-bone">
-        <span className="text-xs font-semibold tracking-survey">POLCO TOURS · STAFF</span>
+        <span className="eyebrow">Polco Tours · Staff</span>
         <div className="flex items-center gap-6 text-sm">
-          <Link href="/staff/bookings">Bookings</Link>
-          <Link href="/staff/bookings/new">New booking</Link>
-          <Link href="/staff/fleet">Fleet</Link>
-          <Link href="/staff/departures">Departures</Link>
+          <StaffNav />
           <SignOutButton />
         </div>
       </nav>

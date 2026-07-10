@@ -3,6 +3,9 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SelectableCard } from '@/components/ui/SelectableCard';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { finalizeAddonsAction } from './actions';
 
 interface Props {
@@ -29,8 +32,7 @@ export default async function AddonsPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <p className="text-xs tracking-survey text-mist">BOOKING SETUP · ADD-ONS</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
+      <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>
 
       <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
@@ -38,21 +40,15 @@ export default async function AddonsPage({ params }: Props) {
           <p className="text-sm text-mist">No add-on services configured.</p>
         ) : (
           addons.map((a) => (
-            <label
-              key={a.id}
-              className="flex items-center justify-between gap-3 rounded-survey border border-rule px-3 py-2 text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <input type="checkbox" name="addonServiceId" value={a.id} />
-                {a.name}
+            <SelectableCard key={a.id} type="checkbox" name="addonServiceId" value={a.id}>
+              <span className="flex flex-1 items-center justify-between">
+                <span>{a.name}</span>
+                <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
               </span>
-              <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
-            </label>
+            </SelectableCard>
           ))
         )}
-        <button type="submit" className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-          Finish setup
-        </button>
+        <SubmitButton>Finish setup</SubmitButton>
       </form>
     </div>
   );
