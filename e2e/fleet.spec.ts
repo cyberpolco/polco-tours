@@ -52,7 +52,10 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     await page.getByLabel('License number').fill('DL-E2E-1');
     await page.getByRole('button', { name: 'Add driver' }).click();
 
-    await expect(page.getByText('DL-E2E-1')).toBeVisible();
+    // License number only appears as a form field's value, not as plain
+    // text -- getByText doesn't match input values (caught by CI, this repo
+    // has no way to run Playwright e2e tests in this sandbox).
+    await expect(page.getByLabel('License number')).toHaveValue('DL-E2E-1');
 
     await page.goto('/staff/fleet');
     await expect(page.getByText(driverUser.email)).toBeVisible();
