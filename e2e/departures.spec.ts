@@ -13,10 +13,14 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto('/staff/departures');
-    // "CHOOSE PACKAGE" is the eyebrow <p>, not an <h1> -- getByRole('heading')
-    // never matches it (caught by CI, same class of locator bug as the
-    // fleet driver e2e test fixed earlier this session).
-    await expect(page.getByText(/CHOOSE PACKAGE/)).toBeVisible();
+    // The eyebrow <p> is written in sentence case in JSX ("Choose package")
+    // and rendered visually uppercase via the .eyebrow CSS class's
+    // text-transform -- Playwright's regex matching works against the raw
+    // DOM text, not the CSS-transformed rendering, so this needs the `i`
+    // flag (broke when the staff dashboard visual pass, DR-016-adjacent,
+    // moved this page off a hand-typed literal-uppercase string and onto
+    // the shared .eyebrow class, same as every other page in the app).
+    await expect(page.getByText(/Choose package/i)).toBeVisible();
     await page.getByText('E2E Assignment Fixture Safari').click();
 
     await expect(page).toHaveURL(/packageId=/);
