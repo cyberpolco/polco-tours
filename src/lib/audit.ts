@@ -42,3 +42,23 @@ export async function audit(entry: AuditEntry): Promise<void> {
     await prisma.auditLog.create({ data });
   }
 }
+
+/**
+ * Crude, infra-free rate-limit primitive (no Upstash/Redis wired yet) --
+ * counts recent matching audit entries for one IP. Used by the public
+ * "find my booking" lookup (DR-016) to raise the cost of guessing a
+ * confirmation code without needing real rate-limiting infrastructure.
+ */
+export async function countRecentAuditEvents(params: {
+  organizationId: string;
+  action: string;
+  ip: string;
+  sinceMinutes: number;
+}): Promise<number> {
+  const since = new Date(Date.now() - params.sinceMinutes * 60 * 1000);
+  return withOrg(params.organizationId, (tx) =>
+    tx.auditLog.count({
+      where: { organizationId: params.organizationId, action: params.action, ip: params.ip, createdAt: { gte: since } },
+    }),
+  );
+}

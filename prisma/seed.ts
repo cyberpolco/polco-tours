@@ -1,7 +1,7 @@
 // POLCO TOURS — database seed (Phase 0)
 // Real launch records: single operator "Lam" (Namibia + DRC) with SUPERADMIN,
 // and per-country effective-dated tax (DRC 16% / Namibia 15%). DR-005 / DR-006.
-import { PrismaClient, Role, OrgStatus, AddonCode, Currency } from '@prisma/client';
+import { PrismaClient, Role, OrgStatus, AddonCode, Currency, PackageTag, PackageStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
 
 const prisma = new PrismaClient();
@@ -71,7 +71,107 @@ async function main() {
     }
   });
 
-  console.log('Seeded:', { operator: lam.name, superadmin: admin.email, taxRates: taxes.length, addonServices: addons.length });
+  // --- Demo catalog (DR-016) -- the public browse/quiz pages need real data
+  // day one; there is no staff-facing package-management UI yet, so this is
+  // the only way packages/departures exist outside a direct API call. ---
+  const packages: Array<{
+    title: string;
+    description: string;
+    country: string;
+    priceMinor: number;
+    currency: Currency;
+    durationDays: number;
+    tags: PackageTag[];
+    departureStarts: string[];
+  }> = [
+    {
+      title: 'Etosha Wildlife Safari',
+      description: 'Four days tracking elephant, lion, and rhino across Etosha National Park.',
+      country: 'NA',
+      priceMinor: 850000,
+      currency: Currency.NAD,
+      durationDays: 4,
+      tags: [PackageTag.WILDLIFE, PackageTag.ADVENTURE],
+      departureStarts: ['2026-09-15', '2026-10-13'],
+    },
+    {
+      title: 'Namib Desert Dunes Retreat',
+      description: 'Three days among the red dunes of Sossusvlei, with a private lodge stay.',
+      country: 'NA',
+      priceMinor: 1200000,
+      currency: Currency.NAD,
+      durationDays: 3,
+      tags: [PackageTag.RELAXATION, PackageTag.LUXURY],
+      departureStarts: ['2026-09-22'],
+    },
+    {
+      title: 'Windhoek Culture & Craft Trail',
+      description: "Two days in Windhoek's markets, museums, and township food halls.",
+      country: 'NA',
+      priceMinor: 350000,
+      currency: Currency.NAD,
+      durationDays: 2,
+      tags: [PackageTag.CULTURE, PackageTag.FAMILY, PackageTag.BUDGET],
+      departureStarts: ['2026-09-05', '2026-11-03'],
+    },
+    {
+      title: 'Virunga Gorilla Trek',
+      description: 'Five days trekking to habituated mountain gorilla families in Virunga National Park.',
+      country: 'CD',
+      priceMinor: 95000,
+      currency: Currency.USD,
+      durationDays: 5,
+      tags: [PackageTag.WILDLIFE, PackageTag.ADVENTURE],
+      departureStarts: ['2026-10-01'],
+    },
+    {
+      title: 'Kinshasa & Congo River Culture Tour',
+      description: 'Three days of music, markets, and a Congo River boat trip in Kinshasa.',
+      country: 'CD',
+      priceMinor: 40000,
+      currency: Currency.USD,
+      durationDays: 3,
+      tags: [PackageTag.CULTURE, PackageTag.FAMILY],
+      departureStarts: ['2026-09-28', '2026-10-26'],
+    },
+  ];
+
+  await withOrg(lam.id, async (tx) => {
+    for (const p of packages) {
+      let pkg = await tx.tourPackage.findFirst({ where: { title: p.title } });
+      if (!pkg) {
+        pkg = await tx.tourPackage.create({
+          data: {
+            organizationId: lam.id,
+            title: p.title,
+            description: p.description,
+            country: p.country,
+            priceMinor: p.priceMinor,
+            currency: p.currency,
+            durationDays: p.durationDays,
+            tags: p.tags,
+            status: PackageStatus.PUBLISHED,
+          },
+        });
+      }
+      for (const startDate of p.departureStarts) {
+        const existing = await tx.departure.findFirst({ where: { tourPackageId: pkg.id, startDate: new Date(startDate) } });
+        if (!existing) {
+          await tx.departure.create({
+            data: { organizationId: lam.id, tourPackageId: pkg.id, startDate: new Date(startDate), capacity: 10 },
+          });
+        }
+      }
+    }
+  });
+
+  console.log('Seeded:', {
+    operator: lam.name,
+    superadmin: admin.email,
+    taxRates: taxes.length,
+    addonServices: addons.length,
+    packages: packages.length,
+  });
 }
 
 main()

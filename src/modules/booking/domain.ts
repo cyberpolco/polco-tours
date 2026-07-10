@@ -15,6 +15,7 @@ export interface BookingView {
   priceMinor: number;
   currency: Currency;
   addonsFinalizedAt: Date | null;
+  confirmationCode: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +31,18 @@ export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
 
 export function holdExpiryFrom(now: Date): Date {
   return new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
+}
+
+// Excludes 0/O/1/I -- unambiguous when read aloud or handwritten (DR-016).
+const CONFIRMATION_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CONFIRMATION_CODE_LENGTH = 8;
+
+/** Short, human-typeable lookup code -- not a security boundary on its own,
+ * see bookingService.lookupByConfirmationCode. */
+export function generateConfirmationCode(): string {
+  const bytes = new Uint8Array(CONFIRMATION_CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => CONFIRMATION_CODE_ALPHABET[b % CONFIRMATION_CODE_ALPHABET.length]).join('');
 }
 
 export function isHoldExpired(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, now: Date): boolean {
@@ -136,3 +149,25 @@ export const SetAddonsInput = z.object({
   addonServiceIds: z.array(z.string().uuid()),
 });
 export type SetAddonsInput = z.infer<typeof SetAddonsInput>;
+
+// -------------------------------------------------------------- guest lookup (DR-016)
+
+export const LookupBookingInput = z.object({
+  confirmationCode: z.string().min(1).max(20),
+  lastName: z.string().min(1).max(100),
+});
+export type LookupBookingInput = z.infer<typeof LookupBookingInput>;
+
+/** Read-only summary for the public "find my booking" flow -- deliberately
+ * excludes document/passport bytes and offers no mutating action (see
+ * bookingService.lookupByConfirmationCode). */
+export interface BookingLookupResult {
+  booking: BookingView;
+  travelers: TravelerView[];
+}
+
+/** Case-insensitive on purpose -- a guest typing their own last name should
+ * not have to match capitalization exactly. */
+export function lastNameMatches(traveler: Pick<TravelerView, 'lastName'>, candidate: string): boolean {
+  return traveler.lastName.trim().toLowerCase() === candidate.trim().toLowerCase();
+}

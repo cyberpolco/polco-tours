@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
+import { generateConfirmationCode } from '../../src/modules/booking';
 import { GET as getInvoice } from '../../src/app/api/v1/bookings/[bookingId]/invoice/route';
 import { GET as listPayments, POST as initiatePayment } from '../../src/app/api/v1/invoices/[invoiceId]/payments/route';
 
@@ -56,6 +57,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristAId,
+        confirmationCode: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

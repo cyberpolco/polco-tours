@@ -800,5 +800,6 @@ components:
     UpdateProfileInput:
       type: object
       properties:
+        name: { type: string, minLength: 1, maxLength: 200, description: 'Added for the guest-checkout contact-info step (DR-016)' }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }

@@ -1,7 +1,7 @@
 // booking module — repository. The only place that touches the DB for this module.
 import type { Booking, BookingAddon, BookingStatus, Currency, Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
-import { canTransition, holdExpiryFrom } from './domain';
+import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
@@ -27,6 +27,7 @@ function toBookingView(b: Booking): BookingView {
     priceMinor: b.priceMinor,
     currency: b.currency,
     addonsFinalizedAt: b.addonsFinalizedAt,
+    confirmationCode: b.confirmationCode,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -115,6 +116,7 @@ export const bookingRepository = {
           holdExpiresAt: holdExpiryFrom(new Date()),
           priceMinor: params.priceMinor,
           currency: params.currency,
+          confirmationCode: generateConfirmationCode(),
         },
       });
       return toBookingView(b);
@@ -125,6 +127,17 @@ export const bookingRepository = {
     return withOrg(organizationId, async (tx) => {
       await sweepExpired(tx);
       const b = await tx.booking.findUnique({ where: { id } });
+      return b ? toBookingView(b) : null;
+    });
+  },
+
+  /** Powers the public "find my booking" lookup (DR-016) -- no org context
+   * exists for that caller, so this scans across the primary org the caller
+   * already resolved (confirmationCode is globally unique regardless). */
+  async findByConfirmationCode(organizationId: string, confirmationCode: string): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      await sweepExpired(tx);
+      const b = await tx.booking.findUnique({ where: { confirmationCode } });
       return b ? toBookingView(b) : null;
     });
   },

@@ -20,6 +20,7 @@ function toPackageView(p: TourPackage): TourPackageView {
     priceMinor: p.priceMinor,
     currency: p.currency,
     durationDays: p.durationDays,
+    tags: p.tags,
     status: p.status,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,

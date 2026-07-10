@@ -1,5 +1,5 @@
 // catalog module — domain types & rules. Pure; no framework or DB imports.
-import type { AddonCode, Currency, DepartureStatus, PackageStatus, Role } from '@prisma/client';
+import type { AddonCode, Currency, DepartureStatus, PackageStatus, PackageTag, Role } from '@prisma/client';
 import { z } from 'zod';
 import { money, type Money } from '@lib/money';
 
@@ -12,6 +12,7 @@ export interface TourPackageView {
   priceMinor: number;
   currency: Currency;
   durationDays: number | null;
+  tags: PackageTag[];
   status: PackageStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +31,8 @@ export interface DepartureView {
   updatedAt: Date;
 }
 
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+
 export const CreatePackageInput = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1),
@@ -37,6 +40,7 @@ export const CreatePackageInput = z.object({
   priceMinor: z.number().int().nonnegative(),
   currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
   durationDays: z.number().int().positive().optional(),
+  tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
 });
 export type CreatePackageInput = z.infer<typeof CreatePackageInput>;
 
@@ -87,4 +91,38 @@ export interface AddonServiceView {
   priceMinor: number;
   currency: Currency;
   active: boolean;
+}
+
+// -------------------------------------------------------------- public quiz (DR-016)
+
+export const QuizAnswers = z.object({
+  country: z.string().length(2).optional(),
+  tripLength: z.enum(['SHORT', 'MEDIUM', 'LONG']).optional(),
+  tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+});
+export type QuizAnswers = z.infer<typeof QuizAnswers>;
+
+// Inclusive day-count bounds per trip-length bucket -- packages with no
+// durationDays set are excluded once a bucket is chosen (nothing to match).
+const TRIP_LENGTH_RANGES: Record<NonNullable<QuizAnswers['tripLength']>, { min: number; max: number }> = {
+  SHORT: { min: 0, max: 5 },
+  MEDIUM: { min: 6, max: 10 },
+  LONG: { min: 11, max: Infinity },
+};
+
+/** Sorts by tag-overlap count desc, ties broken alphabetically by title.
+ * Deliberately no budget/price-based filtering OR tiebreak: packages can be
+ * priced in 4 different currencies with no FX conversion anywhere in this
+ * app, so comparing raw priceMinor across packages would silently compare
+ * apples to oranges. */
+export function scorePackagesForQuiz(packages: TourPackageView[], answers: QuizAnswers): TourPackageView[] {
+  const range = answers.tripLength ? TRIP_LENGTH_RANGES[answers.tripLength] : null;
+  const wantedTags = answers.tags ?? [];
+
+  return packages
+    .filter((p) => !answers.country || p.country === answers.country)
+    .filter((p) => !range || (p.durationDays != null && p.durationDays >= range.min && p.durationDays <= range.max))
+    .map((p) => ({ pkg: p, score: p.tags.filter((t) => wantedTags.includes(t)).length }))
+    .sort((a, b) => b.score - a.score || a.pkg.title.localeCompare(b.pkg.title))
+    .map(({ pkg }) => pkg);
 }

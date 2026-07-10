@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
+import { generateConfirmationCode } from '../src/modules/booking';
 
 /**
  * Extends the Phase 0/1 RLS proof to the `invoices` table added in Phase 1
@@ -41,6 +42,7 @@ async function seedOrgWithInvoice(name: string): Promise<string> {
         organizationId: org.id,
         departureId: departure.id,
         touristUserId: tourist.id,
+        confirmationCode: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
@@ -111,6 +113,7 @@ describe('Row-Level Security: invoices tenant isolation', () => {
           organizationId: orgA,
           departureId: departure.id,
           touristUserId: tourist.touristUserId,
+          confirmationCode: generateConfirmationCode(),
           seats: 1,
           priceMinor: 10000,
           currency: 'USD',

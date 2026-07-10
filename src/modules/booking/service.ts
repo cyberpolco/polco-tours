@@ -3,22 +3,29 @@
 import type { AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
-import { audit } from '@lib/audit';
+import { audit, countRecentAuditEvents } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { add, money, scale, type Money } from '@lib/money';
+import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertCan } from '@lib/rbac';
 import {
   canAddTraveler,
   computeAvailability,
   isTravelerManifestComplete,
+  lastNameMatches,
   type AddTravelerInput,
   type BookingAddonView,
+  type BookingLookupResult,
   type BookingView,
   type CreateBookingInput,
+  type LookupBookingInput,
   type SetAddonsInput,
   type TravelerView,
 } from './domain';
 import { bookingRepository, SoldOutError } from './repository';
+
+const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
+const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
 
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
@@ -268,5 +275,40 @@ export const bookingService = {
       totalMinor: total.minor,
       currency: total.currency,
     };
+  },
+
+  /** Public "find my booking" lookup (DR-016) -- deliberately NOT ctx-gated,
+   * there is no session for this caller. Two factors (code + tour lead's
+   * last name) stand in for session auth; a crude audit-log-backed rate
+   * limit raises the cost of guessing since no real rate-limiting infra
+   * exists yet. Read-only by design -- no mutating action reachable from
+   * here (staff handle guest-requested changes from the staff dashboard). */
+  async lookupByConfirmationCode(input: LookupBookingInput, ip: string | undefined): Promise<BookingLookupResult> {
+    const organizationId = await getPrimaryOrgId();
+
+    if (ip) {
+      const recentFailures = await countRecentAuditEvents({
+        organizationId,
+        action: 'booking.lookup_failed',
+        ip,
+        sinceMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+      });
+      if (recentFailures >= LOOKUP_RATE_LIMIT_MAX_ATTEMPTS) {
+        throw Errors.rateLimited('Too many attempts -- try again later');
+      }
+    }
+
+    const booking = await bookingRepository.findByConfirmationCode(organizationId, input.confirmationCode);
+    const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
+    const lead = travelers.find((t) => t.isTourLead);
+
+    if (!booking || !lead || !lastNameMatches(lead, input.lastName)) {
+      // Never reveal which part was wrong -- same anti-enumeration posture
+      // as getOwnedBooking's 404-not-403 elsewhere in this module.
+      await audit({ action: 'booking.lookup_failed', resourceType: 'Booking', organizationId, ip });
+      throw Errors.notFound('No matching booking found');
+    }
+
+    return { booking, travelers };
   },
 };

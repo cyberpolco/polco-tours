@@ -114,16 +114,26 @@ src/
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
       bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
+    (guest)/...                          # tourist self-serve site, NO ACCOUNTS
+      (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
+      (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
+      (same wizard as staff's, requireGuestContext instead), /find-booking(/result)
   lib/                 # shared kernel: db, auth, auth-client, rbac, errors,
-                       #   money, audit, logger, route-guard (withAuth: HTTP
-                       #   routes), staff-guard (requireStaffContext: Server
-                       #   Components/Actions, DR-014), country-codes (phone/
-                       #   flag + nationality picker data, no dependency, DR-015)
+                       #   money, audit (+countRecentAuditEvents, DR-016),
+                       #   logger, route-guard (withAuth: HTTP routes),
+                       #   staff-guard (requireStaffContext, DR-014),
+                       #   guest-guard (requireGuestContext, DR-016),
+                       #   primary-org (getPrimaryOrgId, DR-016),
+                       #   country-codes (phone/flag + nationality picker
+                       #   data, no dependency, DR-015)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
-    catalog/           # TourPackage + Departure + AddonService (DR-011, DR-015)
-    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt);
-                       #   Traveler + BookingAddon folded in (DR-011, DR-015)
+    catalog/           # TourPackage (+tags/PackageTag, DR-016) + Departure +
+                       #   AddonService (DR-011, DR-015); public/quiz methods
+                       #   need no ctx (DR-016)
+    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) +
+                       #   confirmationCode (DR-016); Traveler + BookingAddon
+                       #   folded in (DR-011, DR-015)
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
     notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
     documents/         # Document metadata + Vercel Blob gateway, access:
@@ -286,7 +296,7 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   job (`e2e`, own Postgres bootstrap, mirrors `quality`). **Pilot with Lam
   next** — no further increment is blocking it; OI-01/02/03/05/06/07 remain
   founder/ops items, not engineering ones. Tourist-facing self-serve site
-  (package "tailor your trip" quiz → book → pay) is the planned fast-follow.
+  (package "tailor your trip" quiz → book → pay) landed as DR-016.
 - **Booking-setup wizard (staff tooling) done 2026-07-09 (DR-015):** extends
   the DR-014 "new booking" staff flow into a multi-step wizard — per-seat
   `Traveler` records (name/age/sex/nationality/ID-or-passport/phone/
@@ -298,13 +308,44 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   the invoice subtotal via new `bookingService.getBillableTotal`.
   `GET /bookings/{id}/invoice` now 409s until travelers + passport + add-ons
   are all complete — the staff booking-detail page gates on this instead of
-  eagerly creating the invoice. Still staff-only (no tourist self-serve
-  equivalent yet). OI-08 (`BLOB_READ_WRITE_TOKEN`) resolved 2026-07-09:
-  `polco-tours-documents` Blob store created (`fra1`, private), connected to
-  Production/Preview/Development on Vercel, and set as a GitHub Actions
-  secret wired into the `e2e` job's `env:`. Tests still mock the Blob gateway
-  boundary rather than hitting it for real — the token isn't exercised by
-  anything yet, just available for a future increment.
+  eagerly creating the invoice. Staff-only at the time (a tourist self-serve
+  equivalent landed next, as DR-016, reusing this same wizard). OI-08
+  (`BLOB_READ_WRITE_TOKEN`) resolved 2026-07-09: `polco-tours-documents` Blob
+  store created (`fra1`, private), connected to Production/Preview/
+  Development on Vercel, and set as a GitHub Actions secret wired into the
+  `e2e` job's `env:`.
+- **Tourist self-serve site done 2026-07-09 (DR-016):** guest checkout, no
+  accounts — confirmed directly that clients never sign up, only operational
+  roles (admin/guide/driver/vehicle-owner/visa-facilitator) get real
+  accounts. New `(guest)` route group: public browse (`/packages`, no
+  session at all — new `catalogService.listPublicPackages`/etc. resolve
+  `getPrimaryOrgId()` themselves, DR-005 single-tenant launch) and a real
+  "tailor your trip" quiz (`TourPackage.tags` + `scorePackagesForQuiz`,
+  tag-overlap ranking, alphabetical tiebreak — never price, packages span 4
+  currencies with no FX conversion anywhere in this app). Booking uses
+  better-auth's bundled `anonymous` plugin (already part of the DR-001
+  stack) to mint a real cookie-backed session with zero password/email UX —
+  the *entire* existing `bookingService`/`invoicingService`/`documentsService`
+  stack from DR-011/012/015 works for a guest completely unchanged, no
+  synthetic `AuthContext`, no hand-rolled tokens. New `Booking
+  .confirmationCode` (short, unique, revealed once setup + a payment attempt
+  are both done) plus the tour lead's last name (two factors) unlock a
+  read-only "find my booking" lookup (`bookingService
+  .lookupByConfirmationCode`) — no mutating action reachable from it, and a
+  crude audit-log-backed rate limit (new `countRecentAuditEvents`,
+  `src/lib/audit.ts`) since no real rate-limiting infra exists yet. An
+  earlier draft used a bare `bookingId` in wizard URLs as the guest's whole
+  "session" — an adversarial review flagged that as a real leak vector
+  (Referer headers, browser history, shared devices) for data this sensitive
+  (passport numbers, disability/allergy info, payment status), which is why
+  the anonymous-session design replaced it before any code was written.
+  `e2e/guest-checkout.spec.ts` is the first real anonymous-session e2e
+  journey in this repo, including a genuine Vercel Blob passport upload
+  (OI-08's token, now actually exercised). Deliberately not built: new public
+  `/api/v1` REST routes (Server Components call services directly, same as
+  staff pages); a staff-facing package-management UI (still only the raw
+  `/api/v1/catalog/*` routes — `prisma/seed.ts` now seeds a small demo
+  catalog to cover it); a real DPO redirect (still stubbed, OI-01).
 - **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
   WhatsApp/SMS fallback, GPS v1, CRM, reviews).
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -334,7 +375,13 @@ DR-015 booking-setup wizard: `Traveler`/`Document`/`AddonService`/
 `getBillableTotal`, first real Vercel Blob usage (`access: 'private'`,
 resolves how DR-010 actually gets exercised), `TOUR_OPERATOR` gains
 `documents.write`, OI-08 (`BLOB_READ_WRITE_TOKEN`) resolved — provisioned
-on Vercel and set as a GitHub Actions secret, wired into the `e2e` job.
+on Vercel and set as a GitHub Actions secret, wired into the `e2e` job ·
+DR-016 tourist self-serve site: guest checkout via better-auth's `anonymous`
+plugin (no tourist accounts, ever), public browse/quiz need no session
+(`getPrimaryOrgId`), `TourPackage.tags` + `scorePackagesForQuiz`,
+`Booking.confirmationCode` + two-factor "find my booking" lookup with a
+crude audit-log rate limit, first real anonymous-session e2e journey
+including a genuine Blob passport upload.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 
@@ -532,3 +579,30 @@ human rather than fabricating volume content.
   create the `Invoice` row directly (bypassing the service's lazy-create path
   entirely) — check which pattern a given invoice fixture uses before assuming
   a service-layer gating change needs a fixture update.
+- Adding `Booking.confirmationCode` as a required+unique column (DR-016)
+  broke every raw-fixture `tx.booking.create(...)`/`admin.booking.create(...)`
+  call across the repo (12 sites: `tests/api/*.test.ts`,
+  `tests/rls.cross-tenant.*.test.ts`, `e2e/helpers/booking-fixture.ts`) --
+  none of them go through `bookingService.createHold` (which sets it), they
+  all construct the row directly. Fixed by exporting
+  `generateConfirmationCode` from `@modules/booking`'s `index.ts` and calling
+  it in every fixture. Any future required+unique column added to a
+  frequently-raw-fixtured table (`Booking`, `TourPackage`, `User`...) will hit
+  this same fan-out -- grep for `.create({` on that model across `tests/` and
+  `e2e/` before assuming the schema change is done.
+- better-auth's `anonymous` plugin needs registering on **both** sides:
+  `plugins: [anonymous(...)]` in `src/lib/auth.ts` (server) AND `plugins:
+  [anonymousClient()]` in `src/lib/auth-client.ts` (browser, from
+  `better-auth/client/plugins`) -- without the client half,
+  `authClient.signIn.anonymous` is simply missing/untyped, even though the
+  server endpoint (`/sign-in/anonymous`) works fine. Same pairing pattern
+  applies to any other better-auth plugin added later.
+- `getPrimaryOrgId()` (`src/lib/primary-org.ts`, DR-016) throws when no
+  org has `isPrimary: true` -- deliberately, since a guest-facing page with
+  nothing to show is a real misconfiguration, not a graceful-degrade case
+  like the signup hook (which still falls back to `organizationId: null`).
+  Don't add a second `isPrimary: true` organization anywhere, including test
+  fixtures -- `findFirst` would then non-deterministically pick between them.
+  Tests needing "the" primary org must look up the real seeded one
+  (`admin.organization.findFirstOrThrow({ where: { isPrimary: true } })`) and
+  seed their own rows *into* it, never create a second primary org.

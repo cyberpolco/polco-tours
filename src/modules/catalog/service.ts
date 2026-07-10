@@ -3,20 +3,29 @@
 import type { AuthContext } from '@modules/auth';
 import { Errors } from '@lib/errors';
 import type { Money } from '@lib/money';
+import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertCan } from '@lib/rbac';
 import {
   effectivePrice,
   isBookable,
   isDepartureVisible,
   isPackageVisible,
+  scorePackagesForQuiz,
   type AddonServiceView,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
+  type QuizAnswers,
   type TourPackageView,
   type UpdatePackageInput,
 } from './domain';
 import { catalogRepository } from './repository';
+
+// Public/anonymous callers have no role of their own -- reuse the exact same
+// non-operator visibility rule every authenticated non-staff caller already
+// gets (isPackageVisible/isDepartureVisible only special-case operator
+// roles), rather than inventing a parallel "public" visibility concept.
+const PUBLIC_VIEW_ROLE = 'TOURIST' as const;
 
 export interface DepartureDetail {
   departure: DepartureView;
@@ -109,5 +118,53 @@ export const catalogService = {
     const addon = await catalogRepository.findAddonServiceById(requireOrg(ctx), addonServiceId);
     if (!addon || !addon.active) throw Errors.notFound('Add-on service not found');
     return addon;
+  },
+
+  // ---------------------------------------------------------- public (DR-016)
+  // No ctx/session exists for these callers -- the public browse/quiz pages
+  // and the guest-checkout flow before a departure is picked. Every method
+  // resolves the primary (single-tenant launch, DR-005) org itself.
+
+  async listPublicPackages(): Promise<TourPackageView[]> {
+    const organizationId = await getPrimaryOrgId();
+    const all = await catalogRepository.listPackages(organizationId);
+    return all.filter((p) => isPackageVisible(p, PUBLIC_VIEW_ROLE));
+  },
+
+  async getPublicPackageWithDepartures(
+    packageId: string,
+  ): Promise<{ pkg: TourPackageView; departures: DepartureView[] }> {
+    const organizationId = await getPrimaryOrgId();
+    const pkg = await catalogRepository.findPackageById(organizationId, packageId);
+    if (!pkg || !isPackageVisible(pkg, PUBLIC_VIEW_ROLE)) throw Errors.notFound('Package not found');
+    const departures = (await catalogRepository.listDeparturesForPackage(organizationId, packageId)).filter((d) =>
+      isDepartureVisible(d, PUBLIC_VIEW_ROLE),
+    );
+    return { pkg, departures };
+  },
+
+  async getPublicDepartureDetail(departureId: string): Promise<DepartureDetail> {
+    const organizationId = await getPrimaryOrgId();
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    if (!departure) throw Errors.notFound('Departure not found');
+    const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
+    if (!pkg || !isPackageVisible(pkg, PUBLIC_VIEW_ROLE) || !isDepartureVisible(departure, PUBLIC_VIEW_ROLE)) {
+      throw Errors.notFound('Departure not found');
+    }
+    return {
+      departure,
+      packageStatus: pkg.status,
+      packageCountry: pkg.country,
+      effectiveUnitPrice: effectivePrice(pkg, departure),
+      bookable: isBookable(pkg, departure),
+    };
+  },
+
+  async getQuizResults(answers: QuizAnswers): Promise<TourPackageView[]> {
+    const organizationId = await getPrimaryOrgId();
+    const all = (await catalogRepository.listPackages(organizationId)).filter((p) =>
+      isPackageVisible(p, PUBLIC_VIEW_ROLE),
+    );
+    return scorePackagesForQuiz(all, answers);
   },
 };

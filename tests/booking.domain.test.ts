@@ -9,6 +9,8 @@ import {
   canAddTraveler,
   hasExactlyOneTourLead,
   isTravelerManifestComplete,
+  generateConfirmationCode,
+  lastNameMatches,
 } from '../src/modules/booking/domain';
 
 describe('booking domain', () => {
@@ -138,6 +140,34 @@ describe('booking domain', () => {
 
     it('is true once seats are filled, exactly one tour lead, passport on file', () => {
       expect(isTravelerManifestComplete([lead, companion], 2)).toBe(true);
+    });
+  });
+
+  describe('generateConfirmationCode', () => {
+    it('is 8 characters from the unambiguous alphabet (no 0/O/1/I)', () => {
+      const code = generateConfirmationCode();
+      expect(code).toHaveLength(8);
+      expect(code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+    });
+
+    it('is not the same every call', () => {
+      const codes = new Set(Array.from({ length: 20 }, () => generateConfirmationCode()));
+      expect(codes.size).toBeGreaterThan(1);
+    });
+  });
+
+  describe('lastNameMatches', () => {
+    it('matches case-insensitively', () => {
+      expect(lastNameMatches({ lastName: 'Traveler' }, 'traveler')).toBe(true);
+      expect(lastNameMatches({ lastName: 'Traveler' }, 'TRAVELER')).toBe(true);
+    });
+
+    it('ignores surrounding whitespace', () => {
+      expect(lastNameMatches({ lastName: 'Traveler' }, '  Traveler  ')).toBe(true);
+    });
+
+    it('is false for a different name', () => {
+      expect(lastNameMatches({ lastName: 'Traveler' }, 'Someone Else')).toBe(false);
     });
   });
 });

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
+import { generateConfirmationCode } from '../../src/modules/booking';
 
 // Same rationale as tests/api/booking-setup.api.test.ts -- mock only the
 // Vercel Blob network boundary; everything else (route/service/RLS) is real.
@@ -73,6 +74,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristAId,
+        confirmationCode: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

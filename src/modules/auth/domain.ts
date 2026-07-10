@@ -26,6 +26,7 @@ export interface PublicUser {
 const E164 = /^\+?[1-9]\d{6,14}$/;
 
 export const UpdateProfileInput = z.object({
+  name: z.string().min(1).max(200).optional(),
   phone: z.string().regex(E164).nullable().optional(),
   preferredLocale: z.enum(['EN', 'FR']).optional(),
 });

@@ -97,6 +97,17 @@ enum AddonCode {
   VISA_ASSISTANCE
 }
 
+// Powers the public "tailor your trip" quiz's interest-matching (DR-016).
+enum PackageTag {
+  WILDLIFE
+  ADVENTURE
+  RELAXATION
+  FAMILY
+  CULTURE
+  LUXURY
+  BUDGET
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -131,6 +142,7 @@ model User {
   image           String? // better-auth: avatar URL
   phone           String? // E.164 -- WhatsApp/SMS addressing (DR-013)
   preferredLocale Locale    @default(EN)
+  isAnonymous     Boolean?  @default(false) // better-auth `anonymous` plugin (DR-016 guest checkout)
   organizationId  String?   @db.Uuid
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -222,6 +234,7 @@ model TourPackage {
   priceMinor     Int // per-seat unit price, integer minor units (BR-02)
   currency       Currency
   durationDays   Int?
+  tags           PackageTag[] // interest-matching for the public quiz (DR-016)
   status         PackageStatus @default(DRAFT)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -279,6 +292,12 @@ model Booking {
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
   addonsFinalizedAt DateTime?
+  // Short, human-typeable lookup code (DR-016) -- generated for every
+  // booking (staff or guest) at hold-creation time, but only ever revealed
+  // to a guest once setup + payment-initiation are complete. Not a security
+  // boundary on its own -- the "find my booking" flow also requires the
+  // tour lead's last name (see bookingService.lookupByConfirmationCode).
+  confirmationCode  String        @unique
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

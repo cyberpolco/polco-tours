@@ -1,3 +1,4 @@
+import { generateConfirmationCode } from '../../src/modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 
 /**
@@ -50,6 +51,7 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
         seats,
         priceMinor: 10000 * seats,
         currency: 'USD',
+        confirmationCode: generateConfirmationCode(),
       },
     });
     return booking.id;

@@ -1,6 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { anonymous } from 'better-auth/plugins';
 import { prisma } from './db';
+import { getPrimaryOrgId } from './primary-org';
 
 /**
  * Authentication (Vol. 5 / Vol. 7): Better Auth, self-hosted, data in our own
@@ -38,6 +40,13 @@ export const authConfig = {
     enabled: true,
     requireEmailVerification: true,
   },
+  // Guest checkout (DR-016): a real, cookie-backed session with zero
+  // password/email UX -- the tourist self-serve site's whole trust model.
+  // disableDeleteAnonymousUser is true because our guests never "convert" to
+  // a real account (no tourist signup flow exists) -- the plugin's default
+  // "delete the anonymous user once they sign in for real" behavior must not
+  // run, or a guest's booking history would vanish under them.
+  plugins: [anonymous({ disableDeleteAnonymousUser: true })],
   session: {
     expiresIn: 60 * 60 * 12, // 12h absolute
     updateAge: 60 * 30, // refresh idle window (30m)
@@ -55,13 +64,21 @@ export const authConfig = {
   databaseHooks: {
     user: {
       create: {
-        // DR-005/DR-011: single-tenant launch -- every new tourist joins the
-        // primary org (Lam) at signup. organizationId stays nullable in the
-        // schema for the future multi-operator case; this hook is the only
-        // place that decides the default.
+        // DR-005/DR-011: single-tenant launch -- every new tourist (real or
+        // anonymous/guest, DR-016) joins the primary org (Lam) at signup.
+        // organizationId stays nullable in the schema for the future
+        // multi-operator case. Deliberately falls back to null instead of
+        // propagating getPrimaryOrgId()'s throw -- unlike a guest-facing page
+        // failing loudly on misconfiguration, signup itself should degrade
+        // gracefully rather than block entirely.
         async before() {
-          const primary = await prisma.organization.findFirst({ where: { isPrimary: true } });
-          return { data: { organizationId: primary?.id ?? null } };
+          let organizationId: string | null = null;
+          try {
+            organizationId = await getPrimaryOrgId();
+          } catch {
+            // No primary org configured -- leave organizationId null.
+          }
+          return { data: { organizationId } };
         },
       },
     },
