@@ -15,9 +15,32 @@
   body {
     @apply bg-bone text-ink;
     font-family: var(--font-sans);
+    /* Graticule — a barely-there map-grid texture reinforcing the
+       "Meridian Cartography" identity site-wide (guest + staff, both read
+       the same tokens). Pure CSS, no image asset. rgba(201,207,216,...) is
+       the `rule` token (#C9CFD8) at low alpha -- a literal value, not
+       theme(), since theme()'s slash-opacity modifier support varies by
+       Tailwind minor version. */
+    background-image:
+      repeating-linear-gradient(to right, rgba(201, 207, 216, 0.06) 0 1px, transparent 1px 96px),
+      repeating-linear-gradient(to bottom, rgba(201, 207, 216, 0.06) 0 1px, transparent 1px 96px);
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
   }
   ::selection {
     @apply bg-amber/25;
+  }
+}
+
+@layer components {
+  /* The small tracked-caps label pattern used throughout (page eyebrows,
+     the wordmark, section labels) -- consolidates what used to be a
+     hand-rolled class stack at each call site. */
+  .eyebrow {
+    @apply font-mono text-xs font-semibold uppercase tracking-survey;
   }
 }
 

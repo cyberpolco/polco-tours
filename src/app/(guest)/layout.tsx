@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { BrandMark } from '@/components/BrandMark';
+import { GuestFooter } from './footer';
+import { GuestNav } from './nav';
 
 // Public chrome for the tourist self-serve site (DR-016) -- a route group so
 // this nav doesn't leak into /staff (which has its own dashboard layout) or
@@ -6,26 +9,18 @@ import Link from 'next/link';
 // pages gate themselves via requireGuestContext.
 export default function GuestLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-bone text-ink">
+    <div className="flex min-h-screen flex-col bg-bone text-ink">
       <header className="border-b border-rule bg-navy text-bone">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-8 py-4">
-          <Link href="/" className="text-xs font-semibold tracking-survey text-amber">
-            POLCO TOURS
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-8 py-4">
+          <Link href="/" className="eyebrow flex items-center gap-2 text-amber">
+            <BrandMark className="h-5 w-5" />
+            Polco Tours
           </Link>
-          <nav className="flex gap-6 text-sm">
-            <Link href="/packages" className="hover:text-amber">
-              Browse
-            </Link>
-            <Link href="/quiz" className="hover:text-amber">
-              Tailor my trip
-            </Link>
-            <Link href="/find-booking" className="hover:text-amber">
-              Find my booking
-            </Link>
-          </nav>
+          <GuestNav />
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-8 py-10">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-8 py-10">{children}</main>
+      <GuestFooter />
     </div>
   );
 }

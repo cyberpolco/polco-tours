@@ -1,12 +1,14 @@
 import Link from 'next/link';
+import { TopographicPattern } from '@/components/TopographicPattern';
 
 // Replaces the Phase-0 placeholder that used to live at src/app/page.tsx --
 // this route group (DR-016) is the real product surface it deferred to.
 export default function HomePage() {
   return (
-    <div className="py-8">
-      <p className="mb-4 text-xs font-semibold tracking-survey text-amber">NAMIBIA &amp; THE DRC</p>
-      <h1 className="max-w-2xl text-4xl font-bold leading-tight text-navy sm:text-5xl">
+    <div className="relative overflow-hidden py-8">
+      <TopographicPattern className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-navy/[0.06]" />
+      <p className="eyebrow mb-4 text-amber">Namibia &amp; the DRC</p>
+      <h1 className="max-w-2xl text-4xl font-semibold leading-tight text-navy sm:text-5xl">
         Tours worth crossing a border for.
       </h1>
       <p className="mt-6 max-w-xl text-mist">
