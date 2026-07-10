@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { PackageTag } from '@prisma/client';
 import { catalogService, type QuizAnswers } from '@modules/catalog';
-import { format, money } from '@lib/money';
+import { PackageCard } from '../../package-card';
 
 interface Props {
   searchParams: Promise<{ country?: string; tripLength?: string; tags?: string | string[] }>;
@@ -42,19 +42,7 @@ export default async function QuizResultsPage({ searchParams }: Props) {
       ) : (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2">
           {results.map((p) => (
-            <li key={p.id} className="rounded-survey border border-rule p-4">
-              <Link href={`/packages/${p.id}`} className="block">
-                <h2 className="font-semibold text-navy hover:underline">{p.title}</h2>
-                <p className="mt-1 text-sm text-mist">{p.description}</p>
-                <p className="mt-2 text-sm">
-                  {p.country} · {p.durationDays ? `${p.durationDays} days` : 'duration varies'} ·{' '}
-                  {format(money(p.priceMinor, p.currency))}/seat
-                </p>
-                {p.tags.length > 0 && (
-                  <p className="mt-1 text-xs uppercase tracking-survey text-forest">{p.tags.join(' · ')}</p>
-                )}
-              </Link>
-            </li>
+            <PackageCard key={p.id} pkg={p} />
           ))}
         </ul>
       )}

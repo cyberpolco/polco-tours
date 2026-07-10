@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { catalogService } from '@modules/catalog';
-import { format, money } from '@lib/money';
+import { PackageCard } from '../package-card';
 
 interface Props {
   searchParams: Promise<{ country?: string }>;
@@ -18,7 +18,7 @@ export default async function PackagesPage({ searchParams }: Props) {
 
   return (
     <div>
-      <p className="text-xs tracking-survey text-mist">BROWSE</p>
+      <p className="eyebrow text-mist">Browse</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Tour packages</h1>
 
       <div className="mt-4 flex gap-2 text-sm">
@@ -44,19 +44,7 @@ export default async function PackagesPage({ searchParams }: Props) {
       ) : (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2">
           {packages.map((p) => (
-            <li key={p.id} className="rounded-survey border border-rule p-4">
-              <Link href={`/packages/${p.id}`} className="block">
-                <h2 className="font-semibold text-navy hover:underline">{p.title}</h2>
-                <p className="mt-1 text-sm text-mist">{p.description}</p>
-                <p className="mt-2 text-sm">
-                  {p.country} · {p.durationDays ? `${p.durationDays} days` : 'duration varies'} ·{' '}
-                  {format(money(p.priceMinor, p.currency))}/seat
-                </p>
-                {p.tags.length > 0 && (
-                  <p className="mt-1 text-xs uppercase tracking-survey text-forest">{p.tags.join(' · ')}</p>
-                )}
-              </Link>
-            </li>
+            <PackageCard key={p.id} pkg={p} />
           ))}
         </ul>
       )}

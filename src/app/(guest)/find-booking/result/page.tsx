@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { bookingService } from '@modules/booking';
 import { ApiError } from '@lib/errors';
+import { Alert } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
 import { format, money } from '@lib/money';
+import { BOOKING_STATUS_TONE } from '../../badge-tones';
 
 interface Props {
   searchParams: Promise<{ confirmationCode?: string; lastName?: string }>;
@@ -14,7 +17,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   if (!confirmationCode || !lastName) {
     return (
       <div className="max-w-sm">
-        <p className="text-sm text-amber">Enter a reference code and last name.</p>
+        <Alert tone="info">Enter a reference code and last name.</Alert>
         <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
           ← try again
         </Link>
@@ -37,7 +40,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         : "We couldn't find a booking matching that code and last name.";
     return (
       <div className="max-w-sm">
-        <p className="text-sm text-amber">{message}</p>
+        <Alert tone="error">{message}</Alert>
         <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
           ← try again
         </Link>
@@ -49,14 +52,16 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <p className="text-xs tracking-survey text-mist">YOUR BOOKING</p>
+      <p className="eyebrow text-mist">Your booking</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{booking.confirmationCode}</h1>
-      <p className="mt-1 text-mist">
-        {booking.seats} seat(s) · {booking.status} · {format(money(booking.priceMinor, booking.currency))}
+      <p className="mt-1 flex items-center gap-2 text-mist">
+        {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+        {format(money(booking.priceMinor, booking.currency))}
       </p>
 
-      <div className="mt-6 border-t border-rule pt-6">
-        <p className="text-xs tracking-survey text-mist">TRAVELERS</p>
+      <div className="survey-rule mt-6" />
+      <div className="pt-6">
+        <p className="eyebrow text-mist">Travelers</p>
         <ul className="mt-2 space-y-1 text-sm">
           {travelers.map((t) => (
             <li key={t.id}>

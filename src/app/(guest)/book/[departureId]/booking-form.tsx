@@ -2,6 +2,9 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Alert } from '@/components/ui/Alert';
+import { Button } from '@/components/ui/Button';
+import { FormField } from '@/components/ui/FormField';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { createGuestBookingAction } from './actions';
@@ -63,12 +66,8 @@ export default function BookingForm({ departureId, capacity }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-      <div>
-        <label htmlFor="seats" className="mb-1 block text-sm text-mist">
-          Seats
-        </label>
+      <FormField label="Seats" htmlFor="seats">
         <input
-          id="seats"
           name="seats"
           type="number"
           min={1}
@@ -77,14 +76,11 @@ export default function BookingForm({ departureId, capacity }: Props) {
           required
           className="w-full rounded-survey border border-rule px-3 py-2"
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label htmlFor="name" className="mb-1 block text-sm text-mist">
-          Your name
-        </label>
-        <input id="name" name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
-      </div>
+      <FormField label="Your name" htmlFor="name">
+        <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
+      </FormField>
 
       <div>
         <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your booking)</p>
@@ -106,15 +102,11 @@ export default function BookingForm({ departureId, capacity }: Props) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-amber">{error}</p>}
+      {error && <Alert tone="error">{error}</Alert>}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-survey bg-amber px-5 py-2 text-sm font-semibold text-navy disabled:opacity-50"
-      >
+      <Button type="submit" disabled={pending}>
         {pending ? 'Starting your booking…' : 'Start my booking'}
-      </button>
+      </Button>
     </form>
   );
 }

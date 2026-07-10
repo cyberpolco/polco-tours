@@ -1,9 +1,16 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import { Alert } from '@/components/ui/Alert';
+import { Badge } from '@/components/ui/Badge';
+import { LinkButton } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { StepIndicator } from '@/components/ui/StepIndicator';
+import { SubmitButton } from '@/components/ui/SubmitButton';
+import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '../../badge-tones';
+import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
 import { cancelBookingAction, initiatePaymentAction } from './actions';
 
 interface Props {
@@ -34,13 +41,16 @@ export default async function BookingHomePage({ params }: Props) {
       : !passportDone
         ? `/booking/${bookingId}/passport`
         : `/booking/${bookingId}/addons`;
+    const currentStepIndex = !travelersDone ? 1 : !passportDone ? 2 : 3;
 
     return (
       <div className="max-w-md space-y-6">
+        <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={currentStepIndex} />
         <div>
-          <p className="text-xs tracking-survey text-mist">BOOKING SETUP</p>
-          <p className="mt-1 text-mist">
-            {booking.seats} seat(s) · {booking.status} · {format(money(booking.priceMinor, booking.currency))}
+          <p className="eyebrow mt-4 text-mist">Booking setup</p>
+          <p className="mt-1 flex items-center gap-2 text-mist">
+            {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+            {format(money(booking.priceMinor, booking.currency))}
           </p>
         </div>
         <ul className="space-y-2 text-sm">
@@ -50,9 +60,7 @@ export default async function BookingHomePage({ params }: Props) {
           <li className={passportDone ? 'text-forest' : 'text-ink'}>{passportDone ? '✓' : '○'} Tour lead passport</li>
           <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
         </ul>
-        <Link href={nextHref} className="inline-block rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-          Continue setup
-        </Link>
+        <LinkButton href={nextHref}>Continue setup</LinkButton>
       </div>
     );
   }
@@ -66,58 +74,65 @@ export default async function BookingHomePage({ params }: Props) {
 
   return (
     <div className="space-y-8">
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={4} />
       <div>
-        <p className="text-xs tracking-survey text-mist">YOUR BOOKING</p>
-        <p className="mt-1 text-mist">
-          {booking.seats} seat(s) · {booking.status} · {format(money(booking.priceMinor, booking.currency))}
+        <p className="eyebrow mt-4 text-mist">Your booking</p>
+        <p className="mt-1 flex items-center gap-2 text-mist">
+          {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+          {format(money(booking.priceMinor, booking.currency))}
         </p>
         {payments.length > 0 && (
-          <p className="mt-3 rounded-survey border border-forest bg-forest/5 px-3 py-2 text-sm text-forest">
-            Your reference code: <span className="font-mono font-semibold">{booking.confirmationCode}</span> -- keep
-            this to look up your booking later at /find-booking.
-          </p>
+          <div className="mt-3">
+            <Alert tone="success">
+              Your reference code: <span className="font-mono font-semibold">{booking.confirmationCode}</span> --
+              keep this to look up your booking later at /find-booking.
+            </Alert>
+          </div>
         )}
         {(booking.status === 'HELD' || booking.status === 'CONFIRMED') && (
           <form action={cancelBookingAction.bind(null, booking.id)} className="mt-4">
-            <button className="rounded-survey border border-rule px-4 py-2 text-sm font-semibold text-ink">
+            <SubmitButton variant="secondary" pendingLabel="Cancelling…">
               Cancel booking
-            </button>
+            </SubmitButton>
           </form>
         )}
       </div>
 
-      <div className="border-t border-rule pt-6">
-        <p className="text-xs tracking-survey text-mist">INVOICE</p>
-        <dl className="mt-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Invoice</p>
+        <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt className="text-mist">Subtotal</dt>
-            <dd>{format(money(invoice.subtotalMinor, invoice.currency))}</dd>
+            <p className="text-xs text-mist">Subtotal</p>
+            <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
           </div>
           <div>
-            <dt className="text-mist">Tax</dt>
-            <dd>{format(money(invoice.taxMinor, invoice.currency))}</dd>
+            <p className="text-xs text-mist">Tax</p>
+            <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
           </div>
           <div>
-            <dt className="text-mist">Deposit (40%)</dt>
-            <dd>{format(money(invoice.depositMinor, invoice.currency))}</dd>
+            <p className="text-xs text-mist">Deposit (40%)</p>
+            <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
           </div>
           <div>
-            <dt className="text-mist">Balance (60%)</dt>
-            <dd>{format(money(invoice.balanceMinor, invoice.currency))}</dd>
+            <p className="text-xs text-mist">Balance (60%)</p>
+            <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
           </div>
-        </dl>
+        </Card>
       </div>
 
-      <div className="border-t border-rule pt-6">
-        <p className="text-xs tracking-survey text-mist">PAYMENT</p>
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Payment</p>
         {payments.length === 0 ? (
           <p className="mt-2 text-sm text-mist">No payment requested yet.</p>
         ) : (
           <ul className="mt-2 space-y-2 text-sm">
             {payments.map((p) => (
               <li key={p.id} className="flex items-center justify-between border-b border-rule pb-2">
-                <span>
-                  {p.kind} · {format(money(p.amountMinor, p.currency))} · {p.status}
+                <span className="flex items-center gap-2">
+                  {p.kind} · {format(money(p.amountMinor, p.currency))}
+                  <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{p.status}</Badge>
                 </span>
                 {p.status === 'PENDING' && (
                   <span className="text-xs text-mist">Awaiting confirmation from our team</span>
@@ -130,16 +145,12 @@ export default async function BookingHomePage({ params }: Props) {
         <div className="mt-4 flex gap-3">
           {!depositDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
-              <button className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-                Pay deposit
-              </button>
+              <SubmitButton pendingLabel="Starting…">Pay deposit</SubmitButton>
             </form>
           )}
           {depositDone && !balanceDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
-              <button className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy">
-                Pay balance
-              </button>
+              <SubmitButton pendingLabel="Starting…">Pay balance</SubmitButton>
             </form>
           )}
         </div>
