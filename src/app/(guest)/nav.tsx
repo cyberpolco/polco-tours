@@ -7,6 +7,9 @@ const LINKS = [
   { href: '/packages', label: 'Browse' },
   { href: '/quiz', label: 'Tailor my trip' },
   { href: '/find-booking', label: 'Find my booking' },
+  { href: '/about', label: 'About' },
+  { href: '/faq', label: 'FAQ' },
+  { href: '/contact', label: 'Contact' },
 ];
 
 // Client component so usePathname() can drive active-link styling --

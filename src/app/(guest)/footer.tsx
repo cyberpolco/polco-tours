@@ -30,6 +30,15 @@ export function GuestFooter() {
             <Link href="/find-booking" className="hover:text-amber">
               Find my booking
             </Link>
+            <Link href="/about" className="hover:text-amber">
+              About
+            </Link>
+            <Link href="/faq" className="hover:text-amber">
+              FAQ
+            </Link>
+            <Link href="/contact" className="hover:text-amber">
+              Contact
+            </Link>
           </nav>
           <p className="eyebrow text-mist">Namibia · DRC</p>
         </div>
