@@ -32,8 +32,16 @@ const STEPS = [
 // Replaces the Phase-0 placeholder that used to live at src/app/page.tsx --
 // this route group (DR-016) is the real product surface it deferred to.
 export default async function HomePage() {
-  const packages = await catalogService.listPublicPackages();
-  const featured = packages.slice(0, 3);
+  // "/" is the highest-traffic route on the site and, unlike every other
+  // catalog-backed page, has no reason to fail the whole page over this one
+  // decorative section -- a DB hiccup here should degrade to "no featured
+  // packages", not a 500 for every visitor landing on the homepage.
+  let featured: Awaited<ReturnType<typeof catalogService.listPublicPackages>> = [];
+  try {
+    featured = (await catalogService.listPublicPackages()).slice(0, 3);
+  } catch (error) {
+    console.error('Failed to load featured packages for homepage', error);
+  }
 
   return (
     <div className="space-y-16 pb-8">
