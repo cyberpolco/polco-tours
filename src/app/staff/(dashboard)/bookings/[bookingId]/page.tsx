@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import { visaService } from '@modules/visa';
 import { format, money } from '@lib/money';
 import { confirmBookingAction, cancelBookingAction, initiatePaymentAction, resolvePaymentAction } from './actions';
 
@@ -64,6 +65,21 @@ export default async function BookingDetailPage({ params }: Props) {
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
   const depositDone = payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED');
   const balanceDone = payments.some((p) => p.kind === 'BALANCE' && p.status === 'SUCCEEDED');
+
+  // Read-only -- visa processing itself is VISA_FACILITATOR's job (DR-019),
+  // which has no staff-dashboard access yet. "Not started" just means no
+  // VisaApplication row exists (visaService.getApplication 404s), same
+  // convention as passportDocumentId being null meaning "not uploaded".
+  const visaStatuses = await Promise.all(
+    travelers.map(async (t) => {
+      try {
+        const application = await visaService.getApplication(ctx, bookingId, t.id);
+        return { traveler: t, status: application.status as string };
+      } catch {
+        return { traveler: t, status: 'Not started' };
+      }
+    }),
+  );
 
   return (
     <div className="space-y-8">
@@ -158,6 +174,17 @@ export default async function BookingDetailPage({ params }: Props) {
             </form>
           )}
         </div>
+      </div>
+
+      <div className="border-t border-rule pt-6">
+        <p className="text-xs tracking-survey text-mist">VISA</p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {visaStatuses.map(({ traveler, status }) => (
+            <li key={traveler.id}>
+              {traveler.firstName} {traveler.lastName}: {status}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

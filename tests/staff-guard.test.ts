@@ -40,6 +40,7 @@ describe('requireStaffContext', () => {
       role: 'TOURIST',
       organizationId: 'org1',
       sessionId: 's1',
+      assignedCountry: null,
     });
     await expect(requireStaffContext('booking.confirm')).rejects.toMatchObject({
       digest: expect.stringContaining('/staff/forbidden'),
@@ -47,7 +48,7 @@ describe('requireStaffContext', () => {
   });
 
   it('returns the resolved context when the session and permission both succeed', async () => {
-    const ctx = { userId: 'u1', role: 'TOUR_OPERATOR', organizationId: 'org1', sessionId: 's1' };
+    const ctx = { userId: 'u1', role: 'TOUR_OPERATOR', organizationId: 'org1', sessionId: 's1', assignedCountry: null };
     resolveSession.mockResolvedValue(ctx);
     await expect(requireStaffContext('booking.confirm')).resolves.toEqual(ctx);
   });

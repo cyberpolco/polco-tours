@@ -131,19 +131,20 @@ model Organization {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  members        Membership[]
-  packages       TourPackage[]
-  departures     Departure[]
-  bookings       Booking[]
-  invoices       Invoice[]
-  payments       Payment[]
-  travelers      Traveler[]
-  documents      Document[]
-  addonServices  AddonService[]
-  bookingAddons  BookingAddon[]
-  vehicles       Vehicle[]
-  driverProfiles DriverProfile[]
-  assignments    Assignment[]
+  members          Membership[]
+  packages         TourPackage[]
+  departures       Departure[]
+  bookings         Booking[]
+  invoices         Invoice[]
+  payments         Payment[]
+  travelers        Traveler[]
+  documents        Document[]
+  addonServices    AddonService[]
+  bookingAddons    BookingAddon[]
+  vehicles         Vehicle[]
+  driverProfiles   DriverProfile[]
+  assignments      Assignment[]
+  visaApplications VisaApplication[]
 
   @@map("organizations")
 }
@@ -158,6 +159,7 @@ model User {
   phone           String? // E.164 -- WhatsApp/SMS addressing (DR-013)
   preferredLocale Locale    @default(EN)
   isAnonymous     Boolean?  @default(false) // better-auth `anonymous` plugin (DR-016 guest checkout)
+  assignedCountry String? // ISO-3166 alpha-2; IMMIGRATION_OFFICER only, set via authService.assignOfficerCountry (DR-019)
   organizationId  String?   @db.Uuid
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -386,13 +388,51 @@ model Traveler {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  booking          Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  passportDocument Document?    @relation(fields: [passportDocumentId], references: [id])
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking          Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  passportDocument Document?        @relation(fields: [passportDocumentId], references: [id])
+  visaApplication  VisaApplication?
 
   @@index([organizationId])
   @@index([bookingId])
   @@map("travelers")
+}
+
+// ------------------------------------------------------------- visa (DR-019, Phase 2 Increment 3)
+enum VisaStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+// A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED (no
+// resubmission after REJECTED this increment). Traveler identity fields are
+// snapshotted here (not joined live) so IMMIGRATION_OFFICER's country-scoped
+// list never needs booking.read -- that role's whole footprint stays
+// `immigration.read` only (BR-10 "strictly read-only, single-permission").
+model VisaApplication {
+  id                         String     @id @default(uuid()) @db.Uuid
+  organizationId             String     @db.Uuid
+  travelerId                 String     @unique @db.Uuid
+  country                    String // ISO-3166 alpha-2, destination -- snapshotted from the departure's package at submit time
+  travelerFirstName          String
+  travelerLastName           String
+  travelerNationality        String
+  travelerIdOrPassportNumber String
+  status                     VisaStatus @default(SUBMITTED)
+  documentId                 String?    @unique @db.Uuid // the granted visa doc
+  submittedAt                DateTime   @default(now())
+  decidedAt                  DateTime?
+  createdAt                  DateTime   @default(now())
+  updatedAt                  DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  traveler     Traveler     @relation(fields: [travelerId], references: [id], onDelete: Cascade)
+  document     Document?    @relation(fields: [documentId], references: [id])
+
+  @@index([organizationId])
+  @@index([country])
+  @@map("visa_applications")
 }
 
 // Generic document reference -- object storage holds the bytes, this table
@@ -410,7 +450,7 @@ model Traveler {
 model Document {
   id               String    @id @default(uuid()) @db.Uuid
   organizationId   String    @db.Uuid
-  kind             String // "PASSPORT" | "VEHICLE_REGISTRATION" | "VEHICLE_INSURANCE" | "VEHICLE_INSPECTION" | "DRIVER_LICENSE"
+  kind             String // "PASSPORT" | "VEHICLE_REGISTRATION" | "VEHICLE_INSURANCE" | "VEHICLE_INSPECTION" | "DRIVER_LICENSE" | "VISA"
   blobPathname     String // Vercel Blob pathname, access: 'private' -- never sent to the client
   contentType      String
   sizeBytes        Int
@@ -420,10 +460,11 @@ model Document {
   driverProfileId  String?   @db.Uuid
   createdAt        DateTime  @default(now())
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  traveler      Traveler?
-  vehicle       Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  driverProfile DriverProfile? @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  traveler        Traveler?
+  vehicle         Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverProfile   DriverProfile?   @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  visaApplication VisaApplication?
 
   @@index([organizationId])
   @@index([vehicleId])

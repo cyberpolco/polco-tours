@@ -116,6 +116,10 @@ src/
     api/v1/departures/[departureId]/assignments, api/v1/assignments/
       [assignmentId], api/v1/assignments/mine
                                            # assignments (DR-018)
+    api/v1/bookings/[bookingId]/travelers/[travelerId]/visa(/submit,/decide,
+      /document), api/v1/immigration/visa-applications,
+      api/v1/users/[userId]/assign-country
+                                           # visa documents (DR-019)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
@@ -157,6 +161,11 @@ src/
                        #   departuresOverlap double-booking rule (DR-018);
                        #   no self-service portal yet for guide/driver/
                        #   vehicle-owner roles (staff-managed only)
+    visa/              # VisaApplication (per Traveler, SUBMITTED ->
+                       #   APPROVED/REJECTED), canDecide rule, OfficerVisaView
+                       #   (data-minimized, country-scoped) (DR-019); traveler
+                       #   identity snapshotted so IMMIGRATION_OFFICER's list
+                       #   never needs booking.read
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -399,9 +408,27 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   requires `booking.confirm`); `GET /api/v1/assignments/mine` exists so
   their own schedule is queryable via the API, but a real self-service
   portal (widening that shared gate) is deferred to its own increment.
-- **Phase 2 (remaining):** visa documents, WhatsApp/SMS fallback real wiring
-  (OI-05/06/07), GPS v1, CRM, reviews, and a guide/driver/vehicle-owner
-  self-service "my schedule" portal.
+- **Phase 2 — Visa documents (Increment 3) done 2026-07-10 (DR-019):** new
+  `VisaApplication` per `Traveler` (`SUBMITTED -> APPROVED/REJECTED`, no
+  resubmission after a decision) -- first real use of both `visa.process`
+  and `immigration.read`, reserved since Phase 0 and never exercised before.
+  Traveler identity + destination country are snapshotted onto the
+  application at submission time so `IMMIGRATION_OFFICER`'s country-scoped
+  list (BR-10, via new `User.assignedCountry` + admin-only
+  `authService.assignOfficerCountry`, first real `admin.all` use) never
+  needs `booking.read` -- avoids widening that role's single-permission
+  footprint. `documentsService` gains the `VISA` kind unchanged. New
+  `/api/v1/bookings/{id}/travelers/{id}/visa/*`,
+  `/api/v1/immigration/visa-applications`, and
+  `/api/v1/users/{id}/assign-country` routes. `VISA_FACILITATOR`/
+  `IMMIGRATION_OFFICER` get no staff UI this increment (no dashboard access,
+  same gap as Assignments' guide/driver/vehicle-owner roles) -- API-only;
+  `TOUR_OPERATOR` gets a small read-only "Visa" line per traveler on the
+  existing booking-detail page.
+- **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
+  GPS v1, CRM, reviews, a guide/driver/vehicle-owner self-service "my
+  schedule" portal, an officer-management UI, and visa resubmission after
+  rejection.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -450,7 +477,18 @@ DR-011) with anti-BOLA scoping for `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER`, new
 `/api/v1/departures/{id}/assignments` + `/api/v1/assignments/*` routes, and
 the first staff departures UI -- staff-managed only, a guide/driver/
 vehicle-owner self-service portal deliberately deferred (would need to widen
-the staff layout's baseline permission gate).
+the staff layout's baseline permission gate) · DR-019 Phase 2 Increment 3:
+visa documents -- `visa.process`/`immigration.read` finally used, since
+Phase 0. New `VisaApplication` per traveler (`SUBMITTED -> APPROVED/
+REJECTED`), traveler identity + destination country snapshotted onto it so
+`IMMIGRATION_OFFICER`'s country-scoped list (new `User.assignedCountry`,
+BR-10) never needs `booking.read`. New admin-only
+`authService.assignOfficerCountry` (first real `admin.all` use). New
+`/api/v1/bookings/{id}/travelers/{id}/visa/*` + `/api/v1/immigration/
+visa-applications` + `/api/v1/users/{id}/assign-country` routes,
+API-only for `VISA_FACILITATOR`/`IMMIGRATION_OFFICER` (no dashboard access,
+same gap as Assignments), plus a small read-only Visa line for
+`TOUR_OPERATOR` on the existing booking-detail page.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 

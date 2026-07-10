@@ -11,6 +11,7 @@ function toPublicUser(u: {
   emailVerified: boolean;
   phone: string | null;
   preferredLocale: PublicUser['preferredLocale'];
+  assignedCountry: string | null;
 }): PublicUser {
   return {
     id: u.id,
@@ -21,6 +22,7 @@ function toPublicUser(u: {
     emailVerified: u.emailVerified,
     phone: u.phone,
     preferredLocale: u.preferredLocale,
+    assignedCountry: u.assignedCountry,
   };
 }
 
@@ -40,5 +42,18 @@ export const authRepository = {
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<PublicUser> {
     const u = await prisma.user.update({ where: { id: userId }, data: input });
     return toPublicUser(u);
+  },
+
+  async updateAssignedCountry(userId: string, country: string): Promise<PublicUser> {
+    const u = await prisma.user.update({ where: { id: userId }, data: { assignedCountry: country } });
+    return toPublicUser(u);
+  },
+
+  /** Organization is a shared/platform table (like src/lib/primary-org.ts's
+   * reads), not owned by any single feature module -- this is just a
+   * read of the countries an officer's org actually operates in. */
+  async findOrganizationCountries(organizationId: string): Promise<string[] | null> {
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+    return org ? org.countries : null;
   },
 };

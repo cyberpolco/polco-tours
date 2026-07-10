@@ -1,9 +1,20 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.7.0
+  version: 0.8.0
   description: >
-    DR-018 adds Phase 2 Increment 2 (assignments): /departures/{id}
+    DR-019 adds Phase 2 Increment 3 (visa documents): a per-traveler
+    VisaApplication workflow (SUBMITTED -> APPROVED/REJECTED, no
+    resubmission after a decision) under
+    /bookings/{bookingId}/travelers/{travelerId}/visa(/submit|/decide
+    |/document), reusing documentsService.uploadDocument (kind: VISA).
+    /immigration/visa-applications is a country-scoped list for
+    IMMIGRATION_OFFICER (BR-10) -- forced to their own assignedCountry,
+    set via the new admin-only PATCH /users/{userId}/assign-country.
+    The officer's list returns a minimal OfficerVisaView (traveler
+    identity is snapshotted onto VisaApplication at submit time, so this
+    never calls into the booking module, which that role has no
+    permission for). DR-018 adds Phase 2 Increment 2 (assignments): /departures/{id}
     /assignments and /assignments/{id}, linking a Departure to the vehicle/
     driver/guide staffing it (a departure can have several, one per vehicle).
     Rejects an inactive vehicle/driver, a guideUserId not referencing a
@@ -469,6 +480,170 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /bookings/{bookingId}/travelers/{travelerId}/visa:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    get:
+      summary: View a traveler's visa application (DR-019)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/submit:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Submit a visa application for a traveler (VISA_FACILITATOR, DR-019)
+      description: >-
+        Snapshots the traveler's identity and the departure's destination
+        country onto the application -- one per traveler, no resubmission
+        after a decision this increment.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A visa application already exists for this traveler
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/decide:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Approve or reject a SUBMITTED visa application (VISA_FACILITATOR, DR-019)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecideVisaInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The application is not SUBMITTED
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/document:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    get:
+      summary: Download the granted visa document (DR-019)
+      description: >-
+        Streams the bytes server-side from Vercel Blob (access: 'private') --
+        there is no public URL for this document. Every access is audited.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Upload the granted visa document (VISA_FACILITATOR, DR-019)
+      description: PDF or a phone photo (JPEG/PNG) up to 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /immigration/visa-applications:
+    get:
+      summary: List visa applications, country-scoped (IMMIGRATION_OFFICER, DR-019)
+      description: >-
+        IMMIGRATION_OFFICER is forced to their own assignedCountry (BR-10);
+        ?country= is ignored for that role. Admins may pass ?country= to
+        filter or omit it to see every country in the org.
+      parameters:
+        - name: country
+          in: query
+          required: false
+          schema: { type: string, minLength: 2, maxLength: 2 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applications:
+                    type: array
+                    items: { $ref: '#/components/schemas/OfficerVisaView' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /users/{userId}/assign-country:
+    parameters:
+      - $ref: '#/components/parameters/userId'
+    patch:
+      summary: Assign an IMMIGRATION_OFFICER's country scope (admin-only, DR-019)
+      description: Admin-only (SUPERADMIN/PLATFORM_ADMIN). No staff UI -- API-only this increment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignOfficerCountryInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   /bookings/{bookingId}/addons:
     parameters:
       - $ref: '#/components/parameters/bookingId'
@@ -925,6 +1100,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
 
   responses:
     Forbidden:
@@ -1186,6 +1366,10 @@ components:
         emailVerified: { type: boolean }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }
+        assignedCountry:
+          type: string
+          nullable: true
+          description: ISO-3166 alpha-2; IMMIGRATION_OFFICER only (BR-10, DR-019)
 
     UpdateProfileInput:
       type: object
@@ -1193,6 +1377,12 @@ components:
         name: { type: string, minLength: 1, maxLength: 200, description: 'Added for the guest-checkout contact-info step (DR-016)' }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }
+
+    AssignOfficerCountryInput:
+      type: object
+      required: [country]
+      properties:
+        country: { type: string, minLength: 2, maxLength: 2, description: Must be one of the target's Organization.countries }
 
     Vehicle:
       type: object
@@ -1279,3 +1469,41 @@ components:
         vehicleId: { type: string, format: uuid }
         driverProfileId: { type: string, format: uuid }
         guideUserId: { type: string, format: uuid }
+
+    VisaApplication:
+      type: object
+      description: Facilitator-facing view (DR-019). See OfficerVisaView for the IMMIGRATION_OFFICER projection.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        travelerId: { type: string, format: uuid }
+        country: { type: string, description: 'ISO-3166 alpha-2, destination -- snapshotted at submit time' }
+        status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
+        documentId: { type: string, format: uuid, nullable: true, description: The granted visa document }
+        submittedAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    DecideVisaInput:
+      type: object
+      required: [outcome]
+      properties:
+        outcome: { type: string, enum: [APPROVED, REJECTED] }
+
+    OfficerVisaView:
+      type: object
+      description: >-
+        Minimal projection for IMMIGRATION_OFFICER (BR-10 data minimization)
+        -- deliberately excludes disabilities/allergies/phone/drinkPreference.
+      properties:
+        id: { type: string, format: uuid }
+        travelerFirstName: { type: string }
+        travelerLastName: { type: string }
+        travelerNationality: { type: string }
+        travelerIdOrPassportNumber: { type: string }
+        country: { type: string }
+        status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
+        submittedAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        hasDocument: { type: boolean }

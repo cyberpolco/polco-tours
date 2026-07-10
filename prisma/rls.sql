@@ -160,3 +160,15 @@ CREATE POLICY tenant_isolation ON assignments
 -- Same anti-BOLA caveat: isolates by org only, not by TOUR_GUIDE/DRIVER/
 -- VEHICLE_OWNER self-ownership -- enforced in assignment/service.ts, covered
 -- by tests/api/assignment.security.test.ts.
+
+-- ----------------------------------------------------------- visa_applications (DR-019)
+ALTER TABLE visa_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE visa_applications FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON visa_applications;
+CREATE POLICY tenant_isolation ON visa_applications
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Isolates by org only. Country-scoping for IMMIGRATION_OFFICER (BR-10) is
+-- enforced in visa/service.ts's listForCountry, covered by
+-- tests/api/visa.security.test.ts.

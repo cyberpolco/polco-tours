@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createVerifiedStaffUser } from './helpers/staff-user';
 import { sessionCookiesFor } from './helpers/session-cookie';
-import { seedStaffAndBooking } from './helpers/booking-fixture';
+import { seedStaffAndBooking, seedStaffAndCompleteBooking } from './helpers/booking-fixture';
 
 test.describe('staff dashboard (DR-014)', () => {
   test('unauthenticated visit to the dashboard redirects to login', async ({ page }) => {
@@ -85,5 +85,18 @@ test.describe('staff dashboard (DR-014)', () => {
     // a second match and fails on (caught flaky in CI, DR-016).
     await expect(page.getByRole('heading', { name: "Lead Traveler's passport" })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Upload & continue' })).toBeVisible();
+  });
+
+  // DR-019: read-only "Visa" line per traveler on the fully-set-up booking
+  // detail view. VISA_FACILITATOR has no dashboard access this increment
+  // (same gap as Assignments' guide/driver/vehicle-owner roles), so this is
+  // the only staff-reachable visa coverage -- submit/decide/upload flows are
+  // covered at the API level instead (tests/api/visa.api.test.ts).
+  test('booking detail shows a "Not started" visa line for a traveler with no application yet', async ({ page }) => {
+    const { staffUserId, bookingId } = await seedStaffAndCompleteBooking();
+    await page.context().addCookies(await sessionCookiesFor(staffUserId));
+
+    await page.goto(`/staff/bookings/${bookingId}`);
+    await expect(page.getByText('Lead Traveler: Not started')).toBeVisible();
   });
 });

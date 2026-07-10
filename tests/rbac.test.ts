@@ -108,4 +108,30 @@ describe('RBAC permission matrix', () => {
     expect(can('VISA_FACILITATOR', 'assignment.read')).toBe(false);
     expect(can('TOURIST', 'assignment.read')).toBe(false);
   });
+
+  it('VISA_FACILITATOR can process visas and read documents, but not immigration.read (DR-019)', () => {
+    expect(can('VISA_FACILITATOR', 'visa.process')).toBe(true);
+    expect(can('VISA_FACILITATOR', 'documents.read')).toBe(true);
+    expect(can('VISA_FACILITATOR', 'immigration.read')).toBe(false);
+  });
+
+  it('IMMIGRATION_OFFICER holds only immigration.read -- no visa.process, no documents.read (DR-019, BR-10 single-permission footprint)', () => {
+    expect(can('IMMIGRATION_OFFICER', 'immigration.read')).toBe(true);
+    expect(can('IMMIGRATION_OFFICER', 'visa.process')).toBe(false);
+    expect(can('IMMIGRATION_OFFICER', 'documents.read')).toBe(false);
+  });
+
+  it('only SUPERADMIN/PLATFORM_ADMIN hold admin.all (DR-019: gates assignOfficerCountry)', () => {
+    expect(can('SUPERADMIN', 'admin.all')).toBe(true);
+    expect(can('PLATFORM_ADMIN', 'admin.all')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'admin.all')).toBe(false);
+    expect(can('VISA_FACILITATOR', 'admin.all')).toBe(false);
+  });
+
+  it('TOUR_OPERATOR and TOUR_GUIDE can read documents (needed for the visa-status line, DR-019) but not process visas', () => {
+    expect(can('TOUR_OPERATOR', 'documents.read')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'visa.process')).toBe(false);
+    expect(can('TOUR_GUIDE', 'documents.read')).toBe(true);
+    expect(can('TOUR_GUIDE', 'visa.process')).toBe(false);
+  });
 });

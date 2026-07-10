@@ -2,7 +2,7 @@
 // Generic document metadata store (Documents rule, CLAUDE.md). Originally
 // passport-only; generalized in DR-017 (Phase 2 Increment 1) to also cover
 // fleet compliance documents (vehicle registration/insurance/inspection,
-// driver license) -- Phase 2 visa documents can reuse this unchanged too.
+// driver license); DR-019 (Increment 3) added the VISA kind unchanged.
 export const MAX_PASSPORT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 export const PASSPORT_CONTENT_TYPE = 'application/pdf';
 
@@ -34,6 +34,9 @@ const DOCUMENT_KIND_RULES: Record<string, DocumentKindRule> = {
   VEHICLE_INSURANCE: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
   VEHICLE_INSPECTION: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
   DRIVER_LICENSE: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
+  // A granted visa is often just a stamped page photographed, not always a
+  // scanned PDF -- same allowance as the fleet compliance kinds (DR-019).
+  VISA: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
 };
 
 export function isValidDocumentUpload(kind: string, contentType: string, sizeBytes: number): boolean {

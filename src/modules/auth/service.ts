@@ -50,7 +50,28 @@ export const authService = {
       role: user.role,
       organizationId: user.organizationId,
       sessionId: session.session.id,
+      assignedCountry: user.assignedCountry,
     };
+  },
+
+  /** Admin-only: assigns an IMMIGRATION_OFFICER's country scope (BR-10,
+   * DR-019) -- first real use of admin.all, which nothing has exercised
+   * before either. */
+  async assignOfficerCountry(ctx: AuthContext, userId: string, country: string): Promise<PublicUser> {
+    assertCan(ctx.role, 'admin.all');
+
+    const target = await authRepository.findUserById(userId);
+    if (!target || target.role !== 'IMMIGRATION_OFFICER') {
+      throw Errors.validation('userId must reference an IMMIGRATION_OFFICER account');
+    }
+    if (!target.organizationId) throw Errors.validation('Target user has no organization membership');
+
+    const countries = await authRepository.findOrganizationCountries(target.organizationId);
+    if (!countries?.includes(country)) {
+      throw Errors.validation(`country must be one of this organization's countries: ${countries?.join(', ') ?? ''}`);
+    }
+
+    return authRepository.updateAssignedCountry(userId, country);
   },
 };
 

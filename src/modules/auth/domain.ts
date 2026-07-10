@@ -9,6 +9,8 @@ export interface AuthContext {
   role: Role;
   organizationId: string | null;
   sessionId: string;
+  // ISO-3166 alpha-2; IMMIGRATION_OFFICER only (BR-10 country-scoping, DR-019).
+  assignedCountry: string | null;
 }
 
 export interface PublicUser {
@@ -20,6 +22,7 @@ export interface PublicUser {
   emailVerified: boolean;
   phone: string | null;
   preferredLocale: Locale;
+  assignedCountry: string | null;
 }
 
 // E.164: optional leading +, 1-15 digits, first digit non-zero.
@@ -31,6 +34,13 @@ export const UpdateProfileInput = z.object({
   preferredLocale: z.enum(['EN', 'FR']).optional(),
 });
 export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>;
+
+// Admin-only (assertCan('admin.all') in service.ts); assigns an
+// IMMIGRATION_OFFICER's country scope (BR-10, DR-019).
+export const AssignOfficerCountryInput = z.object({
+  country: z.string().length(2),
+});
+export type AssignOfficerCountryInput = z.infer<typeof AssignOfficerCountryInput>;
 
 /** A membership must exist before a user may act within an organization. */
 export function isOrgMember(ctx: AuthContext, organizationId: string): boolean {
