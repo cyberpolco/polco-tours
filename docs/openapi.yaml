@@ -1,16 +1,22 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.5.0
+  version: 0.6.0
   description: >
-    DR-015 adds the booking-setup wizard: per-seat travelers, a tour lead's
-    passport PDF (first real Vercel Blob usage, DR-010), and priced add-on
-    services that now flow into the invoice subtotal via
-    bookingService.getBillableTotal. GET /bookings/{bookingId}/invoice now
-    409s until the traveler manifest, tour-lead passport, and add-ons step
-    are all complete. Passport bytes are streamed through this API server-side
-    (Vercel Blob access: 'private') and never exposed as a raw URL. Extend
-    this file as new endpoints are added (do not let it drift).
+    DR-017 adds Phase 2 Increment 1 (fleet + compliance): /fleet/vehicles and
+    /fleet/drivers, plus a generalized document upload (documentsService
+    .uploadDocument) reused for vehicle registration/insurance/inspection and
+    driver license documents, each with an optional expiresAt for compliance
+    tracking. VEHICLE_OWNER/DRIVER only ever see their own records
+    (fleet/service.ts). DR-015 added the booking-setup wizard: per-seat
+    travelers, a tour lead's passport PDF (first real Vercel Blob usage,
+    DR-010), and priced add-on services that now flow into the invoice
+    subtotal via bookingService.getBillableTotal. GET
+    /bookings/{bookingId}/invoice 409s until the traveler manifest, tour-lead
+    passport, and add-ons step are all complete. Document bytes are always
+    streamed through this API server-side (Vercel Blob access: 'private') and
+    never exposed as a raw URL. Extend this file as new endpoints are added
+    (do not let it drift).
 servers:
   - url: https://polcotours.com/api/v1
   - url: http://localhost:3000/api/v1
@@ -481,6 +487,273 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /fleet/vehicles:
+    get:
+      summary: List vehicles
+      description: >-
+        TOUR_OPERATOR/SUPERADMIN see the whole org fleet. VEHICLE_OWNER sees
+        only vehicles where ownerId matches them (DR-017).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicles:
+                    type: array
+                    items: { $ref: '#/components/schemas/Vehicle' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Register a vehicle (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateVehicleInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicle: { $ref: '#/components/schemas/Vehicle' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/vehicles/{vehicleId}:
+    parameters:
+      - $ref: '#/components/parameters/vehicleId'
+    get:
+      summary: Get a vehicle
+      description: A VEHICLE_OWNER may only fetch a vehicle they own (404 if not theirs, not 403 -- avoids leaking existence).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicle: { $ref: '#/components/schemas/Vehicle' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a vehicle (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateVehicleInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicle: { $ref: '#/components/schemas/Vehicle' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/vehicles/{vehicleId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/vehicleId'
+    get:
+      summary: List a vehicle's compliance documents (DR-017)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentSummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Upload a vehicle compliance document (fleet.write, staff only)
+      description: >-
+        kind is one of VEHICLE_REGISTRATION / VEHICLE_INSURANCE /
+        VEHICLE_INSPECTION. PDF or a phone photo (JPEG/PNG) up to 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind]
+              properties:
+                file: { type: string, format: binary }
+                kind: { type: string, enum: [VEHICLE_REGISTRATION, VEHICLE_INSURANCE, VEHICLE_INSPECTION] }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/vehicles/{vehicleId}/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/vehicleId'
+      - $ref: '#/components/parameters/documentId'
+    get:
+      summary: Download a vehicle compliance document (DR-017)
+      description: >-
+        Streams the bytes server-side from Vercel Blob (access: 'private') --
+        there is no public URL for this document. Every access is audited.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/drivers:
+    get:
+      summary: List driver profiles (staff only -- DR-017)
+      description: A DRIVER looks up their own profile via GET /fleet/drivers/{driverProfileId} instead.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers:
+                    type: array
+                    items: { $ref: '#/components/schemas/DriverProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a driver profile (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDriverProfileInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  driver: { $ref: '#/components/schemas/DriverProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/drivers/{driverProfileId}:
+    parameters:
+      - $ref: '#/components/parameters/driverProfileId'
+    get:
+      summary: Get a driver profile
+      description: A DRIVER may only fetch their own profile (404 if not theirs, not 403 -- avoids leaking existence).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  driver: { $ref: '#/components/schemas/DriverProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a driver profile (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDriverProfileInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  driver: { $ref: '#/components/schemas/DriverProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/drivers/{driverProfileId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/driverProfileId'
+    get:
+      summary: List a driver's compliance documents (DR-017)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentSummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Upload a driver's license document (fleet.write, staff only)
+      description: kind is always DRIVER_LICENSE. PDF or a phone photo (JPEG/PNG) up to 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/drivers/{driverProfileId}/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/driverProfileId'
+      - $ref: '#/components/parameters/documentId'
+    get:
+      summary: Download a driver's license document (DR-017)
+      description: >-
+        Streams the bytes server-side from Vercel Blob (access: 'private') --
+        there is no public URL for this document. Every access is audited.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /users/me:
     patch:
       summary: Update your own phone / preferred notification locale
@@ -541,6 +814,21 @@ components:
       schema: { type: string, format: uuid }
     paymentId:
       name: paymentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    vehicleId:
+      name: vehicleId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    driverProfileId:
+      name: driverProfileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    documentId:
+      name: documentId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -705,9 +993,18 @@ components:
       description: Never includes the underlying Vercel Blob pathname (Documents rule, CLAUDE.md).
       properties:
         id: { type: string, format: uuid }
-        kind: { type: string, description: '"PASSPORT" for now' }
+        kind:
+          type: string
+          description: >-
+            PASSPORT | VEHICLE_REGISTRATION | VEHICLE_INSURANCE |
+            VEHICLE_INSPECTION | DRIVER_LICENSE (DR-017)
         contentType: { type: string }
         sizeBytes: { type: integer }
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Compliance documents only (DR-017); null for PASSPORT.
         createdAt: { type: string, format: date-time }
 
     BookingAddon:
@@ -803,3 +1100,68 @@ components:
         name: { type: string, minLength: 1, maxLength: 200, description: 'Added for the guest-checkout contact-info step (DR-016)' }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }
+
+    Vehicle:
+      type: object
+      description: Fleet + compliance (DR-017). No link to Departure/Booking yet -- that's Assignments, a later Phase 2 increment.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        ownerId: { type: string, format: uuid, nullable: true, description: VEHICLE_OWNER user; null = operator-owned }
+        plateNumber: { type: string }
+        make: { type: string }
+        model: { type: string }
+        year: { type: integer, nullable: true }
+        vehicleType: { type: string, description: 'Open-ended (sedan/minibus/4x4/boat...), not an enum' }
+        seatCapacity: { type: integer }
+        status: { type: string, enum: [ACTIVE, MAINTENANCE, RETIRED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateVehicleInput:
+      type: object
+      required: [plateNumber, make, model, vehicleType, seatCapacity]
+      properties:
+        ownerId: { type: string, format: uuid }
+        plateNumber: { type: string, minLength: 1, maxLength: 32 }
+        make: { type: string, minLength: 1, maxLength: 100 }
+        model: { type: string, minLength: 1, maxLength: 100 }
+        year: { type: integer, minimum: 1 }
+        vehicleType: { type: string, minLength: 1, maxLength: 50 }
+        seatCapacity: { type: integer, minimum: 1 }
+
+    UpdateVehicleInput:
+      allOf:
+        - $ref: '#/components/schemas/CreateVehicleInput'
+        - type: object
+          properties:
+            status: { type: string, enum: [ACTIVE, MAINTENANCE, RETIRED] }
+      description: All fields optional (partial update).
+
+    DriverProfile:
+      type: object
+      description: 1:1 with a DRIVER-role User (DR-017).
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        licenseNumber: { type: string }
+        licenseExpiresAt: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateDriverProfileInput:
+      type: object
+      required: [userId, licenseNumber]
+      properties:
+        userId: { type: string, format: uuid }
+        licenseNumber: { type: string, minLength: 1, maxLength: 100 }
+        licenseExpiresAt: { type: string, format: date-time }
+
+    UpdateDriverProfileInput:
+      type: object
+      properties:
+        licenseNumber: { type: string, minLength: 1, maxLength: 100 }
+        licenseExpiresAt: { type: string, format: date-time }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }

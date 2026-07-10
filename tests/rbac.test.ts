@@ -71,4 +71,22 @@ describe('RBAC permission matrix', () => {
     expect(can('VISA_FACILITATOR', 'profile.write')).toBe(true);
     expect(can('IMMIGRATION_OFFICER', 'profile.write')).toBe(false);
   });
+
+  it('TOUR_OPERATOR manages the whole fleet (DR-017)', () => {
+    expect(can('TOUR_OPERATOR', 'fleet.read')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'fleet.write')).toBe(true);
+  });
+
+  it('VEHICLE_OWNER and DRIVER can read but not write fleet data (DR-017, scoped to own records in fleet/service.ts)', () => {
+    expect(can('VEHICLE_OWNER', 'fleet.read')).toBe(true);
+    expect(can('VEHICLE_OWNER', 'fleet.write')).toBe(false);
+    expect(can('DRIVER', 'fleet.read')).toBe(true);
+    expect(can('DRIVER', 'fleet.write')).toBe(false);
+  });
+
+  it('TOUR_GUIDE, VISA_FACILITATOR, and TOURIST have no fleet grants (DR-017)', () => {
+    expect(can('TOUR_GUIDE', 'fleet.read')).toBe(false);
+    expect(can('VISA_FACILITATOR', 'fleet.read')).toBe(false);
+    expect(can('TOURIST', 'fleet.read')).toBe(false);
+  });
 });

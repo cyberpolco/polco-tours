@@ -110,10 +110,15 @@ src/
     api/v1/invoices/[invoiceId]/payments  #   ...
     api/v1/payments/[paymentId]/resolve   #   ...
     api/v1/users/me                       # profile self-service (DR-013)
+    api/v1/fleet/vehicles(/[vehicleId](/documents(/[documentId]))),
+      api/v1/fleet/drivers(/[driverProfileId](/documents(/[documentId])))
+                                           # fleet + compliance (DR-017)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
       bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
+      fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]))
+        = fleet + compliance (DR-017)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -137,7 +142,13 @@ src/
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
     notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
     documents/         # Document metadata + Vercel Blob gateway, access:
-                       #   'private' (DR-015; first real DR-010 usage)
+                       #   'private' (DR-015; first real DR-010 usage);
+                       #   generalized uploadDocument (kind-based validation
+                       #   table + expiresAt/vehicleId/driverProfileId) DR-017
+    fleet/             # Vehicle + DriverProfile (compliance docs via
+                       #   documents module), complianceStatus rule (DR-017);
+                       #   no link to Departure/Booking yet (that's
+                       #   Assignments, a later Phase 2 increment)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -346,8 +357,26 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   staff pages); a staff-facing package-management UI (still only the raw
   `/api/v1/catalog/*` routes — `prisma/seed.ts` now seeds a small demo
   catalog to cover it); a real DPO redirect (still stubbed, OI-01).
-- **Phase 2:** operations (fleet+compliance, assignments, documents, visa,
-  WhatsApp/SMS fallback, GPS v1, CRM, reviews).
+- **Phase 2 — Fleet + compliance (Increment 1) done 2026-07-10 (DR-017):** new
+  `Vehicle` (plate/make/model/year/vehicleType/seatCapacity/status, optional
+  `ownerId` -- null means operator-owned) and `DriverProfile` (1:1 with a
+  `DRIVER`-role `User`) tables, plus `Document.expiresAt`/`vehicleId`/
+  `driverProfileId` for vehicle registration/insurance/inspection and
+  driver-license compliance docs. New `src/modules/fleet/` with a pure
+  `complianceStatus` rule (`MISSING`/`VALID`/`EXPIRING_SOON`/`EXPIRED`).
+  `documentsService.uploadPassport` is now a thin wrapper over a generalized
+  `uploadDocument` (per-`kind` validation table). New `fleet.read`/
+  `fleet.write` permissions -- `VEHICLE_OWNER`/`DRIVER` only ever see their
+  own records (anti-BOLA, enforced in `fleet/service.ts`). New
+  `/api/v1/fleet/*` routes + a staff dashboard fleet section. Chosen as
+  Increment 1 because Assignments and GPS v1 both need vehicle/driver records
+  to attach to first (`rbac.ts`'s pre-existing, previously-unused
+  `assignment.write` permission anticipated this). Deliberately deferred:
+  linking a vehicle/driver to a `Departure`/`Booking` (Assignments, next),
+  GPS tracking, automated compliance-expiry notifications, guide compliance
+  records.
+- **Phase 2 (remaining):** assignments, visa documents, WhatsApp/SMS
+  fallback real wiring (OI-05/06/07), GPS v1, CRM, reviews.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -381,7 +410,13 @@ plugin (no tourist accounts, ever), public browse/quiz need no session
 (`getPrimaryOrgId`), `TourPackage.tags` + `scorePackagesForQuiz`,
 `Booking.confirmationCode` + two-factor "find my booking" lookup with a
 crude audit-log rate limit, first real anonymous-session e2e journey
-including a genuine Blob passport upload.
+including a genuine Blob passport upload · DR-017 Phase 2 Increment 1: fleet
++ compliance -- `Vehicle`/`DriverProfile` tables, `documentsService`
+generalized to a `kind`-parameterized `uploadDocument` (passport upload now a
+thin wrapper), pure `complianceStatus` rule, new `fleet.read`/`fleet.write`
+permissions with anti-BOLA ownership scoping for `VEHICLE_OWNER`/`DRIVER`,
+new `/api/v1/fleet/*` routes + staff dashboard fleet section -- sequenced
+ahead of Assignments/GPS v1, which both need this data to attach to.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 

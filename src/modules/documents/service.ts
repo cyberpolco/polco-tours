@@ -4,7 +4,7 @@ import type { AuthContext } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import { isValidPassportUpload, MAX_PASSPORT_SIZE_BYTES, type DocumentSummary } from './domain';
+import { isValidDocumentUpload, type DocumentSummary } from './domain';
 import { BlobGatewayError, blobGateway } from './gateway';
 import { documentsRepository } from './repository';
 
@@ -13,8 +13,22 @@ function requireOrg(ctx: AuthContext): string {
   return ctx.organizationId;
 }
 
-function toSummary(d: { id: string; kind: string; contentType: string; sizeBytes: number; createdAt: Date }): DocumentSummary {
-  return { id: d.id, kind: d.kind, contentType: d.contentType, sizeBytes: d.sizeBytes, createdAt: d.createdAt };
+function toSummary(d: {
+  id: string;
+  kind: string;
+  contentType: string;
+  sizeBytes: number;
+  expiresAt: Date | null;
+  createdAt: Date;
+}): DocumentSummary {
+  return {
+    id: d.id,
+    kind: d.kind,
+    contentType: d.contentType,
+    sizeBytes: d.sizeBytes,
+    expiresAt: d.expiresAt,
+    createdAt: d.createdAt,
+  };
 }
 
 export interface UploadPassportInput {
@@ -23,22 +37,42 @@ export interface UploadPassportInput {
   bytes: Buffer;
 }
 
+export interface UploadDocumentInput {
+  kind: string;
+  contentType: string;
+  sizeBytes: number;
+  bytes: Buffer;
+  expiresAt?: Date;
+  vehicleId?: string;
+  driverProfileId?: string;
+}
+
 export interface DocumentStream {
   body: ReadableStream<Uint8Array>;
   contentType: string;
   sizeBytes: number;
 }
 
+/** kind -> pathname prefix + file extension, since compliance kinds may be uploaded as an image, not always PDF. */
+function pathnameFor(kind: string, organizationId: string, contentType: string): string {
+  const ext = contentType === 'application/pdf' ? 'pdf' : contentType === 'image/png' ? 'png' : 'jpg';
+  const prefix = kind === 'PASSPORT' ? 'passports' : 'compliance-docs';
+  return `${prefix}/${organizationId}/${crypto.randomUUID()}.${ext}`;
+}
+
 export const documentsService = {
-  async uploadPassport(ctx: AuthContext, input: UploadPassportInput): Promise<DocumentSummary> {
+  /** Generic upload path -- any module needing document storage (fleet compliance
+   * docs, future visa docs) goes through this rather than re-wrapping Vercel Blob
+   * itself (charter rule 8: third-party integrations wrapped in exactly one place). */
+  async uploadDocument(ctx: AuthContext, input: UploadDocumentInput): Promise<DocumentSummary> {
     assertCan(ctx.role, 'documents.write');
     const organizationId = requireOrg(ctx);
 
-    if (!isValidPassportUpload(input.contentType, input.sizeBytes)) {
-      throw Errors.validation(`Passport must be a PDF up to ${MAX_PASSPORT_SIZE_BYTES / (1024 * 1024)}MB`);
+    if (!isValidDocumentUpload(input.kind, input.contentType, input.sizeBytes)) {
+      throw Errors.validation(`Invalid ${input.kind} upload (unsupported content type or size)`);
     }
 
-    const pathname = `passports/${organizationId}/${crypto.randomUUID()}.pdf`;
+    const pathname = pathnameFor(input.kind, organizationId, input.contentType);
     let uploaded;
     try {
       uploaded = await blobGateway.upload(pathname, input.bytes, input.contentType);
@@ -48,11 +82,14 @@ export const documentsService = {
     }
 
     const doc = await documentsRepository.create(organizationId, {
-      kind: 'PASSPORT',
+      kind: input.kind,
       blobPathname: uploaded.pathname,
       contentType: input.contentType,
       sizeBytes: input.sizeBytes,
       uploadedByUserId: ctx.userId,
+      expiresAt: input.expiresAt,
+      vehicleId: input.vehicleId,
+      driverProfileId: input.driverProfileId,
     });
 
     await audit({
@@ -65,6 +102,10 @@ export const documentsService = {
     });
 
     return toSummary(doc);
+  },
+
+  async uploadPassport(ctx: AuthContext, input: UploadPassportInput): Promise<DocumentSummary> {
+    return documentsService.uploadDocument(ctx, { ...input, kind: 'PASSPORT' });
   },
 
   /** Streams the document's bytes server-side -- the underlying blobPathname never
@@ -94,5 +135,21 @@ export const documentsService = {
     });
 
     return { body: downloaded.body, contentType: record.contentType, sizeBytes: record.sizeBytes };
+  },
+
+  /** Lists compliance-document summaries for a vehicle/driver profile -- called by
+   * the fleet module through this module's public interface (module boundary rule). */
+  async listVehicleDocuments(ctx: AuthContext, vehicleId: string): Promise<DocumentSummary[]> {
+    assertCan(ctx.role, 'documents.read');
+    const organizationId = requireOrg(ctx);
+    const rows = await documentsRepository.listForVehicle(organizationId, vehicleId);
+    return rows.map(toSummary);
+  },
+
+  async listDriverProfileDocuments(ctx: AuthContext, driverProfileId: string): Promise<DocumentSummary[]> {
+    assertCan(ctx.role, 'documents.read');
+    const organizationId = requireOrg(ctx);
+    const rows = await documentsRepository.listForDriverProfile(organizationId, driverProfileId);
+    return rows.map(toSummary);
   },
 };

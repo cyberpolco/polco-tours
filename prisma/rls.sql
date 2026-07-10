@@ -125,3 +125,26 @@ DROP POLICY IF EXISTS tenant_isolation ON booking_addons;
 CREATE POLICY tenant_isolation ON booking_addons
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------------------- vehicles (DR-017)
+ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vehicles FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON vehicles;
+CREATE POLICY tenant_isolation ON vehicles
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Same anti-BOLA caveat as bookings/invoices: this isolates by org only, not
+-- by VEHICLE_OWNER ownership -- that check lives in fleet/service.ts, covered
+-- by tests/api/fleet.security.test.ts.
+
+-- ------------------------------------------------------------- driver_profiles (DR-017)
+ALTER TABLE driver_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE driver_profiles FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON driver_profiles;
+CREATE POLICY tenant_isolation ON driver_profiles
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Same anti-BOLA caveat: isolates by org only, not by DRIVER self-ownership --
+-- enforced in fleet/service.ts, covered by tests/api/fleet.security.test.ts.

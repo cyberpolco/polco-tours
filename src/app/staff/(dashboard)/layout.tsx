@@ -16,6 +16,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
         <div className="flex items-center gap-6 text-sm">
           <Link href="/staff/bookings">Bookings</Link>
           <Link href="/staff/bookings/new">New booking</Link>
+          <Link href="/staff/fleet">Fleet</Link>
           <SignOutButton />
         </div>
       </nav>

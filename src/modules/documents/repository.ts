@@ -12,6 +12,7 @@ export interface DocumentRecord {
   contentType: string;
   sizeBytes: number;
   uploadedByUserId: string;
+  expiresAt: Date | null;
   createdAt: Date;
 }
 
@@ -21,6 +22,9 @@ export interface CreateDocumentParams {
   contentType: string;
   sizeBytes: number;
   uploadedByUserId: string;
+  expiresAt?: Date;
+  vehicleId?: string;
+  driverProfileId?: string;
 }
 
 function toRecord(d: Document): DocumentRecord {
@@ -32,6 +36,7 @@ function toRecord(d: Document): DocumentRecord {
     contentType: d.contentType,
     sizeBytes: d.sizeBytes,
     uploadedByUserId: d.uploadedByUserId,
+    expiresAt: d.expiresAt,
     createdAt: d.createdAt,
   };
 }
@@ -48,6 +53,20 @@ export const documentsRepository = {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.document.findUnique({ where: { id } });
       return d ? toRecord(d) : null;
+    });
+  },
+
+  async listForVehicle(organizationId: string, vehicleId: string): Promise<DocumentRecord[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.document.findMany({ where: { vehicleId }, orderBy: { createdAt: 'desc' } });
+      return rows.map(toRecord);
+    });
+  },
+
+  async listForDriverProfile(organizationId: string, driverProfileId: string): Promise<DocumentRecord[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.document.findMany({ where: { driverProfileId }, orderBy: { createdAt: 'desc' } });
+      return rows.map(toRecord);
     });
   },
 };

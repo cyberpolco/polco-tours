@@ -108,6 +108,18 @@ enum PackageTag {
   BUDGET
 }
 
+// Fleet + compliance (DR-017, Phase 2 Increment 1).
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+enum DriverStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -119,16 +131,18 @@ model Organization {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  members       Membership[]
-  packages      TourPackage[]
-  departures    Departure[]
-  bookings      Booking[]
-  invoices      Invoice[]
-  payments      Payment[]
-  travelers     Traveler[]
-  documents     Document[]
-  addonServices AddonService[]
-  bookingAddons BookingAddon[]
+  members        Membership[]
+  packages       TourPackage[]
+  departures     Departure[]
+  bookings       Booking[]
+  invoices       Invoice[]
+  payments       Payment[]
+  travelers      Traveler[]
+  documents      Document[]
+  addonServices  AddonService[]
+  bookingAddons  BookingAddon[]
+  vehicles       Vehicle[]
+  driverProfiles DriverProfile[]
 
   @@map("organizations")
 }
@@ -148,10 +162,12 @@ model User {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  memberships Membership[]
-  sessions    Session[]
-  accounts    Account[]
-  bookings    Booking[]
+  memberships   Membership[]
+  sessions      Session[]
+  accounts      Account[]
+  bookings      Booking[]
+  ownedVehicles Vehicle[]
+  driverProfile DriverProfile?
 
   @@index([organizationId])
   @@map("users")
@@ -352,21 +368,83 @@ model Traveler {
 // documents later; `kind` is a plain string (not an enum) so that doesn't
 // need a migration. blobPathname is never sent to the client -- downloads go
 // through an authenticated route that streams the bytes server-side.
+// `expiresAt`/`vehicleId`/`driverProfileId` added in DR-017 (Phase 2
+// Increment 1) for compliance documents (vehicle registration/insurance/
+// inspection, driver license) -- unused by PASSPORT rows. A vehicle/driver
+// can have several compliance documents with different expiries, so the FK
+// lives on this (many) side, the mirror image of Traveler.passportDocumentId
+// (a 1:1, FK on the "one" side) -- both are the natural Prisma shape for
+// their own multiplicity, not an inconsistency.
 model Document {
-  id               String   @id @default(uuid()) @db.Uuid
-  organizationId   String   @db.Uuid
-  kind             String // "PASSPORT" for now
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  kind             String // "PASSPORT" | "VEHICLE_REGISTRATION" | "VEHICLE_INSURANCE" | "VEHICLE_INSPECTION" | "DRIVER_LICENSE"
   blobPathname     String // Vercel Blob pathname, access: 'private' -- never sent to the client
   contentType      String
   sizeBytes        Int
-  uploadedByUserId String   @db.Uuid
-  createdAt        DateTime @default(now())
+  uploadedByUserId String    @db.Uuid
+  expiresAt        DateTime? // compliance documents only
+  vehicleId        String?   @db.Uuid
+  driverProfileId  String?   @db.Uuid
+  createdAt        DateTime  @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  traveler     Traveler?
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  traveler      Traveler?
+  vehicle       Vehicle?       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile? @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+  @@index([vehicleId])
+  @@index([driverProfileId])
   @@map("documents")
+}
+
+// ------------------------------------------------------------- fleet (DR-017, Phase 2 Increment 1)
+// Foundational data for later Phase 2 increments (Assignments, GPS v1) --
+// deliberately no link to Departure/Booking yet, see DECISION_LOG DR-017.
+model Vehicle {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  ownerId        String?       @db.Uuid // VEHICLE_OWNER user; null = operator-owned
+  plateNumber    String
+  make           String
+  model          String
+  year           Int?
+  vehicleType    String // open-ended (sedan/minibus/4x4/boat...) -- varies too much across NA/DRC for an enum
+  seatCapacity   Int
+  status         VehicleStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User?        @relation(fields: [ownerId], references: [id])
+  documents    Document[]
+
+  @@index([organizationId])
+  @@index([ownerId])
+  @@map("vehicles")
+}
+
+// 1:1 with a DRIVER-role User -- compliance data doesn't belong on the
+// auth-owned User model (module-boundary rule, CLAUDE.md). No deletedAt --
+// deactivate via `status`, same reasoning as Booking having none.
+model DriverProfile {
+  id               String       @id @default(uuid()) @db.Uuid
+  organizationId   String       @db.Uuid
+  userId           String       @unique @db.Uuid
+  licenseNumber    String
+  licenseExpiresAt DateTime?
+  status           DriverStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents    Document[]
+
+  @@index([organizationId])
+  @@map("driver_profiles")
 }
 
 // Org-scoped catalog of priced add-on services (photography, video,

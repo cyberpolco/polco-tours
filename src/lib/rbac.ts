@@ -25,6 +25,8 @@ export type Permission =
   | 'documents.write'
   | 'visa.process'
   | 'immigration.read'
+  | 'fleet.read'
+  | 'fleet.write'
   | 'admin.all';
 
 type RoleName =
@@ -57,10 +59,14 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'payment.initiate',
     'payment.resolve',
     'profile.write',
+    'fleet.read', // manages the whole org's fleet (DR-017)
+    'fleet.write',
   ],
   TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read', 'profile.write'],
-  DRIVER: ['catalog.read', 'booking.read', 'profile.write'],
-  VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write'],
+  // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
+  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read'],
+  // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
+  VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read'],
   VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process', 'profile.write'],
   // Deliberately no profile.write either: BR-10's "strictly read-only" is
   // interpreted broadly here to preserve this role's single-permission
