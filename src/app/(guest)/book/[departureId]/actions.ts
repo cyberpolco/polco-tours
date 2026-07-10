@@ -1,21 +1,33 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { authService } from '@modules/auth';
 import { CreateBookingInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { ApiError } from '@lib/errors';
 
+export type CreateGuestBookingResult = { bookingId: string } | { error: 'session' | 'sold_out' };
+
 // No requireGuestContext here -- this is the flow's own entry point, called
 // right after the client establishes the anonymous session
 // (authClient.signIn.anonymous()), not a page that assumes one exists yet.
-export async function createGuestBookingAction(departureId: string, formData: FormData): Promise<void> {
+//
+// Returns a result instead of calling redirect() -- this action is invoked
+// as a plain function from a client event handler (booking-form.tsx needs to
+// await the anonymous sign-in FIRST), not via a <form action={...}> prop or
+// useActionState/startTransition, and redirect()'s special throw is only
+// reliably turned into client-side navigation through those two paths.
+// Every other action in this app's wizards uses the plain <form action>
+// convention and keeps redirect() -- this is the one deliberate exception.
+export async function createGuestBookingAction(
+  departureId: string,
+  formData: FormData,
+): Promise<CreateGuestBookingResult> {
   let ctx;
   try {
     ctx = await authService.resolveSession(await headers());
   } catch {
-    redirect(`/book/${departureId}?error=session`);
+    return { error: 'session' };
   }
 
   const name = String(formData.get('name') ?? '').trim();
@@ -31,10 +43,10 @@ export async function createGuestBookingAction(departureId: string, formData: Fo
   const input = CreateBookingInput.parse({ departureId, seats: Number(formData.get('seats')) });
   try {
     const booking = await bookingService.createHold(ctx, input);
-    redirect(`/booking/${booking.id}`);
+    return { bookingId: booking.id };
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {
-      redirect(`/book/${departureId}?error=sold_out`);
+      return { error: 'sold_out' };
     }
     throw err;
   }

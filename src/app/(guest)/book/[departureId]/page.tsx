@@ -5,12 +5,10 @@ import BookingForm from './booking-form';
 
 interface Props {
   params: Promise<{ departureId: string }>;
-  searchParams: Promise<{ error?: string }>;
 }
 
-export default async function BookDeparturePage({ params, searchParams }: Props) {
+export default async function BookDeparturePage({ params }: Props) {
   const { departureId } = await params;
-  const { error } = await searchParams;
 
   let detail;
   try {
@@ -26,13 +24,6 @@ export default async function BookDeparturePage({ params, searchParams }: Props)
       <h1 className="mt-1 text-2xl font-bold text-navy">
         {detail.departure.startDate.toLocaleDateString()} · {format(detail.effectiveUnitPrice)}/seat
       </h1>
-
-      {error === 'session' && (
-        <p className="mt-3 text-sm text-amber">Something interrupted starting your booking -- please try again.</p>
-      )}
-      {error === 'sold_out' && (
-        <p className="mt-3 text-sm text-amber">This departure just sold out -- try a different date.</p>
-      )}
 
       <BookingForm departureId={departureId} capacity={detail.departure.capacity} />
     </div>

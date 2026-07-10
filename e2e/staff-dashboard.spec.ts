@@ -79,7 +79,11 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.getByRole('button', { name: 'Finish travelers' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/passport`));
-    await expect(page.getByText("Lead Traveler's passport")).toBeVisible();
+    // getByRole('heading', ...), not getByText -- Next's route announcer div
+    // (#__next-route-announcer__) also contains the new page's heading text
+    // for a moment after navigation, which getByText's strict mode treats as
+    // a second match and fails on (caught flaky in CI, DR-016).
+    await expect(page.getByRole('heading', { name: "Lead Traveler's passport" })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Upload & continue' })).toBeVisible();
   });
 });

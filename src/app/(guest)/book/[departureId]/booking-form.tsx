@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { createGuestBookingAction } from './actions';
@@ -15,6 +16,7 @@ interface Props {
 // before the Server Action runs, mirroring staff/login/page.tsx's role as
 // this codebase's only other browser-side auth interaction.
 export default function BookingForm({ departureId, capacity }: Props) {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,8 +36,17 @@ export default function BookingForm({ departureId, capacity }: Props) {
     }
 
     const formData = new FormData(e.currentTarget);
-    await createGuestBookingAction(departureId, formData);
-    setPending(false);
+    const result = await createGuestBookingAction(departureId, formData);
+    if ('error' in result) {
+      setError(
+        result.error === 'sold_out'
+          ? 'This departure just sold out -- try a different date.'
+          : 'Something interrupted starting your booking -- please try again.',
+      );
+      setPending(false);
+      return;
+    }
+    router.push(`/booking/${result.bookingId}`);
   }
 
   return (

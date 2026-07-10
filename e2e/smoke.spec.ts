@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-// Phase 0 smoke: the app boots and the health endpoint is green.
+// Smoke: the app boots and the health endpoint is green. Home page content
+// is the DR-016 tourist self-serve landing page (replaced the Phase-0
+// placeholder this same increment).
 test('landing page renders', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Tourism Operating System/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /worth crossing a border for/i })).toBeVisible();
 });
 
 test('health endpoint is ok', async ({ request }) => {
