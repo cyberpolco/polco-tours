@@ -17,6 +17,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           <Link href="/staff/bookings">Bookings</Link>
           <Link href="/staff/bookings/new">New booking</Link>
           <Link href="/staff/fleet">Fleet</Link>
+          <Link href="/staff/departures">Departures</Link>
           <SignOutButton />
         </div>
       </nav>

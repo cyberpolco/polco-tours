@@ -104,6 +104,14 @@ export const fleetService = {
     return fleetRepository.listDriverProfiles(requireOrg(ctx));
   },
 
+  /** Resolves the caller's own DriverProfile by userId (null if they don't
+   * have one) -- used by assignment/service.ts's listMyAssignments (DR-018),
+   * since a DRIVER's assignments are keyed by driverProfileId, not userId. */
+  async getMyDriverProfile(ctx: AuthContext): Promise<DriverProfileView | null> {
+    assertCan(ctx.role, 'fleet.read');
+    return fleetRepository.findDriverProfileByUserId(requireOrg(ctx), ctx.userId);
+  },
+
   async uploadVehicleDocument(
     ctx: AuthContext,
     vehicleId: string,

@@ -148,3 +148,15 @@ CREATE POLICY tenant_isolation ON driver_profiles
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 -- Same anti-BOLA caveat: isolates by org only, not by DRIVER self-ownership --
 -- enforced in fleet/service.ts, covered by tests/api/fleet.security.test.ts.
+
+-- ---------------------------------------------------------------- assignments (DR-018)
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignments FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON assignments;
+CREATE POLICY tenant_isolation ON assignments
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Same anti-BOLA caveat: isolates by org only, not by TOUR_GUIDE/DRIVER/
+-- VEHICLE_OWNER self-ownership -- enforced in assignment/service.ts, covered
+-- by tests/api/assignment.security.test.ts.

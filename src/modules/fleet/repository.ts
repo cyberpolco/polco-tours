@@ -99,6 +99,13 @@ export const fleetRepository = {
     });
   },
 
+  async findDriverProfileByUserId(organizationId: string, userId: string): Promise<DriverProfileView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const d = await tx.driverProfile.findUnique({ where: { userId } });
+      return d ? toDriverProfileView(d) : null;
+    });
+  },
+
   async listDriverProfiles(organizationId: string): Promise<DriverProfileView[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.driverProfile.findMany({ orderBy: { createdAt: 'desc' } });

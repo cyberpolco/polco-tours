@@ -15,6 +15,7 @@ export type Permission =
   | 'booking.read'
   | 'booking.confirm'
   | 'booking.cancel'
+  | 'assignment.read'
   | 'assignment.write'
   | 'finance.read'
   | 'invoice.read'
@@ -51,6 +52,7 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'booking.read',
     'booking.confirm',
     'booking.cancel',
+    'assignment.read',
     'assignment.write',
     'finance.read',
     'documents.read',
@@ -62,11 +64,14 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'fleet.read', // manages the whole org's fleet (DR-017)
     'fleet.write',
   ],
-  TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read', 'profile.write'],
+  // assignment.read scoped to only their own assignments in
+  // assignment/service.ts's listMyAssignments (DR-018, API-only this
+  // increment -- no staff-dashboard portal yet for this role)
+  TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read', 'profile.write', 'assignment.read'],
   // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
-  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read'],
+  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
-  VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read'],
+  VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read', 'assignment.read'],
   VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process', 'profile.write'],
   // Deliberately no profile.write either: BR-10's "strictly read-only" is
   // interpreted broadly here to preserve this role's single-permission

@@ -143,6 +143,7 @@ model Organization {
   bookingAddons  BookingAddon[]
   vehicles       Vehicle[]
   driverProfiles DriverProfile[]
+  assignments    Assignment[]
 
   @@map("organizations")
 }
@@ -162,12 +163,13 @@ model User {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  memberships   Membership[]
-  sessions      Session[]
-  accounts      Account[]
-  bookings      Booking[]
-  ownedVehicles Vehicle[]
-  driverProfile DriverProfile?
+  memberships      Membership[]
+  sessions         Session[]
+  accounts         Account[]
+  bookings         Booking[]
+  ownedVehicles    Vehicle[]
+  driverProfile    DriverProfile?
+  guideAssignments Assignment[]
 
   @@index([organizationId])
   @@map("users")
@@ -282,10 +284,40 @@ model Departure {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tourPackage  TourPackage  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
   bookings     Booking[]
+  assignments  Assignment[]
 
   @@index([organizationId])
   @@index([tourPackageId])
   @@map("departures")
+}
+
+// ---------------------------------------------------------- assignment (DR-018, Phase 2 Increment 2)
+// Links a Departure to the vehicle/driver/guide staffing it. A departure can
+// have several Assignment rows (one per vehicle) once its capacity exceeds a
+// single vehicle's seatCapacity -- @@unique below just stops the same
+// vehicle being double-entered for the same departure, not a 1:1 cap.
+model Assignment {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  departureId     String   @db.Uuid
+  vehicleId       String   @db.Uuid
+  driverProfileId String   @db.Uuid
+  guideUserId     String?  @db.Uuid // TOUR_GUIDE-role user; optional
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departure     Departure     @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  guide         User?         @relation(fields: [guideUserId], references: [id])
+
+  @@unique([departureId, vehicleId])
+  @@index([organizationId])
+  @@index([departureId])
+  @@index([vehicleId])
+  @@index([driverProfileId])
+  @@map("assignments")
 }
 
 // A tourist's seat reservation on a Departure. A "hold" is not a separate
@@ -400,8 +432,9 @@ model Document {
 }
 
 // ------------------------------------------------------------- fleet (DR-017, Phase 2 Increment 1)
-// Foundational data for later Phase 2 increments (Assignments, GPS v1) --
-// deliberately no link to Departure/Booking yet, see DECISION_LOG DR-017.
+// Foundational data for Phase 2 (fleet + compliance, DR-017); linked to
+// Departure via Assignment starting DR-018. GPS v1 (later increment) will
+// attach here too.
 model Vehicle {
   id             String        @id @default(uuid()) @db.Uuid
   organizationId String        @db.Uuid
@@ -420,6 +453,7 @@ model Vehicle {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   owner        User?        @relation(fields: [ownerId], references: [id])
   documents    Document[]
+  assignments  Assignment[]
 
   @@index([organizationId])
   @@index([ownerId])
@@ -442,6 +476,7 @@ model DriverProfile {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents    Document[]
+  assignments  Assignment[]
 
   @@index([organizationId])
   @@map("driver_profiles")

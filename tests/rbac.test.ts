@@ -89,4 +89,23 @@ describe('RBAC permission matrix', () => {
     expect(can('VISA_FACILITATOR', 'fleet.read')).toBe(false);
     expect(can('TOURIST', 'fleet.read')).toBe(false);
   });
+
+  it('TOUR_OPERATOR can read and write assignments (DR-018)', () => {
+    expect(can('TOUR_OPERATOR', 'assignment.read')).toBe(true);
+    expect(can('TOUR_OPERATOR', 'assignment.write')).toBe(true);
+  });
+
+  it('TOUR_GUIDE, DRIVER, and VEHICLE_OWNER can read but not write assignments (DR-018, scoped to their own in assignment/service.ts)', () => {
+    expect(can('TOUR_GUIDE', 'assignment.read')).toBe(true);
+    expect(can('TOUR_GUIDE', 'assignment.write')).toBe(false);
+    expect(can('DRIVER', 'assignment.read')).toBe(true);
+    expect(can('DRIVER', 'assignment.write')).toBe(false);
+    expect(can('VEHICLE_OWNER', 'assignment.read')).toBe(true);
+    expect(can('VEHICLE_OWNER', 'assignment.write')).toBe(false);
+  });
+
+  it('VISA_FACILITATOR and TOURIST have no assignment grants (DR-018)', () => {
+    expect(can('VISA_FACILITATOR', 'assignment.read')).toBe(false);
+    expect(can('TOURIST', 'assignment.read')).toBe(false);
+  });
 });

@@ -113,12 +113,17 @@ src/
     api/v1/fleet/vehicles(/[vehicleId](/documents(/[documentId]))),
       api/v1/fleet/drivers(/[driverProfileId](/documents(/[documentId])))
                                            # fleet + compliance (DR-017)
+    api/v1/departures/[departureId]/assignments, api/v1/assignments/
+      [assignmentId], api/v1/assignments/mine
+                                           # assignments (DR-018)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
       bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
       fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]))
         = fleet + compliance (DR-017)
+      departures(/[departureId]) = browse + manage assignments (DR-018;
+        first staff departures UI -- packages/departures were API-only before)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -147,8 +152,11 @@ src/
                        #   table + expiresAt/vehicleId/driverProfileId) DR-017
     fleet/             # Vehicle + DriverProfile (compliance docs via
                        #   documents module), complianceStatus rule (DR-017);
-                       #   no link to Departure/Booking yet (that's
-                       #   Assignments, a later Phase 2 increment)
+                       #   linked to Departure via Assignment (DR-018)
+    assignment/        # Assignment (Departure -> vehicle/driver/guide),
+                       #   departuresOverlap double-booking rule (DR-018);
+                       #   no self-service portal yet for guide/driver/
+                       #   vehicle-owner roles (staff-managed only)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -375,8 +383,25 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   linking a vehicle/driver to a `Departure`/`Booking` (Assignments, next),
   GPS tracking, automated compliance-expiry notifications, guide compliance
   records.
-- **Phase 2 (remaining):** assignments, visa documents, WhatsApp/SMS
-  fallback real wiring (OI-05/06/07), GPS v1, CRM, reviews.
+- **Phase 2 — Assignments (Increment 2) done 2026-07-10 (DR-018):** new
+  `Assignment` (`Departure` -> vehicle/driver/optional guide; several rows
+  per departure once capacity exceeds one vehicle's `seatCapacity`) with a
+  pure `departuresOverlap` double-booking rule (a vehicle/driver can't be on
+  two date-overlapping departures) plus inactive-vehicle/driver and
+  wrong-org-guide rejection. New `assignment.read`/`assignment.write`
+  permissions (`assignment.write` existed since DR-011, unused until now) --
+  `VEHICLE_OWNER`/`DRIVER`/`TOUR_GUIDE` only ever see their own assignments
+  (`assignment/service.ts`). New `/api/v1/departures/{id}/assignments` +
+  `/api/v1/assignments/{id}` routes and the first staff departures UI
+  (`src/app/staff/(dashboard)/departures/...`) for browsing + assigning.
+  Confirmed staff-managed only this increment -- `TOUR_GUIDE`/`DRIVER`/
+  `VEHICLE_OWNER` have never had dashboard access (baseline layout gate
+  requires `booking.confirm`); `GET /api/v1/assignments/mine` exists so
+  their own schedule is queryable via the API, but a real self-service
+  portal (widening that shared gate) is deferred to its own increment.
+- **Phase 2 (remaining):** visa documents, WhatsApp/SMS fallback real wiring
+  (OI-05/06/07), GPS v1, CRM, reviews, and a guide/driver/vehicle-owner
+  self-service "my schedule" portal.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -416,7 +441,16 @@ generalized to a `kind`-parameterized `uploadDocument` (passport upload now a
 thin wrapper), pure `complianceStatus` rule, new `fleet.read`/`fleet.write`
 permissions with anti-BOLA ownership scoping for `VEHICLE_OWNER`/`DRIVER`,
 new `/api/v1/fleet/*` routes + staff dashboard fleet section -- sequenced
-ahead of Assignments/GPS v1, which both need this data to attach to.
+ahead of Assignments/GPS v1, which both need this data to attach to · DR-018
+Phase 2 Increment 2: assignments -- new `Assignment` table linking a
+`Departure` to vehicle/driver/optional guide (several per departure once
+capacity exceeds one vehicle), pure `departuresOverlap` double-booking rule,
+new `assignment.read` permission (`assignment.write` finally used, since
+DR-011) with anti-BOLA scoping for `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER`, new
+`/api/v1/departures/{id}/assignments` + `/api/v1/assignments/*` routes, and
+the first staff departures UI -- staff-managed only, a guide/driver/
+vehicle-owner self-service portal deliberately deferred (would need to widen
+the staff layout's baseline permission gate).
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 
