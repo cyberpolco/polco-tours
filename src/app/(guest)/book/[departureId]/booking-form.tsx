@@ -25,35 +25,36 @@ export default function BookingForm({ departureId, capacity }: Props) {
     setError(null);
     setPending(true);
 
+    // Build FormData BEFORE any await -- React nulls out e.currentTarget
+    // once the synchronous portion of the handler returns (an async handler
+    // returns a pending Promise immediately, so the synthetic event is
+    // already recycled by the time execution resumes after the first
+    // await). Reading it any later throws "Failed to construct 'FormData':
+    // parameter 1 is not of type 'HTMLFormElement'" -- this manifested as a
+    // silently-stuck form until browser console diagnostics against real CI
+    // caught it (DR-016).
+    const formData = new FormData(e.currentTarget);
+
     // Everything here is wrapped -- an uncaught throw in a plain (non-<form
     // action>) event handler becomes an invisible unhandled promise
-    // rejection, not a visible error, which is a worse failure mode than an
-    // honest (if generic) message.
+    // rejection, a worse failure mode than an honest (if generic) message.
     try {
-      console.log('[booking-form] checking existing session');
       const session = await authClient.getSession();
-      console.log('[booking-form] session check done', JSON.stringify({ hasData: !!session.data, error: session.error }));
       if (!session.data) {
-        console.log('[booking-form] signing in anonymously');
         const { error: signInError } = await authClient.signIn.anonymous();
-        console.log('[booking-form] anonymous sign-in done', JSON.stringify({ error: signInError }));
         if (signInError) {
           setError(signInError.message ?? 'Could not start your booking -- try again.');
           return;
         }
       }
 
-      const formData = new FormData(e.currentTarget);
-      console.log('[booking-form] calling createGuestBookingAction');
       const result = await createGuestBookingAction(departureId, formData);
-      console.log('[booking-form] action result', JSON.stringify(result));
       if ('error' in result) {
         setError(result.error);
         return;
       }
       router.push(`/booking/${result.bookingId}`);
-    } catch (err) {
-      console.log('[booking-form] caught exception', err instanceof Error ? err.message : String(err));
+    } catch {
       setError('Something went wrong starting your booking -- please try again.');
     } finally {
       setPending(false);

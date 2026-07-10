@@ -9,12 +9,6 @@ import { seedPublicDeparture } from './helpers/catalog-fixture';
 // later on a different visit.
 test.describe('guest checkout (DR-016)', () => {
   test('browse -> book -> setup wizard -> pay -> find my booking later', async ({ page }) => {
-    // Diagnostic: this flow has been silently stuck in CI with no visible
-    // error and no server-side log line -- surface browser console output
-    // and uncaught client-side exceptions directly in the test output.
-    page.on('console', (msg) => console.log(`[browser:${msg.type()}] ${msg.text()}`));
-    page.on('pageerror', (err) => console.log(`[browser:pageerror] ${err.message}`));
-
     const { departureId } = await seedPublicDeparture({ capacity: 1 });
 
     await page.goto('/packages');
