@@ -30,9 +30,13 @@ export default function BookingForm({ departureId, capacity }: Props) {
     // rejection, not a visible error, which is a worse failure mode than an
     // honest (if generic) message.
     try {
+      console.log('[booking-form] checking existing session');
       const session = await authClient.getSession();
+      console.log('[booking-form] session check done', JSON.stringify({ hasData: !!session.data, error: session.error }));
       if (!session.data) {
+        console.log('[booking-form] signing in anonymously');
         const { error: signInError } = await authClient.signIn.anonymous();
+        console.log('[booking-form] anonymous sign-in done', JSON.stringify({ error: signInError }));
         if (signInError) {
           setError(signInError.message ?? 'Could not start your booking -- try again.');
           return;
@@ -40,13 +44,16 @@ export default function BookingForm({ departureId, capacity }: Props) {
       }
 
       const formData = new FormData(e.currentTarget);
+      console.log('[booking-form] calling createGuestBookingAction');
       const result = await createGuestBookingAction(departureId, formData);
+      console.log('[booking-form] action result', JSON.stringify(result));
       if ('error' in result) {
         setError(result.error);
         return;
       }
       router.push(`/booking/${result.bookingId}`);
-    } catch {
+    } catch (err) {
+      console.log('[booking-form] caught exception', err instanceof Error ? err.message : String(err));
       setError('Something went wrong starting your booking -- please try again.');
     } finally {
       setPending(false);
