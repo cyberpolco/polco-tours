@@ -25,28 +25,32 @@ export default function BookingForm({ departureId, capacity }: Props) {
     setError(null);
     setPending(true);
 
-    const session = await authClient.getSession();
-    if (!session.data) {
-      const { error: signInError } = await authClient.signIn.anonymous();
-      if (signInError) {
-        setError(signInError.message ?? 'Could not start your booking -- try again.');
-        setPending(false);
+    // Everything here is wrapped -- an uncaught throw in a plain (non-<form
+    // action>) event handler becomes an invisible unhandled promise
+    // rejection, not a visible error, which is a worse failure mode than an
+    // honest (if generic) message.
+    try {
+      const session = await authClient.getSession();
+      if (!session.data) {
+        const { error: signInError } = await authClient.signIn.anonymous();
+        if (signInError) {
+          setError(signInError.message ?? 'Could not start your booking -- try again.');
+          return;
+        }
+      }
+
+      const formData = new FormData(e.currentTarget);
+      const result = await createGuestBookingAction(departureId, formData);
+      if ('error' in result) {
+        setError(result.error);
         return;
       }
-    }
-
-    const formData = new FormData(e.currentTarget);
-    const result = await createGuestBookingAction(departureId, formData);
-    if ('error' in result) {
-      setError(
-        result.error === 'sold_out'
-          ? 'This departure just sold out -- try a different date.'
-          : 'Something interrupted starting your booking -- please try again.',
-      );
+      router.push(`/booking/${result.bookingId}`);
+    } catch {
+      setError('Something went wrong starting your booking -- please try again.');
+    } finally {
       setPending(false);
-      return;
     }
-    router.push(`/booking/${result.bookingId}`);
   }
 
   return (
