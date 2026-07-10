@@ -72,7 +72,11 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
   VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read', 'assignment.read'],
-  VISA_FACILITATOR: ['documents.read', 'documents.write', 'visa.process', 'profile.write'],
+  // booking.read is needed to resolve a traveler by bookingId+travelerId
+  // (visa/service.ts's findTraveler, same pattern the passport route uses)
+  // -- without it every visa route 500s, since bookingService.listTravelers
+  // itself asserts booking.read (DR-019 CI failure, fixed here).
+  VISA_FACILITATOR: ['booking.read', 'documents.read', 'documents.write', 'visa.process', 'profile.write'],
   // Deliberately no profile.write either: BR-10's "strictly read-only" is
   // interpreted broadly here to preserve this role's single-permission
   // footprint, even though a self-service phone/locale update isn't itself
