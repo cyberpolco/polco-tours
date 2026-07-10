@@ -13,7 +13,10 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto('/staff/departures');
-    await expect(page.getByRole('heading', { name: /CHOOSE PACKAGE/ })).toBeVisible();
+    // "CHOOSE PACKAGE" is the eyebrow <p>, not an <h1> -- getByRole('heading')
+    // never matches it (caught by CI, same class of locator bug as the
+    // fleet driver e2e test fixed earlier this session).
+    await expect(page.getByText(/CHOOSE PACKAGE/)).toBeVisible();
     await page.getByText('E2E Assignment Fixture Safari').click();
 
     await expect(page).toHaveURL(/packageId=/);
