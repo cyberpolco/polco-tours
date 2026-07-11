@@ -2,6 +2,7 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import { assertCan, can, type Permission } from '@lib/rbac';
 import { auth } from '@lib/auth';
+import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
 import type { AuthContext, PublicUser, UpdateProfileInput } from './domain';
@@ -71,7 +72,31 @@ export const authService = {
       throw Errors.validation(`country must be one of this organization's countries: ${countries?.join(', ') ?? ''}`);
     }
 
-    return authRepository.updateAssignedCountry(userId, country);
+    const updated = await authRepository.updateAssignedCountry(userId, country);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'auth.officer_country_assigned',
+      resourceType: 'User',
+      resourceId: userId,
+      organizationId: target.organizationId,
+      metadata: { country },
+    });
+    return updated;
+  },
+
+  /** Admin-only: powers the officer-management page (list IMMIGRATION_OFFICER
+   * accounts in the org + the org's own countries, for the assign/reassign
+   * form) -- DR-020, the UI this admin.all capability was missing. */
+  async listOfficers(ctx: AuthContext): Promise<{ officers: PublicUser[]; availableCountries: string[] }> {
+    assertCan(ctx.role, 'admin.all');
+    if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+
+    const [officers, countries] = await Promise.all([
+      authRepository.listByRole(ctx.organizationId, 'IMMIGRATION_OFFICER'),
+      authRepository.findOrganizationCountries(ctx.organizationId),
+    ]);
+    return { officers, availableCountries: countries ?? [] };
   },
 };
 

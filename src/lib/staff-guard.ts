@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { authService, type AuthContext } from '@modules/auth';
-import { assertCan, type Permission } from './rbac';
+import { assertCan, isStaffRole, type Permission } from './rbac';
 
 /**
  * For Server Components/Actions under src/app/staff/(dashboard)/... -- the
@@ -23,12 +23,21 @@ const getStaffSession = cache(async (): Promise<AuthContext | null> => {
   }
 });
 
-export async function requireStaffContext(permission: Permission): Promise<AuthContext> {
+/**
+ * `permission` is optional: the `(dashboard)` layout calls this with none,
+ * meaning "any staff-side role" (isStaffRole) -- every nested page still
+ * passes its own specific permission, unchanged.
+ */
+export async function requireStaffContext(permission?: Permission): Promise<AuthContext> {
   const ctx = await getStaffSession();
   if (!ctx) redirect('/staff/login');
-  try {
-    assertCan(ctx.role, permission);
-  } catch {
+  if (permission) {
+    try {
+      assertCan(ctx.role, permission);
+    } catch {
+      redirect('/staff/forbidden');
+    }
+  } else if (!isStaffRole(ctx.role)) {
     redirect('/staff/forbidden');
   }
   return ctx;

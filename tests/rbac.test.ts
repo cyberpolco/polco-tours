@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { can } from '../src/lib/rbac';
+import { can, isStaffRole } from '../src/lib/rbac';
 
 // Asserts representative cells of the Vol. 4 permission matrix hold in code.
 describe('RBAC permission matrix', () => {
@@ -138,5 +138,17 @@ describe('RBAC permission matrix', () => {
     expect(can('TOUR_OPERATOR', 'visa.process')).toBe(false);
     expect(can('TOUR_GUIDE', 'documents.read')).toBe(true);
     expect(can('TOUR_GUIDE', 'visa.process')).toBe(false);
+  });
+
+  it('isStaffRole: every role except TOURIST reaches the staff dashboard baseline gate (DR-020)', () => {
+    expect(isStaffRole('SUPERADMIN')).toBe(true);
+    expect(isStaffRole('PLATFORM_ADMIN')).toBe(true);
+    expect(isStaffRole('TOUR_OPERATOR')).toBe(true);
+    expect(isStaffRole('TOUR_GUIDE')).toBe(true);
+    expect(isStaffRole('DRIVER')).toBe(true);
+    expect(isStaffRole('VEHICLE_OWNER')).toBe(true);
+    expect(isStaffRole('VISA_FACILITATOR')).toBe(true);
+    expect(isStaffRole('IMMIGRATION_OFFICER')).toBe(true);
+    expect(isStaffRole('TOURIST')).toBe(false);
   });
 });

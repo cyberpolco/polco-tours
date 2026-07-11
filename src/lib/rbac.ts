@@ -114,6 +114,20 @@ export function can(role: Role, permission: Permission): boolean {
   return grants[0] === '*' || (grants as Permission[]).includes(permission);
 }
 
+/**
+ * Every operational role except TOURIST belongs on the staff dashboard --
+ * tourists never get one (guest checkout is a separate, account-less site,
+ * DR-016). Used as the `(dashboard)` layout's baseline "are you staff at
+ * all" gate (staff-guard.ts), which previously hardcoded `booking.confirm`
+ * and so silently locked out any role that isn't TOUR_OPERATOR/admin --
+ * IMMIGRATION_OFFICER included, despite holding a real permission
+ * (`immigration.read`). Individual pages still gate on their own specific
+ * permission; this only decides who reaches the shell.
+ */
+export function isStaffRole(role: Role): boolean {
+  return (role as RoleName) !== 'TOURIST';
+}
+
 /** Throwable guard for use in services/route handlers. */
 export function assertCan(role: Role, permission: Permission): void {
   if (!can(role, permission)) {

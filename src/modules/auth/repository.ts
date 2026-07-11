@@ -1,4 +1,5 @@
 // auth module — repository. The only place that touches the DB for this module.
+import type { Role } from '@prisma/client';
 import { prisma } from '@lib/db';
 import type { PublicUser, UpdateProfileInput } from './domain';
 
@@ -55,5 +56,15 @@ export const authRepository = {
   async findOrganizationCountries(organizationId: string): Promise<string[] | null> {
     const org = await prisma.organization.findUnique({ where: { id: organizationId } });
     return org ? org.countries : null;
+  },
+
+  /** Powers the admin officer-management page (assign/reassign
+   * assignedCountry) -- the only current caller of a role-filtered list. */
+  async listByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
+    const users = await prisma.user.findMany({
+      where: { organizationId, role, deletedAt: null },
+      orderBy: { email: 'asc' },
+    });
+    return users.map(toPublicUser);
   },
 };

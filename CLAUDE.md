@@ -127,16 +127,23 @@ src/
                                            # assignments (DR-018)
     api/v1/bookings/[bookingId]/travelers/[travelerId]/visa(/submit,/decide,
       /document), api/v1/immigration/visa-applications,
-      api/v1/users/[userId]/assign-country
-                                           # visa documents (DR-019)
+      api/v1/immigration/officers, api/v1/users/[userId]/assign-country
+                                           # visa documents (DR-019) + officer
+                                           #   listing (DR-020)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
+      baseline gate is "any staff role" (isStaffRole), not one hardcoded
+      permission, since DR-020 -- StaffNav filters links per-role
       bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
       fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]))
         = fleet + compliance (DR-017)
       departures(/[departureId]) = browse + manage assignments (DR-018;
         first staff departures UI -- packages/departures were API-only before)
+      immigration = IMMIGRATION_OFFICER's own country-scoped visa queue,
+        strictly read-only (BR-10, DR-020)
+      admin/officers = admin-only: assign/reassign an officer's country
+        (DR-020; account creation itself stays CLI-only)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -174,7 +181,8 @@ src/
                        #   APPROVED/REJECTED), canDecide rule, OfficerVisaView
                        #   (data-minimized, country-scoped) (DR-019); traveler
                        #   identity snapshotted so IMMIGRATION_OFFICER's list
-                       #   never needs booking.read
+                       #   never needs booking.read; listForCountry now
+                       #   audits an officer's own reads (DR-020, BR-10)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -558,10 +566,31 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `scripts/set-staff-password.ts` — see Gotchas). No schema/permission change,
   so no new DR. HEAD is `e3c0192` (also fixed an RLS bypass via Neon's default
   owner role — see Gotchas — and split `seed.ts` into per-package transactions).
+- **Officer-management UI done 2026-07-11 (DR-020):** closes the gap DR-019
+  explicitly deferred. New `/staff/immigration` (an `IMMIGRATION_OFFICER`'s
+  own country-scoped visa queue, strictly read-only per BR-10 -- no decide
+  action, that stays `VISA_FACILITATOR`'s job) and `/staff/admin/officers`
+  (`admin.all`: assign/reassign an officer's country; creating the account
+  itself stays CLI-only, `scripts/create-staff-user.ts`). Required widening
+  the `(dashboard)` layout's baseline gate from a hardcoded `booking.confirm`
+  to a new `rbac.ts` `isStaffRole(role)` ("any role except TOURIST") --
+  `IMMIGRATION_OFFICER` had held a real permission (`immigration.read`)
+  since DR-019 but was still redirected to `/staff/forbidden` before its own
+  page's check ever ran, the same gap DR-018/019 flagged for
+  `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER`/`VISA_FACILITATOR`. `StaffNav`
+  became permission-aware (per-link `can(role, permission)`) since not every
+  staff role can open every link now. Also closed two pre-existing gaps this
+  increment's real dashboard usage made worth fixing: `visaService
+  .listForCountry`'s officer reads were never audited despite `audit.ts`'s
+  own docstring requiring it (BR-10), and `authService.assignOfficerCountry`
+  (an `admin.all` action) was never audited either -- both now call
+  `audit()`. One new route, `GET /api/v1/immigration/officers`
+  (`admin.all`), added for API-level testability; the two dashboard pages
+  themselves call `authService`/`visaService` directly, unchanged
+  convention.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, reviews, a guide/driver/vehicle-owner self-service "my
-  schedule" portal, an officer-management UI, and visa resubmission after
-  rejection.
+  schedule" portal, and visa resubmission after rejection.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -621,7 +650,19 @@ BR-10) never needs `booking.read`. New admin-only
 visa-applications` + `/api/v1/users/{id}/assign-country` routes,
 API-only for `VISA_FACILITATOR`/`IMMIGRATION_OFFICER` (no dashboard access,
 same gap as Assignments), plus a small read-only Visa line for
-`TOUR_OPERATOR` on the existing booking-detail page.
+`TOUR_OPERATOR` on the existing booking-detail page · DR-020 officer-
+management UI: closes DR-019's deferred gap. New `/staff/immigration`
+(`IMMIGRATION_OFFICER`'s own country-scoped visa queue, strictly read-only
+per BR-10) and `/staff/admin/officers` (`admin.all`: assign/reassign an
+officer's country; account creation stays CLI-only). Widened the
+`(dashboard)` layout's baseline gate from hardcoded `booking.confirm` to new
+`isStaffRole(role)` ("any role except TOURIST") so `IMMIGRATION_OFFICER`
+(and future roles) can reach the shell at all -- `StaffNav` now filters
+links per-role. Closed two pre-existing audit gaps surfaced by real UI
+usage: `visaService.listForCountry`'s officer reads and
+`authService.assignOfficerCountry` (`admin.all`) were never audited despite
+both being required (BR-10 / STRIDE "Elevation"). One new route,
+`GET /api/v1/immigration/officers` (`admin.all`), for API-level testability.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 

@@ -52,4 +52,33 @@ describe('requireStaffContext', () => {
     resolveSession.mockResolvedValue(ctx);
     await expect(requireStaffContext('booking.confirm')).resolves.toEqual(ctx);
   });
+
+  // DR-020: the (dashboard) layout now calls requireStaffContext() with no
+  // permission -- "any staff role" -- instead of hardcoding booking.confirm,
+  // which previously locked IMMIGRATION_OFFICER out of the dashboard shell
+  // entirely despite holding a real permission (immigration.read).
+  it('with no permission argument, any staff-side role passes (baseline dashboard gate)', async () => {
+    const ctx = {
+      userId: 'u2',
+      role: 'IMMIGRATION_OFFICER',
+      organizationId: 'org1',
+      sessionId: 's2',
+      assignedCountry: 'NA',
+    };
+    resolveSession.mockResolvedValue(ctx);
+    await expect(requireStaffContext()).resolves.toEqual(ctx);
+  });
+
+  it('with no permission argument, TOURIST is still redirected to /staff/forbidden', async () => {
+    resolveSession.mockResolvedValue({
+      userId: 'u3',
+      role: 'TOURIST',
+      organizationId: 'org1',
+      sessionId: 's3',
+      assignedCountry: null,
+    });
+    await expect(requireStaffContext()).rejects.toMatchObject({
+      digest: expect.stringContaining('/staff/forbidden'),
+    });
+  });
 });
