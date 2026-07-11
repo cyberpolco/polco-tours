@@ -9,10 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators, immigration officers). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-11, against repo HEAD `e3c0192` (Phase 2 Increment 3
-> complete, DR-019). This revision fixes the design-package reference below and
-> adds two grounded sections: **Domain & regulatory context** and **Security
-> posture**.
+> Last updated: 2026-07-11, against repo HEAD `6715c97` (DR-020, officer-
+> management UI, complete). This revision adds the officer-management UI
+> (`/staff/immigration`, `/staff/admin/officers`), widens the staff dashboard's
+> baseline gate to `isStaffRole`, and records the local-`.env.local` and
+> production `INVALID_ORIGIN` sign-in gotchas found this session.
 
 The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
 in-repo source of truth** and must be kept current (DR-007). The 11-volume
@@ -978,3 +979,25 @@ human rather than fabricating volume content.
   `http://localhost:3000`, matching `.env`. If local sign-in (staff or
   guest) ever silently no-ops again, check these two vars in `.env.local`
   first before suspecting the auth code itself.
+- **Production staff sign-in is currently broken with `INVALID_ORIGIN`**
+  (found 2026-07-11, still open): `POST https://polco-tours.vercel.app/api/
+  auth/sign-in/email` returns `403 {"code":"INVALID_ORIGIN"}` whenever an
+  `Origin` header is present — which every real browser sends, so this is
+  not cosmetic, it blocks every real sign-in attempt on Production, not just
+  a dev-environment quirk. Confirmed via curl: the request succeeds with no
+  `Origin` header at all, and fails with *both* `http://` and
+  `https://polco-tours.vercel.app` as the `Origin` — meaning better-auth's
+  `trustedOrigins` (derived from the `BETTER_AUTH_URL` env var) doesn't
+  recognize this domain in either scheme, not a simple scheme mismatch like
+  the local `.env.local` gotcha above. No custom domain is wired up yet
+  (`polcotours.com` only appears in placeholder email/API strings —
+  consistent with OI-02, trademark clearance still open), so
+  `https://polco-tours.vercel.app` is the real Production origin. Root
+  cause lives in **Vercel's own Production environment variables**
+  (dashboard, not any file in this repo) — `BETTER_AUTH_URL` and
+  `NEXT_PUBLIC_APP_URL` need to be set there to
+  `https://polco-tours.vercel.app`, then Production redeployed (env var
+  changes don't retroactively apply to an existing deployment). Not fixed
+  from this sandbox (no Vercel CLI auth/dashboard access here) — needs a
+  human with Vercel project access. Re-verify with the same curl-with-and-
+  without-`Origin` test before trusting any fix.
