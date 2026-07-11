@@ -9,10 +9,19 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators, immigration officers). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-The authoritative spec is the 11-volume design package in
-`docs/design-package/` and the governance record in
-`docs/decisions/DECISION_LOG.md`. When code and a volume disagree, fix one of
-them in the same PR — never leave them out of sync.
+> Last updated: 2026-07-11, against repo HEAD `e3c0192` (Phase 2 Increment 3
+> complete, DR-019). This revision fixes the design-package reference below and
+> adds two grounded sections: **Domain & regulatory context** and **Security
+> posture**.
+
+The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
+in-repo source of truth** and must be kept current (DR-007). The 11-volume
+design package it references (Volumes 1–11) currently lives **outside the repo**
+as a delivered master PDF — it is **not yet** in `docs/design-package/`. Until
+those volumes are added as markdown, a DR's "Affects: Vn" tags cannot be applied
+to real files, so treat the decision log as authoritative and, when the log and
+the code disagree, fix one of them in the same PR. (See the note at the end of
+"Open items" about adding the volumes so the DR-007 loop is whole again.)
 
 ---
 
@@ -179,7 +188,10 @@ e2e/                   # Playwright: smoke + staff-dashboard (DR-014, has its
                        #   own CI job -- Postgres bootstrap isn't shared with
                        #   the `quality` job)
 docs/decisions/        # DECISION_LOG.md (DR-007 living record)
-docs/design-package/   # the 11 volumes (put the master PDF/markdown here)
+docs/design-package/   # NOT in repo yet — the 11 volumes belong here as
+                       #   markdown so DR "Affects: Vn" tags become real (see
+                       #   the note under Open items); master PDF delivered
+                       #   separately for now
 docs/openapi.yaml      # started in DR-011's PR — keep it current with routes
 .github/               # CI workflow + PR template (enforces the DR gate)
 ```
@@ -243,6 +255,121 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 - **i18n:** full EN + FR parity for every user-facing string.
 - **Immigration Officer:** strictly read-only, country-scoped, every view
   audited (BR-10).
+
+---
+
+## Domain & regulatory context (Namibia & DRC)
+
+Why the app is shaped the way it is — and the real-world rules any feature
+touching operators, vehicles, guides, visas, or destinations must respect.
+**All figures are effective-dated and change often; never hardcode them —
+verify against NTB/MEFT (Namibia), ICCN/Ministry of Tourism (DRC) and the
+relevant embassies. Treat this as orientation, not legal ground truth.**
+
+**Two regimes, one platform.** Namibia and the DRC have very different tourism
+governance. This is the reason for per-country tax (DR-006), per-country
+operator compliance (BR-12), `IMMIGRATION_OFFICER.assignedCountry` scoping
+(DR-019), EN/FR bilingual content, and packages priced in one of four
+currencies with **no FX conversion anywhere** (never rank/compare by price
+across currencies — see `scorePackagesForQuiz`).
+
+- **Namibia — operator & fleet compliance (feeds `fleet`/`documents`, DR-017).**
+  Operators register with the **Namibia Tourism Board (NTB)** (Act 21/2000):
+  NTB licence (fee N$1,000 + N$400/vehicle) + **BIPA** Certificate to Commence
+  Business + **NamRA** tax registration + public/passenger liability insurance.
+  Vehicles need roadworthiness certificates, company name on both sides, fire
+  extinguisher + first-aid kit, and an **NTB inspection disc**; drivers carrying
+  paying passengers need a **Professional Driving Permit (PDP)**. Foreign guides
+  need a work permit. → These map directly to the compliance `Document` kinds
+  the fleet module tracks (registration, insurance, inspection, licence) and
+  their `expiresAt`.
+- **Namibia — visas (feeds `visa`, DR-019).** The regime changed in 2025: 33
+  previously visa-exempt nationalities (incl. US/UK/EU/Canada/Australia) now
+  need an e-visa / visa-on-arrival. Rules shifted **twice** in 2025 — model
+  visa requirements as effective-dated data, never a hardcoded nationality list.
+- **DRC — no central tourism board (feeds `fleet`/`visa`/BR-12).** Operators
+  navigate several bodies: **DARA** business licence + **DGI** tax registration
+  + **ICCN** authorization for any park operation + a Ministry of Tourism
+  Competence Certificate; foreign operators must work through a licensed local
+  **DMC**; immigration is **DGM**. Parks (Virunga, Kahuzi-Biéga, Salonga…) are
+  ICCN-managed; gorilla permits run through ICCN / the Virunga Foundation.
+- **DRC — security zones (BR-07, a hard product rule).** Eastern DRC is under
+  active conflict. Zone posture (2025): Kinshasa & western DRC generally
+  accessible; Congo River basin accessible with experienced operators; **North
+  Kivu (incl. Virunga) high-risk / specialist only**; **South Kivu elevated**;
+  **Ituri — do not operate**; **Kasai — elevated**. Any booking into a flagged
+  province must carry a current security assessment and show a mandatory
+  advisory to the traveler; the platform may block sales per admin policy.
+  When departures gain a location/region field, this is where BR-07 gets
+  enforced in code — it is not yet implemented.
+- **Guest health/logistics (for briefings, not yet modeled).** Malaria risk in
+  northern Namibia (Etosha/Caprivi/Kavango) and much of the DRC; yellow-fever
+  proof if arriving from an endemic country; gorilla trekking has strict rules
+  (accredited local guide, ~8/group, 7 m distance, no flash, sick visitors may
+  not trek).
+
+**Implication for engineering:** compliance data is documents-with-expiry, not
+free text; visa and immigration flows are country-scoped; destination risk is a
+first-class booking concern once departures carry a region. If you're building
+anything in `fleet`, `visa`, `catalog` (destinations), or booking eligibility,
+re-read this section and prefer configurable/effective-dated data over constants.
+
+---
+
+## Security posture (CIA · STRIDE · OWASP)
+
+The reference frame for the six-question gate's **security impact** answer.
+Every feature states its abuse cases; every new tenant table gets an RLS policy
++ a cross-tenant test; every new external service is schema-validated, timed
+out, and degrades gracefully. The habit to keep: DR-016 ran an **adversarial
+review that killed an insecure design before code was written** — do that.
+
+**Crown-jewel assets (highest protection):**
+- Passport / visa / ID documents (`documents`, `visa`) — private Vercel Blob,
+  authenticated+audited streaming route, never a public URL; data-minimized
+  officer projections (`OfficerVisaView`). Retention-limit job still TODO.
+- Payment integrity (`invoicing`) — server-computed amounts only; when DPO
+  lands (OI-01), `verifyToken` is the sole source of truth, with idempotency.
+- Tourist physical-safety data — itineraries, traveler manifest, disabilities/
+  allergies, GPS (Phase 2). Minimize exposure; officer/guide views see only
+  what their duty needs.
+- Credentials & sessions (`auth`) — better-auth, httpOnly cookies, session
+  timeouts; anonymous-guest sessions are real sessions, not bare ids.
+- Tenant business data — organization-scoped, RLS-isolated.
+
+**STRIDE → controls already in place (or the plan):**
+- **Spoofing** → better-auth + email verification; add auth rate-limit/lockout.
+- **Tampering** → prices/tax/state computed server-side only (charter rule 1);
+  `verifyToken` authority for payments once DPO is live.
+- **Repudiation** → append-only `audit_logs` (UPDATE/DELETE denied at the DB);
+  log payments, document access, role changes, assignments, visa decisions.
+- **Information disclosure** → RLS (FORCE) + anti-BOLA object-ownership checks
+  (404-not-403 convention) + private Blob; problem+json leaks no internals.
+- **Denial of service** → per-class rate limiting is **not yet built** (only the
+  crude audit-log-backed limiter on booking lookup, DR-016); real Upstash
+  rate-limiting is a known gap.
+- **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes denied;
+  `SUPERADMIN`/`admin.all` actions are audited.
+
+**OWASP focus for this app:** BOLA is the #1 marketplace risk — every read/write
+re-checks object ownership *and* is backstopped by RLS, with dedicated
+`*.security.test.ts` files and 13 per-table cross-tenant RLS tests. Security
+headers are set in `next.config.mjs` (CSP/HSTS/frame-deny). Third-party
+responses (DPO, WhatsApp, SMS) must be schema-validated and quarantined, never
+trusted or rendered raw.
+
+**Compliance posture:** DPO's hosted page keeps card handling in **PCI SAQ-A**
+(no PAN ever touches our servers). **GDPR** is the platform-wide standard
+(EU tourists are a core segment), exceeding current DRC/Namibia data-protection
+demands. Document retention limits and a DSAR/erasure workflow are still TODO.
+
+**When you add …**
+- a tenant table → RLS policy in `prisma/rls.sql` + `npm run db:rls` + a
+  `rls.cross-tenant.<table>.test.ts`.
+- an external integration → gateway interface, env-gated, timeout + graceful
+  degradation, schema-validate the response, and a DR entry.
+- a new permission or role-scoped route → update `rbac.ts`, add a
+  `*.security.test.ts` asserting the denied cases (cross-tenant + wrong-role).
 
 ---
 
@@ -425,6 +552,12 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   same gap as Assignments' guide/driver/vehicle-owner roles) -- API-only;
   `TOUR_OPERATOR` gets a small read-only "Visa" line per traveler on the
   existing booking-detail page.
+- **Latest polish (2026-07-11):** guest site gained About / FAQ / Contact
+  pages; the homepage now degrades gracefully when the DB is unreachable;
+  staff-credential CLIs exist (`scripts/create-staff-user.ts`,
+  `scripts/set-staff-password.ts` — see Gotchas). No schema/permission change,
+  so no new DR. HEAD is `e3c0192` (also fixed an RLS bypass via Neon's default
+  owner role — see Gotchas — and split `seed.ts` into per-package transactions).
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, reviews, a guide/driver/vehicle-owner self-service "my
   schedule" portal, an officer-management UI, and visa resubmission after
