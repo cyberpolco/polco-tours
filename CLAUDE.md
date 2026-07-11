@@ -9,11 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators, immigration officers). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-11, against repo HEAD `6715c97` (DR-020, officer-
-> management UI, complete). This revision adds the officer-management UI
-> (`/staff/immigration`, `/staff/admin/officers`), widens the staff dashboard's
-> baseline gate to `isStaffRole`, and records the local-`.env.local` and
-> production `INVALID_ORIGIN` sign-in gotchas found this session.
+> Last updated: 2026-07-11, against repo HEAD `a285a4d` (DR-020, officer-
+> management UI, complete; no schema/permission change since, so no new DR).
+> This revision confirms Production's `INVALID_ORIGIN` sign-in bug is fixed,
+> and records that this session's "incorrect password" report was a missing-
+> credential issue, not a bug — see Gotchas.
 
 The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
 in-repo source of truth** and must be kept current (DR-007). The 11-volume
@@ -979,25 +979,38 @@ human rather than fabricating volume content.
   `http://localhost:3000`, matching `.env`. If local sign-in (staff or
   guest) ever silently no-ops again, check these two vars in `.env.local`
   first before suspecting the auth code itself.
-- **Production staff sign-in is currently broken with `INVALID_ORIGIN`**
-  (found 2026-07-11, still open): `POST https://polco-tours.vercel.app/api/
-  auth/sign-in/email` returns `403 {"code":"INVALID_ORIGIN"}` whenever an
-  `Origin` header is present — which every real browser sends, so this is
-  not cosmetic, it blocks every real sign-in attempt on Production, not just
-  a dev-environment quirk. Confirmed via curl: the request succeeds with no
-  `Origin` header at all, and fails with *both* `http://` and
-  `https://polco-tours.vercel.app` as the `Origin` — meaning better-auth's
-  `trustedOrigins` (derived from the `BETTER_AUTH_URL` env var) doesn't
-  recognize this domain in either scheme, not a simple scheme mismatch like
-  the local `.env.local` gotcha above. No custom domain is wired up yet
-  (`polcotours.com` only appears in placeholder email/API strings —
-  consistent with OI-02, trademark clearance still open), so
-  `https://polco-tours.vercel.app` is the real Production origin. Root
-  cause lives in **Vercel's own Production environment variables**
-  (dashboard, not any file in this repo) — `BETTER_AUTH_URL` and
-  `NEXT_PUBLIC_APP_URL` need to be set there to
-  `https://polco-tours.vercel.app`, then Production redeployed (env var
-  changes don't retroactively apply to an existing deployment). Not fixed
-  from this sandbox (no Vercel CLI auth/dashboard access here) — needs a
-  human with Vercel project access. Re-verify with the same curl-with-and-
-  without-`Origin` test before trusting any fix.
+- ~~**Production staff sign-in is currently broken with `INVALID_ORIGIN`**~~
+  Resolved by 2026-07-11 (someone with Vercel dashboard access fixed
+  Production's `BETTER_AUTH_URL`/`NEXT_PUBLIC_APP_URL` and redeployed, per
+  the fix path this gotcha originally prescribed) — re-verified same day via
+  the same curl-with-and-without-`Origin` test against
+  `https://polco-tours.vercel.app/api/auth/sign-in/email`: both now return a
+  clean `401 {"code":"INVALID_EMAIL_OR_PASSWORD"}` instead of `403
+  INVALID_ORIGIN`. If Production sign-in ever silently 403s again, check
+  these two Vercel env vars before re-deriving this from scratch.
+- **"Incorrect password" in Production was a missing-credential problem, not
+  a bug** (found 2026-07-11, after the `INVALID_ORIGIN` fix above landed):
+  querying the single production Neon DB directly showed only **one** `User`
+  row anywhere in the system had a `providerId: "credential"` `Account` row
+  at all (`cyberpolco@gmail.com`). Every other user, including
+  `lam@polcotours.com`, has zero credential rows — per the existing gotcha
+  below, `prisma/seed.ts` deliberately seeds Lam with no password — so *any*
+  password typed for those emails will always return
+  `INVALID_EMAIL_OR_PASSWORD`. There is no separate bug to fix here; the fix
+  is running `scripts/set-staff-password.ts <email> <password>` for whichever
+  account needs to sign in. As of this session both `cyberpolco@gmail.com`
+  and `lam@polcotours.com` have real passwords set. If a staff member reports
+  "incorrect password" again, check whether their `User` row has a
+  `credential` `Account` at all before assuming the password itself is wrong.
+- **Prisma's query engine (not `psql`) intermittently can't reach the Neon
+  pooler from this sandbox**, independent of the two gotchas above — running
+  `scripts/set-staff-password.ts` failed twice in a row with "Can't reach
+  database server at `...-pooler.c-4.eu-central-1.aws.neon.tech:5432`" while
+  a direct `psql "$DATABASE_URL"` against the exact same connection string
+  succeeded immediately, then the identical `tsx` command succeeded on a
+  later retry with no code change. Cause not fully isolated (looked like a
+  sandboxed-network policy difference between allowed CLI tools and Prisma's
+  compiled query-engine binary at first, but persisted even with the Bash
+  tool's sandbox override on, then resolved on its own) — treat it as
+  transient and retry rather than assuming a real outage or a regression in
+  this repo.
