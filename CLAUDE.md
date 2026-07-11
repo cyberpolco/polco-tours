@@ -923,3 +923,17 @@ human rather than fabricating volume content.
   `.env` exists because Prisma CLI and the `tsx` scripts (`seed.ts`,
   `apply-rls.mjs`) only auto-load `.env`, not `.env.local` — Next.js loads
   both, but the DB scripts don't, so both files carry the DB vars.
+- **`.env.local` silently broke local staff sign-in** (found 2026-07-11): the
+  Vercel-CLI-managed `.env.local` had `NEXT_PUBLIC_APP_URL` and
+  `BETTER_AUTH_URL` both set to `http://polco-tours.vercel.app` — Vercel's
+  Production value, pulled into the Development scope. Next.js loads
+  `.env.local` with higher priority than `.env` (which correctly has
+  `http://localhost:3000` for both), so the browser's `authClient` was
+  issuing the sign-in `fetch` cross-origin against production. The request
+  gets silently blocked (no CORS allowance from prod for a `localhost`
+  origin) with no error surfaced by `src/app/staff/login/page.tsx`'s
+  handler — the "Sign in" button just does nothing, no error text, no
+  redirect. Fixed by pointing both vars in `.env.local` back at
+  `http://localhost:3000`, matching `.env`. If local sign-in (staff or
+  guest) ever silently no-ops again, check these two vars in `.env.local`
+  first before suspecting the auth code itself.
