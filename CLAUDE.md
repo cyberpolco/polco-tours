@@ -725,7 +725,68 @@ human rather than fabricating volume content.
   `internalAdapter.linkAccount`'s shape (`accountId: user.id`) — no RLS
   policy exists on `users`/`accounts` (better-auth's own tables aren't
   tenant-scoped), so the raw `prisma` client is fine here, same as
-  `create-staff-user.ts`. Neither script has ever been run against a real DB
-  from this sandbox — no `DATABASE_URL`/`DIRECT_URL`/`BETTER_AUTH_SECRET` is
-  configured here as of 2026-07-10, only `BLOB_READ_WRITE_TOKEN` +
-  `VERCEL_OIDC_TOKEN` in `.env.local`.
+  `create-staff-user.ts`.
+- **Neon's default `neondb_owner` role has the `BYPASSRLS` attribute** (Neon
+  grants it by default, alongside `CREATEDB`/`CREATEROLE`/`REPLICATION`) — the
+  exact same bug class as the CI bootstrap-superuser gotcha above, just for
+  our real Neon project instead of CI's ephemeral `postgres:16` service.
+  Connecting the app/tests through `neondb_owner` silently no-ops every RLS
+  policy (`FORCE ROW LEVEL SECURITY` does not help — `BYPASSRLS` overrides
+  `FORCE` regardless). Caught 2026-07-10 finishing Neon DB setup: the first
+  real cross-tenant test run against this Neon project showed exactly the
+  leaky counts you'd expect from RLS being off. Fixed by creating a
+  `polco_app` role (`NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`) with
+  direct `GRANT SELECT/INSERT/UPDATE/DELETE ON ALL TABLES/SEQUENCES IN SCHEMA
+  public` (plus matching `ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner ...`
+  so future `neondb_owner`-run migrations keep granting it access) and
+  pointing `DATABASE_URL`/`DIRECT_URL` at that role instead. Note:
+  `GRANT neondb_owner TO polco_app` (role membership, which would have been
+  closer to CI's approach) is **not possible** — Neon itself blocks it
+  (`permission denied to grant role "neondb_owner": only roles with the
+  ADMIN option on role neondb_owner may grant this role`), so this uses
+  direct object grants instead.
+- Because `polco_app` isn't an owner (just granted DML privileges), it
+  **cannot** run schema-owning DDL — `npm run db:push` and `npm run db:rls`
+  both fail against existing tables with `must be owner of table ...` under
+  `polco_app`. Those two commands still need `neondb_owner`'s connection
+  string; `polco_app` is only for runtime/tests/seed. This is a real gap (no
+  single credential currently does both, unlike CI's one-role-does-everything
+  `polco_app`, which works there only because CI's role is created *before*
+  its ephemeral Postgres has any tables, so it ends up owning everything it
+  creates) — a future increment should decide whether to reassign table
+  ownership to `polco_app` (so one role can do both) or keep the two-role
+  split permanently and document it in `.env.example`.
+- Prisma's default interactive-transaction timeout (5000ms) is measurably too
+  short for this sandbox's real network path to Neon (`eu-central-1`) —
+  several `tests/rls.cross-tenant.*`/`tests/api/*` fixtures that do multiple
+  sequential creates inside one `withOrg`/`$transaction` block hit `Transaction
+  API error: Transaction already closed` / `Unable to start a transaction in
+  the given time` on this first-ever real run (2026-07-10). `prisma/seed.ts`
+  hit the same wall (one giant `withOrg` around every package+departure) and
+  was fixed by wrapping each package in its own `withOrg` call instead of one
+  transaction for all of them — do the same (split into smaller transactions)
+  rather than raising `withOrg`'s global timeout, since that function is
+  shared by every request path, not just scripts/tests.
+- **A failed test setup can silently wipe an entire table.** When a fixture's
+  `beforeAll` throws partway through (e.g. the transaction-timeout gotcha
+  above), some `afterAll` cleanups still run with an `undefined` id captured
+  from the failed setup — e.g. `admin.user.deleteMany({ where: {
+  organizationId: orgId } })` with `orgId` still `undefined`. Prisma's client
+  drops keys with an `undefined` value before sending the query, silently
+  turning that into `deleteMany({})` — an **unscoped delete of every row in
+  the table**. `users` has no RLS policy (see the gotcha above on why), so
+  nothing stopped this from deleting every seeded user (Lam + superadmin)
+  during this session's first real test run against Neon; `db:seed` is
+  idempotent and safely restored them. `deleteMany` calls in test cleanup
+  should guard against an undefined id (e.g. skip cleanup or assert the id is
+  defined first) rather than trusting Prisma to no-op — this is a latent bug
+  in existing fixtures, not something introduced by the Neon setup, just
+  never triggered before because these tests always ran against a fast local
+  Postgres where the timeout gotcha above never fired.
+- First-time local `.env`/`.env.local` setup for this Neon project was
+  completed 2026-07-10 (`DATABASE_URL`/`DIRECT_URL` via `polco_app`,
+  `BETTER_AUTH_SECRET` generated, `BLOB_READ_WRITE_TOKEN` carried over from
+  the existing Vercel-CLI-managed `.env.local`). Both files are gitignored;
+  `.env` exists because Prisma CLI and the `tsx` scripts (`seed.ts`,
+  `apply-rls.mjs`) only auto-load `.env`, not `.env.local` — Next.js loads
+  both, but the DB scripts don't, so both files carry the DB vars.

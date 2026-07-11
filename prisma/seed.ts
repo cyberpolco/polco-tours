@@ -136,8 +136,8 @@ async function main() {
     },
   ];
 
-  await withOrg(lam.id, async (tx) => {
-    for (const p of packages) {
+  for (const p of packages) {
+    await withOrg(lam.id, async (tx) => {
       let pkg = await tx.tourPackage.findFirst({ where: { title: p.title } });
       if (!pkg) {
         pkg = await tx.tourPackage.create({
@@ -162,8 +162,8 @@ async function main() {
           });
         }
       }
-    }
-  });
+    });
+  }
 
   console.log('Seeded:', {
     operator: lam.name,
