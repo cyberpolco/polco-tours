@@ -9,11 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators, immigration officers). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-11, against repo HEAD `a285a4d` plus this session's
-> uncommitted DR-021 work (self-service "my schedule" portal, complete).
-> This revision also confirms Production's `INVALID_ORIGIN` sign-in bug is
-> fixed, and records that this session's "incorrect password" report was a
-> missing-credential issue, not a bug — see Gotchas.
+> Last updated: 2026-07-11, against repo HEAD `41ed25c` (DR-021, self-service
+> "my schedule" portal, complete). This revision also confirms Production's
+> `INVALID_ORIGIN` sign-in bug is fixed, and records that this session's
+> "incorrect password" report was a missing-credential issue, not a bug —
+> see Gotchas.
 
 The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
 in-repo source of truth** and must be kept current (DR-007). The 11-volume
