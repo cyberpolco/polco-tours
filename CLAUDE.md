@@ -713,3 +713,19 @@ human rather than fabricating volume content.
   Tests needing "the" primary org must look up the real seeded one
   (`admin.organization.findFirstOrThrow({ where: { isPrimary: true } })`) and
   seed their own rows *into* it, never create a second primary org.
+- `scripts/create-staff-user.ts` (DR-014 era) only works for a brand-new
+  email — it calls `auth.api.signUpEmail`, which rejects an email that
+  already has a `User` row, so it can't be used to give `prisma/seed.ts`'s
+  Lam row (`lam@polcotours.com`, seeded `emailVerified: true`, no
+  `Account`/credential row on purpose) a real password. Added
+  `scripts/set-staff-password.ts` (`npm run staff:set-password -- <email>
+  <password>`) for that case: hashes with `better-auth/crypto`'s
+  `hashPassword` (same scrypt call `sign-up.mjs` uses) and links/updates a
+  `providerId: "credential"` `Account` row directly via Prisma, matching
+  `internalAdapter.linkAccount`'s shape (`accountId: user.id`) — no RLS
+  policy exists on `users`/`accounts` (better-auth's own tables aren't
+  tenant-scoped), so the raw `prisma` client is fine here, same as
+  `create-staff-user.ts`. Neither script has ever been run against a real DB
+  from this sandbox — no `DATABASE_URL`/`DIRECT_URL`/`BETTER_AUTH_SECRET` is
+  configured here as of 2026-07-10, only `BLOB_READ_WRITE_TOKEN` +
+  `VERCEL_OIDC_TOKEN` in `.env.local`.
