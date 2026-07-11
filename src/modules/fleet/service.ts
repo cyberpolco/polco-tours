@@ -112,6 +112,24 @@ export const fleetService = {
     return fleetRepository.findDriverProfileByUserId(requireOrg(ctx), ctx.userId);
   },
 
+  /** Org-scoped lookup by a known set of IDs, deliberately with no
+   * ownership/manager filter -- same "caller already gates" convention as
+   * authService.getUser. Used by the "my schedule" self-service page
+   * (DR-021) so a DRIVER/TOUR_GUIDE can see the vehicle/driver tied to their
+   * own assignment even though they don't own it; the assignment itself is
+   * the caller's authorization, not fleet ownership. */
+  async listVehiclesByIds(ctx: AuthContext, ids: string[]): Promise<VehicleView[]> {
+    assertCan(ctx.role, 'fleet.read');
+    if (ids.length === 0) return [];
+    return fleetRepository.findVehiclesByIds(requireOrg(ctx), ids);
+  },
+
+  async listDriverProfilesByIds(ctx: AuthContext, ids: string[]): Promise<DriverProfileView[]> {
+    assertCan(ctx.role, 'fleet.read');
+    if (ids.length === 0) return [];
+    return fleetRepository.findDriverProfilesByIds(requireOrg(ctx), ids);
+  },
+
   async uploadVehicleDocument(
     ctx: AuthContext,
     vehicleId: string,

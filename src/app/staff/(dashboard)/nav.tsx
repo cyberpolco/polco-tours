@@ -10,6 +10,7 @@ const LINKS: { href: string; label: string; permission: Permission }[] = [
   { href: '/staff/bookings/new', label: 'New booking', permission: 'booking.create' },
   { href: '/staff/fleet', label: 'Fleet', permission: 'fleet.read' },
   { href: '/staff/departures', label: 'Departures', permission: 'assignment.write' },
+  { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/immigration', label: 'Immigration', permission: 'immigration.read' },
   { href: '/staff/admin/officers', label: 'Officers', permission: 'admin.all' },
 ];

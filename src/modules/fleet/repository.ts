@@ -72,6 +72,13 @@ export const fleetRepository = {
     });
   },
 
+  async findVehiclesByIds(organizationId: string, ids: string[]): Promise<VehicleView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.vehicle.findMany({ where: { id: { in: ids }, deletedAt: null } });
+      return rows.map(toVehicleView);
+    });
+  },
+
   async createDriverProfile(organizationId: string, input: CreateDriverProfileInput): Promise<DriverProfileView> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.driverProfile.create({ data: { organizationId, ...input } });
@@ -109,6 +116,13 @@ export const fleetRepository = {
   async listDriverProfiles(organizationId: string): Promise<DriverProfileView[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.driverProfile.findMany({ orderBy: { createdAt: 'desc' } });
+      return rows.map(toDriverProfileView);
+    });
+  },
+
+  async findDriverProfilesByIds(organizationId: string, ids: string[]): Promise<DriverProfileView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.driverProfile.findMany({ where: { id: { in: ids } } });
       return rows.map(toDriverProfileView);
     });
   },

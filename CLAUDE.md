@@ -9,11 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators, immigration officers). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-11, against repo HEAD `a285a4d` (DR-020, officer-
-> management UI, complete; no schema/permission change since, so no new DR).
-> This revision confirms Production's `INVALID_ORIGIN` sign-in bug is fixed,
-> and records that this session's "incorrect password" report was a missing-
-> credential issue, not a bug — see Gotchas.
+> Last updated: 2026-07-11, against repo HEAD `a285a4d` plus this session's
+> uncommitted DR-021 work (self-service "my schedule" portal, complete).
+> This revision also confirms Production's `INVALID_ORIGIN` sign-in bug is
+> fixed, and records that this session's "incorrect password" report was a
+> missing-credential issue, not a bug — see Gotchas.
 
 The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
 in-repo source of truth** and must be kept current (DR-007). The 11-volume
@@ -145,6 +145,8 @@ src/
         strictly read-only (BR-10, DR-020)
       admin/officers = admin-only: assign/reassign an officer's country
         (DR-020; account creation itself stays CLI-only)
+      schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
+        read-only (DR-021; closes the gap DR-018/019/020 each deferred)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -589,9 +591,41 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   (`admin.all`), added for API-level testability; the two dashboard pages
   themselves call `authService`/`visaService` directly, unchanged
   convention.
+- **Self-service "my schedule" portal done 2026-07-11 (DR-021):** closes the
+  gap DR-018/019/020 each independently deferred. No new permission (reuses
+  `assignment.read`, held by `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER` since
+  DR-018) and no schema change -- the dashboard-gate blocker DR-018 cited was
+  already removed by DR-020's `isStaffRole` widening, so this increment was
+  purely: enrich `GET /api/v1/assignments/mine`'s bare foreign keys into
+  something displayable, and wire up a page. New `/staff/schedule` (read-only,
+  no `actions.ts`) composes `assignmentService.listMyAssignments` +
+  `catalogService.getDepartureDetail` + `authService.getUser` + two new
+  `fleet` methods directly in the page -- same convention the manager-side
+  departure-detail page already established, no new shared service method.
+  The real design decision: `fleetService.getVehicle`/`getDriverProfile`'s
+  anti-BOLA check only allows a fleet manager role or the record's own
+  `ownerId`/`userId`, so a `DRIVER` viewing a vehicle they're assigned to but
+  don't own would 404. New `fleetService.listVehiclesByIds`/
+  `listDriverProfilesByIds` deliberately skip that filter (org-scoped only),
+  mirroring `authService.getUser`'s existing "no internal permission check;
+  caller already gates" convention -- safe since the caller only ever passes
+  IDs drawn from their own `listMyAssignments` result. New `StaffNav` entry
+  also surfaces for manager roles (they hold `assignment.read` too); harmless,
+  renders the same empty state non-target roles already got from
+  `listMyAssignments`. Two real bugs caught in review before this shipped, not
+  by the (network-blocked) test run: (1) `catalogService.getDepartureDetail`
+  404s for a non-operator role once a departure leaves `SCHEDULED`
+  (`isDepartureVisible`) -- routine for a `COMPLETED` trip in someone's own
+  history, so a plain `Promise.all` over departure lookups would 500 the
+  whole page the first time any user had one; fixed with `Promise.allSettled`,
+  dropping the rows it can't resolve. (2) `TOUR_GUIDE` holds `assignment.read`
+  but not `fleet.read` (only `DRIVER`/`VEHICLE_OWNER` do) -- calling the two
+  new fleet methods unconditionally would 403 for a guide; fixed by checking
+  `can(ctx.role, 'fleet.read')` first and skipping straight to the page's
+  existing "Unknown vehicle/driver" fallback text when it's false, rather
+  than granting `TOUR_GUIDE` a permission it's never needed before.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
-  GPS v1, CRM, reviews, a guide/driver/vehicle-owner self-service "my
-  schedule" portal, and visa resubmission after rejection.
+  GPS v1, CRM, reviews, and visa resubmission after rejection.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -663,7 +697,19 @@ links per-role. Closed two pre-existing audit gaps surfaced by real UI
 usage: `visaService.listForCountry`'s officer reads and
 `authService.assignOfficerCountry` (`admin.all`) were never audited despite
 both being required (BR-10 / STRIDE "Elevation"). One new route,
-`GET /api/v1/immigration/officers` (`admin.all`), for API-level testability.
+`GET /api/v1/immigration/officers` (`admin.all`), for API-level testability ·
+DR-021 self-service "my schedule" portal: closes the gap DR-018/019/020 each
+deferred, no new permission (`assignment.read`, already held) and no schema
+change since DR-020 already removed the dashboard-gate blocker DR-018 cited.
+New `/staff/schedule`, read-only, composes `assignmentService
+.listMyAssignments` + `catalogService.getDepartureDetail` +
+`authService.getUser` + new `fleetService.listVehiclesByIds`/
+`listDriverProfilesByIds` directly in the page, same convention as the
+manager-side departure-detail page. The two new fleet methods deliberately
+skip the ownership check `getVehicle`/`getDriverProfile` enforce (a `DRIVER`
+viewing their assigned-but-not-owned vehicle would otherwise 404), mirroring
+`authService.getUser`'s "caller already gates" convention -- safe since IDs
+only ever come from the caller's own assignments.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 
