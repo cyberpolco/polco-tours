@@ -100,6 +100,8 @@ same major; record a DR for any security-driven bump.
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Phase 1/2 |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
+| Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map (DR-022); not `react-simple-maps` (no React 19 support) |
+| i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing (DR-023); guest site only, partial coverage (Nav/Footer/HomePage so far) |
 
 Do not swap any of these without a DR entry.
 
@@ -569,6 +571,64 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `scripts/set-staff-password.ts` — see Gotchas). No schema/permission change,
   so no new DR. HEAD is `e3c0192` (also fixed an RLS bypass via Neon's default
   owner role — see Gotchas — and split `seed.ts` into per-package transactions).
+- **Guest-site content/UX polish, Phase A of a 10-item batch (2026-07-11):**
+  footer got a real tagline ("...for Visit Kasai & Mufasa Safaris and Tours"),
+  a `© PolCo Tours, a Cyber PolCo Product` credit line, empty-href social
+  icons, and new `Terms`/`Policies` placeholder pages next to Admin Access
+  (same honest-placeholder convention as Contact, since OI-02/03 are still
+  open); About page's lead paragraph now states the Visit Kasai & Mufasa
+  Safaris framing directly; FAQ gained Namibia/DRC visa, safety, and
+  yellow-fever entries, hedged per this doc's own "effective-dated, verify
+  against NTB/DGM/embassies" framing rather than stated as fixed fact;
+  Contact page is now a real two-office (Namibia/DRC) layout with clearly
+  labeled "coming soon" placeholder details (not fabricated, per the same
+  OI-02/03 reasoning); staff login page gained a back-arrow-to-`/`, a
+  centered `BrandMark` (previously unused there), and a "contact your admin
+  to reset your password" line; `/packages` gained a real search box
+  (`?q=`), and `catalogService.listPublicPackages` now takes an optional
+  `{ country?, search? }` filter (in-memory over the org's package list —
+  deliberately not pushed into a Prisma `where` clause, since DR-005's
+  single-tenant launch means this list is small; revisit if that changes).
+  No schema/permission/integration change, so no new DR — three more phases
+  (the map, i18n, and quotation-flow work below) are each large enough to
+  need their own DR.
+- **Homepage Africa/Namibia/DRC map, Phase B of the same batch (DR-022,
+  2026-07-11):** new `src/components/AfricaMap.tsx` between the homepage's
+  Featured and How-it-works sections. `react-simple-maps` (the originally
+  scoped dependency) turned out not to support React 19 at all (`npm
+  install` fails with `ERESOLVE`) — switched to `@visx/geo`+`@visx/
+  responsive`+`@visx/tooltip`+`@visx/event`+`topojson-client`+`world-atlas`,
+  all confirmed React-19-clean before installing. World map with Africa
+  highlighted; a "Zoom into Namibia & DR Congo" button animates a CSS-
+  transitioned `<g>` transform centered on the two countries' computed
+  centroids and switches them to a second highlight color; hovering either
+  shows a tooltip from new `src/lib/country-facts.ts` (capital/language/
+  currency/population/area, labeled as estimates). New `src/lib/
+  africa-country-ids.ts` holds the AU-member ISO-numeric-3 set used only for
+  map coloring. Deliberately simple click-to-zoom (no `@visx/zoom` drag/
+  scroll/pinch — avoids the common scroll-jacking problem on an embedded
+  decorative map). Could not visually verify the rendered SVG/hover/zoom in
+  this sandbox (no browser or screenshot tool available) — confirmed instead
+  via a clean `tsc`/lint pass and an error-free dev-server SSR request (the
+  topojson parse + conversion ran successfully); a human should click
+  through it in a real browser before considering this fully verified.
+- **Real i18n infrastructure + language switcher, Phase C of the same batch
+  (DR-023, 2026-07-12):** new `next-intl` `4.13.2` (confirmed React 19/Next
+  15-clean before installing, this time checked up front). Cookie-based
+  locale (no `/en`/`/fr` URL prefix) -- completes scaffolding already sitting
+  unused in `src/middleware.ts` (it resolved a candidate locale but only
+  wrote a response header nothing read; now it seeds the actual `locale`
+  cookie on first visit). New `src/i18n/request.ts` +
+  `src/messages/{en,fr}.json` (only `Nav`/`Footer`/`HomePage` namespaces
+  translated so far -- every other guest page is still plain English,
+  deliberately incremental) + a hover-opening `language-switcher.tsx`
+  (writes the cookie via a Server Action, then `router.refresh()`).
+  `NextIntlClientProvider` wraps only the guest route group's layout, not
+  the true root -- staff dashboard untouched. `User.preferredLocale`
+  (notification-template language, DR-013) is a separate concept, not
+  unified with this. Verified via dev-server curl requests with different
+  `Cookie`/`Accept-Language` combinations (same no-browser-tool limitation
+  as DR-022) -- all three scenarios rendered correctly with no errors.
 - **Officer-management UI done 2026-07-11 (DR-020):** closes the gap DR-019
   explicitly deferred. New `/staff/immigration` (an `IMMIGRATION_OFFICER`'s
   own country-scoped visa queue, strictly read-only per BR-10 -- no decide

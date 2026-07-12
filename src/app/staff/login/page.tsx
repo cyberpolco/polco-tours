@@ -2,7 +2,9 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { authClient } from '@lib/auth-client';
+import { BrandMark } from '@/components/BrandMark';
 
 // First Client Component in the repo (DR-014). Deliberately outside the
 // (dashboard) route group so it never inherits its auth-gating layout --
@@ -28,10 +30,23 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
+    <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
+      <Link
+        href="/"
+        aria-label="Back to homepage"
+        className="absolute left-8 top-8 flex items-center gap-1 text-sm text-mist hover:text-amber"
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Back
+      </Link>
       <div className="w-full max-w-sm">
-        <p className="mb-2 text-xs font-semibold tracking-survey text-amber">POLCO TOURS · STAFF</p>
-        <h1 className="mb-8 text-2xl font-bold">Sign in</h1>
+        <div className="mb-8 flex flex-col items-center text-center">
+          <BrandMark className="h-8 w-8 text-amber" />
+          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">POLCO TOURS · STAFF</p>
+          <h1 className="mt-4 text-2xl font-bold">Sign in</h1>
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="mb-1 block text-sm text-mist">
@@ -70,6 +85,9 @@ export default function StaffLoginPage() {
             {pending ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <p className="mt-6 text-center text-xs text-mist">
+          Forgot your password? Contact your admin to reset it.
+        </p>
       </div>
     </main>
   );

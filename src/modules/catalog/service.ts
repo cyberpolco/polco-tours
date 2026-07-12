@@ -27,6 +27,11 @@ import { catalogRepository } from './repository';
 // roles), rather than inventing a parallel "public" visibility concept.
 const PUBLIC_VIEW_ROLE = 'TOURIST' as const;
 
+export interface PublicPackageFilter {
+  country?: string;
+  search?: string;
+}
+
 export interface DepartureDetail {
   departure: DepartureView;
   packageStatus: TourPackageView['status'];
@@ -125,10 +130,18 @@ export const catalogService = {
   // and the guest-checkout flow before a departure is picked. Every method
   // resolves the primary (single-tenant launch, DR-005) org itself.
 
-  async listPublicPackages(): Promise<TourPackageView[]> {
+  async listPublicPackages(filter: PublicPackageFilter = {}): Promise<TourPackageView[]> {
     const organizationId = await getPrimaryOrgId();
     const all = await catalogRepository.listPackages(organizationId);
-    return all.filter((p) => isPackageVisible(p, PUBLIC_VIEW_ROLE));
+    let visible = all.filter((p) => isPackageVisible(p, PUBLIC_VIEW_ROLE));
+    if (filter.country) visible = visible.filter((p) => p.country === filter.country);
+    const needle = filter.search?.trim().toLowerCase();
+    if (needle) {
+      visible = visible.filter(
+        (p) => p.title.toLowerCase().includes(needle) || p.description.toLowerCase().includes(needle),
+      );
+    }
+    return visible;
   },
 
   async getPublicPackageWithDepartures(

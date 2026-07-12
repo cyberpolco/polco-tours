@@ -3,7 +3,7 @@ import { catalogService } from '@modules/catalog';
 import { PackageCard } from '../package-card';
 
 interface Props {
-  searchParams: Promise<{ country?: string }>;
+  searchParams: Promise<{ country?: string; q?: string }>;
 }
 
 const COUNTRIES = [
@@ -12,18 +12,39 @@ const COUNTRIES = [
 ];
 
 export default async function PackagesPage({ searchParams }: Props) {
-  const { country } = await searchParams;
-  const all = await catalogService.listPublicPackages();
-  const packages = country ? all.filter((p) => p.country === country) : all;
+  const { country, q } = await searchParams;
+  const packages = await catalogService.listPublicPackages({ country, search: q });
+
+  function pillHref(nextCountry?: string): string {
+    const params = new URLSearchParams();
+    if (nextCountry) params.set('country', nextCountry);
+    if (q) params.set('q', q);
+    const query = params.toString();
+    return query ? `/packages?${query}` : '/packages';
+  }
 
   return (
     <div>
       <p className="eyebrow text-mist">Browse</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Tour packages</h1>
 
-      <div className="mt-4 flex gap-2 text-sm">
+      <form method="get" action="/packages" className="mt-4 flex flex-wrap items-center gap-3">
+        {country && <input type="hidden" name="country" value={country} />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q ?? ''}
+          placeholder="Search packages…"
+          className="w-full max-w-xs rounded-survey border border-rule px-3 py-1 text-sm sm:w-auto"
+        />
+        <button type="submit" className="rounded-survey border border-rule px-3 py-1 text-sm hover:bg-mist/10">
+          Search
+        </button>
+      </form>
+
+      <div className="mt-3 flex gap-2 text-sm">
         <Link
-          href="/packages"
+          href={pillHref(undefined)}
           className={`rounded-survey border border-rule px-3 py-1 ${!country ? 'bg-navy text-bone' : 'text-ink'}`}
         >
           All
@@ -31,7 +52,7 @@ export default async function PackagesPage({ searchParams }: Props) {
         {COUNTRIES.map((c) => (
           <Link
             key={c.code}
-            href={`/packages?country=${c.code}`}
+            href={pillHref(c.code)}
             className={`rounded-survey border border-rule px-3 py-1 ${country === c.code ? 'bg-navy text-bone' : 'text-ink'}`}
           >
             {c.name}

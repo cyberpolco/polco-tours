@@ -22,6 +22,22 @@ const FAQS = [
     q: 'What currency will I pay in?',
     a: 'It depends on the package -- prices are shown in the currency the package is listed in (USD, EUR, NAD, or CDF) and we do not convert between currencies.',
   },
+  {
+    q: 'Do I need a visa to enter Namibia?',
+    a: "It depends on your nationality, and the rules changed twice in 2025 -- a number of previously visa-exempt nationalities now need an e-visa or visa-on-arrival. Always verify your specific requirement with the Namibian Ministry of Home Affairs/Immigration or your nearest Namibian embassy before you travel; we'll flag anything we can confirm on your booking, but this isn't legal guidance.",
+  },
+  {
+    q: 'Do I need a visa to enter the DRC?',
+    a: "Most visitors need a visa arranged in advance, typically through a licensed local operator (a DMC) working with DRC immigration (DGM). Requirements vary by nationality and purpose of visit, so confirm directly with the DRC embassy nearest you or your booking's operator well ahead of travel.",
+  },
+  {
+    q: 'Is it safe to travel in the DRC?',
+    a: 'It depends heavily on the region. Kinshasa and western DRC are generally accessible to visitors; some areas further east carry an elevated risk or require specialist arrangements, and a few provinces are not currently recommended for tourism at all. We only sell packages into areas our operators consider appropriate, and any current-advisory details apply at booking time -- always check your government\'s official travel advisory too.',
+  },
+  {
+    q: 'Do I need proof of yellow fever vaccination?',
+    a: "If you're arriving from (or have recently transited through) a country with a risk of yellow fever, both Namibia and the DRC may require proof of vaccination on entry. Malaria risk is also present in parts of both countries. Check current requirements with your travel clinic or the relevant embassy before you go.",
+  },
 ] as const;
 
 export default function FaqPage() {

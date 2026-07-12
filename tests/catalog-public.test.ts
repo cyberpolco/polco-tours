@@ -87,6 +87,22 @@ describe('catalogService public methods (DR-016)', () => {
     expect(ids).not.toContain(draftPackageId);
   });
 
+  it('listPublicPackages filters by country', async () => {
+    const results = await catalogService.listPublicPackages({ country: 'CD' });
+    expect(results.map((p) => p.id)).not.toContain(publishedPackageId);
+  });
+
+  it('listPublicPackages filters by a case-insensitive title/description search', async () => {
+    const bySuffix = await catalogService.listPublicPackages({ search: suffix });
+    expect(bySuffix.map((p) => p.id)).toContain(publishedPackageId);
+
+    const byDescription = await catalogService.listPublicPackages({ search: 'fixture for public' });
+    expect(byDescription.map((p) => p.id)).toContain(publishedPackageId);
+
+    const noMatch = await catalogService.listPublicPackages({ search: 'no-such-package-xyz' });
+    expect(noMatch.map((p) => p.id)).not.toContain(publishedPackageId);
+  });
+
   it('getPublicPackageWithDepartures only returns the scheduled departure', async () => {
     const { pkg, departures } = await catalogService.getPublicPackageWithDepartures(publishedPackageId);
     expect(pkg.id).toBe(publishedPackageId);

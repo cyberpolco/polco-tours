@@ -1,0 +1,45 @@
+{
+  "Nav": {
+    "browse": "Découvrir",
+    "tailorTrip": "Personnaliser mon voyage",
+    "findBooking": "Retrouver ma réservation",
+    "about": "À propos",
+    "faq": "FAQ",
+    "contact": "Contact"
+  },
+  "Footer": {
+    "tagline": "Système de gestion touristique pour Visit Kasai & Mufasa Safaris and Tours",
+    "browse": "Découvrir",
+    "tailorTrip": "Personnaliser mon voyage",
+    "findBooking": "Retrouver ma réservation",
+    "about": "À propos",
+    "faq": "FAQ",
+    "contact": "Contact",
+    "terms": "Conditions",
+    "policies": "Politiques",
+    "adminAccess": "Accès administrateur"
+  },
+  "HomePage": {
+    "heroEyebrow": "Namibie et RDC",
+    "heroTitle": "Des voyages qui valent la peine de traverser une frontière.",
+    "heroSubhead": "Découvrez safaris, randonnées et voyages culturels en Namibie et en République démocratique du Congo -- sans compte. Réservez en tant qu'invité et recevez un code de référence pour suivre votre voyage à tout moment.",
+    "browsePackages": "Découvrir les circuits",
+    "tailorTrip": "Personnaliser mon voyage",
+    "featuredEyebrow": "À la une",
+    "featuredTitle": "Quelques idées pour commencer",
+    "viewAllPackages": "Voir tous les circuits →",
+    "mapEyebrow": "Où nous opérons",
+    "mapTitle": "La Namibie et la RDC, sur la carte",
+    "mapSubhead": "Survolez la Namibie ou la RD Congo après avoir zoomé pour un aperçu rapide de chaque pays.",
+    "howItWorksEyebrow": "Comment ça marche",
+    "howItWorksTitle": "De la recherche à la réservation",
+    "step1Title": "Parcourez ou faites le questionnaire",
+    "step1Body": "Parcourez tous les circuits en Namibie et en RDC, ou répondez à quelques questions pour que nous les sélectionnions pour vous.",
+    "step2Title": "Réservez en tant qu'invité",
+    "step2Body": "Sans compte, sans mot de passe. Choisissez un départ, ajoutez les voyageurs et payez un acompte -- en une seule fois.",
+    "step3Title": "Conservez votre code de référence",
+    "step3Body": "Chaque réservation reçoit un code court pour la retrouver et suivre son statut à tout moment, depuis n'importe quel appareil.",
+    "ctaEyebrow": "Quand vous serez prêt",
+    "ctaTitle": "Commencez à planifier votre voyage dès aujourd'hui."
+  }
+}
