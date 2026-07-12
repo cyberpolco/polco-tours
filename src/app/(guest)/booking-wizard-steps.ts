@@ -1,4 +1,15 @@
-// Shared step labels for the one real linear checkout in the guest flow
-// (Book -> Travelers -> Passport -> Add-ons) -- deliberately not shown on
-// quiz/packages/results, which are a non-linear browse phase.
-export const BOOKING_WIZARD_STEPS = ['Your details', 'Travelers', 'Passport', 'Add-ons'];
+// Shared step labels spanning the WHOLE guided journey (DR-024) -- quiz
+// through payment/quote, not just the 4-page booking wizard this used to
+// cover. /packages/[packageId] (picking a departure between Matches and
+// Your details) deliberately stays indicator-free: it's also used by
+// plain browse-without-quiz visitors, so a progress bar there would
+// misrepresent non-wizard traffic.
+export const BOOKING_WIZARD_STEPS = [
+  'Tailor my trip',
+  'Matches',
+  'Your details',
+  'Travelers',
+  'Passport',
+  'Add-ons',
+  'Confirm & Pay',
+];

@@ -34,7 +34,7 @@ export interface PaymentView {
   updatedAt: Date;
 }
 
-export const InitiatePaymentInput = z.object({ kind: z.enum(['DEPOSIT', 'BALANCE']) });
+export const InitiatePaymentInput = z.object({ kind: z.enum(['DEPOSIT', 'BALANCE', 'FULL']) });
 export type InitiatePaymentInput = z.infer<typeof InitiatePaymentInput>;
 
 export const ResolvePaymentInput = z.object({ outcome: z.enum(['SUCCEEDED', 'FAILED']) });
@@ -69,18 +69,24 @@ export function canTransitionPayment(from: PaymentStatus, to: PaymentStatus): bo
   return PAYMENT_TRANSITIONS[from].includes(to);
 }
 
-/** Derived from the FULL payment list (not just the one just-resolved) so a
- * FAILED balance attempt after a SUCCEEDED deposit can't regress the invoice. */
+/** Derived from the full payment list (not just the one just-resolved) so a
+ * FAILED balance attempt after a SUCCEEDED deposit can't regress the invoice.
+ * A succeeded FULL payment (DR-024) reaches PAID the same way BALANCE does --
+ * they're alternative ways to fully settle the same invoice. */
 export function nextInvoiceStatusAfterPayment(
   payments: Pick<PaymentView, 'kind' | 'status'>[],
 ): InvoiceStatus {
-  if (payments.some((p) => p.kind === 'BALANCE' && p.status === 'SUCCEEDED')) return 'PAID';
+  if (payments.some((p) => (p.kind === 'BALANCE' || p.kind === 'FULL') && p.status === 'SUCCEEDED')) return 'PAID';
   if (payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED')) return 'PARTIALLY_PAID';
   return 'ISSUED';
 }
 
 /** The balance leg is only payable once the deposit has succeeded; neither
- * leg may be re-initiated while a non-failed attempt is already outstanding. */
+ * leg may be re-initiated while a non-failed attempt is already outstanding.
+ * FULL (DR-024) is a mutually exclusive alternative to the deposit/balance
+ * split -- blocked once either leg has an active/succeeded attempt, and
+ * blocks DEPOSIT in turn once it has one of its own (a FAILED attempt on
+ * either side doesn't count, so switching paths after a failure is fine). */
 export function canInitiatePayment(
   invoice: Pick<InvoiceView, 'status'>,
   payments: Pick<PaymentView, 'kind' | 'status'>[],
@@ -92,5 +98,23 @@ export function canInitiatePayment(
   if (kind === 'BALANCE') {
     return payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED');
   }
-  return true;
+  if (kind === 'FULL') {
+    return !activeOrSucceeded('DEPOSIT') && !activeOrSucceeded('BALANCE');
+  }
+  return !activeOrSucceeded('FULL');
+}
+
+/** Replaces a `kind === 'DEPOSIT' ? invoice.depositMinor : invoice.balanceMinor`
+ * binary ternary that would have silently charged a FULL payment the balance
+ * amount -- an exhaustive lookup can't miss a kind like that again. */
+export function amountForPaymentKind(
+  invoice: Pick<InvoiceView, 'depositMinor' | 'balanceMinor' | 'totalMinor'>,
+  kind: PaymentKind,
+): number {
+  const amounts: Record<PaymentKind, number> = {
+    DEPOSIT: invoice.depositMinor,
+    BALANCE: invoice.balanceMinor,
+    FULL: invoice.totalMinor,
+  };
+  return amounts[kind];
 }

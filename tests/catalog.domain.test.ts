@@ -127,5 +127,21 @@ describe('catalog domain', () => {
       const results = scorePackagesForQuiz([wildlife, relax, culture], {});
       expect(results).toHaveLength(3);
     });
+
+    it('scores a chosen site as a case-insensitive substring match against title/description (DR-024)', () => {
+      const results = scorePackagesForQuiz([wildlife, relax, culture], { sites: ['etosha'] });
+      expect(results[0]?.id).toBe('p-wildlife');
+    });
+
+    it('adds site score on top of tag score rather than replacing it', () => {
+      const results = scorePackagesForQuiz([wildlife, relax, culture], {
+        tags: ['CULTURE', 'FAMILY'],
+        sites: ['Etosha National Park'],
+      });
+      // culture scores 2 from tags; wildlife scores 0 from tags + 0 from a
+      // site that doesn't match its title ("Etosha Safari" has no "National
+      // Park") -- so culture should still rank first here.
+      expect(results[0]?.id).toBe('p-culture');
+    });
   });
 });

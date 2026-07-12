@@ -99,6 +99,11 @@ export const QuizAnswers = z.object({
   country: z.string().length(2).optional(),
   tripLength: z.enum(['SHORT', 'MEDIUM', 'LONG']).optional(),
   tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+  // Free-text destination names (src/lib/destination-sites.ts) -- there's no
+  // Site/Destination entity in this app, so this scores a substring match
+  // against title/description the same way tags score against the tags
+  // array, rather than needing a real relational model (DR-024).
+  sites: z.array(z.string()).optional(),
 });
 export type QuizAnswers = z.infer<typeof QuizAnswers>;
 
@@ -118,11 +123,17 @@ const TRIP_LENGTH_RANGES: Record<NonNullable<QuizAnswers['tripLength']>, { min: 
 export function scorePackagesForQuiz(packages: TourPackageView[], answers: QuizAnswers): TourPackageView[] {
   const range = answers.tripLength ? TRIP_LENGTH_RANGES[answers.tripLength] : null;
   const wantedTags = answers.tags ?? [];
+  const wantedSites = answers.sites ?? [];
 
   return packages
     .filter((p) => !answers.country || p.country === answers.country)
     .filter((p) => !range || (p.durationDays != null && p.durationDays >= range.min && p.durationDays <= range.max))
-    .map((p) => ({ pkg: p, score: p.tags.filter((t) => wantedTags.includes(t)).length }))
+    .map((p) => {
+      const tagScore = p.tags.filter((t) => wantedTags.includes(t)).length;
+      const haystack = `${p.title} ${p.description}`.toLowerCase();
+      const siteScore = wantedSites.filter((site) => haystack.includes(site.toLowerCase())).length;
+      return { pkg: p, score: tagScore + siteScore };
+    })
     .sort((a, b) => b.score - a.score || a.pkg.title.localeCompare(b.pkg.title))
     .map(({ pkg }) => pkg);
 }

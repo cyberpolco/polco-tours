@@ -22,7 +22,7 @@ export default async function BookDeparturePage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={0} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={2} />
       <p className="eyebrow mt-4 text-mist">New booking</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">
         {detail.departure.startDate.toLocaleDateString()} · {format(detail.effectiveUnitPrice)}/seat

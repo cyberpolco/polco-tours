@@ -1,5 +1,8 @@
 import { Button } from '@/components/ui/Button';
 import { SelectableCard } from '@/components/ui/SelectableCard';
+import { StepIndicator } from '@/components/ui/StepIndicator';
+import { DESTINATION_SITES } from '@lib/destination-sites';
+import { BOOKING_WIZARD_STEPS } from '../booking-wizard-steps';
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
@@ -20,7 +23,8 @@ function titleCase(tag: string): string {
 export default function QuizPage() {
   return (
     <div className="max-w-lg">
-      <p className="eyebrow text-mist">Tailor my trip</p>
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={0} />
+      <p className="eyebrow mt-4 text-mist">Tailor my trip</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">A few questions</h1>
 
       <form method="get" action="/quiz/results" className="mt-6 space-y-6">
@@ -52,6 +56,17 @@ export default function QuizPage() {
             {TAGS.map((tag) => (
               <SelectableCard key={tag} type="checkbox" name="tags" value={tag}>
                 {titleCase(tag)}
+              </SelectableCard>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm text-mist">Sites you&apos;d like to visit (pick any)</p>
+          <div className="grid grid-cols-2 gap-2">
+            {DESTINATION_SITES.map(({ name }) => (
+              <SelectableCard key={name} type="checkbox" name="sites" value={name}>
+                {name}
               </SelectableCard>
             ))}
           </div>

@@ -153,6 +153,32 @@ export const bookingService = {
     return updated;
   },
 
+  /** Guest chooses "request a quotation" instead of paying (DR-024) -- the
+   * booking already exists and already passed its capacity check when the
+   * hold was created, so this is just a status transition (HELD ->
+   * QUOTE_REQUESTED), not a new creation path. Reuses booking.cancel's
+   * permission/ownership shape rather than adding a new permission --
+   * TOURIST already holds it and the semantics ("give up this hold") are
+   * close enough. No notification fired; staff see these via the new
+   * quote-requests dashboard queue instead. */
+  async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
+    assertCan(ctx.role, 'booking.cancel');
+    const organizationId = requireOrg(ctx);
+
+    await getOwnedBooking(ctx, organizationId, bookingId);
+    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'QUOTE_REQUESTED');
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'booking.quote_requested',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+    });
+    return updated;
+  },
+
   async getById(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx.role, 'booking.read');
     const organizationId = requireOrg(ctx);

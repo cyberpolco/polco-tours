@@ -1,5 +1,6 @@
 'use server';
 
+import type { PaymentKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
@@ -17,7 +18,7 @@ export async function cancelBookingAction(bookingId: string) {
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
-export async function initiatePaymentAction(invoiceId: string, kind: 'DEPOSIT' | 'BALANCE', bookingId: string) {
+export async function initiatePaymentAction(invoiceId: string, kind: PaymentKind, bookingId: string) {
   const ctx = await requireStaffContext('payment.initiate');
   await invoicingService.initiatePayment(ctx, invoiceId, kind);
   revalidatePath(`/staff/bookings/${bookingId}`);

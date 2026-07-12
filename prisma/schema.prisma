@@ -57,6 +57,7 @@ enum BookingStatus {
   CONFIRMED
   CANCELLED
   EXPIRED
+  QUOTE_REQUESTED
 }
 
 enum InvoiceStatus {
@@ -70,6 +71,7 @@ enum InvoiceStatus {
 enum PaymentKind {
   DEPOSIT
   BALANCE
+  FULL
 }
 
 enum PaymentStatus {

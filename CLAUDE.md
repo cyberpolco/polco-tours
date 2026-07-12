@@ -629,6 +629,38 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   unified with this. Verified via dev-server curl requests with different
   `Cookie`/`Accept-Language` combinations (same no-browser-tool limitation
   as DR-022) -- all three scenarios rendered correctly with no errors.
+- **Guided journey, sites dropdown, quote-request flow, pay-in-full -- final
+  phase of the batch (DR-024, 2026-07-12):** `BookingStatus` gains
+  `QUOTE_REQUESTED`, `PaymentKind` gains `FULL` -- both additive-only enum
+  changes, applied directly to the shared dev/production Neon DB (no
+  separate staging env, DR-005) with explicit user confirmation, using
+  `neondb_owner` ephemerally (never written to `.env` -- an earlier attempt
+  to stage it there was correctly blocked and reverted immediately). Key
+  insight: "request a quotation" is just transitioning an existing `HELD`
+  booking (already capacity-checked) to `QUOTE_REQUESTED`
+  (`bookingService.requestQuotation`, reusing `booking.cancel`'s
+  permission/ownership shape) -- no new creation path, no new capacity
+  logic needed. Per explicit user choice, staff can confirm a quote
+  directly with no automatic seat re-check (accepted risk, mitigated only
+  by a UI caution, not a hard gate). New `PaymentKind.FULL` is mutually
+  exclusive with the deposit/balance split; new `amountForPaymentKind`
+  replaces a fragile ternary that would have silently mischarged a `FULL`
+  payment. Both booking-detail pages gained a first-payment-decision fork
+  (deposit / full / (guest only) quote) -- caught and fixed a real bug in
+  review: the deposit/balance buttons had no `booking.status === 'HELD'`
+  gate at all, so a quote-requested booking would still have shown "Pay
+  deposit". New `/staff/quote-requests` queue page. `StepIndicator`
+  (previously just the 4-page booking wizard) now spans the whole journey
+  from `/quiz` through payment as one continuous progress bar, per the
+  user's explicit "one merged wizard" choice -- implemented by extending
+  the existing step-indicator/page-based flow rather than rewriting the
+  already-tested traveler/passport/payment logic; `/packages/[packageId]`
+  stays indicator-free (shared with plain browse traffic). New
+  sites-to-visit quiz question (`src/lib/destination-sites.ts`, a static
+  curated list -- no `Site` entity) scores additively on top of the
+  existing tag score. This closes out the 10-item guest-site redesign
+  batch started this session (Phase A had no DR; Phases B/C/D are DR-022
+  through DR-024).
 - **Officer-management UI done 2026-07-11 (DR-020):** closes the gap DR-019
   explicitly deferred. New `/staff/immigration` (an `IMMIGRATION_OFFICER`'s
   own country-scoped visa queue, strictly read-only per BR-10 -- no decide

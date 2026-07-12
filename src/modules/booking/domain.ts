@@ -60,11 +60,18 @@ export function computeAvailability(capacity: number, seatsTaken: number): numbe
   return Math.max(0, capacity - seatsTaken);
 }
 
+// QUOTE_REQUESTED (DR-024) is reached from HELD when a guest picks "request
+// a quotation" instead of paying -- releases the seat hold (occupiesCapacity
+// below already excludes it, no change needed there) but keeps the booking
+// row (travelers/passport/add-ons) intact for staff follow-up. Staff may
+// confirm a quote directly (accepted risk, no automatic capacity re-check --
+// see the caution text on the staff booking-detail page).
 const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  HELD: ['CONFIRMED', 'CANCELLED', 'EXPIRED'],
+  HELD: ['CONFIRMED', 'CANCELLED', 'EXPIRED', 'QUOTE_REQUESTED'],
   CONFIRMED: ['CANCELLED'],
   CANCELLED: [],
   EXPIRED: [],
+  QUOTE_REQUESTED: ['CONFIRMED', 'CANCELLED'],
 };
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {

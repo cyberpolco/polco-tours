@@ -11,7 +11,7 @@ import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
-import { cancelBookingAction, initiatePaymentAction } from './actions';
+import { cancelBookingAction, initiatePaymentAction, requestQuotationAction } from './actions';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
@@ -41,7 +41,7 @@ export default async function BookingHomePage({ params }: Props) {
       : !passportDone
         ? `/booking/${bookingId}/passport`
         : `/booking/${bookingId}/addons`;
-    const currentStepIndex = !travelersDone ? 1 : !passportDone ? 2 : 3;
+    const currentStepIndex = !travelersDone ? 3 : !passportDone ? 4 : 5;
 
     return (
       <div className="max-w-md space-y-6">
@@ -71,10 +71,11 @@ export default async function BookingHomePage({ params }: Props) {
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
   const depositDone = payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED');
   const balanceDone = payments.some((p) => p.kind === 'BALANCE' && p.status === 'SUCCEEDED');
+  const fullDone = payments.some((p) => p.kind === 'FULL' && p.status === 'SUCCEEDED');
 
   return (
     <div className="space-y-8">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={4} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={6} />
       <div>
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-1 flex items-center gap-2 text-mist">
@@ -89,7 +90,14 @@ export default async function BookingHomePage({ params }: Props) {
             </Alert>
           </div>
         )}
-        {(booking.status === 'HELD' || booking.status === 'CONFIRMED') && (
+        {booking.status === 'QUOTE_REQUESTED' && (
+          <div className="mt-3">
+            <Alert tone="success">
+              We&apos;ve received your quote request -- our team will be in touch soon.
+            </Alert>
+          </div>
+        )}
+        {(booking.status === 'HELD' || booking.status === 'CONFIRMED' || booking.status === 'QUOTE_REQUESTED') && (
           <form action={cancelBookingAction.bind(null, booking.id)} className="mt-4">
             <SubmitButton variant="secondary" pendingLabel="Cancelling…">
               Cancel booking
@@ -142,16 +150,30 @@ export default async function BookingHomePage({ params }: Props) {
           </ul>
         )}
 
-        <div className="mt-4 flex gap-3">
-          {!depositDone && !pendingPayment && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {booking.status === 'HELD' && !depositDone && !fullDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
               <SubmitButton pendingLabel="Starting…">Pay deposit</SubmitButton>
             </form>
           )}
-          {depositDone && !balanceDone && !pendingPayment && (
+          {booking.status === 'HELD' && depositDone && !balanceDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
               <SubmitButton pendingLabel="Starting…">Pay balance</SubmitButton>
             </form>
+          )}
+          {payments.length === 0 && !pendingPayment && booking.status === 'HELD' && (
+            <>
+              <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
+                <SubmitButton pendingLabel="Starting…" variant="secondary">
+                  Pay in full
+                </SubmitButton>
+              </form>
+              <form action={requestQuotationAction.bind(null, booking.id)}>
+                <SubmitButton pendingLabel="Requesting…" variant="secondary">
+                  Request a quotation
+                </SubmitButton>
+              </form>
+            </>
           )}
         </div>
       </div>

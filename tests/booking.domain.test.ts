@@ -64,6 +64,10 @@ describe('booking domain', () => {
       expect(occupiesCapacity({ status: 'CANCELLED', holdExpiresAt: null }, now)).toBe(false);
       expect(occupiesCapacity({ status: 'EXPIRED', holdExpiresAt: null }, now)).toBe(false);
     });
+
+    it('a QUOTE_REQUESTED booking never occupies a seat (DR-024)', () => {
+      expect(occupiesCapacity({ status: 'QUOTE_REQUESTED', holdExpiresAt: null }, now)).toBe(false);
+    });
   });
 
   describe('computeAvailability', () => {
@@ -77,16 +81,18 @@ describe('booking domain', () => {
   });
 
   describe('canTransition', () => {
-    it('a HELD booking can move to CONFIRMED, CANCELLED, or EXPIRED', () => {
+    it('a HELD booking can move to CONFIRMED, CANCELLED, EXPIRED, or QUOTE_REQUESTED', () => {
       expect(canTransition('HELD', 'CONFIRMED')).toBe(true);
       expect(canTransition('HELD', 'CANCELLED')).toBe(true);
       expect(canTransition('HELD', 'EXPIRED')).toBe(true);
+      expect(canTransition('HELD', 'QUOTE_REQUESTED')).toBe(true);
     });
 
     it('a CONFIRMED booking can only move to CANCELLED', () => {
       expect(canTransition('CONFIRMED', 'CANCELLED')).toBe(true);
       expect(canTransition('CONFIRMED', 'HELD')).toBe(false);
       expect(canTransition('CONFIRMED', 'EXPIRED')).toBe(false);
+      expect(canTransition('CONFIRMED', 'QUOTE_REQUESTED')).toBe(false);
     });
 
     it('CANCELLED and EXPIRED are terminal', () => {
@@ -94,6 +100,13 @@ describe('booking domain', () => {
       expect(canTransition('CANCELLED', 'HELD')).toBe(false);
       expect(canTransition('EXPIRED', 'CONFIRMED')).toBe(false);
       expect(canTransition('EXPIRED', 'HELD')).toBe(false);
+    });
+
+    it('a QUOTE_REQUESTED booking can move to CONFIRMED or CANCELLED, but not back to HELD', () => {
+      expect(canTransition('QUOTE_REQUESTED', 'CONFIRMED')).toBe(true);
+      expect(canTransition('QUOTE_REQUESTED', 'CANCELLED')).toBe(true);
+      expect(canTransition('QUOTE_REQUESTED', 'HELD')).toBe(false);
+      expect(canTransition('QUOTE_REQUESTED', 'EXPIRED')).toBe(false);
     });
   });
 

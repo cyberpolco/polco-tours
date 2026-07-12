@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { bookingService, generateConfirmationCode } from '../../src/modules/booking';
+import type { AuthContext } from '../../src/modules/auth';
 import { GET as getBooking } from '../../src/app/api/v1/bookings/[bookingId]/route';
 import { POST as cancelBooking } from '../../src/app/api/v1/bookings/[bookingId]/cancel/route';
 
@@ -17,6 +18,7 @@ const admin = new PrismaClient();
 
 let orgId: string;
 let bookingId: string;
+let quoteBookingId: string;
 let touristAId: string;
 let touristBId: string;
 
@@ -66,6 +68,23 @@ beforeAll(async () => {
       },
     });
     bookingId = booking.id;
+
+    // Own fixture row for requestQuotation (DR-024) -- kept separate from
+    // `booking` above since requestQuotation mutates status (HELD ->
+    // QUOTE_REQUESTED) and the other tests in this file assume `bookingId`
+    // stays HELD throughout.
+    const quoteBooking = await tx.booking.create({
+      data: {
+        organizationId: orgId,
+        departureId: departure.id,
+        touristUserId: touristAId,
+        confirmationCode: generateConfirmationCode(),
+        seats: 1,
+        priceMinor: 10000,
+        currency: 'USD',
+      },
+    });
+    quoteBookingId = quoteBooking.id;
   });
 });
 
@@ -102,5 +121,32 @@ describe('anti-BOLA: booking ownership', () => {
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}`, { headers });
     const res = await getBooking(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('requestQuotation (DR-024)', () => {
+  // No HTTP route exists for this -- it's only reachable via the guest
+  // booking-detail page's Server Action, same convention as several other
+  // Server-Component-only features this session (e.g. the staff schedule
+  // page, DR-021). Called directly with a hand-built AuthContext instead of
+  // loginAs()+a route, matching that same precedent.
+  function ctxFor(userId: string): AuthContext {
+    return { userId, role: 'TOURIST', organizationId: orgId, sessionId: 'test', assignedCountry: null };
+  }
+
+  it("tourist B cannot request a quotation on tourist A's booking (404)", async () => {
+    await expect(bookingService.requestQuotation(ctxFor(touristBId), quoteBookingId)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it('tourist A can transition their own HELD booking to QUOTE_REQUESTED', async () => {
+    const updated = await bookingService.requestQuotation(ctxFor(touristAId), quoteBookingId);
+    expect(updated.status).toBe('QUOTE_REQUESTED');
+    expect(updated.holdExpiresAt).toBeNull();
+  });
+
+  it('a QUOTE_REQUESTED booking cannot be quote-requested again (already transitioned)', async () => {
+    await expect(bookingService.requestQuotation(ctxFor(touristAId), quoteBookingId)).rejects.toThrow();
   });
 });

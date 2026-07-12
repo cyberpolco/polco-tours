@@ -10,7 +10,7 @@ import { Errors } from '@lib/errors';
 import { money, taxOf } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectiveTaxRate } from '@lib/tax';
-import { canInitiatePayment, splitDeposit, type InvoiceView, type PaymentView } from './domain';
+import { amountForPaymentKind, canInitiatePayment, splitDeposit, type InvoiceView, type PaymentView } from './domain';
 import { paymentGateway } from './gateway';
 import { invoicingRepository } from './repository';
 
@@ -102,7 +102,7 @@ export const invoicingService = {
       throw Errors.conflict(`Cannot initiate a ${kind} payment for this invoice right now`);
     }
 
-    const amountMinor = kind === 'DEPOSIT' ? detail.invoice.depositMinor : detail.invoice.balanceMinor;
+    const amountMinor = amountForPaymentKind(detail.invoice, kind);
     const { providerRef, redirectUrl } = await paymentGateway.initiate({
       amountMinor,
       currency: detail.invoice.currency,

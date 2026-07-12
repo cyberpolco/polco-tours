@@ -72,6 +72,7 @@ export default async function BookingDetailPage({ params }: Props) {
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
   const depositDone = payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED');
   const balanceDone = payments.some((p) => p.kind === 'BALANCE' && p.status === 'SUCCEEDED');
+  const fullDone = payments.some((p) => p.kind === 'FULL' && p.status === 'SUCCEEDED');
 
   // Read-only -- visa processing itself is VISA_FACILITATOR's job (DR-019),
   // which has no staff-dashboard access yet. "Not started" just means no
@@ -96,20 +97,27 @@ export default async function BookingDetailPage({ params }: Props) {
           {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
           {format(money(booking.priceMinor, booking.currency))}
         </p>
-        <div className="mt-4 flex gap-3">
-          {booking.status === 'HELD' && (
-            <form action={confirmBookingAction.bind(null, booking.id)}>
-              <SubmitButton variant="success" pendingLabel="Confirming…">
-                Confirm
-              </SubmitButton>
-            </form>
-          )}
-          {(booking.status === 'HELD' || booking.status === 'CONFIRMED') && (
-            <form action={cancelBookingAction.bind(null, booking.id)}>
-              <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-                Cancel
-              </SubmitButton>
-            </form>
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex gap-3">
+            {(booking.status === 'HELD' || booking.status === 'QUOTE_REQUESTED') && (
+              <form action={confirmBookingAction.bind(null, booking.id)}>
+                <SubmitButton variant="success" pendingLabel="Confirming…">
+                  Confirm
+                </SubmitButton>
+              </form>
+            )}
+            {(booking.status === 'HELD' || booking.status === 'CONFIRMED' || booking.status === 'QUOTE_REQUESTED') && (
+              <form action={cancelBookingAction.bind(null, booking.id)}>
+                <SubmitButton variant="secondary" pendingLabel="Cancelling…">
+                  Cancel
+                </SubmitButton>
+              </form>
+            )}
+          </div>
+          {booking.status === 'QUOTE_REQUESTED' && (
+            <p className="text-xs text-amber">
+              This was a quote request — seat availability hasn&apos;t been re-checked automatically.
+            </p>
           )}
         </div>
       </div>
@@ -173,14 +181,19 @@ export default async function BookingDetailPage({ params }: Props) {
         )}
 
         <div className="mt-4 flex gap-3">
-          {!depositDone && !pendingPayment && (
+          {booking.status === 'HELD' && !depositDone && !fullDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
               <SubmitButton pendingLabel="Sending…">Send deposit link</SubmitButton>
             </form>
           )}
-          {depositDone && !balanceDone && !pendingPayment && (
+          {booking.status === 'HELD' && depositDone && !balanceDone && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
               <SubmitButton pendingLabel="Sending…">Send balance link</SubmitButton>
+            </form>
+          )}
+          {booking.status === 'HELD' && payments.length === 0 && !pendingPayment && (
+            <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
+              <SubmitButton pendingLabel="Sending…">Send full-payment link</SubmitButton>
             </form>
           )}
         </div>

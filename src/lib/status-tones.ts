@@ -18,6 +18,7 @@ export const BOOKING_STATUS_TONE: Record<BookingStatus, BadgeTone> = {
   CONFIRMED: 'success',
   CANCELLED: 'neutral',
   EXPIRED: 'neutral',
+  QUOTE_REQUESTED: 'warning',
 };
 
 export const PAYMENT_STATUS_TONE: Record<PaymentStatus, BadgeTone> = {

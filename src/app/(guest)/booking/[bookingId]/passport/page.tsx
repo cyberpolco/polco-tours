@@ -34,7 +34,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={2} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={4} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Passport</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">
         {lead.firstName} {lead.lastName}&apos;s passport

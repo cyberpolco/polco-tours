@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  amountForPaymentKind,
   canInitiatePayment,
   canTransitionInvoice,
   canTransitionPayment,
@@ -79,6 +80,10 @@ describe('invoicing domain', () => {
         ]),
       ).toBe('PARTIALLY_PAID');
     });
+
+    it('moves to PAID once a FULL payment succeeds (DR-024)', () => {
+      expect(nextInvoiceStatusAfterPayment([{ kind: 'FULL', status: 'SUCCEEDED' }])).toBe('PAID');
+    });
   });
 
   describe('canInitiatePayment', () => {
@@ -121,6 +126,41 @@ describe('invoicing domain', () => {
     it('blocks any new payment once the invoice is PAID or VOID', () => {
       expect(canInitiatePayment({ status: 'PAID' }, [], 'DEPOSIT')).toBe(false);
       expect(canInitiatePayment({ status: 'VOID' }, [], 'DEPOSIT')).toBe(false);
+    });
+
+    it('allows FULL on a freshly issued invoice with no other attempts (DR-024)', () => {
+      expect(canInitiatePayment({ status: 'ISSUED' }, [], 'FULL')).toBe(true);
+    });
+
+    it('blocks FULL once a deposit/balance attempt is active or succeeded', () => {
+      expect(
+        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'FULL'),
+      ).toBe(false);
+      expect(
+        canInitiatePayment({ status: 'PARTIALLY_PAID' }, [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }], 'FULL'),
+      ).toBe(false);
+    });
+
+    it('blocks DEPOSIT once a FULL attempt is active or succeeded, mirroring the reverse', () => {
+      expect(
+        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'FULL', status: 'PENDING' }], 'DEPOSIT'),
+      ).toBe(false);
+    });
+
+    it('allows retrying FULL after a failed deposit attempt on the other path', () => {
+      expect(
+        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'FULL'),
+      ).toBe(true);
+    });
+  });
+
+  describe('amountForPaymentKind', () => {
+    const invoice = { depositMinor: 4000, balanceMinor: 6000, totalMinor: 10000 };
+
+    it('returns the matching amount for each kind', () => {
+      expect(amountForPaymentKind(invoice, 'DEPOSIT')).toBe(4000);
+      expect(amountForPaymentKind(invoice, 'BALANCE')).toBe(6000);
+      expect(amountForPaymentKind(invoice, 'FULL')).toBe(10000);
     });
   });
 });
