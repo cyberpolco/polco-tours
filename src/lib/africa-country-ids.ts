@@ -65,3 +65,7 @@ export const AFRICA_COUNTRY_IDS: ReadonlySet<string> = new Set([
 // highlight color once the map is zoomed in (AfricaMap.tsx).
 export const NAMIBIA_ID = '516';
 export const DRC_ID = '180';
+
+// Zimbabwe -- highlighted alongside Namibia/DRC on the homepage's rotating
+// dot globe (WorldDotGlobe.tsx); not part of AfricaMap's zoom highlight.
+export const ZIMBABWE_ID = '716';

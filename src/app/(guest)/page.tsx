@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { TopographicPattern } from '@/components/TopographicPattern';
 import { AfricaMap } from '@/components/AfricaMap';
+import { WorldDotGlobe } from '@/components/WorldDotGlobe';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
 import { PackageCard } from './package-card';
@@ -47,6 +48,16 @@ export default async function HomePage() {
           <LinkButton href="/quiz" variant="secondary">
             {t('tailorTrip')}
           </LinkButton>
+        </div>
+      </div>
+
+      <div>
+        <div className="survey-rule mb-8" />
+        <p className="eyebrow text-mist">{t('globeEyebrow')}</p>
+        <h2 className="mt-1 text-2xl font-bold text-navy">{t('globeTitle')}</h2>
+        <p className="mt-2 max-w-xl text-mist">{t('globeSubhead')}</p>
+        <div className="mt-6">
+          <WorldDotGlobe />
         </div>
       </div>
 
