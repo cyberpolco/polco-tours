@@ -100,7 +100,7 @@ same major; record a DR for any security-driven bump.
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Phase 1/2 |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
-| Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map (DR-022); not `react-simple-maps` (no React 19 support). `d3-geo` `3.1.0` added directly (2026-07-14) — already the engine `@visx/geo`'s projections wrap, but the homepage's rotating dot-globe plots individual lat/lon points via `geoOrthographic`/`geoContains`/`geoDistance`, which needs the raw d3-geo primitives, not `@visx/geo`'s path-feature components |
+| Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map (DR-022); not `react-simple-maps` (no React 19 support) |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing (DR-023); guest site only, partial coverage (Nav/Footer/HomePage so far) |
 
 Do not swap any of these without a DR entry.
@@ -716,33 +716,15 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `can(ctx.role, 'fleet.read')` first and skipping straight to the page's
   existing "Unknown vehicle/driver" fallback text when it's false, rather
   than granting `TOUR_GUIDE` a permission it's never needed before.
-- **Homepage rotating dot-globe added 2026-07-14:** new
-  `src/components/WorldDotGlobe.tsx` between the Hero and Featured sections
-  (the existing flat `AfricaMap` stays further down, between Featured and
-  How-it-works -- two different decorative maps now, not a replacement).
-  Renders a dot-matrix world map on an auto-rotating `d3-geo`
-  `geoOrthographic` projection, drawn imperatively to a `<canvas>` inside a
-  `requestAnimationFrame` loop rather than as React-managed SVG circles --
-  ~1,200 land dots (sampled every 4° of lat/lon off `world-atlas`'s
-  `land-110m` topology, thinned near the poles by `1/cos(lat)` so density
-  stays even) re-render every frame, which would be far too much per-frame
-  React reconciliation work as SVG. Namibia/DR Congo/Zimbabwe (new
-  `ZIMBABWE_ID` export alongside `NAMIBIA_ID`/`DRC_ID` in
-  `src/lib/africa-country-ids.ts`) are classified once via `geoContains`
-  against their `countries-110m` features and drawn in amber; everything
-  else in ink. Visible-hemisphere culling is manual (`geoDistance` from each
-  point to the current view center) since `projection(point)` has no
-  built-in backface clipping outside `@visx/geo`'s path/stream rendering.
-  Respects `prefers-reduced-motion` (renders one static frame, no spin).
-  Formalizes `d3-geo` `3.1.0` (+ `@types/d3-geo`) as a direct dependency --
-  it was already resolved in `node_modules`/the lockfile as `@visx/geo`'s own
-  transitive dependency at the exact same version, so `npm install` was a
-  no-op beyond adding the two explicit `package.json` entries; not new
-  technology per DR-007's gate, just naming an engine the DR-022 map stack
-  already ships. No schema/permission/integration change, so no new DR.
-  Verified via a clean `tsc`/lint pass and an error-free dev-server request
-  for `/` (same no-browser-tool sandbox limitation as DR-022/023) -- a human
-  should confirm the spin/highlight colors look right in a real browser.
+- **Homepage rotating dot-globe tried and reverted (2026-07-14):** a
+  `d3-geo`-based rotating dot-matrix globe (`WorldDotGlobe.tsx`, between Hero
+  and Featured) was built, debugged (see the `ParentSize`-collapses-to-0-
+  height Gotcha below, found while diagnosing it), and then removed at the
+  user's request the same session. `d3-geo`/`@types/d3-geo` were reverted
+  back out of `package.json` (no longer a direct dependency); the
+  `ParentSize` fix itself stays, since it also fixed a real, independent bug
+  in `AfricaMap`. Don't re-propose a rotating globe here without the user
+  asking again.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, reviews, and visa resubmission after rejection.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -1189,14 +1171,15 @@ human rather than fabricating volume content.
   resolves to 0 once the inline `height:100%` shadows the class -- and
   `AfricaMap.tsx` (DR-022) had exactly this bug from the day it was written,
   unnoticed because DR-022's own note already flagged "could not visually
-  verify the rendered SVG ... in this sandbox." Found 2026-07-14 building the
-  homepage's rotating dot-globe (`WorldDotGlobe.tsx`) when its
-  `requestAnimationFrame` loop's own `height === 0` guard was silently
+  verify the rendered SVG ... in this sandbox." Found 2026-07-14 building a
+  (since-reverted, see Phase status) rotating dot-globe experiment, whose own
+  `requestAnimationFrame` loop had a `height === 0` guard that was silently
   short-circuiting every frame -- a real headless-Chromium check (Playwright,
-  already a project dependency) showed the `<canvas>` rendering at `height:
+  already a project dependency) showed its `<canvas>` rendering at `height:
   0px` in the live DOM, not just a static-vs-reduced-motion question. Fixed
-  both components by passing a `style={{ height: N }}` prop to `ParentSize`
-  instead (the prop the component actually spreads over its own default), and
-  by checking `height === 0` (not just `width === 0`) before rendering.
+  `AfricaMap` (the part of this that's still shipped) by passing a
+  `style={{ height: 420 }}` prop to `ParentSize` instead of a class (the prop
+  the component actually spreads over its own default), and by checking
+  `height === 0` (not just `width === 0`) before rendering the SVG.
   Anywhere else `ParentSize` gets used, pass `style`, not a height utility
   class, and check both dimensions before rendering the measured content.
