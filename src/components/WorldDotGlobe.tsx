@@ -130,8 +130,12 @@ function GlobeCanvas({ width, height }: { width: number; height: number }) {
 export function WorldDotGlobe() {
   return (
     <div className="flex justify-center">
-      <ParentSize className="h-[360px] w-full max-w-[360px]">
-        {({ width, height }) => (width === 0 ? null : <GlobeCanvas width={width} height={height} />)}
+      {/* ParentSize's own wrapper div defaults to an inline style height:100%,
+          which beats a Tailwind height class on ParentSize itself (inline
+          styles win over classes) -- pass `style` so our height actually
+          applies instead of collapsing to 0 against this non-flow parent. */}
+      <ParentSize style={{ height: 360 }} className="w-full max-w-[360px]">
+        {({ width, height }) => (width === 0 || height === 0 ? null : <GlobeCanvas width={width} height={height} />)}
       </ParentSize>
     </div>
   );

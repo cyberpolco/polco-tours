@@ -1179,3 +1179,24 @@ human rather than fabricating volume content.
   tool's sandbox override on, then resolved on its own) — treat it as
   transient and retry rather than assuming a real outage or a regression in
   this repo.
+- **`@visx/responsive`'s `ParentSize` silently collapses to 0 height if you
+  only give it a Tailwind height class.** `ParentSize` renders its own outer
+  div with an inline `style={{width:'100%', height:'100%', position:
+  'relative'}}` by default; a `className="h-[420px]"` on that same element
+  sets `height` via a CSS class, which loses to the inline style regardless
+  of specificity tricks (inline always wins over a class). Since its actual
+  measurement child is `position: absolute`, the outer div's real height
+  resolves to 0 once the inline `height:100%` shadows the class -- and
+  `AfricaMap.tsx` (DR-022) had exactly this bug from the day it was written,
+  unnoticed because DR-022's own note already flagged "could not visually
+  verify the rendered SVG ... in this sandbox." Found 2026-07-14 building the
+  homepage's rotating dot-globe (`WorldDotGlobe.tsx`) when its
+  `requestAnimationFrame` loop's own `height === 0` guard was silently
+  short-circuiting every frame -- a real headless-Chromium check (Playwright,
+  already a project dependency) showed the `<canvas>` rendering at `height:
+  0px` in the live DOM, not just a static-vs-reduced-motion question. Fixed
+  both components by passing a `style={{ height: N }}` prop to `ParentSize`
+  instead (the prop the component actually spreads over its own default), and
+  by checking `height === 0` (not just `width === 0`) before rendering.
+  Anywhere else `ParentSize` gets used, pass `style`, not a height utility
+  class, and check both dimensions before rendering the measured content.

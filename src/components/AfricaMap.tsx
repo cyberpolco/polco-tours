@@ -45,9 +45,14 @@ export function AfricaMap() {
 
   return (
     <div className="relative">
-      <ParentSize className="h-[420px] w-full">
+      {/* ParentSize's own wrapper div defaults to an inline style
+          height:100%, which beats a Tailwind height class on ParentSize
+          itself (inline styles win over classes) -- pass `style` so this
+          height actually applies instead of collapsing to 0 against this
+          non-flow parent. */}
+      <ParentSize style={{ height: 420 }} className="w-full">
         {({ width, height }) => {
-          if (width === 0) return null;
+          if (width === 0 || height === 0) return null;
           const scale = width / 6.3;
           const translate: [number, number] = [width / 2, height / 1.7];
 
