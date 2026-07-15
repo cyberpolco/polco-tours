@@ -12,7 +12,7 @@ export async function createDriverProfileAction(formData: FormData): Promise<voi
 
   const email = String(formData.get('email') ?? '').trim();
   const user = await authService.getUserByEmail(email);
-  if (!user || user.role !== 'DRIVER') {
+  if (!user || !user.roles.includes('DRIVER')) {
     redirect('/staff/fleet/drivers/new?error=driver_not_found');
   }
 

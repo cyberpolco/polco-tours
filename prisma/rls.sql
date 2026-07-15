@@ -172,3 +172,16 @@ CREATE POLICY tenant_isolation ON visa_applications
 -- Isolates by org only. Country-scoping for IMMIGRATION_OFFICER (BR-10) is
 -- enforced in visa/service.ts's listForCountry, covered by
 -- tests/api/visa.security.test.ts.
+
+-- ----------------------------------------------------- organization_members (DR-026)
+-- The `Membership` model existed since early on but was never queried
+-- anywhere in src/, so this policy was never added either -- now that it's
+-- the real multi-role source of truth for staff accounts, it needs the same
+-- tenant isolation every other org-scoped table gets.
+ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organization_members FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON organization_members;
+CREATE POLICY tenant_isolation ON organization_members
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

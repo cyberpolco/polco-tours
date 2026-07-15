@@ -13,7 +13,7 @@ export async function createAssignmentAction(departureId: string, formData: Form
   let guideUserId: string | undefined;
   if (guideEmail) {
     const guide = await authService.getUserByEmail(guideEmail);
-    if (!guide || guide.role !== 'TOUR_GUIDE') {
+    if (!guide || !guide.roles.includes('TOUR_GUIDE')) {
       redirect(`/staff/departures/${departureId}?error=guide_not_found`);
     }
     guideUserId = guide.id;

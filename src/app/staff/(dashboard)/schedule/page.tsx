@@ -35,7 +35,7 @@ export default async function MySchedulePage() {
   // that lacks the permission rather than let fleetService's assertCan throw
   // and crash the page; the guide just sees "Unknown vehicle/driver", same
   // fallback text this page already uses for any other missing lookup.
-  const canReadFleet = can(ctx.role, 'fleet.read');
+  const canReadFleet = can(ctx.roles, 'fleet.read');
   const [departureResults, vehicles, driverProfiles, guides] = await Promise.all([
     Promise.allSettled(departureIds.map((id) => catalogService.getDepartureDetail(ctx, id))),
     canReadFleet ? fleetService.listVehiclesByIds(ctx, vehicleIds) : Promise.resolve<VehicleView[]>([]),

@@ -14,6 +14,7 @@ const LINKS: { href: string; label: string; permission: Permission }[] = [
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/immigration', label: 'Immigration', permission: 'immigration.read' },
   { href: '/staff/admin/officers', label: 'Officers', permission: 'admin.all' },
+  { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
 ];
 
 // Client component so usePathname() can drive active-link styling --
@@ -21,13 +22,13 @@ const LINKS: { href: string; label: string; permission: Permission }[] = [
 // active (not a plain startsWith per link) so "/staff/bookings/new" doesn't
 // also light up the "Bookings" link it's nested under.
 //
-// `role` filters LINKS down to what this session could actually open --
+// `roles` filters LINKS down to what this session could actually open --
 // needed since the dashboard's baseline gate widened from "holds
 // booking.confirm" to "any staff role" (staff-guard.ts): showing every link
 // to everyone would dangle ones that 403 for e.g. IMMIGRATION_OFFICER.
-export function StaffNav({ role }: { role: Role }) {
+export function StaffNav({ roles }: { roles: Role[] }) {
   const pathname = usePathname();
-  const visibleLinks = LINKS.filter((l) => can(role, l.permission));
+  const visibleLinks = LINKS.filter((l) => can(roles, l.permission));
   const activeHref = visibleLinks
     .map((l) => l.href)
     .filter((href) => pathname === href || pathname.startsWith(`${href}/`))

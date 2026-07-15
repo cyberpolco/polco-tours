@@ -24,6 +24,7 @@
     "db:setup": "npm run db:push && npm run db:rls && npm run db:seed",
     "staff:create": "tsx scripts/create-staff-user.ts",
     "staff:set-password": "tsx scripts/set-staff-password.ts",
+    "users:reset-all": "tsx scripts/reset-all-users.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -68,18 +68,18 @@ export function isBookable(pkg: TourPackageView, dep: DepartureView): boolean {
   return pkg.status === 'PUBLISHED' && dep.status === 'SCHEDULED';
 }
 
-function isOperatorRole(role: Role): boolean {
-  return role === 'TOUR_OPERATOR' || role === 'SUPERADMIN' || role === 'PLATFORM_ADMIN';
+function isOperatorRole(roles: Role[]): boolean {
+  return roles.some((role) => role === 'TOUR_OPERATOR' || role === 'SUPERADMIN' || role === 'PLATFORM_ADMIN');
 }
 
 /** Non-operator roles only ever see published packages, regardless of their catalog.read grant. */
-export function isPackageVisible(pkg: TourPackageView, role: Role): boolean {
-  return isOperatorRole(role) || pkg.status === 'PUBLISHED';
+export function isPackageVisible(pkg: TourPackageView, roles: Role[]): boolean {
+  return isOperatorRole(roles) || pkg.status === 'PUBLISHED';
 }
 
 /** Non-operator roles only ever see scheduled departures. */
-export function isDepartureVisible(dep: DepartureView, role: Role): boolean {
-  return isOperatorRole(role) || dep.status === 'SCHEDULED';
+export function isDepartureVisible(dep: DepartureView, roles: Role[]): boolean {
+  return isOperatorRole(roles) || dep.status === 'SCHEDULED';
 }
 
 export interface AddonServiceView {

@@ -149,7 +149,14 @@ describe('requestQuotation (DR-024)', () => {
   // page, DR-021). Called directly with a hand-built AuthContext instead of
   // loginAs()+a route, matching that same precedent.
   function ctxFor(userId: string): AuthContext {
-    return { userId, role: 'TOURIST', organizationId: orgId, sessionId: 'test', assignedCountry: null };
+    return {
+      userId,
+      roles: ['TOURIST'],
+      organizationId: orgId,
+      sessionId: 'test',
+      assignedCountry: null,
+      mustChangePassword: false,
+    };
   }
 
   it("tourist B cannot request a quotation on tourist A's booking (404)", async () => {

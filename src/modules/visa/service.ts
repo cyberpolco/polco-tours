@@ -33,7 +33,7 @@ export interface UploadVisaDocumentInput {
 
 export const visaService = {
   async submitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.role, 'visa.process');
+    assertCan(ctx.roles, 'visa.process');
     const organizationId = requireOrg(ctx);
     const traveler = await findTraveler(ctx, bookingId, travelerId);
 
@@ -54,7 +54,7 @@ export const visaService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'visa.submitted',
       resourceType: 'VisaApplication',
       resourceId: application.id,
@@ -69,7 +69,7 @@ export const visaService = {
     travelerId: string,
     input: DecideVisaInput,
   ): Promise<VisaApplicationView> {
-    assertCan(ctx.role, 'visa.process');
+    assertCan(ctx.roles, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -80,7 +80,7 @@ export const visaService = {
     const decided = await visaRepository.decide(organizationId, existing.id, input.outcome, new Date(), input.reason);
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'visa.decided',
       resourceType: 'VisaApplication',
       resourceId: decided.id,
@@ -93,7 +93,7 @@ export const visaService = {
   /** DR-025: closes the DR-019-deferred dead end. Same anti-BOLA/permission
    * shape as submitApplication/decideApplication. */
   async resubmitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.role, 'visa.process');
+    assertCan(ctx.roles, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -104,7 +104,7 @@ export const visaService = {
     const resubmitted = await visaRepository.resubmit(organizationId, existing.id);
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'visa.resubmitted',
       resourceType: 'VisaApplication',
       resourceId: resubmitted.id,
@@ -122,7 +122,7 @@ export const visaService = {
     travelerId: string,
     input: UploadVisaDocumentInput,
   ): Promise<DocumentSummary> {
-    assertCan(ctx.role, 'visa.process');
+    assertCan(ctx.roles, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -135,7 +135,7 @@ export const visaService = {
   },
 
   async getApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.role, 'documents.read');
+    assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -145,7 +145,7 @@ export const visaService = {
   },
 
   async streamDocument(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {
-    assertCan(ctx.role, 'documents.read');
+    assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -164,15 +164,18 @@ export const visaService = {
    * repeatedly (DR-020). Only the officer's own reads are audited here,
    * not an admin's broader overview, matching BR-10's specific concern. */
   async listForCountry(ctx: AuthContext, country?: string): Promise<OfficerVisaView[]> {
-    assertCan(ctx.role, 'immigration.read');
+    assertCan(ctx.roles, 'immigration.read');
     const organizationId = requireOrg(ctx);
 
-    if (ctx.role === 'IMMIGRATION_OFFICER') {
+    // DR-026: if held alongside another role (e.g. SUPERADMIN), the officer
+    // country-scope still applies -- BR-10's country-scoping is a property
+    // of holding the role at all, not of it being the only role.
+    if (ctx.roles.includes('IMMIGRATION_OFFICER')) {
       if (!ctx.assignedCountry) throw Errors.forbidden('No country assigned to this officer');
       const results = await visaRepository.listForCountry(organizationId, ctx.assignedCountry);
       await audit({
         actorUserId: ctx.userId,
-        actorRole: ctx.role,
+        actorRole: ctx.roles[0],
         action: 'visa.officer_viewed_queue',
         resourceType: 'VisaApplication',
         organizationId,

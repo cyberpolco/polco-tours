@@ -1,5 +1,6 @@
 // catalog module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
+import type { Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { Errors } from '@lib/errors';
 import type { Money } from '@lib/money';
@@ -25,7 +26,7 @@ import { catalogRepository } from './repository';
 // non-operator visibility rule every authenticated non-staff caller already
 // gets (isPackageVisible/isDepartureVisible only special-case operator
 // roles), rather than inventing a parallel "public" visibility concept.
-const PUBLIC_VIEW_ROLE = 'TOURIST' as const;
+const PUBLIC_VIEW_ROLE: Role[] = ['TOURIST'];
 
 export interface PublicPackageFilter {
   country?: string;
@@ -47,28 +48,28 @@ function requireOrg(ctx: AuthContext): string {
 
 export const catalogService = {
   async createPackage(ctx: AuthContext, input: CreatePackageInput): Promise<TourPackageView> {
-    assertCan(ctx.role, 'catalog.write');
+    assertCan(ctx.roles, 'catalog.write');
     return catalogRepository.createPackage(requireOrg(ctx), input);
   },
 
   async updatePackage(ctx: AuthContext, packageId: string, input: UpdatePackageInput): Promise<TourPackageView> {
-    assertCan(ctx.role, 'catalog.write');
+    assertCan(ctx.roles, 'catalog.write');
     const updated = await catalogRepository.updatePackage(requireOrg(ctx), packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
   },
 
   async getPackage(ctx: AuthContext, packageId: string): Promise<TourPackageView> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const pkg = await catalogRepository.findPackageById(requireOrg(ctx), packageId);
-    if (!pkg || !isPackageVisible(pkg, ctx.role)) throw Errors.notFound('Package not found');
+    if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
     return pkg;
   },
 
   async listPackages(ctx: AuthContext): Promise<TourPackageView[]> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const all = await catalogRepository.listPackages(requireOrg(ctx));
-    return all.filter((p) => isPackageVisible(p, ctx.role));
+    return all.filter((p) => isPackageVisible(p, ctx.roles));
   },
 
   async createDeparture(
@@ -76,7 +77,7 @@ export const catalogService = {
     packageId: string,
     input: CreateDepartureInput,
   ): Promise<DepartureView> {
-    assertCan(ctx.role, 'catalog.write');
+    assertCan(ctx.roles, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg) throw Errors.notFound('Package not found');
@@ -84,22 +85,22 @@ export const catalogService = {
   },
 
   async listDepartures(ctx: AuthContext, packageId: string): Promise<DepartureView[]> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
-    if (!pkg || !isPackageVisible(pkg, ctx.role)) throw Errors.notFound('Package not found');
+    if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
     const all = await catalogRepository.listDeparturesForPackage(organizationId, packageId);
-    return all.filter((d) => isDepartureVisible(d, ctx.role));
+    return all.filter((d) => isDepartureVisible(d, ctx.roles));
   },
 
   /** The one cross-module entry point the booking module calls. */
   async getDepartureDetail(ctx: AuthContext, departureId: string): Promise<DepartureDetail> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure) throw Errors.notFound('Departure not found');
     const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
-    if (!pkg || !isPackageVisible(pkg, ctx.role) || !isDepartureVisible(departure, ctx.role)) {
+    if (!pkg || !isPackageVisible(pkg, ctx.roles) || !isDepartureVisible(departure, ctx.roles)) {
       throw Errors.notFound('Departure not found');
     }
     return {
@@ -113,13 +114,13 @@ export const catalogService = {
 
   /** Staff-managed, read-only for now -- seeded via prisma/seed.ts. */
   async listActiveAddonServices(ctx: AuthContext): Promise<AddonServiceView[]> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     return catalogRepository.listActiveAddonServices(requireOrg(ctx));
   },
 
   /** The cross-module entry point the booking module calls to price-snapshot a selection. */
   async getAddonService(ctx: AuthContext, addonServiceId: string): Promise<AddonServiceView> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const addon = await catalogRepository.findAddonServiceById(requireOrg(ctx), addonServiceId);
     if (!addon || !addon.active) throw Errors.notFound('Add-on service not found');
     return addon;

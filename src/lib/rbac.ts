@@ -108,10 +108,20 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   ],
 };
 
-export function can(role: Role, permission: Permission): boolean {
+/**
+ * DR-026: a user may hold several simultaneous roles (Membership rows) --
+ * `can` grants a permission if ANY held role grants it (union semantics).
+ * `roles` is always non-empty (resolveSession falls back to [User.role]
+ * when a user has no Membership rows, e.g. every tourist/guest).
+ */
+function grantsPermission(role: Role, permission: Permission): boolean {
   const grants = MATRIX[role as RoleName];
   if (!grants) return false; // unknown role -> deny
   return grants[0] === '*' || (grants as Permission[]).includes(permission);
+}
+
+export function can(roles: Role[], permission: Permission): boolean {
+  return roles.some((role) => grantsPermission(role, permission));
 }
 
 /**
@@ -124,14 +134,14 @@ export function can(role: Role, permission: Permission): boolean {
  * (`immigration.read`). Individual pages still gate on their own specific
  * permission; this only decides who reaches the shell.
  */
-export function isStaffRole(role: Role): boolean {
-  return (role as RoleName) !== 'TOURIST';
+export function isStaffRole(roles: Role[]): boolean {
+  return roles.some((role) => (role as RoleName) !== 'TOURIST');
 }
 
 /** Throwable guard for use in services/route handlers. */
-export function assertCan(role: Role, permission: Permission): void {
-  if (!can(role, permission)) {
+export function assertCan(roles: Role[], permission: Permission): void {
+  if (!can(roles, permission)) {
     // Imported lazily to keep this module free of framework deps for unit tests.
-    throw new Error(`FORBIDDEN: ${role} lacks ${permission}`);
+    throw new Error(`FORBIDDEN: ${roles.join('+')} lacks ${permission}`);
   }
 }

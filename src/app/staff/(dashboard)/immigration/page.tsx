@@ -21,7 +21,7 @@ export default async function ImmigrationPage({ searchParams }: Props) {
   const applications = await visaService.listForCountry(ctx, country);
 
   const title =
-    ctx.role === 'IMMIGRATION_OFFICER'
+    ctx.roles.includes('IMMIGRATION_OFFICER')
       ? `Visa queue — ${ctx.assignedCountry}`
       : country
         ? `Visa queue — ${country}`

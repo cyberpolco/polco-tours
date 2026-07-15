@@ -34,8 +34,8 @@ async function main() {
   });
 
   await prisma.membership.upsert({
-    where: { userId_organizationId: { userId: admin.id, organizationId: lam.id } },
-    update: { role: Role.SUPERADMIN },
+    where: { userId_organizationId_role: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN } },
+    update: {},
     create: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN },
   });
 

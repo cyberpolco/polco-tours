@@ -12,7 +12,7 @@ export async function createVehicleAction(formData: FormData): Promise<void> {
   let ownerId: string | undefined;
   if (ownerEmail) {
     const owner = await authService.getUserByEmail(ownerEmail);
-    if (!owner || owner.role !== 'VEHICLE_OWNER') {
+    if (!owner || !owner.roles.includes('VEHICLE_OWNER')) {
       redirect('/staff/fleet/vehicles/new?error=owner_not_found');
     }
     ownerId = owner.id;

@@ -21,12 +21,12 @@ function requireOrg(ctx: AuthContext): string {
 
 // TOURIST is the only "customer" role, same convention as booking/service.ts.
 function isStaff(ctx: AuthContext): boolean {
-  return ctx.role !== 'TOURIST';
+  return !ctx.roles.includes('TOURIST');
 }
 
 export const invoicingService = {
   async getOrCreateInvoiceForBooking(ctx: AuthContext, bookingId: string): Promise<InvoiceView> {
-    assertCan(ctx.role, 'invoice.read');
+    assertCan(ctx.roles, 'invoice.read');
     const organizationId = requireOrg(ctx);
 
     // Anti-BOLA inherited for free: bookingService.getById already 404s if
@@ -67,7 +67,7 @@ export const invoicingService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'invoice.issued',
       resourceType: 'Invoice',
       resourceId: invoice.id,
@@ -77,7 +77,7 @@ export const invoicingService = {
   },
 
   async listPayments(ctx: AuthContext, invoiceId: string): Promise<PaymentView[]> {
-    assertCan(ctx.role, 'invoice.read');
+    assertCan(ctx.roles, 'invoice.read');
     const organizationId = requireOrg(ctx);
     const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
     if (!detail) throw Errors.notFound('Invoice not found');
@@ -90,7 +90,7 @@ export const invoicingService = {
     invoiceId: string,
     kind: PaymentKind,
   ): Promise<{ payment: PaymentView; redirectUrl: string }> {
-    assertCan(ctx.role, 'payment.initiate');
+    assertCan(ctx.roles, 'payment.initiate');
     const organizationId = requireOrg(ctx);
 
     const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
@@ -119,7 +119,7 @@ export const invoicingService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'payment.initiated',
       resourceType: 'Payment',
       resourceId: payment.id,
@@ -134,7 +134,7 @@ export const invoicingService = {
     paymentId: string,
     outcome: Extract<PaymentStatus, 'SUCCEEDED' | 'FAILED'>,
   ): Promise<{ payment: PaymentView; invoice: InvoiceView }> {
-    assertCan(ctx.role, 'payment.resolve');
+    assertCan(ctx.roles, 'payment.resolve');
     const organizationId = requireOrg(ctx);
 
     const result = await invoicingRepository.resolvePayment(organizationId, paymentId, outcome);
@@ -142,7 +142,7 @@ export const invoicingService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: outcome === 'SUCCEEDED' ? 'payment.succeeded' : 'payment.failed',
       resourceType: 'Payment',
       resourceId: result.payment.id,

@@ -24,20 +24,38 @@ const getStaffSession = cache(async (): Promise<AuthContext | null> => {
 });
 
 /**
+ * Bare "is anyone signed in at all" check with NO permission gate and NO
+ * mustChangePassword redirect -- the one escape hatch `/staff/change-
+ * password` itself needs (DR-026), the same way `/staff/login`/
+ * `/staff/forbidden` sit outside `(dashboard)`'s layout gate to avoid a
+ * redirect loop. Don't use this anywhere else; requireStaffContext below is
+ * the real gate every other staff page/action should call.
+ */
+export async function requireAnyStaffSession(): Promise<AuthContext> {
+  const ctx = await getStaffSession();
+  if (!ctx) redirect('/staff/login');
+  return ctx;
+}
+
+/**
  * `permission` is optional: the `(dashboard)` layout calls this with none,
  * meaning "any staff-side role" (isStaffRole) -- every nested page still
  * passes its own specific permission, unchanged.
  */
 export async function requireStaffContext(permission?: Permission): Promise<AuthContext> {
-  const ctx = await getStaffSession();
-  if (!ctx) redirect('/staff/login');
+  const ctx = await requireAnyStaffSession();
+  // DR-026: a forced password change wins over every other gate here --
+  // redirect before the permission check even runs, so an admin-created
+  // account with a generated temp password can't reach any real page
+  // (including ones it does hold the permission for) until it's changed.
+  if (ctx.mustChangePassword) redirect('/staff/change-password');
   if (permission) {
     try {
-      assertCan(ctx.role, permission);
+      assertCan(ctx.roles, permission);
     } catch {
       redirect('/staff/forbidden');
     }
-  } else if (!isStaffRole(ctx.role)) {
+  } else if (!isStaffRole(ctx.roles)) {
     redirect('/staff/forbidden');
   }
   return ctx;

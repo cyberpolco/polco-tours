@@ -163,6 +163,7 @@ model User {
   isAnonymous     Boolean?  @default(false) // better-auth `anonymous` plugin (DR-016 guest checkout)
   assignedCountry String? // ISO-3166 alpha-2; IMMIGRATION_OFFICER only, set via authService.assignOfficerCountry (DR-019)
   organizationId  String?   @db.Uuid
+  mustChangePassword Boolean @default(false) // set true for admin-created accounts with a generated temp password (DR-026)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
@@ -180,6 +181,10 @@ model User {
 }
 
 // A user's role within a specific organization (multi-tenant membership).
+// DR-026: real multi-role source of truth for staff accounts created via the
+// admin user-management surface -- one row per (user, org, role) a user
+// holds simultaneously. User.role stays a single "primary" role used
+// unchanged by tourist/guest self-signup, which never gets a Membership row.
 model Membership {
   id             String   @id @default(uuid()) @db.Uuid
   userId         String   @db.Uuid
@@ -190,7 +195,7 @@ model Membership {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, organizationId])
+  @@unique([userId, organizationId, role])
   @@index([organizationId])
   @@map("organization_members")
 }

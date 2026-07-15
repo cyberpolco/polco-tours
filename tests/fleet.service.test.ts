@@ -62,7 +62,14 @@ beforeAll(async () => {
     driverProfileBId = profile.id;
   });
 
-  ctxOrgA = { userId: driverA.id, role: 'DRIVER', organizationId: orgAId, sessionId: 's1', assignedCountry: null };
+  ctxOrgA = {
+    userId: driverA.id,
+    roles: ['DRIVER'],
+    organizationId: orgAId,
+    sessionId: 's1',
+    assignedCountry: null,
+    mustChangePassword: false,
+  };
 });
 
 afterAll(async () => {

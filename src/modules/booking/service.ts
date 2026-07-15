@@ -36,7 +36,7 @@ function requireOrg(ctx: AuthContext): string {
 // checks already holds booking.confirm/cancel or is listing the org manifest
 // (assertCan has already filtered out roles without the relevant grant).
 function isStaff(ctx: AuthContext): boolean {
-  return ctx.role !== 'TOURIST';
+  return !ctx.roles.includes('TOURIST');
 }
 
 export interface Availability {
@@ -66,7 +66,7 @@ async function getOwnedBooking(ctx: AuthContext, organizationId: string, booking
 
 export const bookingService = {
   async getAvailability(ctx: AuthContext, departureId: string): Promise<Availability> {
-    assertCan(ctx.role, 'catalog.read');
+    assertCan(ctx.roles, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
     const seatsTaken = await bookingRepository.seatsTakenFor(organizationId, departureId);
@@ -74,7 +74,7 @@ export const bookingService = {
   },
 
   async createHold(ctx: AuthContext, input: CreateBookingInput): Promise<BookingView> {
-    assertCan(ctx.role, 'booking.create');
+    assertCan(ctx.roles, 'booking.create');
     const organizationId = requireOrg(ctx);
 
     // Anti-BOLA: a tourist can only ever book for themselves. Only staff
@@ -104,7 +104,7 @@ export const bookingService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.hold_created',
       resourceType: 'Booking',
       resourceId: booking.id,
@@ -114,13 +114,13 @@ export const bookingService = {
   },
 
   async confirm(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.role, 'booking.confirm');
+    assertCan(ctx.roles, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'CONFIRMED');
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.confirmed',
       resourceType: 'Booking',
       resourceId: updated.id,
@@ -133,7 +133,7 @@ export const bookingService = {
   },
 
   async cancel(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.role, 'booking.cancel');
+    assertCan(ctx.roles, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
@@ -141,7 +141,7 @@ export const bookingService = {
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.cancelled',
       resourceType: 'Booking',
       resourceId: updated.id,
@@ -162,7 +162,7 @@ export const bookingService = {
    * close enough. No notification fired; staff see these via the new
    * quote-requests dashboard queue instead. */
   async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.role, 'booking.cancel');
+    assertCan(ctx.roles, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
@@ -170,7 +170,7 @@ export const bookingService = {
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.quote_requested',
       resourceType: 'Booking',
       resourceId: updated.id,
@@ -180,14 +180,14 @@ export const bookingService = {
   },
 
   async getById(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.role, 'booking.read');
+    assertCan(ctx.roles, 'booking.read');
     const organizationId = requireOrg(ctx);
     return getOwnedBooking(ctx, organizationId, bookingId);
   },
 
   /** Tourist -> their own bookings only. Staff -> the full org manifest. */
   async list(ctx: AuthContext): Promise<BookingView[]> {
-    assertCan(ctx.role, 'booking.read');
+    assertCan(ctx.roles, 'booking.read');
     const organizationId = requireOrg(ctx);
     return isStaff(ctx)
       ? bookingRepository.listForOrg(organizationId)
@@ -195,7 +195,7 @@ export const bookingService = {
   },
 
   async addTraveler(ctx: AuthContext, bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
-    assertCan(ctx.role, 'booking.create');
+    assertCan(ctx.roles, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -210,7 +210,7 @@ export const bookingService = {
     const traveler = await bookingRepository.createTraveler(organizationId, bookingId, input);
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.traveler_added',
       resourceType: 'Traveler',
       resourceId: traveler.id,
@@ -220,7 +220,7 @@ export const bookingService = {
   },
 
   async listTravelers(ctx: AuthContext, bookingId: string): Promise<TravelerView[]> {
-    assertCan(ctx.role, 'booking.read');
+    assertCan(ctx.roles, 'booking.read');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
     return bookingRepository.listTravelersForBooking(organizationId, bookingId);
@@ -230,7 +230,7 @@ export const bookingService = {
    * Document itself is created by documentsService -- this just records the
    * link, keeping the module boundary intact (booking never touches Blob). */
   async setTravelerPassport(ctx: AuthContext, bookingId: string, travelerId: string, documentId: string): Promise<void> {
-    assertCan(ctx.role, 'booking.create');
+    assertCan(ctx.roles, 'booking.create');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
@@ -240,7 +240,7 @@ export const bookingService = {
     await bookingRepository.setTravelerPassport(organizationId, travelerId, documentId);
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.traveler_passport_set',
       resourceType: 'Traveler',
       resourceId: travelerId,
@@ -252,7 +252,7 @@ export const bookingService = {
    * including choosing none -- stamps addonsFinalizedAt either way, which is
    * what gates invoicing (see getBillableTotal). */
   async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
-    assertCan(ctx.role, 'booking.create');
+    assertCan(ctx.roles, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -268,7 +268,7 @@ export const bookingService = {
     await bookingRepository.replaceAddons(organizationId, bookingId, items);
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'booking.addons_finalized',
       resourceType: 'Booking',
       resourceId: bookingId,
@@ -282,7 +282,7 @@ export const bookingService = {
    * finalized add-on selection. Throws until the traveler manifest + add-ons
    * step are both complete (see domain.isTravelerManifestComplete). */
   async getBillableTotal(ctx: AuthContext, bookingId: string): Promise<BillableTotal> {
-    assertCan(ctx.role, 'booking.read');
+    assertCan(ctx.roles, 'booking.read');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 

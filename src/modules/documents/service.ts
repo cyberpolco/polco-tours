@@ -65,7 +65,7 @@ export const documentsService = {
    * docs, future visa docs) goes through this rather than re-wrapping Vercel Blob
    * itself (charter rule 8: third-party integrations wrapped in exactly one place). */
   async uploadDocument(ctx: AuthContext, input: UploadDocumentInput): Promise<DocumentSummary> {
-    assertCan(ctx.role, 'documents.write');
+    assertCan(ctx.roles, 'documents.write');
     const organizationId = requireOrg(ctx);
 
     if (!isValidDocumentUpload(input.kind, input.contentType, input.sizeBytes)) {
@@ -94,7 +94,7 @@ export const documentsService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'document.uploaded',
       resourceType: 'Document',
       resourceId: doc.id,
@@ -111,7 +111,7 @@ export const documentsService = {
   /** Streams the document's bytes server-side -- the underlying blobPathname never
    * leaves this module. Every access is audited (Documents rule, CLAUDE.md). */
   async streamDocument(ctx: AuthContext, documentId: string): Promise<DocumentStream> {
-    assertCan(ctx.role, 'documents.read');
+    assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
 
     const record = await documentsRepository.findById(organizationId, documentId);
@@ -127,7 +127,7 @@ export const documentsService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'document.accessed',
       resourceType: 'Document',
       resourceId: record.id,
@@ -140,14 +140,14 @@ export const documentsService = {
   /** Lists compliance-document summaries for a vehicle/driver profile -- called by
    * the fleet module through this module's public interface (module boundary rule). */
   async listVehicleDocuments(ctx: AuthContext, vehicleId: string): Promise<DocumentSummary[]> {
-    assertCan(ctx.role, 'documents.read');
+    assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
     const rows = await documentsRepository.listForVehicle(organizationId, vehicleId);
     return rows.map(toSummary);
   },
 
   async listDriverProfileDocuments(ctx: AuthContext, driverProfileId: string): Promise<DocumentSummary[]> {
-    assertCan(ctx.role, 'documents.read');
+    assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
     const rows = await documentsRepository.listForDriverProfile(organizationId, driverProfileId);
     return rows.map(toSummary);

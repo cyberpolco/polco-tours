@@ -757,6 +757,37 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   the reason/count; still no dashboard UI for `VISA_FACILITATOR` (same gap
   DR-019/020/021 already flagged -- submit/decide/resubmit all stay
   API-only for it).
+- **Superadmin user management + multi-role RBAC done 2026-07-15 (DR-026):**
+  replaces CLI-only staff account creation with a real `/staff/admin/users`
+  page + `/api/v1/users*` routes (`admin.all`, no new permission). **A user
+  can now hold several simultaneous roles** -- repurposes the long-unused
+  `Membership` model (widened `@@unique` to `[userId, organizationId, role]`)
+  as the real role-set source of truth for admin-created accounts;
+  `User.role` stays a single "primary" role for tourist/guest self-signup,
+  unchanged. `AuthContext.role: Role` is now `AuthContext.roles: Role[]`
+  (union semantics in `rbac.ts`'s `can`/`assertCan`/`isStaffRole`) -- a large
+  mechanical refactor across every module's service, `route-guard.ts`/
+  `staff-guard.ts`, `StaffNav`, and three staff-page `actions.ts` files that
+  validate a target user's role (now checked against their full role set).
+  `assignment/service.ts`'s `listMyAssignments` now unions a caller's
+  assignments across every role they hold, not just the first match.
+  Generated one-time passwords (`better-auth/crypto`'s
+  `generateRandomString`) force a new `mustChangePassword` flag, gated by a
+  new `/staff/change-password` page (sits outside `(dashboard)`, same
+  redirect-loop-avoidance as `/staff/login`). Soft-delete (`deactivateUser`)
+  turned out to need almost no new plumbing -- `User.deletedAt` and its
+  read-side checks (`resolveSession`, `findUserByEmail/ById`, `listByRole`)
+  already existed and already treated a deleted user as unauthenticated;
+  only the write side was missing. New RLS policy for `organization_members`
+  (`Membership`'s real table name) -- unused since Phase 0, so it never got
+  one either; now load-bearing, it needed the same tenant isolation every
+  other org-scoped table has. Per explicit user instruction, every existing
+  `User` row was then deleted (`scripts/reset-all-users.ts`, cascading to
+  `Membership`/`Session`/`Account`/`Booking`+everything hanging off a
+  booking/`DriverProfile`; `Assignment.guideUserId`/`Vehicle.ownerId`
+  survived `SET NULL`'d) and a single bootstrap `SUPERADMIN`
+  (`cyberpolco@gmail.com`) created with a real, operator-chosen password (no
+  `mustChangePassword`, unlike admin-created accounts).
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, and reviews.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -848,7 +879,17 @@ after rejection: closes the DR-019-deferred dead end by mutating the SAME
 `travelerId` is DB-unique, and `audit_logs` is already the durable history)
 via new `resubmitApplication`/`canResubmit`, new `rejectionReason`/
 `resubmissionCount` columns, and a new `POST .../visa/resubmit` route
-reusing the existing `visa.process` permission.
+reusing the existing `visa.process` permission · DR-026 superadmin user
+management + multi-role RBAC: `Membership` (unused since Phase 0) widened
+to `[userId, organizationId, role]` and made the real multi-role source of
+truth; `AuthContext.role` renamed to `roles: Role[]` (union semantics
+throughout `rbac.ts` and every service); new `authService.listUsers/
+createUser/deactivateUser` (`admin.all`) + `/staff/admin/users` +
+`/api/v1/users*`; generated one-time passwords force a new
+`mustChangePassword` gate (`/staff/change-password`); soft-delete reused
+the already-existing `deletedAt` read-side checks; new RLS policy for
+`organization_members`; every existing `User` deleted and a single
+bootstrap `SUPERADMIN` created per explicit user instruction.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 
@@ -1221,3 +1262,26 @@ human rather than fabricating volume content.
   `height === 0` (not just `width === 0`) before rendering the SVG.
   Anywhere else `ParentSize` gets used, pass `style`, not a height utility
   class, and check both dimensions before rendering the measured content.
+- **A `vi.fn()` mock's return value bypasses `tsc` entirely, even for a type
+  as central as `AuthContext`.** Renaming `AuthContext.role: Role` to
+  `roles: Role[]` (DR-026) and re-running `tsc --noEmit` caught every real
+  call site across `src/` and most test fixtures -- except
+  `tests/staff-guard.test.ts`, which mocks `authService.resolveSession` via
+  `vi.fn()` and feeds it fixture objects through `.mockResolvedValue({...})`.
+  Since `vi.fn()` is untyped by default, TypeScript never checked those
+  literals against the real `AuthContext` shape, so three fixtures with a
+  stale `role: 'X'` field compiled cleanly and would have silently kept
+  testing the *old* single-role code path forever. Found by grepping
+  `tests/` directly for `role: '[A-Z_]+'` after `tsc` reported zero errors --
+  don't trust a clean `tsc --noEmit` alone to catch every fixture affected by
+  a type rename when a test mocks the function whose return type changed;
+  grep for the old field name across `tests/` too.
+- **`Membership` (`organization_members`) existed since Phase 0 but was
+  never queried anywhere in `src/` until DR-026 -- and, being unused, it
+  also never got an RLS policy**, unlike every other tenant-scoped table.
+  Making it load-bearing for real multi-role authorization data required
+  adding that policy for the first time (`prisma/rls.sql` + `npm run
+  db:rls`) in the same increment that started actually querying it. If a
+  future increment starts using another long-scaffolded-but-unused table,
+  check `prisma/rls.sql` for its policy before assuming one already exists
+  just because the table itself is old.

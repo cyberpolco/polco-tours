@@ -70,24 +70,24 @@ describe('catalog domain', () => {
 
   describe('isPackageVisible', () => {
     it('operators see draft packages', () => {
-      expect(isPackageVisible(pkg({ status: 'DRAFT' }), 'TOUR_OPERATOR')).toBe(true);
-      expect(isPackageVisible(pkg({ status: 'DRAFT' }), 'SUPERADMIN')).toBe(true);
+      expect(isPackageVisible(pkg({ status: 'DRAFT' }), ['TOUR_OPERATOR'])).toBe(true);
+      expect(isPackageVisible(pkg({ status: 'DRAFT' }), ['SUPERADMIN'])).toBe(true);
     });
 
     it('tourists only see published packages', () => {
-      expect(isPackageVisible(pkg({ status: 'DRAFT' }), 'TOURIST')).toBe(false);
-      expect(isPackageVisible(pkg({ status: 'PUBLISHED' }), 'TOURIST')).toBe(true);
+      expect(isPackageVisible(pkg({ status: 'DRAFT' }), ['TOURIST'])).toBe(false);
+      expect(isPackageVisible(pkg({ status: 'PUBLISHED' }), ['TOURIST'])).toBe(true);
     });
   });
 
   describe('isDepartureVisible', () => {
     it('operators see cancelled departures', () => {
-      expect(isDepartureVisible(departure({ status: 'CANCELLED' }), 'TOUR_OPERATOR')).toBe(true);
+      expect(isDepartureVisible(departure({ status: 'CANCELLED' }), ['TOUR_OPERATOR'])).toBe(true);
     });
 
     it('tourists only see scheduled departures', () => {
-      expect(isDepartureVisible(departure({ status: 'CANCELLED' }), 'TOURIST')).toBe(false);
-      expect(isDepartureVisible(departure({ status: 'SCHEDULED' }), 'TOURIST')).toBe(true);
+      expect(isDepartureVisible(departure({ status: 'CANCELLED' }), ['TOURIST'])).toBe(false);
+      expect(isDepartureVisible(departure({ status: 'SCHEDULED' }), ['TOURIST'])).toBe(true);
     });
   });
 

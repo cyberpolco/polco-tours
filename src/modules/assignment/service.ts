@@ -25,7 +25,7 @@ export const assignmentService = {
     departureId: string,
     input: CreateAssignmentInput,
   ): Promise<AssignmentView> {
-    assertCan(ctx.role, 'assignment.write');
+    assertCan(ctx.roles, 'assignment.write');
     const organizationId = requireOrg(ctx);
 
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
@@ -41,7 +41,7 @@ export const assignmentService = {
       // authService.getUser is a raw, org-unscoped lookup (mirrors
       // getUserByEmail's convention) -- check the org explicitly here to
       // avoid assigning a guide from a different tenant.
-      if (!guide || guide.role !== 'TOUR_GUIDE' || guide.organizationId !== organizationId) {
+      if (!guide || !guide.roles.includes('TOUR_GUIDE') || guide.organizationId !== organizationId) {
         throw Errors.validation('guideUserId must reference a TOUR_GUIDE in this organization');
       }
     }
@@ -75,7 +75,7 @@ export const assignmentService = {
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'assignment.created',
       resourceType: 'Assignment',
       resourceId: assignment.id,
@@ -87,21 +87,21 @@ export const assignmentService = {
 
   /** Manager-only -- the staff departure-detail page's data source. */
   async listForDeparture(ctx: AuthContext, departureId: string): Promise<AssignmentView[]> {
-    assertCan(ctx.role, 'assignment.write');
+    assertCan(ctx.roles, 'assignment.write');
     const organizationId = requireOrg(ctx);
     await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 
   async removeAssignment(ctx: AuthContext, assignmentId: string): Promise<void> {
-    assertCan(ctx.role, 'assignment.write');
+    assertCan(ctx.roles, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const removed = await assignmentRepository.remove(organizationId, assignmentId);
     if (!removed) throw Errors.notFound('Assignment not found');
 
     await audit({
       actorUserId: ctx.userId,
-      actorRole: ctx.role,
+      actorRole: ctx.roles[0],
       action: 'assignment.removed',
       resourceType: 'Assignment',
       resourceId: removed.id,
@@ -109,27 +109,34 @@ export const assignmentService = {
     });
   },
 
-  /** Self-service read, scoped per role. No staff UI consumes this yet
+  /** Self-service read, scoped per held role. No staff UI consumes this yet
    * (DR-018 deliberately defers a guide/driver/vehicle-owner portal) -- it
-   * exists so the data is reachable and is covered by its own tests. */
+   * exists so the data is reachable and is covered by its own tests.
+   *
+   * DR-026: a user can hold several of these roles simultaneously, so this
+   * collects the union across every role they hold (not just the first
+   * match) and dedupes by assignment id in case the same row surfaces via
+   * more than one angle. */
   async listMyAssignments(ctx: AuthContext): Promise<AssignmentView[]> {
-    assertCan(ctx.role, 'assignment.read');
+    assertCan(ctx.roles, 'assignment.read');
     const organizationId = requireOrg(ctx);
 
-    if (ctx.role === 'TOUR_GUIDE') {
-      return assignmentRepository.listForGuide(organizationId, ctx.userId);
+    const lists: AssignmentView[][] = [];
+    if (ctx.roles.includes('TOUR_GUIDE')) {
+      lists.push(await assignmentRepository.listForGuide(organizationId, ctx.userId));
     }
-    if (ctx.role === 'DRIVER') {
+    if (ctx.roles.includes('DRIVER')) {
       const profile = await fleetService.getMyDriverProfile(ctx);
-      if (!profile) return [];
-      return assignmentRepository.listForDriverProfile(organizationId, profile.id);
+      if (profile) lists.push(await assignmentRepository.listForDriverProfile(organizationId, profile.id));
     }
-    if (ctx.role === 'VEHICLE_OWNER') {
+    if (ctx.roles.includes('VEHICLE_OWNER')) {
       const vehicles = await fleetService.listVehicles(ctx); // already owner-scoped
-      const lists = await Promise.all(vehicles.map((v) => assignmentRepository.listForVehicle(organizationId, v.id)));
-      return lists.flat();
+      const perVehicle = await Promise.all(vehicles.map((v) => assignmentRepository.listForVehicle(organizationId, v.id)));
+      lists.push(perVehicle.flat());
     }
     // Managers use listForDeparture (per-departure) instead of a flat "mine" view.
-    return [];
+    const byId = new Map<string, AssignmentView>();
+    for (const list of lists) for (const a of list) byId.set(a.id, a);
+    return [...byId.values()];
   },
 };
