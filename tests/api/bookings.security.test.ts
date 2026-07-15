@@ -1,12 +1,30 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { bookingService, generateConfirmationCode } from '../../src/modules/booking';
 import type { AuthContext } from '../../src/modules/auth';
-import { GET as getBooking } from '../../src/app/api/v1/bookings/[bookingId]/route';
-import { POST as cancelBooking } from '../../src/app/api/v1/bookings/[bookingId]/cancel/route';
+
+// Real RESEND_API_KEY/AFRICAS_TALKING_* credentials now exist in .env/.env.local
+// (2026-07-15) and Vitest loads .env automatically -- without this mock,
+// cancelBooking's notify() call below would attempt a REAL SMS/email send
+// every test run. Same vi.hoisted + vi.mock convention as the documents
+// blob-gateway mock (tests/api/booking-setup.api.test.ts).
+const { notificationSendMock } = vi.hoisted(() => ({
+  notificationSendMock: vi.fn(async () => ({ providerRef: 'test-provider-ref' })),
+}));
+vi.mock('@modules/notifications/gateway', () => ({
+  gateways: {
+    WHATSAPP: { send: notificationSendMock },
+    SMS: { send: notificationSendMock },
+    EMAIL: { send: notificationSendMock },
+  },
+  ChannelUnavailableError: class ChannelUnavailableError extends Error {},
+}));
+
+const { GET: getBooking } = await import('../../src/app/api/v1/bookings/[bookingId]/route');
+const { POST: cancelBooking } = await import('../../src/app/api/v1/bookings/[bookingId]/cancel/route');
 
 /**
  * Anti-BOLA (Vol. 8, API1): RLS only isolates by organizationId -- it does

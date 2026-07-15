@@ -1,12 +1,30 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { generateConfirmationCode } from '../../src/modules/booking';
-import { GET as getInvoice } from '../../src/app/api/v1/bookings/[bookingId]/invoice/route';
-import { GET as listPayments, POST as initiatePayment } from '../../src/app/api/v1/invoices/[invoiceId]/payments/route';
-import { POST as resolvePayment } from '../../src/app/api/v1/payments/[paymentId]/resolve/route';
+
+// Real RESEND_API_KEY/AFRICAS_TALKING_* credentials now exist in .env/.env.local
+// (2026-07-15) and Vitest loads .env automatically -- without this mock,
+// resolvePayment's notify() call below would attempt a REAL SMS/email send
+// every test run. Same vi.hoisted + vi.mock convention as the documents
+// blob-gateway mock (tests/api/booking-setup.api.test.ts).
+const { notificationSendMock } = vi.hoisted(() => ({
+  notificationSendMock: vi.fn(async () => ({ providerRef: 'test-provider-ref' })),
+}));
+vi.mock('@modules/notifications/gateway', () => ({
+  gateways: {
+    WHATSAPP: { send: notificationSendMock },
+    SMS: { send: notificationSendMock },
+    EMAIL: { send: notificationSendMock },
+  },
+  ChannelUnavailableError: class ChannelUnavailableError extends Error {},
+}));
+
+const { GET: getInvoice } = await import('../../src/app/api/v1/bookings/[bookingId]/invoice/route');
+const { GET: listPayments, POST: initiatePayment } = await import('../../src/app/api/v1/invoices/[invoiceId]/payments/route');
+const { POST: resolvePayment } = await import('../../src/app/api/v1/payments/[paymentId]/resolve/route');
 
 /**
  * Route-handler-level tests (DR-012) against real Postgres, same pattern as
@@ -217,17 +235,19 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     // but must never leak into this endpoint's response contract.
     expect(body).not.toHaveProperty('touristUserId');
 
-    // No provider credentials exist in this environment (OI-05/06/07) --
-    // notify() falls through every channel and audits the exhaustion,
-    // without the response above being slowed down or failed. audit_logs
-    // is RLS-protected (rls.sql) even for reads, so this must go through
-    // withOrg, not the raw admin client.
+    // notify() never blocks/fails this response either way (charter rule 8) --
+    // it always audits its own outcome (sent or every channel exhausted),
+    // regardless of whether real provider credentials are configured in this
+    // environment. audit_logs is RLS-protected (rls.sql) even for reads, so
+    // this must go through withOrg, not the raw admin client.
     const notified = await withOrg(orgId, (tx) =>
       tx.auditLog.findFirst({
-        where: { organizationId: orgId, action: 'notification.failed', resourceType: 'Notification' },
+        where: { organizationId: orgId, action: { in: ['notification.sent', 'notification.failed'] }, resourceType: 'Notification' },
       }),
     );
     expect(notified).not.toBeNull();
+    // Proves the mock actually intercepted this -- not a real network call.
+    expect(notificationSendMock).toHaveBeenCalled();
   });
 
   it('now allows initiating the BALANCE leg (201)', async () => {

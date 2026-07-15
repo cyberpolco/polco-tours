@@ -1,11 +1,12 @@
 // notifications module — real (not permanently-stubbed) HTTP adapters for
 // Resend/WhatsApp Cloud API/Africa's Talking, wrapped per charter rule 8
-// (timeouts, retries, circuit breaker, graceful degradation). No provider
-// credentials exist in any environment yet (OI-05/06/07) -- each adapter
-// throws ChannelUnavailableError before any network attempt when its env
-// var(s) are absent, which is how the WhatsApp -> SMS -> email fallback
-// chain degrades gracefully today. Mirrors invoicing/gateway.ts's
-// interface-plus-singleton-export shape.
+// (timeouts, retries, circuit breaker, graceful degradation). Resend +
+// Africa's Talking credentials wired 2026-07-15, resolving OI-05/07 locally
+// (not yet in Vercel/Production); WhatsApp/OI-06 stays unconfigured on
+// purpose. Each adapter throws ChannelUnavailableError before any network
+// attempt when its env var(s) are absent, which is how the
+// WhatsApp -> SMS -> email fallback chain degrades gracefully. Mirrors
+// invoicing/gateway.ts's interface-plus-singleton-export shape.
 import type { NotificationChannel } from './domain';
 
 export interface SendRequest {
@@ -79,7 +80,12 @@ export class ResendEmailGateway extends BreakerGateway implements NotificationCh
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'notifications@polcotours.com',
+            // Resend rejects sends from an unverified domain -- polcotours.com
+            // can't be verified until real DNS records exist for it (and
+            // *.vercel.app subdomains aren't ours to add DKIM/SPF to), so
+            // this defaults to Resend's own no-verification-needed testing
+            // sender. Set RESEND_FROM_EMAIL once a real domain is verified.
+            from: process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev',
             to: req.to,
             subject: req.subject ?? '',
             html: req.body,
