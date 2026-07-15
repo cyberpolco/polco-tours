@@ -33,11 +33,13 @@ async function main() {
     },
   });
 
-  await prisma.membership.upsert({
-    where: { userId_organizationId_role: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN } },
-    update: {},
-    create: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN },
-  });
+  await withOrg(lam.id, (tx) =>
+    tx.membership.upsert({
+      where: { userId_organizationId_role: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN } },
+      update: {},
+      create: { userId: admin.id, organizationId: lam.id, role: Role.SUPERADMIN },
+    }),
+  );
 
   // --- Per-country tax (basis points) ---
   const taxes = [
