@@ -80,6 +80,7 @@ beforeAll(async () => {
         departureId: departure.id,
         touristUserId: touristAId,
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
@@ -97,6 +98,7 @@ beforeAll(async () => {
         departureId: departure.id,
         touristUserId: touristAId,
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
@@ -143,11 +145,10 @@ describe('anti-BOLA: booking ownership', () => {
 });
 
 describe('requestQuotation (DR-024)', () => {
-  // No HTTP route exists for this -- it's only reachable via the guest
-  // booking-detail page's Server Action, same convention as several other
-  // Server-Component-only features this session (e.g. the staff schedule
-  // page, DR-021). Called directly with a hand-built AuthContext instead of
-  // loginAs()+a route, matching that same precedent.
+  // No HTTP route exists for this specific transition -- it's only reachable
+  // via the guest booking-detail page's Server Action (unlike sendQuotation/
+  // acceptQuotation/refund, which do have routes -- see bookings-v2.api.test.ts).
+  // Called directly with a hand-built AuthContext instead of loginAs()+a route.
   function ctxFor(userId: string): AuthContext {
     return {
       userId,
@@ -165,13 +166,13 @@ describe('requestQuotation (DR-024)', () => {
     });
   });
 
-  it('tourist A can transition their own HELD booking to QUOTE_REQUESTED', async () => {
+  it('tourist A can transition their own AWAITING_DEPOSIT booking to AWAITING_QUOTATION', async () => {
     const updated = await bookingService.requestQuotation(ctxFor(touristAId), quoteBookingId);
-    expect(updated.status).toBe('QUOTE_REQUESTED');
+    expect(updated.status).toBe('AWAITING_QUOTATION');
     expect(updated.holdExpiresAt).toBeNull();
   });
 
-  it('a QUOTE_REQUESTED booking cannot be quote-requested again (already transitioned)', async () => {
+  it('an AWAITING_QUOTATION booking cannot be quote-requested again (already transitioned)', async () => {
     await expect(bookingService.requestQuotation(ctxFor(touristAId), quoteBookingId)).rejects.toThrow();
   });
 });

@@ -29,3 +29,23 @@ export async function resolvePaymentAction(paymentId: string, outcome: 'SUCCEEDE
   await invoicingService.resolvePayment(ctx, paymentId, outcome);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
+
+export async function sendQuotationAction(bookingId: string, formData: FormData) {
+  const ctx = await requireStaffContext('booking.confirm');
+  const amount = Number(formData.get('amount'));
+  const currency = formData.get('currency');
+  await bookingService.sendQuotation(ctx, bookingId, {
+    // Staff enters a decimal amount (e.g. "1234.56"); every supported
+    // currency (USD/EUR/NAD/CDF) uses 2 decimal places (@lib/money's
+    // DECIMALS), so *100 is safe here.
+    priceMinor: Math.round(amount * 100),
+    currency: currency as 'USD' | 'EUR' | 'NAD' | 'CDF',
+  });
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
+export async function refundBookingAction(bookingId: string) {
+  const ctx = await requireStaffContext('booking.confirm');
+  await bookingService.refund(ctx, bookingId);
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}

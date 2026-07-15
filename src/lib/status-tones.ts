@@ -14,11 +14,17 @@ import type { BadgeTone } from '@/components/ui/Badge';
 // dashboards (moved here from the guest-only src/app/(guest)/badge-tones.ts
 // once the staff dashboard needed the same pattern for its own enums).
 export const BOOKING_STATUS_TONE: Record<BookingStatus, BadgeTone> = {
-  HELD: 'warning',
+  DRAFT: 'neutral',
+  AWAITING_QUOTATION: 'warning',
+  QUOTATION_SENT: 'warning',
+  AWAITING_DEPOSIT: 'warning',
+  DEPOSIT_PAID: 'warning',
+  FULLY_PAID: 'success',
   CONFIRMED: 'success',
+  IN_PROGRESS: 'success',
+  COMPLETED: 'neutral',
   CANCELLED: 'neutral',
-  EXPIRED: 'neutral',
-  QUOTE_REQUESTED: 'warning',
+  REFUNDED: 'neutral',
 };
 
 export const PAYMENT_STATUS_TONE: Record<PaymentStatus, BadgeTone> = {

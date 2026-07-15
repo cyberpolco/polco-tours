@@ -4,7 +4,7 @@ import { bookingService } from '@modules/booking';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
-import { format, money } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 interface Props {
@@ -53,10 +53,10 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   return (
     <div className="max-w-md">
       <p className="eyebrow text-mist">Your booking</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">{booking.confirmationCode}</h1>
+      <h1 className="mt-1 text-2xl font-bold text-navy">{booking.bookingReference}</h1>
       <p className="mt-1 flex items-center gap-2 text-mist">
         {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
-        {format(money(booking.priceMinor, booking.currency))}
+        {formatOrPending(booking.priceMinor, booking.currency)}
       </p>
 
       <div className="survey-rule mt-6" />

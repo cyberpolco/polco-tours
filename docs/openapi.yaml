@@ -296,7 +296,7 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/Booking' }
     post:
-      summary: Place a seat hold (30-minute expiry)
+      summary: Book a predefined package's departure -- places a seat hold (30-minute expiry)
       requestBody:
         required: true
         content:
@@ -304,7 +304,7 @@ paths:
             schema: { $ref: '#/components/schemas/CreateBookingInput' }
       responses:
         '201':
-          description: Held
+          description: Created, status AWAITING_DEPOSIT
           content:
             application/json:
               schema:
@@ -341,8 +341,10 @@ paths:
       - $ref: '#/components/parameters/bookingId'
     post:
       summary: >-
-        Confirm a held booking (operator only -- deliberately uncoupled from
-        invoice/payment status this increment, no DPO payment gate yet, OI-01 open)
+        Confirm a paid booking (operator only). Requires status DEPOSIT_PAID
+        or FULLY_PAID -- payment.resolve's success path moves a booking into
+        one of those automatically; Confirm itself stays a separate manual
+        staff action (no real DPO webhook yet, OI-01 open).
       responses:
         '200':
           description: OK
@@ -361,6 +363,87 @@ paths:
     post:
       summary: Cancel a booking
       description: A tourist may only cancel their own booking; an operator may cancel any booking in their org.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/refund:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Mark a cancelled booking as refunded (operator only)
+      description: >-
+        Status-only (CANCELLED -> REFUNDED) -- no real payment-reversal
+        mechanism exists yet; mirrors payment.resolve's fraud-prevention
+        posture (a tourist self-marking their own refund is the same risk).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/tailor-made:
+    post:
+      summary: Create a bespoke trip request (no pre-existing Departure)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTailorMadeInput' }
+      responses:
+        '201':
+          description: Created, status AWAITING_QUOTATION
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/quotation:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Price a booking currently AWAITING_QUOTATION (operator only)
+      description: Applies to a TAILOR_MADE request or a PREDEFINED_PACKAGE booking that asked for a quote instead of paying immediately.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendQuotationInput' }
+      responses:
+        '200':
+          description: OK, status QUOTATION_SENT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/quotation/accept:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Accept a sent quotation and proceed toward payment
+      description: QUOTATION_SENT -> AWAITING_DEPOSIT. A tourist may only accept their own booking's quotation.
       responses:
         '200':
           description: OK
@@ -1319,18 +1402,62 @@ components:
       properties:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
-        departureId: { type: string, format: uuid }
+        origin: { type: string, enum: [PREDEFINED_PACKAGE, TAILOR_MADE] }
+        departureId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null only for a TAILOR_MADE booking (no fixed departure).
         touristUserId: { type: string, format: uuid }
         seats: { type: integer }
-        status: { type: string, enum: [HELD, CONFIRMED, CANCELLED, EXPIRED] }
-        holdExpiresAt: { type: string, format: date-time, nullable: true }
-        priceMinor: { type: integer }
-        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        status:
+          type: string
+          enum:
+            [
+              DRAFT,
+              AWAITING_QUOTATION,
+              QUOTATION_SENT,
+              AWAITING_DEPOSIT,
+              DEPOSIT_PAID,
+              FULLY_PAID,
+              CONFIRMED,
+              IN_PROGRESS,
+              COMPLETED,
+              CANCELLED,
+              REFUNDED,
+            ]
+          description: >-
+            AWAITING_DEPOSIT is the seat hold (was HELD); an expired hold
+            lazily sweeps to CANCELLED (no dedicated EXPIRED value).
+        holdExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking.
+        priceMinor:
+          type: integer
+          nullable: true
+          description: Null for a TAILOR_MADE booking until staff sends a quotation.
+        currency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true }
         addonsFinalizedAt:
           type: string
           format: date-time
           nullable: true
           description: Set once the add-ons wizard step is submitted (DR-015), even choosing none. Gates invoicing.
+        confirmationCode:
+          type: string
+          description: 8-char random, non-guessable guest-lookup secret (paired with the tour lead's last name).
+        bookingReference:
+          type: string
+          description: 'Business-facing reference, e.g. POL-2026-000154. Coexists with confirmationCode.'
+        specialRequests: { type: string, nullable: true, maxLength: 1000 }
+        customCountry:
+          type: string
+          nullable: true
+          description: TAILOR_MADE only -- ISO-3166 alpha-2, drives tax-rate lookup in lieu of a Departure's package.
+        customTravelStart: { type: string, format: date-time, nullable: true, description: TAILOR_MADE only. }
+        customTravelEnd: { type: string, format: date-time, nullable: true, description: TAILOR_MADE only. }
+        customDescription: { type: string, nullable: true, maxLength: 2000, description: TAILOR_MADE only. }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
@@ -1420,6 +1547,30 @@ components:
           type: string
           format: uuid
           description: Staff-only -- lets an operator book on a tourist's behalf (phone/walk-in). Ignored for a tourist caller.
+        specialRequests: { type: string, maxLength: 1000 }
+
+    CreateTailorMadeInput:
+      type: object
+      required: [customCountry, customTravelStart, customTravelEnd, seats, customDescription]
+      description: A bespoke trip request with no pre-existing Departure -- staff price it via POST /bookings/{bookingId}/quotation.
+      properties:
+        customCountry: { type: string, minLength: 2, maxLength: 2, description: ISO-3166 alpha-2 }
+        customTravelStart: { type: string, format: date-time }
+        customTravelEnd: { type: string, format: date-time }
+        seats: { type: integer, minimum: 1 }
+        customDescription: { type: string, minLength: 1, maxLength: 2000 }
+        touristUserId:
+          type: string
+          format: uuid
+          description: Staff-only -- lets an operator submit this on a tourist's behalf. Ignored for a tourist caller.
+        specialRequests: { type: string, maxLength: 1000 }
+
+    SendQuotationInput:
+      type: object
+      required: [priceMinor, currency]
+      properties:
+        priceMinor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
 
     Invoice:
       type: object

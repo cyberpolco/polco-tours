@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
-import { format, money } from '@lib/money';
+import { format, formatOrPending, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { Alert } from '@/components/ui/Alert';
@@ -11,7 +11,14 @@ import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
-import { cancelBookingAction, initiatePaymentAction, requestQuotationAction } from './actions';
+import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction, requestQuotationAction } from './actions';
+
+// Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
+// CANCELLED/REFUNDED, plus unreachable DRAFT) can still be cancelled by the
+// tourist -- see canTransition's TRANSITIONS table in modules/booking/domain.ts
+// (kept internal to the module; this list is the UI's own, deliberately
+// hand-matched to it rather than exporting the internal helper).
+const CANCELLABLE_STATUSES = ['AWAITING_QUOTATION', 'QUOTATION_SENT', 'AWAITING_DEPOSIT', 'DEPOSIT_PAID', 'FULLY_PAID', 'CONFIRMED'];
 
 interface Props {
   params: Promise<{ bookingId: string }>;
@@ -48,9 +55,10 @@ export default async function BookingHomePage({ params }: Props) {
         <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={currentStepIndex} />
         <div>
           <p className="eyebrow mt-4 text-mist">Booking setup</p>
+          <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
           <p className="mt-1 flex items-center gap-2 text-mist">
             {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
-            {format(money(booking.priceMinor, booking.currency))}
+            {formatOrPending(booking.priceMinor, booking.currency)}
           </p>
         </div>
         <ul className="space-y-2 text-sm">
@@ -69,18 +77,16 @@ export default async function BookingHomePage({ params }: Props) {
   const payments = await invoicingService.listPayments(ctx, invoice.id);
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
-  const depositDone = payments.some((p) => p.kind === 'DEPOSIT' && p.status === 'SUCCEEDED');
-  const balanceDone = payments.some((p) => p.kind === 'BALANCE' && p.status === 'SUCCEEDED');
-  const fullDone = payments.some((p) => p.kind === 'FULL' && p.status === 'SUCCEEDED');
 
   return (
     <div className="space-y-8">
       <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={6} />
       <div>
         <p className="eyebrow mt-4 text-mist">Your booking</p>
+        <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
         <p className="mt-1 flex items-center gap-2 text-mist">
           {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
-          {format(money(booking.priceMinor, booking.currency))}
+          {formatOrPending(booking.priceMinor, booking.currency)}
         </p>
         {payments.length > 0 && (
           <div className="mt-3">
@@ -90,14 +96,24 @@ export default async function BookingHomePage({ params }: Props) {
             </Alert>
           </div>
         )}
-        {booking.status === 'QUOTE_REQUESTED' && (
+        {booking.status === 'AWAITING_QUOTATION' && (
           <div className="mt-3">
             <Alert tone="success">
               We&apos;ve received your quote request -- our team will be in touch soon.
             </Alert>
           </div>
         )}
-        {(booking.status === 'HELD' || booking.status === 'CONFIRMED' || booking.status === 'QUOTE_REQUESTED') && (
+        {booking.status === 'QUOTATION_SENT' && (
+          <div className="mt-3 space-y-3">
+            <Alert tone="success">
+              Your quotation is ready: {formatOrPending(booking.priceMinor, booking.currency)}. Accept it to proceed to payment.
+            </Alert>
+            <form action={acceptQuotationAction.bind(null, booking.id)}>
+              <SubmitButton pendingLabel="Accepting…">Accept quotation</SubmitButton>
+            </form>
+          </div>
+        )}
+        {CANCELLABLE_STATUSES.includes(booking.status) && (
           <form action={cancelBookingAction.bind(null, booking.id)} className="mt-4">
             <SubmitButton variant="secondary" pendingLabel="Cancelling…">
               Cancel booking
@@ -151,18 +167,11 @@ export default async function BookingHomePage({ params }: Props) {
         )}
 
         <div className="mt-4 flex flex-wrap gap-3">
-          {booking.status === 'HELD' && !depositDone && !fullDone && !pendingPayment && (
-            <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
-              <SubmitButton pendingLabel="Starting…">Pay deposit</SubmitButton>
-            </form>
-          )}
-          {booking.status === 'HELD' && depositDone && !balanceDone && !pendingPayment && (
-            <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
-              <SubmitButton pendingLabel="Starting…">Pay balance</SubmitButton>
-            </form>
-          )}
-          {payments.length === 0 && !pendingPayment && booking.status === 'HELD' && (
+          {booking.status === 'AWAITING_DEPOSIT' && !pendingPayment && (
             <>
+              <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
+                <SubmitButton pendingLabel="Starting…">Pay deposit</SubmitButton>
+              </form>
               <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
                 <SubmitButton pendingLabel="Starting…" variant="secondary">
                   Pay in full
@@ -174,6 +183,11 @@ export default async function BookingHomePage({ params }: Props) {
                 </SubmitButton>
               </form>
             </>
+          )}
+          {booking.status === 'DEPOSIT_PAID' && !pendingPayment && (
+            <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
+              <SubmitButton pendingLabel="Starting…">Pay balance</SubmitButton>
+            </form>
           )}
         </div>
       </div>

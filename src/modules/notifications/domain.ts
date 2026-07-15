@@ -11,7 +11,8 @@ export type NotificationEvent =
   | 'BOOKING_CONFIRMED'
   | 'BOOKING_CANCELLED'
   | 'PAYMENT_SUCCEEDED'
-  | 'PAYMENT_FAILED';
+  | 'PAYMENT_FAILED'
+  | 'QUOTATION_SENT';
 
 export interface NotificationRecipient {
   phone: string | null;
@@ -71,6 +72,16 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
     FR: (d) => ({
       subject: 'Paiement échoué',
       body: `Votre paiement de ${amount(d, 'fr')} n'a pas pu être traité. Merci de réessayer.`,
+    }),
+  },
+  QUOTATION_SENT: {
+    EN: (d) => ({
+      subject: 'Your quotation is ready',
+      body: `Your quotation for booking ${d.bookingId} is ready: ${amount(d, 'en')}. Log in to review and pay.`,
+    }),
+    FR: (d) => ({
+      subject: 'Votre devis est prêt',
+      body: `Votre devis pour la réservation ${d.bookingId} est prêt : ${amount(d, 'fr')}. Connectez-vous pour consulter et payer.`,
     }),
   },
 };

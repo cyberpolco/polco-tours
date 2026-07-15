@@ -41,11 +41,21 @@ export const visaService = {
     if (existing) throw Errors.conflict('A visa application already exists for this traveler');
 
     const booking = await bookingService.getById(ctx, bookingId);
-    const { packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    // A PREDEFINED_PACKAGE booking's country comes from its departure's
+    // package; a TAILOR_MADE booking has no departure, so it carries its own
+    // customCountry instead (same fallback as invoicingService).
+    let country: string;
+    if (booking.departureId) {
+      ({ packageCountry: country } = await catalogService.getDepartureDetail(ctx, booking.departureId));
+    } else if (booking.customCountry) {
+      country = booking.customCountry;
+    } else {
+      throw Errors.conflict('This booking has no destination country for a visa application');
+    }
 
     const application = await visaRepository.create(organizationId, {
       travelerId,
-      country: packageCountry,
+      country,
       travelerFirstName: traveler.firstName,
       travelerLastName: traveler.lastName,
       travelerNationality: traveler.nationality,

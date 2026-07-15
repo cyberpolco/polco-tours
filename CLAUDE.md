@@ -788,6 +788,32 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   survived `SET NULL`'d) and a single bootstrap `SUPERADMIN`
   (`cyberpolco@gmail.com`) created with a real, operator-chosen password (no
   `mustChangePassword`, unlike admin-created accounts).
+- **Bookings module v2 done 2026-07-15 (DR-027):** reconciles an external
+  spec against the existing booking system. `BookingStatus` fully replaced
+  (not additive) with an 11-value lifecycle (`DRAFT` through `REFUNDED`) --
+  `AWAITING_DEPOSIT` is the new hold (was `HELD`); no dedicated `EXPIRED`
+  value, an expired hold lazily sweeps to `CANCELLED`. New `BookingOrigin`
+  (`PREDEFINED_PACKAGE`/`TAILOR_MADE`) -- a tailor-made booking has no
+  `Departure` (`departureId` now nullable), priced afterward by staff via
+  new `sendQuotation`/`acceptQuotation`, with `customCountry` standing in
+  for a departure's package country in tax/visa lookups. New
+  `Booking.bookingReference` (`POL-2026-000154`-style, from a Postgres
+  sequence) coexists with the unchanged, still-non-guessable
+  `confirmationCode`. New `Booking.specialRequests`. Payment success now
+  drives booking status (`invoicingService.resolvePayment` calls the new
+  `bookingService.recordPaymentReceived` through the module's public
+  interface) -- `confirm` now requires `DEPOSIT_PAID`/`FULLY_PAID` instead
+  of being payment-agnostic. New staff-only `refund` (`CANCELLED ->
+  REFUNDED`, status-only -- no real payment-reversal mechanism exists).
+  Deposit split stays 40%/60% (spec's "60%" was confirmed-imprecise
+  wording). `booking.create` RBAC unchanged (`TOUR_OPERATOR` keeps it,
+  per explicit user direction, despite the spec's literal "Super Admin or
+  Platform Admin" wording). New guest `/tailor-made` entry point + staff
+  `?tailorMade=1` wizard branch; new routes `POST /bookings/tailor-made`,
+  `.../quotation`, `.../quotation/accept`, `.../refund`. Fixed a real bug
+  found mid-implementation: `prisma/seed.ts`'s `Membership` upsert
+  (DR-026) used the raw unscoped client, which now 403s against DR-026's
+  own RLS policy -- routed through `withOrg` like every other write there.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, and reviews.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -889,7 +915,16 @@ createUser/deactivateUser` (`admin.all`) + `/staff/admin/users` +
 `mustChangePassword` gate (`/staff/change-password`); soft-delete reused
 the already-existing `deletedAt` read-side checks; new RLS policy for
 `organization_members`; every existing `User` deleted and a single
-bootstrap `SUPERADMIN` created per explicit user instruction.
+bootstrap `SUPERADMIN` created per explicit user instruction · DR-027
+bookings module v2: `BookingStatus` fully replaced (not additive) with an
+11-value lifecycle reconciling an external spec against the existing
+system; new `BookingOrigin` (`TAILOR_MADE` bookings have no `Departure`,
+priced afterward via new `sendQuotation`/`acceptQuotation`); new
+`bookingReference` (coexists with `confirmationCode`) and
+`specialRequests`; payment success now drives booking status via new
+`recordPaymentReceived` (invoicing calls it through booking's public
+interface); new staff-only `refund`; deposit split stays 40/60;
+`booking.create` RBAC unchanged per explicit user direction.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 
@@ -1239,7 +1274,16 @@ human rather than fabricating volume content.
   compiled query-engine binary at first, but persisted even with the Bash
   tool's sandbox override on, then resolved on its own) — treat it as
   transient and retry rather than assuming a real outage or a regression in
-  this repo.
+  this repo. **Refined observation (2026-07-15, DR-027 session):** this can
+  persist for 15+ minutes straight (many retries, `--dangerouslyDisableSandbox`
+  made no difference) while specifically failing only *inside `vitest run`* --
+  a plain `npx tsx` script instantiating the exact same `PrismaClient` against
+  the exact same `DATABASE_URL` connected immediately, every time, throughout.
+  Root cause still not isolated (something about vitest's process/worker
+  setup specifically, not a real Neon-side or credential problem) — if a test
+  run is stuck failing at the DB-connection step, sanity-check with a bare
+  `tsx` script hitting the same Prisma client before assuming the code (or
+  the database) is actually broken.
 - **`@visx/responsive`'s `ParentSize` silently collapses to 0 height if you
   only give it a Tailwind height class.** `ParentSize` renders its own outer
   div with an inline `style={{width:'100%', height:'100%', position:

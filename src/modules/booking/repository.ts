@@ -1,7 +1,7 @@
 // booking module — repository. The only place that touches the DB for this module.
 import type { Booking, BookingAddon, BookingStatus, Currency, Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
-import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
+import { canTransition, formatBookingReference, generateConfirmationCode, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
@@ -13,12 +13,29 @@ export interface CreateHoldParams {
   capacity: number;
   priceMinor: number;
   currency: Currency;
+  specialRequests?: string;
+}
+
+export interface CreateTailorMadeParams {
+  touristUserId: string;
+  seats: number;
+  customCountry: string;
+  customTravelStart: Date;
+  customTravelEnd: Date;
+  customDescription: string;
+  specialRequests?: string;
+}
+
+export interface SendQuotationParams {
+  priceMinor: number;
+  currency: Currency;
 }
 
 function toBookingView(b: Booking): BookingView {
   return {
     id: b.id,
     organizationId: b.organizationId,
+    origin: b.origin,
     departureId: b.departureId,
     touristUserId: b.touristUserId,
     seats: b.seats,
@@ -28,6 +45,12 @@ function toBookingView(b: Booking): BookingView {
     currency: b.currency,
     addonsFinalizedAt: b.addonsFinalizedAt,
     confirmationCode: b.confirmationCode,
+    bookingReference: b.bookingReference,
+    specialRequests: b.specialRequests,
+    customCountry: b.customCountry,
+    customTravelStart: b.customTravelStart,
+    customTravelEnd: b.customTravelEnd,
+    customDescription: b.customDescription,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -67,21 +90,53 @@ function toBookingAddonView(a: BookingAddon): BookingAddonView {
   };
 }
 
-// Flips any HELD row past its hold window to EXPIRED. RLS (the `withOrg`
-// caller's transaction GUC) already scopes this to the current org -- no
-// need to duplicate an organizationId filter here.
-async function sweepExpired(tx: TenantTx): Promise<void> {
+async function nextBookingReference(tx: TenantTx): Promise<string> {
+  const rows = await tx.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('booking_reference_seq') AS nextval`;
+  const row = rows[0];
+  if (!row) throw new Error('booking_reference_seq returned no row');
+  return formatBookingReference(new Date().getFullYear(), row.nextval);
+}
+
+// Lazy lifecycle sweep -- no queue/cron, same pattern as the old HELD/EXPIRED
+// sweep. Three independent transitions, all scoped by the caller's `withOrg`
+// transaction GUC (no need to duplicate an organizationId filter here):
+//  1. An expired seat-hold (AWAITING_DEPOSIT past holdExpiresAt) -> CANCELLED.
+//     Only ever set for a PREDEFINED_PACKAGE booking (TAILOR_MADE has no
+//     capacity to protect, so holdExpiresAt stays null for it).
+//  2. CONFIRMED -> IN_PROGRESS once travel has started (departure startDate
+//     for PREDEFINED_PACKAGE, customTravelStart for TAILOR_MADE).
+//  3. IN_PROGRESS -> COMPLETED once travel has ended (departure endDate,
+//     which is optional, or customTravelEnd).
+async function sweepLifecycle(tx: TenantTx): Promise<void> {
   await tx.$executeRaw`
-    UPDATE bookings SET status = 'EXPIRED', "updatedAt" = now()
-    WHERE status = 'HELD' AND "holdExpiresAt" <= now()
+    UPDATE bookings SET status = 'CANCELLED', "updatedAt" = now()
+    WHERE status = 'AWAITING_DEPOSIT' AND "holdExpiresAt" <= now() AND "departureId" IS NOT NULL
+  `;
+  await tx.$executeRaw`
+    UPDATE bookings SET status = 'IN_PROGRESS', "updatedAt" = now()
+    WHERE status = 'CONFIRMED' AND (
+      ("departureId" IS NOT NULL AND EXISTS (
+        SELECT 1 FROM departures d WHERE d.id = bookings."departureId" AND d."startDate" <= now()
+      ))
+      OR ("departureId" IS NULL AND "customTravelStart" IS NOT NULL AND "customTravelStart" <= now())
+    )
+  `;
+  await tx.$executeRaw`
+    UPDATE bookings SET status = 'COMPLETED', "updatedAt" = now()
+    WHERE status = 'IN_PROGRESS' AND (
+      ("departureId" IS NOT NULL AND EXISTS (
+        SELECT 1 FROM departures d WHERE d.id = bookings."departureId" AND d."endDate" IS NOT NULL AND d."endDate" < now()
+      ))
+      OR ("departureId" IS NULL AND "customTravelEnd" IS NOT NULL AND "customTravelEnd" < now())
+    )
   `;
 }
 
-// Call only immediately after sweepExpired() in the same transaction --
-// otherwise a stale HELD row past its expiry would be double-counted.
+// Call only immediately after sweepLifecycle() in the same transaction --
+// otherwise a stale AWAITING_DEPOSIT row past its expiry would be double-counted.
 async function sumSeatsTaken(tx: TenantTx, departureId: string): Promise<number> {
   const rows = await tx.booking.findMany({
-    where: { departureId, status: { in: ['CONFIRMED', 'HELD'] } },
+    where: { departureId, status: { in: ['AWAITING_DEPOSIT', 'DEPOSIT_PAID', 'FULLY_PAID', 'CONFIRMED', 'IN_PROGRESS'] } },
     select: { seats: true },
   });
   return rows.reduce((sum, r) => sum + r.seats, 0);
@@ -90,7 +145,7 @@ async function sumSeatsTaken(tx: TenantTx, departureId: string): Promise<number>
 export const bookingRepository = {
   async seatsTakenFor(organizationId: string, departureId: string): Promise<number> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       return sumSeatsTaken(tx, departureId);
     });
   },
@@ -101,7 +156,7 @@ export const bookingRepository = {
       // requests can't both read "1 seat free" and both insert. Released
       // automatically at transaction end; unrelated departures are unaffected.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.departureId}::text))`;
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const seatsTaken = await sumSeatsTaken(tx, params.departureId);
       if (seatsTaken + params.seats > params.capacity) {
         throw new SoldOutError('Not enough seats available on this departure');
@@ -109,14 +164,40 @@ export const bookingRepository = {
       const b = await tx.booking.create({
         data: {
           organizationId,
+          origin: 'PREDEFINED_PACKAGE',
           departureId: params.departureId,
           touristUserId: params.touristUserId,
           seats: params.seats,
-          status: 'HELD',
+          status: 'AWAITING_DEPOSIT',
           holdExpiresAt: holdExpiryFrom(new Date()),
           priceMinor: params.priceMinor,
           currency: params.currency,
           confirmationCode: generateConfirmationCode(),
+          bookingReference: await nextBookingReference(tx),
+          specialRequests: params.specialRequests,
+        },
+      });
+      return toBookingView(b);
+    });
+  },
+
+  /** TAILOR_MADE origin -- no departure/capacity to check, no hold timer. */
+  async createTailorMadeRequest(organizationId: string, params: CreateTailorMadeParams): Promise<BookingView> {
+    return withOrg(organizationId, async (tx) => {
+      const b = await tx.booking.create({
+        data: {
+          organizationId,
+          origin: 'TAILOR_MADE',
+          touristUserId: params.touristUserId,
+          seats: params.seats,
+          status: 'AWAITING_QUOTATION',
+          customCountry: params.customCountry,
+          customTravelStart: params.customTravelStart,
+          customTravelEnd: params.customTravelEnd,
+          customDescription: params.customDescription,
+          confirmationCode: generateConfirmationCode(),
+          bookingReference: await nextBookingReference(tx),
+          specialRequests: params.specialRequests,
         },
       });
       return toBookingView(b);
@@ -125,7 +206,7 @@ export const bookingRepository = {
 
   async findById(organizationId: string, id: string): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const b = await tx.booking.findUnique({ where: { id } });
       return b ? toBookingView(b) : null;
     });
@@ -136,7 +217,7 @@ export const bookingRepository = {
    * already resolved (confirmationCode is globally unique regardless). */
   async findByConfirmationCode(organizationId: string, confirmationCode: string): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const b = await tx.booking.findUnique({ where: { confirmationCode } });
       return b ? toBookingView(b) : null;
     });
@@ -144,7 +225,7 @@ export const bookingRepository = {
 
   async listMine(organizationId: string, touristUserId: string): Promise<BookingView[]> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const rows = await tx.booking.findMany({ where: { touristUserId }, orderBy: { createdAt: 'desc' } });
       return rows.map(toBookingView);
     });
@@ -152,7 +233,7 @@ export const bookingRepository = {
 
   async listForOrg(organizationId: string): Promise<BookingView[]> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const rows = await tx.booking.findMany({ orderBy: { createdAt: 'desc' } });
       return rows.map(toBookingView);
     });
@@ -160,7 +241,7 @@ export const bookingRepository = {
 
   async updateStatus(organizationId: string, id: string, to: BookingStatus): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
-      await sweepExpired(tx);
+      await sweepLifecycle(tx);
       const existing = await tx.booking.findUnique({ where: { id } });
       if (!existing) return null;
       if (!canTransition(existing.status, to)) {
@@ -168,7 +249,26 @@ export const bookingRepository = {
       }
       const b = await tx.booking.update({
         where: { id },
-        data: { status: to, holdExpiresAt: to === 'HELD' ? existing.holdExpiresAt : null },
+        data: { status: to, holdExpiresAt: to === 'AWAITING_DEPOSIT' ? existing.holdExpiresAt : null },
+      });
+      return toBookingView(b);
+    });
+  },
+
+  /** Staff prices a TAILOR_MADE booking -- the only place priceMinor/currency
+   * get set outside createHold, since a bespoke trip has no departure-derived
+   * price. AWAITING_QUOTATION -> QUOTATION_SENT only (canTransition-enforced). */
+  async sendQuotation(organizationId: string, id: string, params: SendQuotationParams): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      await sweepLifecycle(tx);
+      const existing = await tx.booking.findUnique({ where: { id } });
+      if (!existing) return null;
+      if (!canTransition(existing.status, 'QUOTATION_SENT')) {
+        throw new Error(`Cannot transition booking from ${existing.status} to QUOTATION_SENT`);
+      }
+      const b = await tx.booking.update({
+        where: { id },
+        data: { status: 'QUOTATION_SENT', priceMinor: params.priceMinor, currency: params.currency },
       });
       return toBookingView(b);
     });

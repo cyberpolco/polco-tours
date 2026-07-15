@@ -1,5 +1,5 @@
 // booking module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingStatus, Currency, Sex } from '@prisma/client';
+import type { BookingOrigin, BookingStatus, Currency, Sex } from '@prisma/client';
 import { z } from 'zod';
 
 export const HOLD_DURATION_MINUTES = 30;
@@ -7,15 +7,22 @@ export const HOLD_DURATION_MINUTES = 30;
 export interface BookingView {
   id: string;
   organizationId: string;
-  departureId: string;
+  origin: BookingOrigin;
+  departureId: string | null;
   touristUserId: string;
   seats: number;
   status: BookingStatus;
   holdExpiresAt: Date | null;
-  priceMinor: number;
-  currency: Currency;
+  priceMinor: number | null;
+  currency: Currency | null;
   addonsFinalizedAt: Date | null;
   confirmationCode: string;
+  bookingReference: string;
+  specialRequests: string | null;
+  customCountry: string | null;
+  customTravelStart: Date | null;
+  customTravelEnd: Date | null;
+  customDescription: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,8 +33,30 @@ export const CreateBookingInput = z.object({
   // Only honored for an actor with booking.create granted on someone else's
   // behalf (TOUR_OPERATOR); a tourist's own touristUserId always wins.
   touristUserId: z.string().uuid().optional(),
+  specialRequests: z.string().max(1000).optional(),
 });
 export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
+
+// A bespoke trip request with no pre-existing Departure -- staff price it
+// manually afterward via sendQuotation. customCountry is ISO-3166 alpha-2,
+// same convention as Traveler.nationality; it drives tax-rate lookup in
+// lieu of a Departure's package (see invoicingService.getOrCreateInvoiceForBooking).
+export const CreateTailorMadeInput = z.object({
+  customCountry: z.string().length(2),
+  customTravelStart: z.coerce.date(),
+  customTravelEnd: z.coerce.date(),
+  seats: z.number().int().positive(),
+  customDescription: z.string().min(1).max(2000),
+  touristUserId: z.string().uuid().optional(),
+  specialRequests: z.string().max(1000).optional(),
+});
+export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
+
+export const SendQuotationInput = z.object({
+  priceMinor: z.number().int().positive(),
+  currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
+});
+export type SendQuotationInput = z.infer<typeof SendQuotationInput>;
 
 export function holdExpiryFrom(now: Date): Date {
   return new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
@@ -45,33 +74,59 @@ export function generateConfirmationCode(): string {
   return Array.from(bytes, (b) => CONFIRMATION_CODE_ALPHABET[b % CONFIRMATION_CODE_ALPHABET.length]).join('');
 }
 
-export function isHoldExpired(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, now: Date): boolean {
-  return b.status === 'HELD' && b.holdExpiresAt !== null && b.holdExpiresAt <= now;
+/** Business-facing reference, e.g. POL-2026-000154 -- coexists with
+ * confirmationCode (which stays the non-guessable guest-lookup secret). The
+ * numeric part comes from a plain Postgres sequence (repository.ts); this
+ * just formats it. */
+export function formatBookingReference(year: number, sequence: number | bigint): string {
+  return `POL-${year}-${String(sequence).padStart(6, '0')}`;
 }
 
-/** Whether a booking currently occupies a seat on its departure. */
+export function isHoldExpired(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, now: Date): boolean {
+  return b.status === 'AWAITING_DEPOSIT' && b.holdExpiresAt !== null && b.holdExpiresAt <= now;
+}
+
+/** Whether a booking currently occupies a seat on its departure. Only
+ * meaningful for a PREDEFINED_PACKAGE booking -- a TAILOR_MADE booking has
+ * no fixed departure/capacity to occupy in the first place. */
 export function occupiesCapacity(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, now: Date): boolean {
-  if (b.status === 'CONFIRMED') return true;
-  if (b.status === 'HELD') return !isHoldExpired(b, now);
-  return false;
+  switch (b.status) {
+    case 'AWAITING_DEPOSIT':
+      return !isHoldExpired(b, now);
+    case 'DEPOSIT_PAID':
+    case 'FULLY_PAID':
+    case 'CONFIRMED':
+    case 'IN_PROGRESS':
+      return true;
+    default:
+      return false;
+  }
 }
 
 export function computeAvailability(capacity: number, seatsTaken: number): number {
   return Math.max(0, capacity - seatsTaken);
 }
 
-// QUOTE_REQUESTED (DR-024) is reached from HELD when a guest picks "request
-// a quotation" instead of paying -- releases the seat hold (occupiesCapacity
-// below already excludes it, no change needed there) but keeps the booking
-// row (travelers/passport/add-ons) intact for staff follow-up. Staff may
-// confirm a quote directly (accepted risk, no automatic capacity re-check --
-// see the caution text on the staff booking-detail page).
+// Status lifecycle (v2 -- replaces HELD/CONFIRMED/CANCELLED/EXPIRED/
+// QUOTE_REQUESTED). A hold is now AWAITING_DEPOSIT + holdExpiresAt (was
+// HELD); an expired hold lazily sweeps straight to CANCELLED -- there is no
+// dedicated EXPIRED value in this status set, so the expired-vs-manually-
+// cancelled distinction survives only in the audit log. Staff may confirm on
+// deposit alone (DEPOSIT_PAID -> CONFIRMED), matching the old HELD/
+// QUOTE_REQUESTED -> CONFIRMED allowance -- no automatic re-check beyond
+// what already happened when the hold/quote was created.
 const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  HELD: ['CONFIRMED', 'CANCELLED', 'EXPIRED', 'QUOTE_REQUESTED'],
-  CONFIRMED: ['CANCELLED'],
-  CANCELLED: [],
-  EXPIRED: [],
-  QUOTE_REQUESTED: ['CONFIRMED', 'CANCELLED'],
+  DRAFT: ['AWAITING_QUOTATION', 'AWAITING_DEPOSIT', 'CANCELLED'],
+  AWAITING_QUOTATION: ['QUOTATION_SENT', 'CANCELLED'],
+  QUOTATION_SENT: ['AWAITING_DEPOSIT', 'CANCELLED'],
+  AWAITING_DEPOSIT: ['DEPOSIT_PAID', 'FULLY_PAID', 'CANCELLED'],
+  DEPOSIT_PAID: ['FULLY_PAID', 'CONFIRMED', 'CANCELLED'],
+  FULLY_PAID: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['COMPLETED'],
+  COMPLETED: [],
+  CANCELLED: ['REFUNDED'],
+  REFUNDED: [],
 };
 
 export function canTransition(from: BookingStatus, to: BookingStatus): boolean {

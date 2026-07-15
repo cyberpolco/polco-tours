@@ -4,7 +4,7 @@ import { bookingService } from '@modules/booking';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { format, money } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 export default async function BookingsPage() {
@@ -20,6 +20,7 @@ export default async function BookingsPage() {
         <Table className="mt-6">
           <thead>
             <TableHeaderRow>
+              <Th>Reference</Th>
               <Th>Status</Th>
               <Th>Seats</Th>
               <Th>Price</Th>
@@ -30,11 +31,12 @@ export default async function BookingsPage() {
           <tbody>
             {bookings.map((b) => (
               <Tr key={b.id}>
+                <Td className="font-mono text-xs">{b.bookingReference}</Td>
                 <Td>
                   <Badge tone={BOOKING_STATUS_TONE[b.status]}>{b.status}</Badge>
                 </Td>
                 <Td>{b.seats}</Td>
-                <Td>{format(money(b.priceMinor, b.currency))}</Td>
+                <Td>{formatOrPending(b.priceMinor, b.currency)}</Td>
                 <Td>{b.createdAt.toLocaleDateString()}</Td>
                 <Td>
                   <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">

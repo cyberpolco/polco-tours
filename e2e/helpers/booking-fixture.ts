@@ -52,6 +52,7 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
         priceMinor: 10000 * seats,
         currency: 'USD',
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
       },
     });
     return booking.id;
@@ -105,6 +106,7 @@ export async function seedStaffAndCompleteBooking(): Promise<{ staffUserId: stri
         priceMinor: 10000,
         currency: 'USD',
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         addonsFinalizedAt: new Date(),
       },
     });

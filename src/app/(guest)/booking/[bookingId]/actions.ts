@@ -23,3 +23,9 @@ export async function requestQuotationAction(bookingId: string) {
   await bookingService.requestQuotation(ctx, bookingId);
   revalidatePath(`/booking/${bookingId}`);
 }
+
+export async function acceptQuotationAction(bookingId: string) {
+  const ctx = await requireGuestContext();
+  await bookingService.acceptQuotation(ctx, bookingId);
+  revalidatePath(`/booking/${bookingId}`);
+}

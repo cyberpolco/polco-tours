@@ -41,3 +41,11 @@ export function format(m: Money, locale = 'en'): string {
   const value = m.minor / 10 ** d;
   return new Intl.NumberFormat(locale, { style: 'currency', currency: m.currency }).format(value);
 }
+
+/** A TAILOR_MADE booking has no price until staff sends a quotation --
+ * `Booking.priceMinor`/`currency` are null until then. UI call sites that
+ * used to assume a booking always has a price now go through this instead
+ * of `format(money(...))` directly. */
+export function formatOrPending(minor: number | null, currency: Currency | null, pendingLabel = 'Awaiting quotation'): string {
+  return minor != null && currency != null ? format(money(minor, currency)) : pendingLabel;
+}

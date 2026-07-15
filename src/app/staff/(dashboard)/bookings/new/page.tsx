@@ -9,15 +9,72 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, money } from '@lib/money';
 import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
-import { createBookingForClientAction } from './actions';
+import { createBookingForClientAction, createTailorMadeBookingAction } from './actions';
 
 interface Props {
-  searchParams: Promise<{ packageId?: string; departureId?: string; error?: string }>;
+  searchParams: Promise<{ packageId?: string; departureId?: string; tailorMade?: string; error?: string }>;
 }
 
 export default async function NewBookingPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
-  const { packageId, departureId, error } = await searchParams;
+  const { packageId, departureId, tailorMade, error } = await searchParams;
+
+  if (tailorMade) {
+    return (
+      <div className="max-w-md">
+        <PageHeader eyebrow="New booking" title="Tailor-made request" />
+        {error === 'client_not_found' && (
+          <div className="mt-3">
+            <Alert tone="error">
+              No account found for that email. The client needs to sign up before staff can book on their behalf.
+            </Alert>
+          </div>
+        )}
+        <form action={createTailorMadeBookingAction} className="mt-6 space-y-4">
+          <FormField label="Client email (must already have an account)" htmlFor="email">
+            <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Destination country (ISO-3166 alpha-2, e.g. NA or CD)" htmlFor="customCountry">
+            <input
+              name="customCountry"
+              maxLength={2}
+              minLength={2}
+              required
+              className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
+            />
+          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Travel start" htmlFor="customTravelStart">
+              <input name="customTravelStart" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label="Travel end" htmlFor="customTravelEnd">
+              <input name="customTravelEnd" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+          </div>
+          <FormField label="Seats" htmlFor="seats">
+            <input
+              name="seats"
+              type="number"
+              min={1}
+              defaultValue={1}
+              required
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
+          </FormField>
+          <FormField label="Trip description" htmlFor="customDescription">
+            <textarea name="customDescription" required rows={4} className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Special requests" htmlFor="specialRequests" optional>
+            <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <SubmitButton>Create request</SubmitButton>
+        </form>
+        <Link href="/staff/bookings/new" className="mt-4 inline-block text-sm text-forest hover:underline">
+          ← back
+        </Link>
+      </div>
+    );
+  }
 
   if (departureId) {
     const detail = await catalogService.getDepartureDetail(ctx, departureId);
@@ -48,6 +105,9 @@ export default async function NewBookingPage({ searchParams }: Props) {
               required
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
+          </FormField>
+          <FormField label="Special requests" htmlFor="specialRequests" optional>
+            <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <SubmitButton>Create booking</SubmitButton>
         </form>
@@ -96,6 +156,13 @@ export default async function NewBookingPage({ searchParams }: Props) {
   return (
     <div>
       <PageHeader eyebrow="New booking" title="Choose a package" />
+      <p className="mt-2 text-sm text-mist">
+        Nothing in the catalog fits?{' '}
+        <Link href="/staff/bookings/new?tailorMade=1" className="text-forest hover:underline">
+          Create a tailor-made request
+        </Link>
+        .
+      </p>
       {packages.length === 0 ? (
         <p className="mt-4 text-mist">No packages yet.</p>
       ) : (

@@ -35,6 +35,7 @@ async function seedOrgWithBookingAddon(name: string): Promise<string> {
         departureId: departure.id,
         touristUserId: tourist.id,
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

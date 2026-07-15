@@ -58,6 +58,7 @@ beforeAll(async () => {
         departureId: departure.id,
         touristUserId: touristAId,
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

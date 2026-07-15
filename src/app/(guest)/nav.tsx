@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 const LINKS = [
   { href: '/packages', key: 'browse' },
   { href: '/quiz', key: 'tailorTrip' },
+  { href: '/tailor-made', key: 'tailorMade' },
   { href: '/find-booking', key: 'findBooking' },
   { href: '/about', key: 'about' },
   { href: '/faq', key: 'faq' },

@@ -52,12 +52,30 @@ enum DepartureStatus {
   COMPLETED
 }
 
+// v2 (replaces HELD/CONFIRMED/CANCELLED/EXPIRED/QUOTE_REQUESTED). A hold is
+// now AWAITING_DEPOSIT + holdExpiresAt (was HELD); an expired hold lazily
+// sweeps straight to CANCELLED -- there is no dedicated EXPIRED value here,
+// so the expired-vs-manually-cancelled distinction survives only in the
+// audit log. DRAFT exists for spec completeness; no current flow produces a
+// row that stays there (both booking origins set a real starting status
+// immediately on creation).
 enum BookingStatus {
-  HELD
+  DRAFT
+  AWAITING_QUOTATION
+  QUOTATION_SENT
+  AWAITING_DEPOSIT
+  DEPOSIT_PAID
+  FULLY_PAID
   CONFIRMED
+  IN_PROGRESS
+  COMPLETED
   CANCELLED
-  EXPIRED
-  QUOTE_REQUESTED
+  REFUNDED
+}
+
+enum BookingOrigin {
+  PREDEFINED_PACKAGE
+  TAILOR_MADE
 }
 
 enum InvoiceStatus {
@@ -290,8 +308,8 @@ model Departure {
   updatedAt          DateTime        @updatedAt
   deletedAt          DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  tourPackage  TourPackage  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tourPackage  TourPackage   @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
   bookings     Booking[]
   assignments  Assignment[]
 
@@ -329,37 +347,58 @@ model Assignment {
   @@map("assignments")
 }
 
-// A tourist's seat reservation on a Departure. A "hold" is not a separate
-// entity — it's this same row with status=HELD and holdExpiresAt set; DB lazy
-// expiry means any read that cares about current capacity treats an expired,
-// not-yet-flipped HELD row as not occupying a seat (see booking module).
+// A tourist's seat reservation on a Departure (PREDEFINED_PACKAGE), or a
+// bespoke trip request with no fixed Departure (TAILOR_MADE, priced by staff
+// via a quotation). A "hold" is not a separate entity — it's this same row
+// with status=AWAITING_DEPOSIT and holdExpiresAt set; DB lazy expiry means
+// any read that cares about current capacity treats an expired, not-yet-
+// flipped AWAITING_DEPOSIT row as not occupying a seat (see booking module).
+// A TAILOR_MADE booking has no departure/capacity to protect, so it never
+// gets a holdExpiresAt even while AWAITING_DEPOSIT.
 // Deliberately no deletedAt: booking history must survive cancellation for
 // audit/reconciliation — status already encodes the lifecycle.
 model Booking {
-  id                String        @id @default(uuid()) @db.Uuid
-  organizationId    String        @db.Uuid
-  departureId       String        @db.Uuid
-  touristUserId     String        @db.Uuid
-  seats             Int
-  status            BookingStatus @default(HELD)
-  holdExpiresAt     DateTime? // set only while status = HELD
-  priceMinor        Int // seats * effective unit price, snapshotted at hold time
-  currency          Currency
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  origin         BookingOrigin @default(PREDEFINED_PACKAGE)
+  // Null only for a TAILOR_MADE booking -- no fixed departure exists yet.
+  departureId    String?       @db.Uuid
+  touristUserId  String        @db.Uuid
+  seats          Int
+  status         BookingStatus @default(DRAFT)
+  holdExpiresAt  DateTime? // set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking
+  // Seats * effective unit price for PREDEFINED_PACKAGE, snapshotted at hold
+  // time. Null for TAILOR_MADE until staff sends a quotation (sendQuotation).
+  priceMinor     Int?
+  currency       Currency?
   // Set when the add-ons wizard step is submitted, even choosing none --
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
   addonsFinalizedAt DateTime?
   // Short, human-typeable lookup code (DR-016) -- generated for every
-  // booking (staff or guest) at hold-creation time, but only ever revealed
-  // to a guest once setup + payment-initiation are complete. Not a security
+  // booking (staff or guest) at creation time, but only ever revealed to a
+  // guest once setup + payment-initiation are complete. Not a security
   // boundary on its own -- the "find my booking" flow also requires the
   // tour lead's last name (see bookingService.lookupByConfirmationCode).
-  confirmationCode  String        @unique
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  confirmationCode String @unique
+  // Business-facing reference, e.g. POL-2026-000154 -- coexists with
+  // confirmationCode (which stays the non-guessable guest-lookup secret).
+  // Numeric part comes from a plain Postgres sequence (booking_reference_seq,
+  // created out-of-band since Prisma's schema DSL can't express a custom
+  // formatted default -- see src/modules/booking/repository.ts), formatted
+  // in application code.
+  bookingReference String @unique
+  specialRequests  String? @db.VarChar(1000)
+  // TAILOR_MADE-only fields (all null for a PREDEFINED_PACKAGE booking).
+  customCountry     String?   @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
+  customTravelStart DateTime?
+  customTravelEnd   DateTime?
+  customDescription String?   @db.VarChar(2000)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departure    Departure      @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  departure    Departure?     @relation(fields: [departureId], references: [id], onDelete: Cascade)
   tourist      User           @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
   invoice      Invoice?
   travelers    Traveler[]

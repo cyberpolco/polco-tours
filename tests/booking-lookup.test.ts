@@ -56,6 +56,7 @@ beforeAll(async () => {
         priceMinor: 10000,
         currency: 'USD',
         confirmationCode,
+        bookingReference: generateConfirmationCode(),
       },
     });
     bookingId = booking.id;
@@ -130,5 +131,5 @@ describe('bookingService.lookupByConfirmationCode', () => {
       .catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(429);
-  });
+  }, 40_000); // 11 sequential lookups, each running the 3-statement lifecycle sweep (DR-027); this sandbox's Neon latency can exceed the 20s default
 });

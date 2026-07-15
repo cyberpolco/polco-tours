@@ -1,5 +1,6 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
+import type { PaymentKind } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
@@ -18,7 +19,9 @@ import {
   type BookingLookupResult,
   type BookingView,
   type CreateBookingInput,
+  type CreateTailorMadeInput,
   type LookupBookingInput,
+  type SendQuotationInput,
   type SetAddonsInput,
   type TravelerView,
 } from './domain';
@@ -48,7 +51,7 @@ export interface BillableTotal {
   baseMinor: number;
   addonsMinor: number;
   totalMinor: number;
-  currency: BookingView['currency'];
+  currency: NonNullable<BookingView['currency']>;
 }
 
 /** Anti-BOLA: a tourist may only act on their own booking; staff act on any
@@ -96,6 +99,7 @@ export const bookingService = {
         capacity: detail.departure.capacity,
         priceMinor: price.minor,
         currency: price.currency,
+        specialRequests: input.specialRequests,
       });
     } catch (err) {
       if (err instanceof SoldOutError) throw Errors.conflict(err.message);
@@ -113,6 +117,84 @@ export const bookingService = {
     return booking;
   },
 
+  /** A bespoke trip request with no pre-existing Departure -- no capacity
+   * check applies (there's nothing to reserve yet). Staff price it manually
+   * afterward via sendQuotation. */
+  async createTailorMadeRequest(ctx: AuthContext, input: CreateTailorMadeInput): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
+
+    const booking = await bookingRepository.createTailorMadeRequest(organizationId, {
+      touristUserId,
+      seats: input.seats,
+      customCountry: input.customCountry,
+      customTravelStart: input.customTravelStart,
+      customTravelEnd: input.customTravelEnd,
+      customDescription: input.customDescription,
+      specialRequests: input.specialRequests,
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.tailor_made_requested',
+      resourceType: 'Booking',
+      resourceId: booking.id,
+      organizationId,
+    });
+    return booking;
+  },
+
+  /** Staff-only: prices a booking currently AWAITING_QUOTATION (applies to
+   * both a TAILOR_MADE request and a PREDEFINED_PACKAGE booking that asked
+   * for a quote instead of paying immediately -- see requestQuotation). */
+  async sendQuotation(ctx: AuthContext, bookingId: string, input: SendQuotationInput): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const updated = await bookingRepository.sendQuotation(organizationId, bookingId, input);
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.quotation_sent',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+    });
+    await notificationsService.notify('QUOTATION_SENT', updated.touristUserId, organizationId, {
+      bookingId: updated.bookingReference,
+      amountMinor: updated.priceMinor ?? undefined,
+      currency: updated.currency ?? undefined,
+    });
+    return updated;
+  },
+
+  /** Client accepts a sent quotation and proceeds toward payment
+   * (QUOTATION_SENT -> AWAITING_DEPOSIT). Same accepted-risk posture as the
+   * rest of the quote flow (DR-024): no fresh capacity re-check, no new hold
+   * timer -- there's nothing shared/contended to protect for a quote that
+   * already skipped (or released) its capacity reservation. */
+  async acceptQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_DEPOSIT');
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.quotation_accepted',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+    });
+    return updated;
+  },
+
   async confirm(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx.roles, 'booking.confirm');
     const organizationId = requireOrg(ctx);
@@ -127,7 +209,7 @@ export const bookingService = {
       organizationId,
     });
     await notificationsService.notify('BOOKING_CONFIRMED', updated.touristUserId, organizationId, {
-      bookingId: updated.id,
+      bookingId: updated.bookingReference,
     });
     return updated;
   },
@@ -148,33 +230,79 @@ export const bookingService = {
       organizationId,
     });
     await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
-      bookingId: updated.id,
+      bookingId: updated.bookingReference,
+    });
+    return updated;
+  },
+
+  /** Staff-only, mirrors payment.resolve's fraud-prevention posture (a
+   * tourist self-marking their own refund would be exactly the same fraud
+   * vector). Status-only: no real payment-reversal exists yet (no refund
+   * concept in the invoicing module's Payment/PaymentStatus) -- issuing the
+   * actual money back is a future Payments-module concern. */
+  async refund(ctx: AuthContext, bookingId: string): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'REFUNDED');
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.refunded',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
     });
     return updated;
   },
 
   /** Guest chooses "request a quotation" instead of paying (DR-024) -- the
-   * booking already exists and already passed its capacity check when the
-   * hold was created, so this is just a status transition (HELD ->
-   * QUOTE_REQUESTED), not a new creation path. Reuses booking.cancel's
+   * booking already exists (and, for a PREDEFINED_PACKAGE booking, already
+   * passed its capacity check when the hold was created), so this is just a
+   * status transition, not a new creation path. Reuses booking.cancel's
    * permission/ownership shape rather than adding a new permission --
    * TOURIST already holds it and the semantics ("give up this hold") are
-   * close enough. No notification fired; staff see these via the new
+   * close enough. No notification fired; staff see these via the
    * quote-requests dashboard queue instead. */
   async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx.roles, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'QUOTE_REQUESTED');
+    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_QUOTATION');
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
-      action: 'booking.quote_requested',
+      action: 'booking.quotation_requested',
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
+    });
+    return updated;
+  },
+
+  /** The cross-module entry point invoicing calls once a payment succeeds --
+   * keeps the module boundary intact (invoicing never writes Booking.status
+   * directly). DEPOSIT stays AWAITING_DEPOSIT -> DEPOSIT_PAID; BALANCE/FULL
+   * both land on FULLY_PAID (BALANCE only ever follows an already-paid
+   * deposit). Staff-gated -- same actor as payment.resolve itself. */
+  async recordPaymentReceived(ctx: AuthContext, bookingId: string, kind: PaymentKind): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    const to = kind === 'DEPOSIT' ? 'DEPOSIT_PAID' : 'FULLY_PAID';
+    const updated = await bookingRepository.updateStatus(organizationId, bookingId, to);
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.payment_received',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { kind },
     });
     return updated;
   },
@@ -250,11 +378,15 @@ export const bookingService = {
 
   /** Replace-all: the add-ons wizard step is meant to be finalized once,
    * including choosing none -- stamps addonsFinalizedAt either way, which is
-   * what gates invoicing (see getBillableTotal). */
+   * what gates invoicing (see getBillableTotal). Requires a priced booking --
+   * a TAILOR_MADE booking has no currency to match against until quoted. */
   async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
     assertCan(ctx.roles, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (!booking.currency) {
+      throw Errors.conflict('This booking has no price yet -- it needs a quotation before add-ons can be selected');
+    }
 
     const items = [];
     for (const addonServiceId of input.addonServiceIds) {
@@ -279,12 +411,19 @@ export const bookingService = {
 
   /** The cross-module entry point invoicing calls instead of reading
    * Booking.priceMinor directly -- combines the seat price with the
-   * finalized add-on selection. Throws until the traveler manifest + add-ons
-   * step are both complete (see domain.isTravelerManifestComplete). */
+   * finalized add-on selection. Throws until the booking is priced (a
+   * TAILOR_MADE booking needs a sent quotation) and the traveler manifest +
+   * add-ons step are both complete (see domain.isTravelerManifestComplete). */
   async getBillableTotal(ctx: AuthContext, bookingId: string): Promise<BillableTotal> {
     assertCan(ctx.roles, 'booking.read');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const priceMinor = booking.priceMinor;
+    const currency = booking.currency;
+    if (priceMinor == null || currency == null) {
+      throw Errors.conflict('This booking has no price yet -- it needs a quotation before it can be invoiced');
+    }
 
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
     if (!isTravelerManifestComplete(travelers, booking.seats) || !booking.addonsFinalizedAt) {
@@ -292,7 +431,7 @@ export const bookingService = {
     }
 
     const addons = await bookingRepository.listAddonsForBooking(organizationId, bookingId);
-    const base = money(booking.priceMinor, booking.currency);
+    const base = money(priceMinor, currency);
     const total = addons.reduce<Money>((sum, a) => add(sum, money(a.priceMinor, a.currency)), base);
 
     return {

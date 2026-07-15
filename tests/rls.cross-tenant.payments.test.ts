@@ -42,6 +42,7 @@ async function seedOrgWithPayment(name: string): Promise<{ orgId: string; invoic
         departureId: departure.id,
         touristUserId: tourist.id,
         confirmationCode: generateConfirmationCode(),
+        bookingReference: generateConfirmationCode(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

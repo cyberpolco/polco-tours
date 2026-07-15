@@ -36,10 +36,22 @@ export const invoicingService = {
     const existing = await invoicingRepository.findByBookingId(organizationId, bookingId);
     if (existing) return existing;
 
-    const { packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    // A PREDEFINED_PACKAGE booking's country comes from its departure's
+    // package; a TAILOR_MADE booking has no departure at all, so it carries
+    // its own customCountry instead (set at creation, see
+    // bookingService.createTailorMadeRequest).
+    let country: string;
+    if (booking.departureId) {
+      ({ packageCountry: country } = await catalogService.getDepartureDetail(ctx, booking.departureId));
+    } else if (booking.customCountry) {
+      country = booking.customCountry;
+    } else {
+      throw Errors.conflict('This booking has no destination country to determine tax');
+    }
+
     let rateBp: number;
     try {
-      ({ rateBp } = await getEffectiveTaxRate(packageCountry));
+      ({ rateBp } = await getEffectiveTaxRate(country));
     } catch {
       // Missing tax config is an operator gap, not a caller error.
       throw Errors.conflict('No tax rate configured for this country');
@@ -56,7 +68,7 @@ export const invoicingService = {
 
     const invoice = await invoicingRepository.create(organizationId, {
       bookingId,
-      currency: booking.currency,
+      currency: billable.currency,
       subtotalMinor: subtotal.minor,
       taxRateBp: rateBp,
       taxMinor: tax.minor,
@@ -148,6 +160,13 @@ export const invoicingService = {
       resourceId: result.payment.id,
       organizationId,
     });
+    if (outcome === 'SUCCEEDED') {
+      // Cross-module call through booking's public interface only (module
+      // boundary rule) -- moves the booking to DEPOSIT_PAID/FULLY_PAID so
+      // its status reflects the payment without invoicing ever writing
+      // Booking.status directly.
+      await bookingService.recordPaymentReceived(ctx, result.invoice.bookingId, result.payment.kind);
+    }
     await notificationsService.notify(
       outcome === 'SUCCEEDED' ? 'PAYMENT_SUCCEEDED' : 'PAYMENT_FAILED',
       result.touristUserId,

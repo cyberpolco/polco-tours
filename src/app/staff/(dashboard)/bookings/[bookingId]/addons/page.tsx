@@ -28,6 +28,18 @@ export default async function AddonsPage({ params }: Props) {
     redirect(`/staff/bookings/${bookingId}`);
   }
 
+  // A TAILOR_MADE booking has no price until a quotation is sent -- add-ons
+  // can't be currency-matched against it yet (setAddons enforces this
+  // server-side too).
+  if (!booking.currency) {
+    return (
+      <div className="max-w-md">
+        <PageHeader eyebrow="Booking setup · Add-ons" title="Waiting on a quotation" />
+        <p className="mt-1 text-sm text-mist">Send a quotation for this booking before selecting add-ons.</p>
+      </div>
+    );
+  }
+
   const addons = await catalogService.listActiveAddonServices(ctx);
 
   return (
