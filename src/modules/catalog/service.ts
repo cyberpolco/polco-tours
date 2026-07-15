@@ -1,9 +1,10 @@
 // catalog module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { Role } from '@prisma/client';
+import type { PackageStatus, Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
+import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
-import type { Money } from '@lib/money';
+import { money, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertCan } from '@lib/rbac';
 import {
@@ -13,6 +14,7 @@ import {
   isPackageVisible,
   scorePackagesForQuiz,
   type AddonServiceView,
+  type CreateBespokeDepartureParams,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
@@ -35,7 +37,8 @@ export interface PublicPackageFilter {
 
 export interface DepartureDetail {
   departure: DepartureView;
-  packageStatus: TourPackageView['status'];
+  // Null for a bespoke departure (DR-028) -- there's no TourPackage to have a status.
+  packageStatus: PackageStatus | null;
   packageCountry: string;
   effectiveUnitPrice: Money;
   bookable: boolean;
@@ -93,12 +96,33 @@ export const catalogService = {
     return all.filter((d) => isDepartureVisible(d, ctx.roles));
   },
 
-  /** The one cross-module entry point the booking module calls. */
+  /** The one cross-module entry point the booking module calls. Branches for
+   * a bespoke departure (DR-028, tourPackageId null) -- its country/price/
+   * currency were snapshotted directly onto the Departure row at conversion
+   * time (createBespokeDeparture) instead of coming from a TourPackage join,
+   * since the catalog module can't depend on the booking module to look them
+   * up any other way (module boundary). Never bookable -- it's not for
+   * public sale, it exists for exactly the one group it was created for. */
   async getDepartureDetail(ctx: AuthContext, departureId: string): Promise<DepartureDetail> {
     assertCan(ctx.roles, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure) throw Errors.notFound('Departure not found');
+
+    if (!departure.tourPackageId) {
+      if (!isDepartureVisible(departure, ctx.roles)) throw Errors.notFound('Departure not found');
+      if (departure.priceOverrideMinor == null || !departure.currency || !departure.customCountry) {
+        throw Errors.conflict('Bespoke departure is missing required pricing/country data');
+      }
+      return {
+        departure,
+        packageStatus: null,
+        packageCountry: departure.customCountry,
+        effectiveUnitPrice: money(departure.priceOverrideMinor, departure.currency),
+        bookable: false,
+      };
+    }
+
     const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles) || !isDepartureVisible(departure, ctx.roles)) {
       throw Errors.notFound('Departure not found');
@@ -110,6 +134,61 @@ export const catalogService = {
       effectiveUnitPrice: effectivePrice(pkg, departure),
       bookable: isBookable(pkg, departure),
     };
+  },
+
+  /** Soft delete (DR-028) -- hides it from every listing (all reads already
+   * filter deletedAt: null); no cascade risk to real Departures/Bookings. */
+  async deletePackage(ctx: AuthContext, packageId: string): Promise<void> {
+    assertCan(ctx.roles, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const deleted = await catalogRepository.deletePackage(organizationId, packageId);
+    if (!deleted) throw Errors.notFound('Package not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'catalog.package_deleted',
+      resourceType: 'TourPackage',
+      resourceId: deleted.id,
+      organizationId,
+    });
+  },
+
+  /** Clones the package definition only, as a new DRAFT package -- no
+   * departures come along (old dates wouldn't make sense on a copy). */
+  async duplicatePackage(ctx: AuthContext, packageId: string): Promise<TourPackageView> {
+    assertCan(ctx.roles, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const duplicated = await catalogRepository.duplicatePackage(organizationId, packageId);
+    if (!duplicated) throw Errors.notFound('Package not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'catalog.package_duplicated',
+      resourceType: 'TourPackage',
+      resourceId: duplicated.id,
+      organizationId,
+      metadata: { sourcePackageId: packageId },
+    });
+    return duplicated;
+  },
+
+  /** DR-028: the operational-itinerary half of an approved TAILOR_MADE
+   * booking. Takes plain params rather than a Booking -- this module has no
+   * knowledge of Booking at all (module boundary); bookingService.
+   * convertToItinerary builds these from its own already-validated fields. */
+  async createBespokeDeparture(ctx: AuthContext, params: CreateBespokeDepartureParams): Promise<DepartureView> {
+    assertCan(ctx.roles, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const departure = await catalogRepository.createBespokeDeparture(organizationId, params);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'catalog.bespoke_departure_created',
+      resourceType: 'Departure',
+      resourceId: departure.id,
+      organizationId,
+    });
+    return departure;
   },
 
   /** Staff-managed, read-only for now -- seeded via prisma/seed.ts. */
@@ -160,7 +239,10 @@ export const catalogService = {
   async getPublicDepartureDetail(departureId: string): Promise<DepartureDetail> {
     const organizationId = await getPrimaryOrgId();
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
-    if (!departure) throw Errors.notFound('Departure not found');
+    // A bespoke departure (DR-028, no TourPackage) is never for public sale --
+    // it has no publicly-reachable link anywhere, but guard defensively
+    // rather than let a guessed id hit findPackageById with a null id.
+    if (!departure || !departure.tourPackageId) throw Errors.notFound('Departure not found');
     const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
     if (!pkg || !isPackageVisible(pkg, PUBLIC_VIEW_ROLE) || !isDepartureVisible(departure, PUBLIC_VIEW_ROLE)) {
       throw Errors.notFound('Departure not found');

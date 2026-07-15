@@ -9,6 +9,7 @@ const LINKS: { href: string; label: string; permission: Permission }[] = [
   { href: '/staff/bookings', label: 'Bookings', permission: 'booking.read' },
   { href: '/staff/bookings/new', label: 'New booking', permission: 'booking.create' },
   { href: '/staff/quote-requests', label: 'Quote requests', permission: 'booking.read' },
+  { href: '/staff/packages', label: 'Packages', permission: 'catalog.read' },
   { href: '/staff/fleet', label: 'Fleet', permission: 'fleet.read' },
   { href: '/staff/departures', label: 'Departures', permission: 'assignment.write' },
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },

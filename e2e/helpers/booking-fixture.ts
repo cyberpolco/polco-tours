@@ -1,4 +1,5 @@
 import { generateConfirmationCode } from '../../src/modules/booking';
+import { formatPackageReference } from '@modules/catalog';
 import { prisma, withOrg } from '../../src/lib/db';
 
 /**
@@ -26,6 +27,7 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: `E2E Fixture Safari ${suffix}`,
         description: 'Fixture for staff dashboard e2e tests.',
         country: 'NA',
@@ -86,6 +88,7 @@ export async function seedStaffAndCompleteBooking(): Promise<{ staffUserId: stri
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: `E2E Complete Fixture Safari ${suffix}`,
         description: 'Fixture for the staff booking-detail Visa line e2e test.',
         country: 'NA',

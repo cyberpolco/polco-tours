@@ -273,6 +273,11 @@ model AuditLog {
 model TourPackage {
   id             String        @id @default(uuid()) @db.Uuid
   organizationId String        @db.Uuid
+  // Business-facing reference, e.g. PKG-00034, from a plain Postgres sequence
+  // (package_reference_seq -- not representable in Prisma's schema DSL, see
+  // src/modules/catalog/repository.ts), same coexists-alongside-the-id
+  // pattern as Booking.bookingReference (DR-027).
+  packageReference String      @unique
   title          String
   description    String
   country        String // ISO-3166 alpha-2; matches TaxRate.country for invoicing
@@ -283,6 +288,8 @@ model TourPackage {
   status         PackageStatus @default(DRAFT)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  // Soft delete (DR-028) -- already existed, scaffolded but unused until now;
+  // reads across this module already filter deletedAt: null.
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -295,21 +302,32 @@ model TourPackage {
 // A scheduled instance of a TourPackage. Capacity lives here (not on the
 // package) because two departures of the same package can run different
 // group/vehicle sizes.
+//
+// DR-028: tourPackageId is now nullable -- a "bespoke" departure (converted
+// from an approved TAILOR_MADE Booking, see bookingService.convertToItinerary)
+// has no TourPackage at all. Its country/price/currency are snapshotted
+// directly onto customCountry/priceOverrideMinor/currency instead (catalog
+// module cannot depend on the booking module -- see catalogService
+// .createBespokeDeparture -- so these carry what a package join would
+// otherwise have supplied). A bespoke departure is never publicly listed and
+// exists solely so the existing Assignment machinery can attach to it.
 model Departure {
   id                 String          @id @default(uuid()) @db.Uuid
   organizationId     String          @db.Uuid
-  tourPackageId      String          @db.Uuid
+  tourPackageId      String?         @db.Uuid
   startDate          DateTime
   endDate            DateTime?
   capacity           Int
-  priceOverrideMinor Int? // null = inherit TourPackage.priceMinor/currency
+  priceOverrideMinor Int? // null = inherit TourPackage.priceMinor/currency; for a bespoke departure, this IS the price (no package to inherit from)
+  currency           Currency? // bespoke departures only -- a package-backed departure inherits TourPackage.currency
+  customCountry      String?         @db.VarChar(2) // bespoke departures only -- ISO-3166 alpha-2, snapshotted from the originating Booking
   status             DepartureStatus @default(SCHEDULED)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   deletedAt          DateTime?
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  tourPackage  TourPackage   @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
+  tourPackage  TourPackage?  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
   bookings     Booking[]
   assignments  Assignment[]
 

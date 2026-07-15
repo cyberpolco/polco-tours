@@ -255,6 +255,19 @@ export const bookingRepository = {
     });
   },
 
+  /** DR-028: attaches the newly-created bespoke Departure (see
+   * bookingService.convertToItinerary) to a TAILOR_MADE booking -- from this
+   * point on the booking behaves like any other departure-having booking for
+   * every downstream purpose (invoicing, visa, assignment). */
+  async attachDeparture(organizationId: string, id: string, departureId: string): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.booking.findUnique({ where: { id } });
+      if (!existing) return null;
+      const b = await tx.booking.update({ where: { id }, data: { departureId } });
+      return toBookingView(b);
+    });
+  },
+
   /** Staff prices a TAILOR_MADE booking -- the only place priceMinor/currency
    * get set outside createHold, since a bespoke trip has no departure-derived
    * price. AWAITING_QUOTATION -> QUOTATION_SENT only (canTransition-enforced). */

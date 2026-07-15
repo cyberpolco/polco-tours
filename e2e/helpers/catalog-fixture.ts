@@ -1,4 +1,5 @@
 import { prisma, withOrg } from '../../src/lib/db';
+import { formatPackageReference } from '@modules/catalog';
 
 /**
  * Seeds a published package + scheduled departure for guest-checkout e2e
@@ -16,6 +17,7 @@ export async function seedPublicDeparture(opts?: { capacity?: number }): Promise
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: `E2E Guest Fixture Safari ${suffix}`,
         description: 'Fixture for guest-checkout e2e tests.',
         country: 'NA',

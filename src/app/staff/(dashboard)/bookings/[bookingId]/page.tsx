@@ -14,6 +14,7 @@ import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STA
 import {
   confirmBookingAction,
   cancelBookingAction,
+  convertToItineraryAction,
   initiatePaymentAction,
   refundBookingAction,
   resolvePaymentAction,
@@ -122,6 +123,18 @@ export default async function BookingDetailPage({ params }: Props) {
             {booking.customCountry} · {booking.customTravelStart?.toLocaleDateString()} –{' '}
             {booking.customTravelEnd?.toLocaleDateString()}
             {booking.customDescription && <> · {booking.customDescription}</>}
+          </p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
+          <form action={convertToItineraryAction.bind(null, booking.id)} className="mt-3">
+            <SubmitButton variant="secondary" pendingLabel="Converting…">
+              Convert to operational itinerary
+            </SubmitButton>
+          </form>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.departureId && (
+          <p className="mt-3 text-sm">
+            <LinkButton href={`/staff/departures/${booking.departureId}`}>Manage itinerary &amp; assign resources</LinkButton>
           </p>
         )}
 

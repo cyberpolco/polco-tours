@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
 import { generateConfirmationCode } from '../src/modules/booking';
@@ -17,6 +18,7 @@ async function seedOrgWithVisaApplication(name: string): Promise<string> {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: 'RLS Visa Fixture Safari',
         description: 'Fixture for visa RLS tests.',
         country: 'NA',

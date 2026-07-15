@@ -2,6 +2,7 @@
 // Real launch records: single operator "Lam" (Namibia + DRC) with SUPERADMIN,
 // and per-country effective-dated tax (DRC 16% / Namibia 15%). DR-005 / DR-006.
 import { PrismaClient, Role, OrgStatus, AddonCode, Currency, PackageTag, PackageStatus } from '@prisma/client';
+import { formatPackageReference } from '@modules/catalog';
 import { withOrg } from '@lib/db';
 
 const prisma = new PrismaClient();
@@ -145,6 +146,7 @@ async function main() {
         pkg = await tx.tourPackage.create({
           data: {
             organizationId: lam.id,
+            packageReference: formatPackageReference(Date.now()),
             title: p.title,
             description: p.description,
             country: p.country,

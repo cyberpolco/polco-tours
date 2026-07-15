@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   effectivePrice,
+  formatPackageReference,
   isBookable,
   isPackageVisible,
   isDepartureVisible,
@@ -12,6 +13,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
   return {
     id: 'pkg-1',
     organizationId: 'org-1',
+    packageReference: 'PKG-00001',
     title: 'Etosha Safari',
     description: 'A safari.',
     country: 'NA',
@@ -35,6 +37,8 @@ function departure(overrides: Partial<DepartureView> = {}): DepartureView {
     endDate: new Date('2026-08-04'),
     capacity: 10,
     priceOverrideMinor: null,
+    currency: null,
+    customCountry: null,
     status: 'SCHEDULED',
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
@@ -142,6 +146,20 @@ describe('catalog domain', () => {
       // site that doesn't match its title ("Etosha Safari" has no "National
       // Park") -- so culture should still rank first here.
       expect(results[0]?.id).toBe('p-culture');
+    });
+  });
+
+  describe('formatPackageReference', () => {
+    it('formats as PKG-{5-digit zero-padded sequence}, no year (DR-028)', () => {
+      expect(formatPackageReference(34)).toBe('PKG-00034');
+    });
+
+    it('does not truncate a sequence longer than 5 digits', () => {
+      expect(formatPackageReference(123456)).toBe('PKG-123456');
+    });
+
+    it('accepts a bigint sequence (Postgres nextval())', () => {
+      expect(formatPackageReference(7n)).toBe('PKG-00007');
     });
   });
 });

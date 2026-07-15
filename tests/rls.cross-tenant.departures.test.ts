@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
 
@@ -21,6 +22,7 @@ async function seedOrgWithDeparture(name: string): Promise<string> {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: `${name} Safari`,
         description: 'Cross-tenant RLS fixture package.',
         country: 'NA',

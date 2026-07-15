@@ -258,6 +258,55 @@ export const bookingService = {
     return updated;
   },
 
+  /** DR-028: the "Super Admin converts it into an operational itinerary"
+   * step for an approved TAILOR_MADE booking -- unlocks once it's priced
+   * (QUOTATION_SENT or later; sending the quotation IS the approval gate,
+   * not payment) since that's when staff have enough to start planning
+   * logistics. Creates a bespoke (package-less) Departure via catalogService
+   * and attaches it, after which the existing Assignment module works
+   * completely unchanged -- see assignmentService.createAssignment. */
+  async convertToItinerary(ctx: AuthContext, bookingId: string): Promise<BookingView> {
+    assertCan(ctx.roles, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    if (booking.origin !== 'TAILOR_MADE') {
+      throw Errors.conflict('Only a tailor-made booking can be converted into an operational itinerary');
+    }
+    if (booking.departureId) {
+      throw Errors.conflict('This booking already has an operational itinerary');
+    }
+    if (booking.priceMinor == null || booking.currency == null) {
+      throw Errors.conflict('Send a quotation before converting this booking into an itinerary');
+    }
+    if (!booking.customCountry || !booking.customTravelStart || !booking.customTravelEnd) {
+      throw Errors.conflict('This booking is missing trip details');
+    }
+
+    const departure = await catalogService.createBespokeDeparture(ctx, {
+      customCountry: booking.customCountry,
+      startDate: booking.customTravelStart,
+      endDate: booking.customTravelEnd,
+      capacity: booking.seats,
+      priceMinor: booking.priceMinor,
+      currency: booking.currency,
+    });
+
+    const updated = await bookingRepository.attachDeparture(organizationId, bookingId, departure.id);
+    if (!updated) throw Errors.notFound('Booking not found');
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.converted_to_itinerary',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { departureId: departure.id },
+    });
+    return updated;
+  },
+
   /** Guest chooses "request a quotation" instead of paying (DR-024) -- the
    * booking already exists (and, for a PREDEFINED_PACKAGE booking, already
    * passed its capacity check when the hold was created), so this is just a

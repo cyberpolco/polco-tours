@@ -49,3 +49,9 @@ export async function refundBookingAction(bookingId: string) {
   await bookingService.refund(ctx, bookingId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
+
+export async function convertToItineraryAction(bookingId: string) {
+  const ctx = await requireStaffContext('booking.confirm');
+  await bookingService.convertToItinerary(ctx, bookingId);
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}

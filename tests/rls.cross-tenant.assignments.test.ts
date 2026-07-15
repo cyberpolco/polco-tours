@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
 
@@ -18,6 +19,7 @@ async function seedOrgWithAssignment(name: string): Promise<string> {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
+        packageReference: formatPackageReference(Date.now()),
         title: 'RLS Fixture Safari',
         description: 'Fixture for assignment RLS tests.',
         country: 'NA',

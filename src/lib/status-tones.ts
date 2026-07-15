@@ -3,6 +3,7 @@ import type {
   DepartureStatus,
   DriverStatus,
   InvoiceStatus,
+  PackageStatus,
   PaymentStatus,
   VehicleStatus,
   VisaStatus,
@@ -42,6 +43,12 @@ export const VEHICLE_STATUS_TONE: Record<VehicleStatus, BadgeTone> = {
 export const DRIVER_STATUS_TONE: Record<DriverStatus, BadgeTone> = {
   ACTIVE: 'success',
   SUSPENDED: 'warning',
+};
+
+export const PACKAGE_STATUS_TONE: Record<PackageStatus, BadgeTone> = {
+  DRAFT: 'neutral',
+  PUBLISHED: 'success',
+  ARCHIVED: 'neutral',
 };
 
 export const DEPARTURE_STATUS_TONE: Record<DepartureStatus, BadgeTone> = {

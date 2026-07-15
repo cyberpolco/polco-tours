@@ -128,6 +128,33 @@ paths:
                   package: { $ref: '#/components/schemas/TourPackage' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Soft-delete a tour package (operator only)
+      description: >-
+        Sets deletedAt (DR-028) -- hides it from every listing, no cascade
+        risk to real Departures/Bookings/Invoices (unlike a real DB DELETE).
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /catalog/packages/{packageId}/duplicate:
+    parameters:
+      - $ref: '#/components/parameters/packageId'
+    post:
+      summary: Duplicate a tour package (operator only)
+      description: Clones the package definition only, as a new DRAFT package with a fresh packageReference -- no departures come along (DR-028).
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  package: { $ref: '#/components/schemas/TourPackage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /catalog/packages/{packageId}/departures:
     parameters:
@@ -454,6 +481,34 @@ paths:
                 properties:
                   booking: { $ref: '#/components/schemas/Booking' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/convert-to-itinerary:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Convert an approved TAILOR_MADE booking into an operational itinerary (operator only)
+      description: >-
+        DR-028. Requires origin TAILOR_MADE, a set price (quotation sent --
+        that IS the approval gate, not payment), and no existing departureId.
+        Creates a bespoke Departure and attaches it, after which the existing
+        Assignment endpoints (POST /departures/{id}/assignments) work
+        completely unchanged.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking: { $ref: '#/components/schemas/Booking' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Not a TAILOR_MADE booking, not yet priced, or already converted
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /bookings/{bookingId}/invoice:
     parameters:
@@ -1339,6 +1394,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
+        packageReference: { type: string, description: 'Business-facing reference, e.g. PKG-00034 (DR-028)' }
         title: { type: string }
         description: { type: string }
         country: { type: string, description: ISO-3166 alpha-2 }
@@ -1373,11 +1429,20 @@ components:
       properties:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
-        tourPackageId: { type: string, format: uuid }
+        tourPackageId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Null only for a bespoke departure converted from a TAILOR_MADE booking (DR-028, no TourPackage).
         startDate: { type: string, format: date-time }
         endDate: { type: string, format: date-time, nullable: true }
         capacity: { type: integer }
-        priceOverrideMinor: { type: integer, nullable: true }
+        priceOverrideMinor:
+          type: integer
+          nullable: true
+          description: For a bespoke departure (no package), this IS the price -- not an override of anything.
+        currency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true, description: Bespoke departures only. }
+        customCountry: { type: string, nullable: true, description: 'Bespoke departures only -- ISO-3166 alpha-2 (DR-028).' }
         status: { type: string, enum: [SCHEDULED, CANCELLED, COMPLETED] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

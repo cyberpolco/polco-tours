@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { formatPackageReference } from '@modules/catalog';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
@@ -28,6 +29,7 @@ async function seedApplication(country: string, passportNumber: string, orgIdArg
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgIdArg,
+        packageReference: formatPackageReference(Date.now()),
         title: `Visa Security Fixture ${country}`,
         description: 'Fixture for visa anti-BOLA tests.',
         country,

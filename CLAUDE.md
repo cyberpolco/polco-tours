@@ -814,6 +814,37 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   found mid-implementation: `prisma/seed.ts`'s `Membership` upsert
   (DR-026) used the raw unscoped client, which now 403s against DR-026's
   own RLS policy -- routed through `withOrg` like every other write there.
+- **Packages module done 2026-07-15 (DR-028):** closes two related gaps
+  against an external spec. **(1) First-ever staff package-management UI**
+  -- `/staff/packages` (list/create) + `/staff/packages/[id]` (edit +
+  archive/delete/duplicate), closing a gap CLAUDE.md had flagged since
+  DR-016 (creation/editing was API-only). New `TourPackage.packageReference`
+  (`PKG-00034`-style, coexists with the `id`, same pattern as
+  `Booking.bookingReference`). New `deletePackage` (soft delete via the
+  already-scaffolded `deletedAt` -- explicit user choice over a real hard
+  DELETE, which would cascade to real Departures/Bookings) and
+  `duplicatePackage` (package definition only, no departures, per explicit
+  user choice). No RBAC change -- `catalog.write` already covers
+  `TOUR_OPERATOR` + admins. **(2) Tailor-made booking -> operational
+  itinerary** -- per explicit user confirmation, the same client-facing
+  concept as DR-027's `TAILOR_MADE` booking, not a new package-level entity;
+  "approved" (per explicit user choice) = the moment staff sends the
+  quotation, not payment. Research confirmed a genuine, unsolved gap:
+  `Assignment` requires a real `Departure`, which required a real
+  `TourPackage` -- a `TAILOR_MADE` booking had neither, so no path to
+  resource assignment existed. Fixed by making `Departure.tourPackageId`
+  nullable too (mirroring `Booking.departureId`'s DR-027 precedent) for a
+  new "bespoke" departure kind, with new `Departure.currency`/
+  `customCountry` snapshotting what a package join would otherwise supply
+  (the catalog module can't depend on the booking module -- new
+  `catalogService.createBespokeDeparture` takes plain params, never a
+  `Booking`). New `bookingService.convertToItinerary` (staff-only, reuses
+  `booking.confirm`) creates the bespoke departure and attaches it via
+  `Booking.departureId` -- from that point on the booking behaves like any
+  other departure-having booking for invoicing, visa, and critically
+  `assignmentService.createAssignment`, all completely unchanged. New
+  routes: `DELETE .../packages/{id}`, `POST .../packages/{id}/duplicate`,
+  `POST /bookings/{id}/convert-to-itinerary`.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   GPS v1, CRM, and reviews.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
@@ -924,7 +955,15 @@ priced afterward via new `sendQuotation`/`acceptQuotation`); new
 `specialRequests`; payment success now drives booking status via new
 `recordPaymentReceived` (invoicing calls it through booking's public
 interface); new staff-only `refund`; deposit split stays 40/60;
-`booking.create` RBAC unchanged per explicit user direction.
+`booking.create` RBAC unchanged per explicit user direction · DR-028
+packages module: first-ever staff package-management UI (`/staff/packages*`)
++ new `packageReference`; `deletePackage` (soft delete) and
+`duplicatePackage` (definition only, no departures); `Departure
+.tourPackageId` made nullable (mirroring DR-027's `Booking.departureId`) for
+a new bespoke-departure kind so an approved `TAILOR_MADE` booking can
+finally get a real operational itinerary via new
+`bookingService.convertToItinerary` -- the existing `Assignment` module
+then works completely unchanged.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 

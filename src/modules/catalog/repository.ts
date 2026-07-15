@@ -1,8 +1,10 @@
 // catalog module — repository. The only place that touches the DB for this module.
 import type { AddonService, Departure, PackageStatus, TourPackage } from '@prisma/client';
-import { withOrg } from '@lib/db';
+import { withOrg, type TenantTx } from '@lib/db';
+import { formatPackageReference } from './domain';
 import type {
   AddonServiceView,
+  CreateBespokeDepartureParams,
   CreateDepartureInput,
   CreatePackageInput,
   DepartureView,
@@ -14,6 +16,7 @@ function toPackageView(p: TourPackage): TourPackageView {
   return {
     id: p.id,
     organizationId: p.organizationId,
+    packageReference: p.packageReference,
     title: p.title,
     description: p.description,
     country: p.country,
@@ -49,16 +52,27 @@ function toDepartureView(d: Departure): DepartureView {
     endDate: d.endDate,
     capacity: d.capacity,
     priceOverrideMinor: d.priceOverrideMinor,
+    currency: d.currency,
+    customCountry: d.customCountry,
     status: d.status,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   };
 }
 
+async function nextPackageReference(tx: TenantTx): Promise<string> {
+  const rows = await tx.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('package_reference_seq') AS nextval`;
+  const row = rows[0];
+  if (!row) throw new Error('package_reference_seq returned no row');
+  return formatPackageReference(row.nextval);
+}
+
 export const catalogRepository = {
   async createPackage(organizationId: string, input: CreatePackageInput): Promise<TourPackageView> {
     return withOrg(organizationId, async (tx) => {
-      const p = await tx.tourPackage.create({ data: { organizationId, ...input } });
+      const p = await tx.tourPackage.create({
+        data: { organizationId, packageReference: await nextPackageReference(tx), ...input },
+      });
       return toPackageView(p);
     });
   },
@@ -72,6 +86,42 @@ export const catalogRepository = {
       const existing = await tx.tourPackage.findUnique({ where: { id } });
       if (!existing || existing.deletedAt) return null;
       const p = await tx.tourPackage.update({ where: { id }, data: input });
+      return toPackageView(p);
+    });
+  },
+
+  /** Soft delete (DR-028) -- sets deletedAt; every read in this module already
+   * filters on deletedAt: null, so this alone hides it everywhere. */
+  async deletePackage(organizationId: string, id: string): Promise<TourPackageView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.tourPackage.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const p = await tx.tourPackage.update({ where: { id }, data: { deletedAt: new Date() } });
+      return toPackageView(p);
+    });
+  },
+
+  /** Clones the package definition only (title/description/country/price/
+   * currency/durationDays/tags) as a new DRAFT package with a fresh
+   * packageReference -- deliberately no departures (DR-028). */
+  async duplicatePackage(organizationId: string, id: string): Promise<TourPackageView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.tourPackage.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const p = await tx.tourPackage.create({
+        data: {
+          organizationId,
+          packageReference: await nextPackageReference(tx),
+          title: existing.title,
+          description: existing.description,
+          country: existing.country,
+          priceMinor: existing.priceMinor,
+          currency: existing.currency,
+          durationDays: existing.durationDays,
+          tags: existing.tags,
+          status: 'DRAFT',
+        },
+      });
       return toPackageView(p);
     });
   },
@@ -101,6 +151,29 @@ export const catalogRepository = {
   ): Promise<DepartureView> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.departure.create({ data: { organizationId, tourPackageId, ...input } });
+      return toDepartureView(d);
+    });
+  },
+
+  /** A bespoke departure has no TourPackage -- converted from an approved
+   * TAILOR_MADE booking (bookingService.convertToItinerary). Capacity is
+   * exactly the booking's seat count (this departure exists for one group,
+   * not public sale); country/price/currency are snapshotted from the
+   * booking since there's no package to join to. */
+  async createBespokeDeparture(organizationId: string, params: CreateBespokeDepartureParams): Promise<DepartureView> {
+    return withOrg(organizationId, async (tx) => {
+      const d = await tx.departure.create({
+        data: {
+          organizationId,
+          tourPackageId: null,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          capacity: params.capacity,
+          priceOverrideMinor: params.priceMinor,
+          currency: params.currency,
+          customCountry: params.customCountry,
+        },
+      });
       return toDepartureView(d);
     });
   },

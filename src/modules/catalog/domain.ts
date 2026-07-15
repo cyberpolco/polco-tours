@@ -6,6 +6,7 @@ import { money, type Money } from '@lib/money';
 export interface TourPackageView {
   id: string;
   organizationId: string;
+  packageReference: string;
   title: string;
   description: string;
   country: string;
@@ -21,11 +22,15 @@ export interface TourPackageView {
 export interface DepartureView {
   id: string;
   organizationId: string;
-  tourPackageId: string;
+  // Null only for a bespoke departure (DR-028) converted from a TAILOR_MADE
+  // booking with no TourPackage -- see catalogService.createBespokeDeparture.
+  tourPackageId: string | null;
   startDate: Date;
   endDate: Date | null;
   capacity: number;
   priceOverrideMinor: number | null;
+  currency: Currency | null;
+  customCountry: string | null;
   status: DepartureStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -56,6 +61,28 @@ export const CreateDepartureInput = z.object({
   priceOverrideMinor: z.number().int().nonnegative().optional(),
 });
 export type CreateDepartureInput = z.infer<typeof CreateDepartureInput>;
+
+/** Business-facing reference, e.g. PKG-00034 -- the numeric part comes from
+ * a plain Postgres sequence (repository.ts); this just formats it. No year
+ * component, unlike Booking.bookingReference (DR-027), per the spec's own
+ * example. */
+export function formatPackageReference(sequence: number | bigint): string {
+  return `PKG-${String(sequence).padStart(5, '0')}`;
+}
+
+/** Params for a bespoke (package-less) departure converted from an approved
+ * TAILOR_MADE booking (DR-028). Plain interface, not a zod input schema --
+ * this is never parsed from a raw HTTP body; the booking module builds it
+ * from its own already-validated fields, and the catalog module deliberately
+ * has no knowledge of Booking (module boundary). */
+export interface CreateBespokeDepartureParams {
+  customCountry: string;
+  startDate: Date;
+  endDate: Date;
+  capacity: number;
+  priceMinor: number;
+  currency: Currency;
+}
 
 /** Departure's own price wins; otherwise inherit the package's. */
 export function effectivePrice(pkg: TourPackageView, dep: DepartureView): Money {

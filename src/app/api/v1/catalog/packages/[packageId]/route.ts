@@ -19,3 +19,10 @@ export const PATCH = withAuth<Params>('catalog.write', async (ctx, req: NextRequ
   const pkg = await catalogService.updatePackage(ctx, packageId, input);
   return NextResponse.json({ package: pkg });
 });
+
+// Soft delete (DR-028) -- sets deletedAt, hides it from every listing. No
+// cascade risk to real Departures/Bookings (unlike a real DB DELETE would be).
+export const DELETE = withAuth<Params>('catalog.write', async (ctx, _req, { packageId }) => {
+  await catalogService.deletePackage(ctx, packageId);
+  return new NextResponse(null, { status: 204 });
+});
