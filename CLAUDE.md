@@ -725,8 +725,40 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `ParentSize` fix itself stays, since it also fixed a real, independent bug
   in `AfricaMap`. Don't re-propose a rotating globe here without the user
   asking again.
+- **Visa resubmission after rejection done 2026-07-14 (DR-025):** closes the
+  DR-019-deferred dead end. Design call: mutate the SAME `VisaApplication`
+  row back to `SUBMITTED` on resubmit rather than a history/versioning
+  table -- `travelerId` is DB-enforced `@unique` (strict 1:1 with
+  `Traveler`), so a history table would mean breaking that 1:1 or bolting on
+  a child table, real complexity for a 3-state enum with one resubmission
+  path; the durable "rejected once, for reason X, on date Y" record already
+  lives forever in the append-only `audit_logs` table via
+  `audit('visa.decided'/'visa.resubmitted', ...)`. Two new additive columns
+  on `visa_applications`: `rejectionReason String? @db.VarChar(500)` (new
+  optional `DecideVisaInput.reason`, persisted only while REJECTED -- without
+  it resubmission would be meaningless, nobody could see what to fix) and
+  `resubmissionCount Int @default(0)` (display-only counter). New
+  `visaService.resubmitApplication`/`domain.canResubmit` (mirrors
+  `canDecide`: true only for `REJECTED`) resets `status`/`decidedAt`/
+  `rejectionReason`, **also nulls `documentId`** (a stale rejected document
+  must stop 200'ing from `GET .../visa/document`), and **bumps
+  `submittedAt`** (`listForCountry`/`listAll` order by `submittedAt desc`, so
+  a resubmitted application needs to resurface for review, not sort as
+  stale). New `POST .../visa/resubmit` route, same `visa.process` permission
+  and anti-BOLA check as `submit`/`decide` -- no RBAC change. New
+  `resubmissionCount` also on `OfficerVisaView` (bare count); `rejectionReason`
+  deliberately kept off it to preserve that view's existing BR-10
+  minimization posture. No `VisaStatus` enum change, no `rls.sql` change.
+  Both new columns applied directly via `db push` to the shared
+  dev/production Neon database with explicit user confirmation
+  (`neondb_owner` used ephemerally, never written to `.env`) -- same
+  precedent as DR-024. Small addition to the existing read-only
+  `TOUR_OPERATOR` "Visa" line on the staff booking-detail page to surface
+  the reason/count; still no dashboard UI for `VISA_FACILITATOR` (same gap
+  DR-019/020/021 already flagged -- submit/decide/resubmit all stay
+  API-only for it).
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
-  GPS v1, CRM, reviews, and visa resubmission after rejection.
+  GPS v1, CRM, and reviews.
 - **Phase 3:** AI assignment engine (operator-validated), analytics.
 - **Phase 4:** native Android/iOS, more countries.
 
@@ -810,7 +842,13 @@ manager-side departure-detail page. The two new fleet methods deliberately
 skip the ownership check `getVehicle`/`getDriverProfile` enforce (a `DRIVER`
 viewing their assigned-but-not-owned vehicle would otherwise 404), mirroring
 `authService.getUser`'s "caller already gates" convention -- safe since IDs
-only ever come from the caller's own assignments.
+only ever come from the caller's own assignments · DR-025 visa resubmission
+after rejection: closes the DR-019-deferred dead end by mutating the SAME
+`VisaApplication` row `REJECTED -> SUBMITTED` (not a history table --
+`travelerId` is DB-unique, and `audit_logs` is already the durable history)
+via new `resubmitApplication`/`canResubmit`, new `rejectionReason`/
+`resubmissionCount` columns, and a new `POST .../visa/resubmit` route
+reusing the existing `visa.process` permission.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
 

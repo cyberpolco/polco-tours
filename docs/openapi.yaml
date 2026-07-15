@@ -3,11 +3,19 @@ info:
   title: POLCO TOURS API
   version: 0.8.0
   description: >
+    DR-025 adds resubmission: a REJECTED VisaApplication can be reset back
+    to SUBMITTED via /bookings/{bookingId}/travelers/{travelerId}
+    /visa/resubmit (visa.process, same anti-BOLA check as submit/decide).
+    DecideVisaInput gains an optional reason, persisted as
+    VisaApplicationView.rejectionReason only while REJECTED (cleared on
+    resubmit or a later APPROVED decision); resubmissionCount is a
+    display-only counter also exposed on the officer's minimized
+    OfficerVisaView.
     DR-019 adds Phase 2 Increment 3 (visa documents): a per-traveler
-    VisaApplication workflow (SUBMITTED -> APPROVED/REJECTED, no
-    resubmission after a decision) under
+    VisaApplication workflow (SUBMITTED -> APPROVED/REJECTED, resubmittable
+    per DR-025) under
     /bookings/{bookingId}/travelers/{travelerId}/visa(/submit|/decide
-    |/document), reusing documentsService.uploadDocument (kind: VISA).
+    |/resubmit|/document), reusing documentsService.uploadDocument (kind: VISA).
     /immigration/visa-applications is a country-scoped list for
     IMMIGRATION_OFFICER (BR-10) -- forced to their own assignedCountry,
     set via the new admin-only PATCH /users/{userId}/assign-country.
@@ -506,8 +514,9 @@ paths:
       summary: Submit a visa application for a traveler (VISA_FACILITATOR, DR-019)
       description: >-
         Snapshots the traveler's identity and the departure's destination
-        country onto the application -- one per traveler, no resubmission
-        after a decision this increment.
+        country onto the application -- one per traveler; once decided, a
+        REJECTED application can be reset back to SUBMITTED via
+        /visa/resubmit (DR-025), an APPROVED one cannot.
       responses:
         '201':
           description: Created
@@ -553,6 +562,35 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/resubmit:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Resubmit a REJECTED visa application (VISA_FACILITATOR, DR-025)
+      description: >-
+        Resets the same application back to SUBMITTED (status, decidedAt,
+        rejectionReason, documentId all cleared; submittedAt bumped so it
+        resurfaces for review; resubmissionCount incremented). The prior
+        rejection is preserved permanently in the audit log
+        (visa.resubmitted), not on the row itself.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The application is not REJECTED
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /bookings/{bookingId}/travelers/{travelerId}/visa/document:
     parameters:
@@ -1479,6 +1517,8 @@ components:
         travelerId: { type: string, format: uuid }
         country: { type: string, description: 'ISO-3166 alpha-2, destination -- snapshotted at submit time' }
         status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
+        rejectionReason: { type: string, nullable: true, description: 'Set only while REJECTED; cleared on resubmit or a later APPROVED decision (DR-025)' }
+        resubmissionCount: { type: integer, description: 'Display-only counter, bumped by /visa/resubmit (DR-025)' }
         documentId: { type: string, format: uuid, nullable: true, description: The granted visa document }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: string, format: date-time, nullable: true }
@@ -1490,12 +1530,15 @@ components:
       required: [outcome]
       properties:
         outcome: { type: string, enum: [APPROVED, REJECTED] }
+        reason: { type: string, maxLength: 500, description: 'Only persisted when outcome is REJECTED (DR-025)' }
 
     OfficerVisaView:
       type: object
       description: >-
         Minimal projection for IMMIGRATION_OFFICER (BR-10 data minimization)
-        -- deliberately excludes disabilities/allergies/phone/drinkPreference.
+        -- deliberately excludes disabilities/allergies/phone/drinkPreference,
+        and (DR-025) rejectionReason; resubmissionCount is included as a bare
+        count, enough signal that "this bounced before".
       properties:
         id: { type: string, format: uuid }
         travelerFirstName: { type: string }
@@ -1504,6 +1547,7 @@ components:
         travelerIdOrPassportNumber: { type: string }
         country: { type: string }
         status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
+        resubmissionCount: { type: integer }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: string, format: date-time, nullable: true }
         hasDocument: { type: boolean }

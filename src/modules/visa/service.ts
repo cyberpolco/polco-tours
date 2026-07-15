@@ -7,7 +7,7 @@ import { documentsService, type DocumentSummary, type DocumentStream } from '@mo
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import { canDecide, type DecideVisaInput, type OfficerVisaView, type VisaApplicationView } from './domain';
+import { canDecide, canResubmit, type DecideVisaInput, type OfficerVisaView, type VisaApplicationView } from './domain';
 import { visaRepository } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
@@ -77,7 +77,7 @@ export const visaService = {
     if (!existing) throw Errors.notFound('Visa application not found');
     if (!canDecide(existing.status)) throw Errors.conflict(`Cannot decide a ${existing.status} application`);
 
-    const decided = await visaRepository.decide(organizationId, existing.id, input.outcome, new Date());
+    const decided = await visaRepository.decide(organizationId, existing.id, input.outcome, new Date(), input.reason);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.role,
@@ -85,8 +85,35 @@ export const visaService = {
       resourceType: 'VisaApplication',
       resourceId: decided.id,
       organizationId,
+      metadata: { outcome: input.outcome, reason: input.reason ?? null },
     });
     return decided;
+  },
+
+  /** DR-025: closes the DR-019-deferred dead end. Same anti-BOLA/permission
+   * shape as submitApplication/decideApplication. */
+  async resubmitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
+    assertCan(ctx.role, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!existing) throw Errors.notFound('Visa application not found');
+    if (!canResubmit(existing.status)) throw Errors.conflict(`Cannot resubmit a ${existing.status} application`);
+
+    const resubmitted = await visaRepository.resubmit(organizationId, existing.id);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.role,
+      action: 'visa.resubmitted',
+      resourceType: 'VisaApplication',
+      resourceId: resubmitted.id,
+      organizationId,
+      // The previous rejection reason is captured here, in the append-only
+      // audit trail, since repository.resubmit nulls it on the live row.
+      metadata: { previousRejectionReason: existing.rejectionReason, resubmissionCount: resubmitted.resubmissionCount },
+    });
+    return resubmitted;
   },
 
   async uploadDocument(

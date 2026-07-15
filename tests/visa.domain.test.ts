@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canDecide, DecideVisaInput } from '../src/modules/visa/domain';
+import { canDecide, canResubmit, DecideVisaInput } from '../src/modules/visa/domain';
 
 describe('visa domain', () => {
   describe('canDecide', () => {
@@ -11,8 +11,22 @@ describe('visa domain', () => {
       expect(canDecide('APPROVED')).toBe(false);
     });
 
-    it('is false for REJECTED (already decided, no resubmission this increment)', () => {
+    it('is false for REJECTED (must resubmit first, not decide directly)', () => {
       expect(canDecide('REJECTED')).toBe(false);
+    });
+  });
+
+  describe('canResubmit', () => {
+    it('is true for REJECTED', () => {
+      expect(canResubmit('REJECTED')).toBe(true);
+    });
+
+    it('is false for SUBMITTED', () => {
+      expect(canResubmit('SUBMITTED')).toBe(false);
+    });
+
+    it('is false for APPROVED', () => {
+      expect(canResubmit('APPROVED')).toBe(false);
     });
   });
 
@@ -23,6 +37,20 @@ describe('visa domain', () => {
 
     it('accepts REJECTED', () => {
       expect(DecideVisaInput.safeParse({ outcome: 'REJECTED' }).success).toBe(true);
+    });
+
+    it('accepts REJECTED with a reason', () => {
+      expect(DecideVisaInput.safeParse({ outcome: 'REJECTED', reason: 'passport photo unreadable' }).success).toBe(true);
+    });
+
+    it('accepts an omitted reason', () => {
+      const parsed = DecideVisaInput.safeParse({ outcome: 'APPROVED' });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.reason).toBeUndefined();
+    });
+
+    it('rejects a reason over 500 characters', () => {
+      expect(DecideVisaInput.safeParse({ outcome: 'REJECTED', reason: 'x'.repeat(501) }).success).toBe(false);
     });
 
     it('rejects SUBMITTED (not a valid decision outcome)', () => {

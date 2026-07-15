@@ -407,11 +407,12 @@ enum VisaStatus {
   REJECTED
 }
 
-// A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED (no
-// resubmission after REJECTED this increment). Traveler identity fields are
-// snapshotted here (not joined live) so IMMIGRATION_OFFICER's country-scoped
-// list never needs booking.read -- that role's whole footprint stays
-// `immigration.read` only (BR-10 "strictly read-only, single-permission").
+// A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED, with a
+// REJECTED application resubmittable back to SUBMITTED (DR-025). Traveler
+// identity fields are snapshotted here (not joined live) so
+// IMMIGRATION_OFFICER's country-scoped list never needs booking.read --
+// that role's whole footprint stays `immigration.read` only (BR-10 "strictly
+// read-only, single-permission").
 model VisaApplication {
   id                         String     @id @default(uuid()) @db.Uuid
   organizationId             String     @db.Uuid
@@ -422,6 +423,8 @@ model VisaApplication {
   travelerNationality        String
   travelerIdOrPassportNumber String
   status                     VisaStatus @default(SUBMITTED)
+  rejectionReason            String?    @db.VarChar(500) // set when status becomes REJECTED; cleared on resubmit and on a later APPROVED decision -- durable history of a past rejection lives in audit_logs, not here (DR-025)
+  resubmissionCount          Int        @default(0) // display-only counter, bumped by repository.resubmit -- not itself a business rule
   documentId                 String?    @unique @db.Uuid // the granted visa doc
   submittedAt                DateTime   @default(now())
   decidedAt                  DateTime?

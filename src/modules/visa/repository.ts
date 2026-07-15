@@ -19,6 +19,8 @@ function toView(a: VisaApplication): VisaApplicationView {
     travelerId: a.travelerId,
     country: a.country,
     status: a.status,
+    rejectionReason: a.rejectionReason,
+    resubmissionCount: a.resubmissionCount,
     documentId: a.documentId,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
@@ -36,6 +38,7 @@ function toOfficerView(a: VisaApplication): OfficerVisaView {
     travelerIdOrPassportNumber: a.travelerIdOrPassportNumber,
     country: a.country,
     status: a.status,
+    resubmissionCount: a.resubmissionCount,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
     hasDocument: a.documentId !== null,
@@ -57,9 +60,40 @@ export const visaRepository = {
     });
   },
 
-  async decide(organizationId: string, id: string, outcome: VisaStatus, decidedAt: Date): Promise<VisaApplicationView> {
+  async decide(
+    organizationId: string,
+    id: string,
+    outcome: VisaStatus,
+    decidedAt: Date,
+    reason?: string,
+  ): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
-      const a = await tx.visaApplication.update({ where: { id }, data: { status: outcome, decidedAt } });
+      const a = await tx.visaApplication.update({
+        where: { id },
+        data: { status: outcome, decidedAt, rejectionReason: outcome === 'REJECTED' ? (reason ?? null) : null },
+      });
+      return toView(a);
+    });
+  },
+
+  /** DR-025: resets the SAME row REJECTED -> SUBMITTED. Nulls documentId so
+   * a stale rejected document stops 200'ing from streamDocument; nulls
+   * rejectionReason/decidedAt to reflect a fresh, undecided cycle; bumps
+   * submittedAt so the officer/facilitator queues (ordered by submittedAt
+   * desc) actually resurface it for review. */
+  async resubmit(organizationId: string, id: string): Promise<VisaApplicationView> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.visaApplication.update({
+        where: { id },
+        data: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          decidedAt: null,
+          documentId: null,
+          rejectionReason: null,
+          resubmissionCount: { increment: 1 },
+        },
+      });
       return toView(a);
     });
   },

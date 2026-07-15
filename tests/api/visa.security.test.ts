@@ -5,6 +5,7 @@ import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { generateConfirmationCode } from '../../src/modules/booking';
 import { GET as listForCountry } from '../../src/app/api/v1/immigration/visa-applications/route';
+import { POST as resubmitApplication } from '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/visa/resubmit/route';
 
 /**
  * BR-10 country-scoping is the actual security boundary this increment adds
@@ -19,6 +20,8 @@ let officerNAId: string;
 let officerCDId: string;
 let naPassportNumber: string;
 let cdPassportNumber: string;
+let naBookingId: string;
+let naTravelerId: string;
 
 async function seedApplication(country: string, passportNumber: string, orgIdArg: string, touristId: string) {
   return withOrg(orgIdArg, async (tx) => {
@@ -71,6 +74,7 @@ async function seedApplication(country: string, passportNumber: string, orgIdArg
         travelerIdOrPassportNumber: passportNumber,
       },
     });
+    return { bookingId: booking.id, travelerId: traveler.id };
   });
 }
 
@@ -94,7 +98,9 @@ beforeAll(async () => {
 
   naPassportNumber = `NA-PASS-${Date.now()}`;
   cdPassportNumber = `CD-PASS-${Date.now()}`;
-  await seedApplication('NA', naPassportNumber, orgId, tourist.id);
+  const na = await seedApplication('NA', naPassportNumber, orgId, tourist.id);
+  naBookingId = na.bookingId;
+  naTravelerId = na.travelerId;
   await seedApplication('CD', cdPassportNumber, orgId, tourist.id);
 });
 
@@ -142,5 +148,15 @@ describe('anti-BOLA: BR-10 country-scoping for IMMIGRATION_OFFICER', () => {
     const numbers = body.applications.map((a: { travelerIdOrPassportNumber: string }) => a.travelerIdOrPassportNumber);
     expect(numbers).not.toContain(cdPassportNumber);
     expect(numbers).toContain(naPassportNumber);
+  });
+
+  it('an IMMIGRATION_OFFICER (immigration.read only, never visa.process) cannot resubmit (403)', async () => {
+    const headers = await loginAs(officerNAId);
+    const req = new NextRequest(
+      `http://localhost/api/v1/bookings/${naBookingId}/travelers/${naTravelerId}/visa/resubmit`,
+      { method: 'POST', headers },
+    );
+    const res = await resubmitApplication(req, { params: Promise.resolve({ bookingId: naBookingId, travelerId: naTravelerId }) });
+    expect(res.status).toBe(403);
   });
 });

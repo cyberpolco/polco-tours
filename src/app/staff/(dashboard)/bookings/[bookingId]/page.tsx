@@ -82,9 +82,14 @@ export default async function BookingDetailPage({ params }: Props) {
     travelers.map(async (t) => {
       try {
         const application = await visaService.getApplication(ctx, bookingId, t.id);
-        return { traveler: t, status: application.status as string };
+        return {
+          traveler: t,
+          status: application.status as string,
+          rejectionReason: application.rejectionReason,
+          resubmissionCount: application.resubmissionCount,
+        };
       } catch {
-        return { traveler: t, status: 'Not started' };
+        return { traveler: t, status: 'Not started', rejectionReason: null, resubmissionCount: 0 };
       }
     }),
   );
@@ -203,9 +208,15 @@ export default async function BookingDetailPage({ params }: Props) {
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">Visa</p>
         <ul className="mt-2 space-y-1 text-sm">
-          {visaStatuses.map(({ traveler, status }) => (
-            <li key={traveler.id} className="flex items-center gap-2">
-              {traveler.firstName} {traveler.lastName}: <Badge tone={visaTone(status)}>{status}</Badge>
+          {visaStatuses.map(({ traveler, status, rejectionReason, resubmissionCount }) => (
+            <li key={traveler.id} className="flex flex-col gap-0.5">
+              <span className="flex items-center gap-2">
+                {traveler.firstName} {traveler.lastName}: <Badge tone={visaTone(status)}>{status}</Badge>
+                {resubmissionCount > 0 && <span className="text-xs text-mist">(resubmitted {resubmissionCount}x)</span>}
+              </span>
+              {status === 'REJECTED' && rejectionReason && (
+                <span className="text-xs text-mist">Reason: {rejectionReason}</span>
+              )}
             </li>
           ))}
         </ul>
