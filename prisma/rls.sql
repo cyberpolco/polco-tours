@@ -203,3 +203,15 @@ DROP POLICY IF EXISTS tenant_isolation ON starlink_kits;
 CREATE POLICY tenant_isolation ON starlink_kits
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------- guide_profiles (DR-030)
+ALTER TABLE guide_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guide_profiles FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON guide_profiles;
+CREATE POLICY tenant_isolation ON guide_profiles
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Same anti-BOLA caveat as driver_profiles: isolates by org only, not by
+-- TOUR_GUIDE self-ownership -- enforced in fleet/service.ts, covered by
+-- tests/api/guides.security.test.ts.

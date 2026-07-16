@@ -37,6 +37,9 @@ const DOCUMENT_KIND_RULES: Record<string, DocumentKindRule> = {
   // A granted visa is often just a stamped page photographed, not always a
   // scanned PDF -- same allowance as the fleet compliance kinds (DR-019).
   VISA: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
+  // Guide certifications (first-aid, wilderness guiding, etc.) -- same
+  // allowance as the other compliance kinds (DR-030).
+  GUIDE_CERTIFICATION: { allowedContentTypes: COMPLIANCE_CONTENT_TYPES, maxSizeBytes: MAX_COMPLIANCE_DOC_SIZE_BYTES },
 };
 
 export function isValidDocumentUpload(kind: string, contentType: string, sizeBytes: number): boolean {

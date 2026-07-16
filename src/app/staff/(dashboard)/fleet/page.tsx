@@ -5,16 +5,18 @@ import { fleetService } from '@modules/fleet';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { DRIVER_STATUS_TONE, STARLINK_STATUS_TONE, VEHICLE_STATUS_TONE } from '@lib/status-tones';
+import { DRIVER_STATUS_TONE, GUIDE_STATUS_TONE, STARLINK_STATUS_TONE, VEHICLE_STATUS_TONE } from '@lib/status-tones';
 
 export default async function FleetPage() {
   const ctx = await requireStaffContext('fleet.read');
-  const [vehicles, drivers, starlinkKits] = await Promise.all([
+  const [vehicles, drivers, guides, starlinkKits] = await Promise.all([
     fleetService.listVehicles(ctx),
     fleetService.listDriverProfiles(ctx),
+    fleetService.listGuideProfiles(ctx),
     fleetService.listStarlinkKits(ctx),
   ]);
   const driverUsers = await Promise.all(drivers.map((d) => authService.getUser(d.userId)));
+  const guideUsers = await Promise.all(guides.map((g) => authService.getUser(g.userId)));
   const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
 
   return (
@@ -91,6 +93,47 @@ export default async function FleetPage() {
                   </Td>
                   <Td>
                     <Link href={`/staff/fleet/drivers/${d.id}`} className="text-forest hover:underline">
+                      View
+                    </Link>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-navy">Guides</h1>
+          <LinkButton href="/staff/fleet/guides/new">Add guide</LinkButton>
+        </div>
+        {guides.length === 0 ? (
+          <p className="mt-4 text-mist">No guide profiles yet.</p>
+        ) : (
+          <Table className="mt-4">
+            <thead>
+              <TableHeaderRow>
+                <Th>Name</Th>
+                <Th>Email</Th>
+                <Th>Languages</Th>
+                <Th>Specialties</Th>
+                <Th>Status</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {guides.map((g, i) => (
+                <Tr key={g.id}>
+                  <Td>{guideUsers[i]?.name ?? '—'}</Td>
+                  <Td>{guideUsers[i]?.email ?? '—'}</Td>
+                  <Td>{g.languages.join(', ') || '—'}</Td>
+                  <Td>{g.specialties.join(', ') || '—'}</Td>
+                  <Td>
+                    <Badge tone={GUIDE_STATUS_TONE[g.status]}>{g.status}</Badge>
+                  </Td>
+                  <Td>
+                    <Link href={`/staff/fleet/guides/${g.id}`} className="text-forest hover:underline">
                       View
                     </Link>
                   </Td>

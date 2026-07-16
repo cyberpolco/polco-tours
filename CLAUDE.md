@@ -125,6 +125,9 @@ src/
     api/v1/fleet/vehicles(/[vehicleId](/documents(/[documentId]))),
       api/v1/fleet/drivers(/[driverProfileId](/documents(/[documentId])))
                                            # fleet + compliance (DR-017)
+    api/v1/fleet/guides(/[guideProfileId](/documents(/[documentId])))
+                                           # Guides Module (DR-030), folded
+                                           #   into fleet -- mirrors drivers
     api/v1/departures/[departureId]/assignments, api/v1/assignments/
       [assignmentId], api/v1/assignments/mine
                                            # assignments (DR-018)
@@ -139,8 +142,9 @@ src/
       baseline gate is "any staff role" (isStaffRole), not one hardcoded
       permission, since DR-020 -- StaffNav filters links per-role
       bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
-      fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]))
-        = fleet + compliance (DR-017)
+      fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]),
+        /guides(/new|/[guideProfileId]))
+        = fleet + compliance (DR-017); guides folded in (DR-030)
       departures(/[departureId]) = browse + manage assignments (DR-018;
         first staff departures UI -- packages/departures were API-only before)
       immigration = IMMIGRATION_OFFICER's own country-scoped visa queue,
@@ -148,7 +152,9 @@ src/
       admin/officers = admin-only: assign/reassign an officer's country
         (DR-020; account creation itself stays CLI-only)
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
-        read-only (DR-021; closes the gap DR-018/019/020 each deferred)
+        read-only (DR-021; closes the gap DR-018/019/020 each deferred);
+        TOUR_GUIDE viewers additionally get a data-minimized client-list/
+        daily-itinerary/emergency-contacts section (DR-030)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -166,22 +172,30 @@ src/
     catalog/           # TourPackage (+tags/PackageTag, DR-016) + Departure +
                        #   AddonService (DR-011, DR-015); public/quiz methods
                        #   need no ctx (DR-016)
-    booking/           # Booking, incl. holds (status=HELD + holdExpiresAt) +
-                       #   confirmationCode (DR-016); Traveler + BookingAddon
-                       #   folded in (DR-011, DR-015)
+    booking/           # Booking (11-value lifecycle, DRAFT->..., DR-027) +
+                       #   confirmationCode/bookingReference (DR-016/027);
+                       #   Traveler (+ emergency contact fields, DR-030) +
+                       #   BookingAddon folded in (DR-011, DR-015);
+                       #   listTravelersForDeparture = data-minimized guide
+                       #   client-list, internal only, no REST route (DR-030)
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
     notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
     documents/         # Document metadata + Vercel Blob gateway, access:
                        #   'private' (DR-015; first real DR-010 usage);
                        #   generalized uploadDocument (kind-based validation
-                       #   table + expiresAt/vehicleId/driverProfileId) DR-017
-    fleet/             # Vehicle + DriverProfile (compliance docs via
-                       #   documents module), complianceStatus rule (DR-017);
-                       #   linked to Departure via Assignment (DR-018)
+                       #   table + expiresAt/vehicleId/driverProfileId/
+                       #   guideProfileId, DR-017/030)
+    fleet/             # Vehicle + DriverProfile + GuideProfile (compliance
+                       #   docs via documents module), complianceStatus rule
+                       #   (DR-017); linked to Departure via Assignment
+                       #   (DR-018); GuideProfile folded in (DR-030) rather
+                       #   than a standalone guides module -- reuses this
+                       #   module's anti-BOLA/compliance-document plumbing
     assignment/        # Assignment (Departure -> vehicle/driver/guide),
-                       #   departuresOverlap double-booking rule (DR-018);
-                       #   no self-service portal yet for guide/driver/
-                       #   vehicle-owner roles (staff-managed only)
+                       #   departuresOverlap double-booking rule (DR-018),
+                       #   now also enforced for guideUserId + a GuideProfile
+                       #   ACTIVE-status gate when one exists (DR-030);
+                       #   self-service portal (schedule page) since DR-021
     visa/              # VisaApplication (per Traveler, SUBMITTED ->
                        #   APPROVED/REJECTED), canDecide rule, OfficerVisaView
                        #   (data-minimized, country-scoped) (DR-019); traveler
@@ -864,9 +878,51 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   section; the departure-detail assignment form pre-selects/reorders by
   recommendation but never narrows the pickable list, so a manual override
   always stays fully available.
+- **Guides Module done 2026-07-15 (DR-030):** closes the "TOUR_GUIDE isn't a
+  fleet concept" gap DR-017 explicitly parked. New `GuideProfile` (1:1 with a
+  `TOUR_GUIDE`-role `User`, mirrors `DriverProfile`: `languages`,
+  `specialties` (freeform), `status`) -- folded into the existing `fleet`
+  module per explicit user choice, not a new standalone module.
+  `Assignment.guideUserId` still points at `User` unchanged; `GuideProfile`
+  is a satellite skills/compliance profile looked up by `userId`. New
+  `Document.guideProfileId` FK + `GUIDE_CERTIFICATION` kind (expiry-tracked,
+  same as `DRIVER_LICENSE`). New `Traveler.emergencyContactName`/
+  `emergencyContactPhone`/`emergencyContactRelation` (genuinely new field).
+  Rating deliberately deferred (no reviews system, same DR-029 precedent,
+  applied again on explicit user confirmation); availability computed from
+  the existing `departuresOverlap` data, no new field. `TOUR_GUIDE` gains
+  `fleet.read` (self-view only, previously deliberately absent per DR-021).
+  Closed a real pre-existing asymmetry while it was fresh:
+  `assignmentService.createAssignment`'s `guideUserId` branch had no
+  ACTIVE-status gate and no double-booking/overlap check at all (unlike
+  vehicle/driver) -- now a `GuideProfile` that exists and is `SUSPENDED`
+  blocks the assignment, and the same date-overlap check vehicles/drivers
+  get now applies to guides too (a guide with no profile at all is still
+  assignable -- profiles are new and shouldn't retroactively block anyone).
+  Guide dashboard extends the existing `/staff/schedule` self-service page
+  (DR-021) rather than a new route: a `TOUR_GUIDE`-only section shows daily
+  itinerary (the existing assignment list, chronological, no new
+  day-by-day-activity entity), pickup points (reuses `Departure
+  .pickupLatitude`/`pickupLongitude`, DR-029, previously staff-only), and a
+  client list. **The client list surfaced a real security finding**:
+  `bookingService.list`'s `isStaff()` check treats `TOUR_GUIDE` identically
+  to `TOUR_OPERATOR` and would leak the *entire org's* booking manifest if a
+  guide-facing UI called it directly -- so the new
+  `bookingService.listTravelersForDeparture` (+ data-minimized
+  `TravelerDutyView`, excluding `idOrPassportNumber`/`passportDocumentId`) is
+  deliberately NOT exposed as a public `/api/v1` route, unlike nearly every
+  other capability this session -- it follows the "caller already gates"
+  convention (`fleetService.listVehiclesByIds`, DR-021), safe only because
+  its one caller (the schedule page) only ever passes a `departureId` drawn
+  from the caller's own `listMyAssignments` result. Per explicit user choice,
+  shows full duty-relevant detail (disabilities/allergies/drink preference/
+  emergency contact), not a stripped subset -- still strictly scoped to the
+  guide's own assigned departures. New `/staff/fleet/guides*` pages +
+  `/api/v1/fleet/guides*` routes, mirroring the driver equivalents.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
-  unlock a real driver-rating field, deliberately skipped in DR-029).
+  unlock real driver/guide-rating fields, deliberately skipped in
+  DR-029/030).
 - **Phase 3:** a first rules-based assignment recommendation shipped early
   (DR-029, explicit user choice) -- real ML/AI-driven assignment and
   analytics remain open.
@@ -995,7 +1051,21 @@ scorer (capacity fit + maintenance recency + haversine distance-from-pickup
 via new `src/lib/geo.ts`, no new external dependency), explicitly not real
 AI, built ahead of the Phase 3 roadmap line per explicit user choice; the
 staff assignment form pre-selects/reorders by it but never narrows the
-pickable list.
+pickable list · DR-030 Guides Module: closes DR-017's parked "TOUR_GUIDE
+isn't a fleet concept" gap. New `GuideProfile` (languages/specialties/status,
+mirrors `DriverProfile`) folded into the `fleet` module per explicit user
+choice, not a new module; new `GUIDE_CERTIFICATION` document kind + new
+`Traveler` emergency-contact fields. Rating deferred and availability
+computed from existing data, same DR-029 precedent, confirmed again. Closed a
+pre-existing gap: `createAssignment`'s `guideUserId` branch gained an
+ACTIVE-status gate (when a profile exists) and the same overlap/double-
+booking check vehicles/drivers already had. `TOUR_GUIDE` gains `fleet.read`
+(self-view only). Guide dashboard extends `/staff/schedule` (DR-021) with a
+data-minimized client list/daily itinerary/pickup points/emergency contacts
+section -- new `bookingService.listTravelersForDeparture` is deliberately
+NOT a public route (would otherwise leak the org's full booking manifest
+through `bookingService.list`'s `TOUR_GUIDE`-treated-as-staff gap), following
+the same "caller already gates" convention as `listVehiclesByIds`.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
@@ -1403,3 +1473,15 @@ human rather than fabricating volume content.
   future increment starts using another long-scaffolded-but-unused table,
   check `prisma/rls.sql` for its policy before assuming one already exists
   just because the table itself is old.
+- **`bookingService.list`'s `isStaff()` check treats every non-TOURIST role
+  identically** -- `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER` get the exact same
+  full-org booking manifest (`bookingRepository.listForOrg`) a `TOUR_OPERATOR`
+  does, since `isStaff` only distinguishes TOURIST from everyone else (unlike
+  `assignment.read`, which IS properly scoped per-role in
+  `listMyAssignments`). Found building the Guides Module's "client list"
+  (DR-030) -- don't wire any future guide/driver/vehicle-owner-facing UI
+  straight to `bookingService.list`/`getById` expecting it to be
+  self-scoped; it isn't. Use a narrowly-scoped method instead (see
+  `bookingService.listTravelersForDeparture`'s "caller already gates"
+  convention) and never expose that kind of method as a public `/api/v1`
+  route unless it re-verifies the caller's ownership of the id itself.

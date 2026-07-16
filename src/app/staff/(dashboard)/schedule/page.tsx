@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
+import { bookingService, type TravelerDutyGroup } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService, type DriverProfileView, type VehicleView } from '@modules/fleet';
 import { Badge } from '@/components/ui/Badge';
@@ -62,8 +63,25 @@ export default async function MySchedulePage() {
     .filter((r) => r.detail !== undefined)
     .sort((a, b) => a.detail!.departure.startDate.getTime() - b.detail!.departure.startDate.getTime());
 
+  // Guides Module (DR-030): a guide's "client list" -- travelers on their own
+  // assigned departures only (departureIds come from this caller's own
+  // listMyAssignments result above, never an arbitrary id -- see
+  // bookingService.listTravelersForDeparture's own "caller already gates"
+  // convention comment). Scoped to TOUR_GUIDE specifically, since that's the
+  // role the spec's "client list"/"daily itinerary"/"emergency contacts"
+  // dashboard describes; DRIVER/VEHICLE_OWNER keep the plain table above.
+  const isGuide = ctx.roles.includes('TOUR_GUIDE');
+  const clientGroupsByDeparture = new Map<string, TravelerDutyGroup[]>();
+  if (isGuide) {
+    const uniqueDepartureIds = [...new Set(rows.map((r) => r.detail!.departure.id))];
+    const groups = await Promise.all(
+      uniqueDepartureIds.map((id) => bookingService.listTravelersForDeparture(ctx, id)),
+    );
+    uniqueDepartureIds.forEach((id, i) => clientGroupsByDeparture.set(id, groups[i] ?? []));
+  }
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <PageHeader eyebrow="My schedule" title="Assignments" />
 
       {rows.length === 0 ? (
@@ -76,6 +94,7 @@ export default async function MySchedulePage() {
               <Th>Vehicle</Th>
               <Th>Driver</Th>
               <Th>Guide</Th>
+              <Th>Pickup point</Th>
             </TableHeaderRow>
           </thead>
           <tbody>
@@ -88,10 +107,79 @@ export default async function MySchedulePage() {
                 <Td>{vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : 'Unknown vehicle'}</Td>
                 <Td>{driverProfile ? `License ${driverProfile.licenseNumber}` : 'Unknown driver'}</Td>
                 <Td>{guide ? (guide.name ?? guide.email) : '—'}</Td>
+                <Td>
+                  {detail!.departure.pickupLatitude != null && detail!.departure.pickupLongitude != null
+                    ? `${detail!.departure.pickupLatitude.toFixed(4)}, ${detail!.departure.pickupLongitude.toFixed(4)}`
+                    : 'Not set'}
+                </Td>
               </Tr>
             ))}
           </tbody>
         </Table>
+      )}
+
+      {isGuide && rows.length > 0 && (
+        <div className="space-y-8">
+          <div className="survey-rule" />
+          <PageHeader eyebrow="Guide dashboard" title="Daily itinerary & clients" />
+          {rows.map(({ assignment, detail }) => {
+            const groups = clientGroupsByDeparture.get(detail!.departure.id) ?? [];
+            return (
+              <div key={assignment.id} className="space-y-4">
+                <h2 className="text-lg font-semibold text-navy">
+                  {detail!.departure.startDate.toLocaleDateString()} · {detail!.packageCountry}
+                  {detail!.departure.pickupLatitude != null && detail!.departure.pickupLongitude != null && (
+                    <span className="ml-2 text-sm font-normal text-mist">
+                      Pickup: {detail!.departure.pickupLatitude.toFixed(4)}, {detail!.departure.pickupLongitude.toFixed(4)}
+                    </span>
+                  )}
+                </h2>
+                {groups.length === 0 ? (
+                  <p className="text-sm text-mist">No paid bookings on this departure yet.</p>
+                ) : (
+                  groups.map((group) => (
+                    <div key={group.booking.id} className="rounded-survey border border-rule p-4">
+                      <p className="text-sm font-medium text-navy">
+                        {group.booking.bookingReference}
+                        {group.booking.specialRequests && (
+                          <span className="ml-2 font-normal text-mist">— {group.booking.specialRequests}</span>
+                        )}
+                      </p>
+                      <Table className="mt-3">
+                        <thead>
+                          <TableHeaderRow>
+                            <Th>Name</Th>
+                            <Th>Nationality</Th>
+                            <Th>Notes</Th>
+                            <Th>Emergency contact</Th>
+                          </TableHeaderRow>
+                        </thead>
+                        <tbody>
+                          {group.travelers.map((t) => (
+                            <Tr key={t.id}>
+                              <Td>
+                                {t.firstName} {t.lastName} {t.isTourLead && <Badge tone="neutral">Tour lead</Badge>}
+                              </Td>
+                              <Td>{t.nationality}</Td>
+                              <Td>
+                                {[t.disabilities, t.allergies, t.drinkPreference].filter(Boolean).join(' · ') || '—'}
+                              </Td>
+                              <Td>
+                                {t.emergencyContactName
+                                  ? `${t.emergencyContactName}${t.emergencyContactRelation ? ` (${t.emergencyContactRelation})` : ''}${t.emergencyContactPhone ? ` · ${t.emergencyContactPhone}` : ''}`
+                                  : '—'}
+                              </Td>
+                            </Tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

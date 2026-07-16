@@ -71,6 +71,9 @@ function toTravelerView(t: Traveler): TravelerView {
     disabilities: t.disabilities,
     allergies: t.allergies,
     drinkPreference: t.drinkPreference,
+    emergencyContactName: t.emergencyContactName,
+    emergencyContactPhone: t.emergencyContactPhone,
+    emergencyContactRelation: t.emergencyContactRelation,
     isTourLead: t.isTourLead,
     passportDocumentId: t.passportDocumentId,
     createdAt: t.createdAt,
@@ -236,6 +239,27 @@ export const bookingRepository = {
       await sweepLifecycle(tx);
       const rows = await tx.booking.findMany({ orderBy: { createdAt: 'desc' } });
       return rows.map(toBookingView);
+    });
+  },
+
+  /** Guides Module (DR-030) -- backs a guide's "client list". Only bookings
+   * that actually occupy a seat on this departure (not a cancelled/refunded
+   * one) are relevant to someone running the tour. */
+  async listBookingsWithTravelersForDeparture(
+    organizationId: string,
+    departureId: string,
+  ): Promise<Array<{ booking: BookingView; travelers: TravelerView[] }>> {
+    return withOrg(organizationId, async (tx) => {
+      await sweepLifecycle(tx);
+      const rows = await tx.booking.findMany({
+        where: {
+          departureId,
+          status: { in: ['DEPOSIT_PAID', 'FULLY_PAID', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED'] },
+        },
+        include: { travelers: { orderBy: { createdAt: 'asc' } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map((b) => ({ booking: toBookingView(b), travelers: b.travelers.map(toTravelerView) }));
     });
   },
 

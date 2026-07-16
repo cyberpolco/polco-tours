@@ -149,10 +149,64 @@ export interface TravelerView {
   disabilities: string | null;
   allergies: string | null;
   drinkPreference: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContactRelation: string | null;
   isTourLead: boolean;
   passportDocumentId: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** Data-minimized projection for a guide's own "client list" (Guides Module,
+ * DR-030) -- excludes idOrPassportNumber and passportDocumentId. A guide
+ * needs to know who's on their tour and how to help them, not their
+ * passport number or document reference (CLAUDE.md's "Tourist physical-
+ * safety data ... minimize exposure" crown-jewel framing). */
+export interface TravelerDutyView {
+  id: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  sex: Sex;
+  nationality: string;
+  phone: string | null;
+  disabilities: string | null;
+  allergies: string | null;
+  drinkPreference: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContactRelation: string | null;
+  isTourLead: boolean;
+}
+
+export function toTravelerDutyView(t: TravelerView): TravelerDutyView {
+  return {
+    id: t.id,
+    firstName: t.firstName,
+    lastName: t.lastName,
+    age: t.age,
+    sex: t.sex,
+    nationality: t.nationality,
+    phone: t.phone,
+    disabilities: t.disabilities,
+    allergies: t.allergies,
+    drinkPreference: t.drinkPreference,
+    emergencyContactName: t.emergencyContactName,
+    emergencyContactPhone: t.emergencyContactPhone,
+    emergencyContactRelation: t.emergencyContactRelation,
+    isTourLead: t.isTourLead,
+  };
+}
+
+/** A guide's "client list" grouped by booking (Guides Module, DR-030). */
+export interface TravelerDutyGroup {
+  booking: {
+    id: string;
+    bookingReference: string;
+    specialRequests: string | null;
+  };
+  travelers: TravelerDutyView[];
 }
 
 // E.164: optional leading +, 1-15 digits, first digit non-zero (same shape as auth/domain.ts).
@@ -169,6 +223,13 @@ export const AddTravelerInput = z.object({
   disabilities: z.string().max(500).optional(),
   allergies: z.string().max(500).optional(),
   drinkPreference: z.string().max(200).optional(),
+  emergencyContactName: z.string().max(200).optional(),
+  // Reference info for a guide/staff member to call in an emergency, not
+  // used for outbound messaging (unlike the traveler's own `phone`) -- kept
+  // as a plain string rather than E.164 so the form doesn't need a second
+  // country-code selector for what's ultimately just a note.
+  emergencyContactPhone: z.string().max(50).optional(),
+  emergencyContactRelation: z.string().max(100).optional(),
   isTourLead: z.boolean().optional().default(false),
 });
 export type AddTravelerInput = z.infer<typeof AddTravelerInput>;

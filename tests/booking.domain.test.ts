@@ -12,6 +12,8 @@ import {
   generateConfirmationCode,
   formatBookingReference,
   lastNameMatches,
+  toTravelerDutyView,
+  type TravelerView,
 } from '../src/modules/booking/domain';
 
 describe('booking domain', () => {
@@ -238,6 +240,59 @@ describe('booking domain', () => {
 
     it('is false for a different name', () => {
       expect(lastNameMatches({ lastName: 'Traveler' }, 'Someone Else')).toBe(false);
+    });
+  });
+
+  describe('toTravelerDutyView (Guides Module, DR-030)', () => {
+    const traveler: TravelerView = {
+      id: 't1',
+      organizationId: 'org1',
+      bookingId: 'b1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      age: 30,
+      sex: 'F',
+      nationality: 'US',
+      idOrPassportNumber: 'P123456789',
+      phone: '+15551234567',
+      disabilities: null,
+      allergies: 'peanuts',
+      drinkPreference: null,
+      emergencyContactName: 'John Doe',
+      emergencyContactPhone: '+15559876543',
+      emergencyContactRelation: 'Spouse',
+      isTourLead: true,
+      passportDocumentId: 'doc1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('excludes idOrPassportNumber and passportDocumentId -- a guide never needs either', () => {
+      const view = toTravelerDutyView(traveler);
+      expect(view).not.toHaveProperty('idOrPassportNumber');
+      expect(view).not.toHaveProperty('passportDocumentId');
+      expect(view).not.toHaveProperty('organizationId');
+      expect(view).not.toHaveProperty('bookingId');
+    });
+
+    it('keeps every duty-relevant field', () => {
+      const view = toTravelerDutyView(traveler);
+      expect(view).toEqual({
+        id: 't1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        age: 30,
+        sex: 'F',
+        nationality: 'US',
+        phone: '+15551234567',
+        disabilities: null,
+        allergies: 'peanuts',
+        drinkPreference: null,
+        emergencyContactName: 'John Doe',
+        emergencyContactPhone: '+15559876543',
+        emergencyContactRelation: 'Spouse',
+        isTourLead: true,
+      });
     });
   });
 });

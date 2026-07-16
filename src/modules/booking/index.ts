@@ -10,4 +10,11 @@ export {
   SetAddonsInput,
   generateConfirmationCode,
 } from './domain';
-export type { BookingAddonView, BookingLookupResult, BookingView, TravelerView } from './domain';
+export type {
+  BookingAddonView,
+  BookingLookupResult,
+  BookingView,
+  TravelerDutyGroup,
+  TravelerDutyView,
+  TravelerView,
+} from './domain';

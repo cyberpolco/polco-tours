@@ -3,7 +3,9 @@ import {
   complianceStatus,
   maintenanceRecencyScore,
   CreateDriverProfileInput,
+  CreateGuideProfileInput,
   CreateVehicleInput,
+  UpdateGuideProfileInput,
   UpdateVehicleInput,
 } from '../src/modules/fleet/domain';
 
@@ -97,6 +99,41 @@ describe('fleet domain', () => {
 
     it('rejects a non-uuid userId', () => {
       const result = CreateDriverProfileInput.safeParse({ userId: 'not-a-uuid', licenseNumber: 'DL-001' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('CreateGuideProfileInput (DR-030)', () => {
+    it('accepts a valid guide profile with languages and specialties', () => {
+      const result = CreateGuideProfileInput.safeParse({
+        userId: '11111111-1111-4111-8111-111111111111',
+        languages: ['en', 'fr'],
+        specialties: ['wildlife', 'gorilla trekking'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a guide profile with neither languages nor specialties', () => {
+      const result = CreateGuideProfileInput.safeParse({
+        userId: '11111111-1111-4111-8111-111111111111',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a non-uuid userId', () => {
+      const result = CreateGuideProfileInput.safeParse({ userId: 'not-a-uuid' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('UpdateGuideProfileInput (DR-030)', () => {
+    it('allows a partial update with just status', () => {
+      const result = UpdateGuideProfileInput.safeParse({ status: 'SUSPENDED' });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an invalid status value', () => {
+      const result = UpdateGuideProfileInput.safeParse({ status: 'RETIRED' });
       expect(result.success).toBe(false);
     });
   });

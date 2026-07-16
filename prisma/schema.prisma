@@ -140,6 +140,14 @@ enum DriverStatus {
   SUSPENDED
 }
 
+// Guides Module (DR-030) -- folded into the fleet module per explicit user
+// choice, rather than a standalone module, to reuse its existing
+// compliance-document/anti-BOLA plumbing directly.
+enum GuideStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id        String    @id @default(uuid()) @db.Uuid
@@ -163,6 +171,7 @@ model Organization {
   bookingAddons    BookingAddon[]
   vehicles           Vehicle[]
   driverProfiles     DriverProfile[]
+  guideProfiles      GuideProfile[]
   assignments        Assignment[]
   visaApplications   VisaApplication[]
   maintenanceRecords MaintenanceRecord[]
@@ -194,6 +203,7 @@ model User {
   bookings         Booking[]
   ownedVehicles    Vehicle[]
   driverProfile    DriverProfile?
+  guideProfile     GuideProfile?
   guideAssignments Assignment[]
 
   @@index([organizationId])
@@ -455,6 +465,11 @@ model Traveler {
   disabilities       String?
   allergies          String?
   drinkPreference    String?
+  // Guides Module (DR-030) -- a guide's dashboard needs this for their
+  // assigned travelers; nothing captured it before.
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
   isTourLead         Boolean  @default(false)
   passportDocumentId String?  @unique @db.Uuid
   createdAt          DateTime @default(now())
@@ -533,17 +548,20 @@ model Document {
   expiresAt        DateTime? // compliance documents only
   vehicleId        String?   @db.Uuid
   driverProfileId  String?   @db.Uuid
+  guideProfileId   String?   @db.Uuid // GUIDE_CERTIFICATION docs (DR-030)
   createdAt        DateTime  @default(now())
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   traveler        Traveler?
   vehicle         Vehicle?         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   driverProfile   DriverProfile?   @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  guideProfile    GuideProfile?    @relation(fields: [guideProfileId], references: [id], onDelete: Cascade)
   visaApplication VisaApplication?
 
   @@index([organizationId])
   @@index([vehicleId])
   @@index([driverProfileId])
+  @@index([guideProfileId])
   @@map("documents")
 }
 
@@ -603,6 +621,36 @@ model DriverProfile {
 
   @@index([organizationId])
   @@map("driver_profiles")
+}
+
+// Guides Module (DR-030). 1:1 with a TOUR_GUIDE-role User, same module-
+// boundary reasoning as DriverProfile. Note: Assignment.guideUserId still
+// points directly at User (unchanged, pre-existing FK) rather than at this
+// table's id -- this profile is a satellite of compliance/skill data looked
+// up by userId, not the join target for assignments. No rating field, same
+// deferral as DriverProfile (no reviews system to back one); "availability"
+// is likewise not a stored field -- computed from existing Assignment
+// overlap data, same as drivers.
+model GuideProfile {
+  id             String      @id @default(uuid()) @db.Uuid
+  organizationId String      @db.Uuid
+  userId         String      @unique @db.Uuid
+  // ISO-639-1 codes, e.g. ["en","fr"], same convention as DriverProfile.
+  languages      String[]    @default([])
+  // Freeform (e.g. "wildlife", "gorilla trekking", "cultural") -- no fixed
+  // taxonomy specified, kept consistent with languages' flexible-array shape
+  // rather than inventing an unrequested enum.
+  specialties    String[]    @default([])
+  status         GuideStatus @default(ACTIVE)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents    Document[]
+
+  @@index([organizationId])
+  @@map("guide_profiles")
 }
 
 // ---------------------------------------------------------- fleet: maintenance history (DR-029)

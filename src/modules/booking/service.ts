@@ -14,6 +14,7 @@ import {
   computeAvailability,
   isTravelerManifestComplete,
   lastNameMatches,
+  toTravelerDutyView,
   type AddTravelerInput,
   type BookingAddonView,
   type BookingLookupResult,
@@ -23,6 +24,7 @@ import {
   type LookupBookingInput,
   type SendQuotationInput,
   type SetAddonsInput,
+  type TravelerDutyGroup,
   type TravelerView,
 } from './domain';
 import { bookingRepository, SoldOutError } from './repository';
@@ -489,6 +491,30 @@ export const bookingService = {
       totalMinor: total.minor,
       currency: total.currency,
     };
+  },
+
+  /** Guides Module (DR-030): a guide's "client list" for one of their own
+   * assigned departures. Gated only on booking.read, with NO further
+   * ownership/assignment check inside this module -- same "caller already
+   * gates" convention as fleetService.listVehiclesByIds/
+   * listDriverProfilesByIds (DR-021) and authService.getUser. The one and
+   * only caller (the guide-dashboard page) only ever passes a departureId
+   * drawn from the caller's own assignmentService.listMyAssignments result,
+   * so booking module doesn't need to depend on the assignment module to
+   * re-verify that. Returns duty-relevant traveler detail only (see
+   * TravelerDutyView) -- never idOrPassportNumber or passport document refs. */
+  async listTravelersForDeparture(ctx: AuthContext, departureId: string): Promise<TravelerDutyGroup[]> {
+    assertCan(ctx.roles, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const rows = await bookingRepository.listBookingsWithTravelersForDeparture(organizationId, departureId);
+    return rows.map(({ booking, travelers }) => ({
+      booking: {
+        id: booking.id,
+        bookingReference: booking.bookingReference,
+        specialRequests: booking.specialRequests,
+      },
+      travelers: travelers.map(toTravelerDutyView),
+    }));
   },
 
   /** Public "find my booking" lookup (DR-016) -- deliberately NOT ctx-gated,

@@ -1,15 +1,18 @@
 // fleet module — repository. The only place that touches the DB for this module.
-import type { DriverProfile, MaintenanceRecord, StarlinkKit, Vehicle } from '@prisma/client';
+import type { DriverProfile, GuideProfile, MaintenanceRecord, StarlinkKit, Vehicle } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
   CreateDriverProfileInput,
+  CreateGuideProfileInput,
   CreateMaintenanceRecordInput,
   CreateStarlinkKitInput,
   CreateVehicleInput,
   DriverProfileView,
+  GuideProfileView,
   MaintenanceRecordView,
   StarlinkKitView,
   UpdateDriverProfileInput,
+  UpdateGuideProfileInput,
   UpdateStarlinkKitInput,
   UpdateVehicleInput,
   VehicleView,
@@ -44,6 +47,19 @@ function toDriverProfileView(d: DriverProfile): DriverProfileView {
     status: d.status,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
+  };
+}
+
+function toGuideProfileView(g: GuideProfile): GuideProfileView {
+  return {
+    id: g.id,
+    organizationId: g.organizationId,
+    userId: g.userId,
+    languages: g.languages,
+    specialties: g.specialties,
+    status: g.status,
+    createdAt: g.createdAt,
+    updatedAt: g.updatedAt,
   };
 }
 
@@ -159,6 +175,56 @@ export const fleetRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.driverProfile.findMany({ where: { id: { in: ids } } });
       return rows.map(toDriverProfileView);
+    });
+  },
+
+  // ------------------------------------------------------------ guides (DR-030)
+
+  async createGuideProfile(organizationId: string, input: CreateGuideProfileInput): Promise<GuideProfileView> {
+    return withOrg(organizationId, async (tx) => {
+      const g = await tx.guideProfile.create({ data: { organizationId, ...input } });
+      return toGuideProfileView(g);
+    });
+  },
+
+  async updateGuideProfile(
+    organizationId: string,
+    id: string,
+    input: UpdateGuideProfileInput,
+  ): Promise<GuideProfileView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.guideProfile.findUnique({ where: { id } });
+      if (!existing) return null;
+      const g = await tx.guideProfile.update({ where: { id }, data: input });
+      return toGuideProfileView(g);
+    });
+  },
+
+  async findGuideProfileById(organizationId: string, id: string): Promise<GuideProfileView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const g = await tx.guideProfile.findUnique({ where: { id } });
+      return g ? toGuideProfileView(g) : null;
+    });
+  },
+
+  async findGuideProfileByUserId(organizationId: string, userId: string): Promise<GuideProfileView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const g = await tx.guideProfile.findUnique({ where: { userId } });
+      return g ? toGuideProfileView(g) : null;
+    });
+  },
+
+  async listGuideProfiles(organizationId: string): Promise<GuideProfileView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.guideProfile.findMany({ orderBy: { createdAt: 'desc' } });
+      return rows.map(toGuideProfileView);
+    });
+  },
+
+  async findGuideProfilesByIds(organizationId: string, ids: string[]): Promise<GuideProfileView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.guideProfile.findMany({ where: { id: { in: ids } } });
+      return rows.map(toGuideProfileView);
     });
   },
 

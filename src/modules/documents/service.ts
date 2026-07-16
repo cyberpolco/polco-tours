@@ -45,6 +45,7 @@ export interface UploadDocumentInput {
   expiresAt?: Date;
   vehicleId?: string;
   driverProfileId?: string;
+  guideProfileId?: string;
 }
 
 export interface DocumentStream {
@@ -90,6 +91,7 @@ export const documentsService = {
       expiresAt: input.expiresAt,
       vehicleId: input.vehicleId,
       driverProfileId: input.driverProfileId,
+      guideProfileId: input.guideProfileId,
     });
 
     await audit({
@@ -150,6 +152,13 @@ export const documentsService = {
     assertCan(ctx.roles, 'documents.read');
     const organizationId = requireOrg(ctx);
     const rows = await documentsRepository.listForDriverProfile(organizationId, driverProfileId);
+    return rows.map(toSummary);
+  },
+
+  async listGuideProfileDocuments(ctx: AuthContext, guideProfileId: string): Promise<DocumentSummary[]> {
+    assertCan(ctx.roles, 'documents.read');
+    const organizationId = requireOrg(ctx);
+    const rows = await documentsRepository.listForGuideProfile(organizationId, guideProfileId);
     return rows.map(toSummary);
   },
 };

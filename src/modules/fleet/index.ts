@@ -3,11 +3,13 @@ export { fleetService } from './service';
 export type { UploadComplianceDocumentInput } from './service';
 export {
   CreateDriverProfileInput,
+  CreateGuideProfileInput,
   CreateMaintenanceRecordInput,
   CreateStarlinkKitInput,
   CreateVehicleInput,
   SetStarlinkLocationInput,
   UpdateDriverProfileInput,
+  UpdateGuideProfileInput,
   UpdateStarlinkKitInput,
   UpdateVehicleInput,
   complianceStatus,
@@ -16,6 +18,7 @@ export {
 export type {
   ComplianceStatus,
   DriverProfileView,
+  GuideProfileView,
   MaintenanceRecordView,
   StarlinkKitView,
   VehicleView,

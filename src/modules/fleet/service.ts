@@ -8,14 +8,17 @@ import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import type {
   CreateDriverProfileInput,
+  CreateGuideProfileInput,
   CreateMaintenanceRecordInput,
   CreateStarlinkKitInput,
   CreateVehicleInput,
   DriverProfileView,
+  GuideProfileView,
   MaintenanceRecordView,
   SetStarlinkLocationInput,
   StarlinkKitView,
   UpdateDriverProfileInput,
+  UpdateGuideProfileInput,
   UpdateStarlinkKitInput,
   UpdateVehicleInput,
   VehicleView,
@@ -38,7 +41,7 @@ function isFleetManager(roles: Role[]): boolean {
 type VehicleComplianceKind = 'VEHICLE_REGISTRATION' | 'VEHICLE_INSURANCE' | 'VEHICLE_INSPECTION';
 
 export interface UploadComplianceDocumentInput {
-  kind: VehicleComplianceKind | 'DRIVER_LICENSE';
+  kind: VehicleComplianceKind | 'DRIVER_LICENSE' | 'GUIDE_CERTIFICATION';
   contentType: string;
   sizeBytes: number;
   bytes: Buffer;
@@ -135,6 +138,83 @@ export const fleetService = {
     assertCan(ctx.roles, 'fleet.read');
     if (ids.length === 0) return [];
     return fleetRepository.findDriverProfilesByIds(requireOrg(ctx), ids);
+  },
+
+  // ------------------------------------------------------------ guides (DR-030)
+
+  async createGuideProfile(ctx: AuthContext, input: CreateGuideProfileInput): Promise<GuideProfileView> {
+    assertCan(ctx.roles, 'fleet.write');
+    return fleetRepository.createGuideProfile(requireOrg(ctx), input);
+  },
+
+  async updateGuideProfile(
+    ctx: AuthContext,
+    guideProfileId: string,
+    input: UpdateGuideProfileInput,
+  ): Promise<GuideProfileView> {
+    assertCan(ctx.roles, 'fleet.write');
+    const updated = await fleetRepository.updateGuideProfile(requireOrg(ctx), guideProfileId, input);
+    if (!updated) throw Errors.notFound('Guide profile not found');
+    return updated;
+  },
+
+  async getGuideProfile(ctx: AuthContext, guideProfileId: string): Promise<GuideProfileView> {
+    assertCan(ctx.roles, 'fleet.read');
+    const profile = await fleetRepository.findGuideProfileById(requireOrg(ctx), guideProfileId);
+    if (!profile || (!isFleetManager(ctx.roles) && profile.userId !== ctx.userId)) {
+      throw Errors.notFound('Guide profile not found');
+    }
+    return profile;
+  },
+
+  /** Managers only -- a TOUR_GUIDE looks up their own profile via getGuideProfile. */
+  async listGuideProfiles(ctx: AuthContext): Promise<GuideProfileView[]> {
+    assertCan(ctx.roles, 'fleet.read');
+    if (!isFleetManager(ctx.roles)) throw Errors.forbidden('Only fleet managers may list all guide profiles');
+    return fleetRepository.listGuideProfiles(requireOrg(ctx));
+  },
+
+  /** Resolves the caller's own GuideProfile by userId (null if they don't
+   * have one yet) -- mirrors getMyDriverProfile. */
+  async getMyGuideProfile(ctx: AuthContext): Promise<GuideProfileView | null> {
+    assertCan(ctx.roles, 'fleet.read');
+    return fleetRepository.findGuideProfileByUserId(requireOrg(ctx), ctx.userId);
+  },
+
+  /** Managers-only lookup of an arbitrary user's GuideProfile by userId (not
+   * necessarily the caller's own) -- used by assignment/service.ts to check
+   * a candidate guide's ACTIVE status before assigning them (DR-030). Unlike
+   * getGuideProfile/getMyGuideProfile this is keyed by User.id, since
+   * Assignment.guideUserId references User directly, not GuideProfile. */
+  async findGuideProfileByUserId(ctx: AuthContext, userId: string): Promise<GuideProfileView | null> {
+    assertCan(ctx.roles, 'fleet.read');
+    if (!isFleetManager(ctx.roles)) throw Errors.forbidden('Only fleet managers may look up another user\'s guide profile');
+    return fleetRepository.findGuideProfileByUserId(requireOrg(ctx), userId);
+  },
+
+  /** Org-scoped lookup by a known set of IDs, no ownership/manager filter --
+   * same "caller already gates" convention as listVehiclesByIds/
+   * listDriverProfilesByIds (DR-021). */
+  async listGuideProfilesByIds(ctx: AuthContext, ids: string[]): Promise<GuideProfileView[]> {
+    assertCan(ctx.roles, 'fleet.read');
+    if (ids.length === 0) return [];
+    return fleetRepository.findGuideProfilesByIds(requireOrg(ctx), ids);
+  },
+
+  async uploadGuideDocument(
+    ctx: AuthContext,
+    guideProfileId: string,
+    input: UploadComplianceDocumentInput,
+  ): Promise<DocumentSummary> {
+    assertCan(ctx.roles, 'fleet.write');
+    const profile = await fleetRepository.findGuideProfileById(requireOrg(ctx), guideProfileId);
+    if (!profile) throw Errors.notFound('Guide profile not found');
+    return documentsService.uploadDocument(ctx, { ...input, guideProfileId });
+  },
+
+  async listGuideDocuments(ctx: AuthContext, guideProfileId: string): Promise<DocumentSummary[]> {
+    await fleetService.getGuideProfile(ctx, guideProfileId); // fleet.read + ownership check
+    return documentsService.listGuideProfileDocuments(ctx, guideProfileId);
   },
 
   async uploadVehicleDocument(

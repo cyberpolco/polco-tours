@@ -25,6 +25,7 @@ export interface CreateDocumentParams {
   expiresAt?: Date;
   vehicleId?: string;
   driverProfileId?: string;
+  guideProfileId?: string;
 }
 
 function toRecord(d: Document): DocumentRecord {
@@ -66,6 +67,13 @@ export const documentsRepository = {
   async listForDriverProfile(organizationId: string, driverProfileId: string): Promise<DocumentRecord[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.document.findMany({ where: { driverProfileId }, orderBy: { createdAt: 'desc' } });
+      return rows.map(toRecord);
+    });
+  },
+
+  async listForGuideProfile(organizationId: string, guideProfileId: string): Promise<DocumentRecord[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.document.findMany({ where: { guideProfileId }, orderBy: { createdAt: 'desc' } });
       return rows.map(toRecord);
     });
   },

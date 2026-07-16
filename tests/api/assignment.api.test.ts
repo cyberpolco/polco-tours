@@ -29,6 +29,11 @@ let activeVehicleId: string;
 let maintenanceVehicleId: string;
 let activeDriverProfileId: string;
 let suspendedDriverProfileId: string;
+let activeGuideId: string; // has an ACTIVE GuideProfile (DR-030)
+let suspendedGuideId: string; // has a SUSPENDED GuideProfile (DR-030)
+let profilelessGuideId: string; // TOUR_GUIDE with no GuideProfile at all (DR-030)
+let departureDId: string;
+let departureEId: string; // overlaps departureD's dates
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -102,11 +107,43 @@ beforeAll(async () => {
     ]);
     activeDriverProfileId = activeDriverProfile.id;
     suspendedDriverProfileId = suspendedDriverProfile.id;
+
+    const [depD, depE] = await Promise.all([
+      tx.departure.create({
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-11-01'), endDate: new Date('2026-11-05'), capacity: 5, status: 'SCHEDULED' },
+      }),
+      tx.departure.create({
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-11-03'), endDate: new Date('2026-11-08'), capacity: 5, status: 'SCHEDULED' },
+      }),
+    ]);
+    departureDId = depD.id;
+    departureEId = depE.id;
+  });
+
+  // Split into a second withOrg call -- Prisma's 5000ms interactive-
+  // transaction timeout is measurably too short for this sandbox's real
+  // network path to Neon once a beforeAll does this much sequential work in
+  // one transaction (documented gotcha, CLAUDE.md).
+  await withOrg(orgId, async (tx) => {
+    const guideUsers = await Promise.all([
+      tx.user.create({ data: { email: `guide-active-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
+      tx.user.create({ data: { email: `guide-suspended-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
+      tx.user.create({ data: { email: `guide-noprofile-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
+    ]);
+    activeGuideId = guideUsers[0].id;
+    suspendedGuideId = guideUsers[1].id;
+    profilelessGuideId = guideUsers[2].id;
+    await Promise.all([
+      tx.guideProfile.create({ data: { organizationId: orgId, userId: activeGuideId, status: 'ACTIVE' } }),
+      tx.guideProfile.create({ data: { organizationId: orgId, userId: suspendedGuideId, status: 'SUSPENDED' } }),
+      // profilelessGuideId deliberately gets no GuideProfile row.
+    ]);
   });
 });
 
 afterAll(async () => {
   await withOrg(orgId, (tx) => tx.assignment.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.guideProfile.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.driverProfile.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
@@ -219,6 +256,77 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureCId }) });
     expect(res.status).toBe(409);
   });
+});
+
+describe('POST /api/v1/departures/:departureId/assignments -- guide ACTIVE-status + overlap gap (DR-030)', () => {
+  it('rejects a SUSPENDED guide (409)', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(
+      `http://localhost/api/v1/departures/${departureDId}/assignments`,
+      headers,
+      'POST',
+      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId, guideUserId: suspendedGuideId },
+    );
+    const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureDId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('allows a TOUR_GUIDE with no GuideProfile at all (profile is optional, not required)', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(
+      `http://localhost/api/v1/departures/${departureDId}/assignments`,
+      headers,
+      'POST',
+      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId, guideUserId: profilelessGuideId },
+    );
+    const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureDId }) });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects double-booking the same guide on an overlapping departure (409)', async () => {
+    // Assign activeGuideId to departureD (Nov 1-5) via a fresh vehicle/driver
+    // pair scoped just to this test, then try to assign the same guide to
+    // departureE (Nov 3-8, overlapping) -- that second attempt must 409.
+    const vehicle = await withOrg(orgId, (tx) =>
+      tx.vehicle.create({ data: { organizationId: orgId, plateNumber: `GUIDE-OVERLAP-${Date.now()}`, make: 'Toyota', model: 'Hilux', vehicleType: '4x4', seatCapacity: 5, status: 'ACTIVE' } }),
+    );
+    const driverUser = await withOrg(orgId, (tx) =>
+      tx.user.create({ data: { email: `guide-overlap-driver-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId } }),
+    );
+    const driverProfile = await withOrg(orgId, (tx) =>
+      tx.driverProfile.create({ data: { organizationId: orgId, userId: driverUser.id, licenseNumber: `DL-GO-${Date.now()}`, status: 'ACTIVE' } }),
+    );
+
+    const assignHeaders = await loginAs(operatorId);
+    const assignReq = jsonRequest(
+      `http://localhost/api/v1/departures/${departureDId}/assignments`,
+      assignHeaders,
+      'POST',
+      { vehicleId: vehicle.id, driverProfileId: driverProfile.id, guideUserId: activeGuideId },
+    );
+    const assignRes = await createAssignment(assignReq, { params: Promise.resolve({ departureId: departureDId }) });
+    expect(assignRes.status).toBe(201);
+
+    // Now try to assign the same guide to departureE, which overlaps departureD's dates.
+    const vehicle2 = await withOrg(orgId, (tx) =>
+      tx.vehicle.create({ data: { organizationId: orgId, plateNumber: `GUIDE-OVERLAP-2-${Date.now()}`, make: 'Toyota', model: 'Hilux', vehicleType: '4x4', seatCapacity: 5, status: 'ACTIVE' } }),
+    );
+    const driverUser2 = await withOrg(orgId, (tx) =>
+      tx.user.create({ data: { email: `guide-overlap-driver-2-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId } }),
+    );
+    const driverProfile2 = await withOrg(orgId, (tx) =>
+      tx.driverProfile.create({ data: { organizationId: orgId, userId: driverUser2.id, licenseNumber: `DL-GO2-${Date.now()}`, status: 'ACTIVE' } }),
+    );
+    const overlapHeaders = await loginAs(operatorId);
+    const overlapReq = jsonRequest(
+      `http://localhost/api/v1/departures/${departureEId}/assignments`,
+      overlapHeaders,
+      'POST',
+      { vehicleId: vehicle2.id, driverProfileId: driverProfile2.id, guideUserId: activeGuideId },
+    );
+    const overlapRes = await createAssignment(overlapReq, { params: Promise.resolve({ departureId: departureEId }) });
+    expect(overlapRes.status).toBe(409);
+  }, 40_000); // more sequential DB round-trips than any other test here -- same timeout-bump precedent as booking-lookup.test.ts
 });
 
 describe('GET /api/v1/departures/:departureId/assignments', () => {

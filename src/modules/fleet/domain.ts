@@ -1,5 +1,5 @@
 // fleet module — domain types & rules. Pure; no framework or DB imports.
-import type { Currency, DriverStatus, StarlinkStatus, VehicleStatus } from '@prisma/client';
+import type { Currency, DriverStatus, GuideStatus, StarlinkStatus, VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VehicleView {
@@ -62,6 +62,33 @@ export const UpdateDriverProfileInput = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
 });
 export type UpdateDriverProfileInput = z.infer<typeof UpdateDriverProfileInput>;
+
+// -------------------------------------------------------------- guides (DR-030)
+
+export interface GuideProfileView {
+  id: string;
+  organizationId: string;
+  userId: string;
+  languages: string[];
+  specialties: string[];
+  status: GuideStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const CreateGuideProfileInput = z.object({
+  userId: z.string().uuid(),
+  languages: z.array(z.string().length(2)).optional(), // ISO-639-1
+  specialties: z.array(z.string().min(1).max(50)).optional(),
+});
+export type CreateGuideProfileInput = z.infer<typeof CreateGuideProfileInput>;
+
+export const UpdateGuideProfileInput = z.object({
+  languages: z.array(z.string().length(2)).optional(),
+  specialties: z.array(z.string().min(1).max(50)).optional(),
+  status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
+});
+export type UpdateGuideProfileInput = z.infer<typeof UpdateGuideProfileInput>;
 
 // -------------------------------------------------------------- maintenance history (DR-029)
 

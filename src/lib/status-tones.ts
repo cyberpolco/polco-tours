@@ -2,6 +2,7 @@ import type {
   BookingStatus,
   DepartureStatus,
   DriverStatus,
+  GuideStatus,
   InvoiceStatus,
   PackageStatus,
   PaymentStatus,
@@ -42,6 +43,11 @@ export const VEHICLE_STATUS_TONE: Record<VehicleStatus, BadgeTone> = {
 };
 
 export const DRIVER_STATUS_TONE: Record<DriverStatus, BadgeTone> = {
+  ACTIVE: 'success',
+  SUSPENDED: 'warning',
+};
+
+export const GUIDE_STATUS_TONE: Record<GuideStatus, BadgeTone> = {
   ACTIVE: 'success',
   SUSPENDED: 'warning',
 };

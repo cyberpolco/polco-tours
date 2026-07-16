@@ -102,6 +102,18 @@ export default async function NewTravelerPage({ params }: Props) {
           <input name="drinkPreference" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
+        <div className="grid grid-cols-3 gap-4">
+          <FormField label="Emergency contact name" htmlFor="emergencyContactName" optional>
+            <input name="emergencyContactName" className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Emergency contact phone" htmlFor="emergencyContactPhone" optional>
+            <input name="emergencyContactPhone" className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Relation" htmlFor="emergencyContactRelation" optional>
+            <input name="emergencyContactRelation" placeholder="Spouse, parent…" className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+        </div>
+
         <SelectableCard type="checkbox" name="isTourLead" defaultChecked={!hasTourLead} disabled={hasTourLead}>
           Tour lead (uploads the group&apos;s passport)
         </SelectableCard>

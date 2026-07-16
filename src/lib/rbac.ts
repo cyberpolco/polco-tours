@@ -65,9 +65,20 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'fleet.write',
   ],
   // assignment.read scoped to only their own assignments in
-  // assignment/service.ts's listMyAssignments (DR-018, API-only this
-  // increment -- no staff-dashboard portal yet for this role)
-  TOUR_GUIDE: ['catalog.read', 'booking.read', 'documents.read', 'profile.write', 'assignment.read'],
+  // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to
+  // only their own GuideProfile in fleet/service.ts, same convention as
+  // DRIVER/VEHICLE_OWNER below (DR-030 -- this role previously had no
+  // fleet.read at all, a deliberate DR-021 choice that's now superseded by
+  // the Guides Module needing a real self-view of languages/certifications/
+  // specialties).
+  TOUR_GUIDE: [
+    'catalog.read',
+    'booking.read',
+    'documents.read',
+    'profile.write',
+    'assignment.read',
+    'fleet.read',
+  ],
   // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
   DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)

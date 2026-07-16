@@ -27,6 +27,9 @@ export async function addTravelerAction(bookingId: string, formData: FormData): 
     disabilities: emptyToUndefined(formData.get('disabilities')),
     allergies: emptyToUndefined(formData.get('allergies')),
     drinkPreference: emptyToUndefined(formData.get('drinkPreference')),
+    emergencyContactName: emptyToUndefined(formData.get('emergencyContactName')),
+    emergencyContactPhone: emptyToUndefined(formData.get('emergencyContactPhone')),
+    emergencyContactRelation: emptyToUndefined(formData.get('emergencyContactRelation')),
     isTourLead: formData.get('isTourLead') === 'on',
   });
 

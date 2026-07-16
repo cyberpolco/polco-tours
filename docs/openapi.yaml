@@ -1339,6 +1339,137 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /fleet/guides:
+    get:
+      summary: List guide profiles (staff only -- Guides Module, DR-030)
+      description: A TOUR_GUIDE looks up their own profile via GET /fleet/guides/{guideProfileId} instead.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guides:
+                    type: array
+                    items: { $ref: '#/components/schemas/GuideProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a guide profile (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateGuideProfileInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guide: { $ref: '#/components/schemas/GuideProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/guides/{guideProfileId}:
+    parameters:
+      - $ref: '#/components/parameters/guideProfileId'
+    get:
+      summary: Get a guide profile
+      description: A TOUR_GUIDE may only fetch their own profile (404 if not theirs, not 403 -- avoids leaking existence).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guide: { $ref: '#/components/schemas/GuideProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a guide profile (fleet.write, staff only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateGuideProfileInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guide: { $ref: '#/components/schemas/GuideProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/guides/{guideProfileId}/documents:
+    parameters:
+      - $ref: '#/components/parameters/guideProfileId'
+    get:
+      summary: List a guide's certification documents (Guides Module, DR-030)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentSummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Upload a guide's certification document (fleet.write, staff only)
+      description: kind is always GUIDE_CERTIFICATION. PDF or a phone photo (JPEG/PNG) up to 10MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document: { $ref: '#/components/schemas/DocumentSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/guides/{guideProfileId}/documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/guideProfileId'
+      - $ref: '#/components/parameters/documentId'
+    get:
+      summary: Download a guide's certification document (Guides Module, DR-030)
+      description: >-
+        Streams the bytes server-side from Vercel Blob (access: 'private') --
+        there is no public URL for this document. Every access is audited.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /fleet/starlink-kits:
     get:
       summary: List Starlink kits (DR-029)
@@ -1507,6 +1638,11 @@ components:
       schema: { type: string, format: uuid }
     driverProfileId:
       name: driverProfileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    guideProfileId:
+      name: guideProfileId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -1716,6 +1852,9 @@ components:
         disabilities: { type: string, nullable: true }
         allergies: { type: string, nullable: true }
         drinkPreference: { type: string, nullable: true }
+        emergencyContactName: { type: string, nullable: true, description: Guides Module, DR-030 }
+        emergencyContactPhone: { type: string, nullable: true, description: 'Reference info, not E.164-validated (DR-030)' }
+        emergencyContactRelation: { type: string, nullable: true, description: Guides Module, DR-030 }
         isTourLead: { type: boolean, description: Exactly one per booking; only this traveler needs a passport }
         passportDocumentId: { type: string, format: uuid, nullable: true }
         createdAt: { type: string, format: date-time }
@@ -1735,7 +1874,34 @@ components:
         disabilities: { type: string, maxLength: 500 }
         allergies: { type: string, maxLength: 500 }
         drinkPreference: { type: string, maxLength: 200 }
+        emergencyContactName: { type: string, maxLength: 200 }
+        emergencyContactPhone: { type: string, maxLength: 50 }
+        emergencyContactRelation: { type: string, maxLength: 100 }
         isTourLead: { type: boolean, default: false }
+
+    TravelerDutyView:
+      type: object
+      description: >-
+        Data-minimized projection for a guide's "client list" (Guides Module,
+        DR-030) -- excludes idOrPassportNumber and passportDocumentId. Not
+        exposed via a public /api/v1 route; internal to bookingService, called
+        only by the /staff/schedule page for the caller's own assigned
+        departures.
+      properties:
+        id: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+        age: { type: integer }
+        sex: { type: string, enum: [M, F, X] }
+        nationality: { type: string }
+        phone: { type: string, nullable: true }
+        disabilities: { type: string, nullable: true }
+        allergies: { type: string, nullable: true }
+        drinkPreference: { type: string, nullable: true }
+        emergencyContactName: { type: string, nullable: true }
+        emergencyContactPhone: { type: string, nullable: true }
+        emergencyContactRelation: { type: string, nullable: true }
+        isTourLead: { type: boolean }
 
     DocumentSummary:
       type: object
@@ -1746,7 +1912,8 @@ components:
           type: string
           description: >-
             PASSPORT | VEHICLE_REGISTRATION | VEHICLE_INSURANCE |
-            VEHICLE_INSPECTION | DRIVER_LICENSE (DR-017)
+            VEHICLE_INSPECTION | DRIVER_LICENSE (DR-017) | VISA (DR-019) |
+            GUIDE_CERTIFICATION (DR-030)
         contentType: { type: string }
         sizeBytes: { type: integer }
         expiresAt:
@@ -1970,6 +2137,34 @@ components:
         licenseNumber: { type: string, minLength: 1, maxLength: 100 }
         licenseExpiresAt: { type: string, format: date-time }
         languages: { type: array, items: { type: string, minLength: 2, maxLength: 2 } }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+
+    GuideProfile:
+      type: object
+      description: 1:1 with a TOUR_GUIDE-role User (Guides Module, DR-030). Folded into the fleet module.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        languages: { type: array, items: { type: string }, description: 'ISO-639-1 codes, e.g. ["en","fr"]' }
+        specialties: { type: array, items: { type: string }, description: 'Freeform, e.g. ["wildlife","gorilla trekking"]' }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateGuideProfileInput:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string, format: uuid }
+        languages: { type: array, items: { type: string, minLength: 2, maxLength: 2 } }
+        specialties: { type: array, items: { type: string, minLength: 1, maxLength: 50 } }
+
+    UpdateGuideProfileInput:
+      type: object
+      properties:
+        languages: { type: array, items: { type: string, minLength: 2, maxLength: 2 } }
+        specialties: { type: array, items: { type: string, minLength: 1, maxLength: 50 } }
         status: { type: string, enum: [ACTIVE, SUSPENDED] }
 
     MaintenanceRecord:

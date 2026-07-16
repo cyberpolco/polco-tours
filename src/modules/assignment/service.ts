@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
 import { catalogService, type DepartureView } from '@modules/catalog';
-import { fleetService, maintenanceRecencyScore, type DriverProfileView, type VehicleView } from '@modules/fleet';
+import { fleetService, maintenanceRecencyScore, type DriverProfileView, type GuideProfileView, type VehicleView } from '@modules/fleet';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { haversineDistanceKm } from '@lib/geo';
@@ -74,6 +74,7 @@ export const assignmentService = {
     const driverProfile = await fleetService.getDriverProfile(ctx, input.driverProfileId);
     if (driverProfile.status !== 'ACTIVE') throw Errors.conflict('Driver is not ACTIVE');
 
+    let guideProfile: GuideProfileView | null = null;
     if (input.guideUserId) {
       const guide = await authService.getUser(input.guideUserId);
       // authService.getUser is a raw, org-unscoped lookup (mirrors
@@ -82,17 +83,29 @@ export const assignmentService = {
       if (!guide || !guide.roles.includes('TOUR_GUIDE') || guide.organizationId !== organizationId) {
         throw Errors.validation('guideUserId must reference a TOUR_GUIDE in this organization');
       }
+      // GuideProfile is optional (DR-030 introduced it after guides already
+      // existed as bare Users) -- only gate on status when one exists, so a
+      // guide who's never been given a profile isn't blocked from being
+      // assigned. A profile that does exist and is SUSPENDED does block it,
+      // closing the asymmetry with vehicle/driver ACTIVE checks above.
+      guideProfile = await fleetService.findGuideProfileByUserId(ctx, input.guideUserId);
+      if (guideProfile && guideProfile.status !== 'ACTIVE') {
+        throw Errors.conflict('Guide is not ACTIVE');
+      }
     }
 
-    // Double-booking: neither the vehicle nor the driver may already be
+    // Double-booking: neither the vehicle, driver, nor guide may already be
     // assigned to a *different* departure whose dates overlap this one.
-    const [vehicleAssignments, driverAssignments] = await Promise.all([
+    const [vehicleAssignments, driverAssignments, guideAssignments] = await Promise.all([
       assignmentRepository.listForVehicle(organizationId, input.vehicleId),
       assignmentRepository.listForDriverProfile(organizationId, input.driverProfileId),
+      input.guideUserId ? assignmentRepository.listForGuide(organizationId, input.guideUserId) : Promise.resolve([]),
     ]);
-    const otherDepartureIds = new Set([...vehicleAssignments, ...driverAssignments].map((a) => a.departureId));
+    const otherDepartureIds = new Set(
+      [...vehicleAssignments, ...driverAssignments, ...guideAssignments].map((a) => a.departureId),
+    );
     if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) {
-      throw Errors.conflict('Vehicle or driver is already assigned to an overlapping departure');
+      throw Errors.conflict('Vehicle, driver, or guide is already assigned to an overlapping departure');
     }
 
     let assignment: AssignmentView;
