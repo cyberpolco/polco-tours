@@ -10,18 +10,15 @@ function optionalString(formData: FormData, key: string): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-// Staff may only book for a tourist who already has an account this
-// increment (found by email) -- creating an account for a brand-new,
-// never-signed-up client is explicitly deferred (DR-014).
+// DR-036: clients never sign up (DR-016) -- staff just type the client's (or,
+// for a group, the tour lead's) email, and the system resolves-or-creates a
+// login-less tourist record behind the scenes. No account, no signup gate.
 export async function createBookingForClientAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('booking.create');
   const departureId = String(formData.get('departureId'));
   const email = String(formData.get('email')).trim();
 
-  const client = await authService.getUserByEmail(email);
-  if (!client) {
-    redirect(`/staff/bookings/new?departureId=${departureId}&error=client_not_found`);
-  }
+  const client = await authService.findOrCreateTouristByEmail(ctx, email);
 
   const input = CreateBookingInput.parse({
     departureId,
@@ -33,15 +30,12 @@ export async function createBookingForClientAction(formData: FormData): Promise<
   redirect(`/staff/bookings/${booking.id}`);
 }
 
-// Same already-has-an-account constraint as createBookingForClientAction.
+// Same no-account-needed behavior as createBookingForClientAction.
 export async function createTailorMadeBookingAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('booking.create');
   const email = String(formData.get('email')).trim();
 
-  const client = await authService.getUserByEmail(email);
-  if (!client) {
-    redirect('/staff/bookings/new?tailorMade=1&error=client_not_found');
-  }
+  const client = await authService.findOrCreateTouristByEmail(ctx, email);
 
   const input = CreateTailorMadeInput.parse({
     customCountry: String(formData.get('customCountry')).trim().toUpperCase(),

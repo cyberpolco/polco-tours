@@ -9,10 +9,12 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-16, against repo HEAD `a135844` (DR-035, User
-> Management + a runtime permission-matrix editor, in progress — DR-035
-> itself is not yet committed as of this revision). Also records the DR-034
-> Immigration Module/Country Regulations/Zambia+Zimbabwe expansion, and a
+> Last updated: 2026-07-16, against repo HEAD `b0d03ca` (DR-035, User
+> Management + a runtime permission-matrix editor, committed). DR-036 (staff
+> booking-for-client no-account-required) is in progress on top of it —
+> lint/typecheck/the new unit test are green, not yet committed as of this
+> revision. Also records the DR-034 Immigration Module/Country
+> Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
 > this session — fixed across 51 files, see Gotchas.
@@ -581,7 +583,8 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   DPO stays stubbed, OI-01 still open). Staff can only book on behalf of a
   tourist who **already has an account** (found by email) — creating one on
   the spot is explicitly deferred, `Booking.touristUserId` is a hard FK and
-  no such capability exists yet. First real Playwright coverage + a new CI
+  no such capability exists yet (superseded 2026-07-16 by DR-036, once
+  DR-016 established tourists never sign up at all). First real Playwright coverage + a new CI
   job (`e2e`, own Postgres bootstrap, mirrors `quality`). **Pilot with Lam
   next** — no further increment is blocking it; OI-01/02/03/05/06/07 remain
   founder/ops items, not engineering ones. Tourist-facing self-serve site
@@ -1173,6 +1176,22 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `scripts/set-staff-password.ts`, each with explicit user confirmation.
   Fixed at the root across all 51 affected test files with an early-return
   guard against an undefined id before any `deleteMany` cleanup call.
+- **Staff booking-for-client no-account-required done 2026-07-16 (DR-036):**
+  closes the gap DR-014 explicitly deferred (staff could only book for a
+  tourist who already had an account, found by email) -- inconsistent with
+  DR-016 establishing that tourists never sign up at all, ever. New
+  `authRepository.createBareTourist` (login-less `User` row, no `Account`
+  row, can never sign in) + `authService.findOrCreateTouristByEmail`
+  (lookup-then-create, `forbidden` if the caller has no `organizationId`).
+  `bookings/new/actions.ts`'s two staff booking actions switched to it; the
+  now-unreachable `client_not_found` error UI was removed from
+  `bookings/new/page.tsx`. A client created this way is still findable via
+  the existing `bookingService.lookupByConfirmationCode`, same as a guest
+  checkout -- no new lookup path. The *other* `getUserByEmail` call sites
+  (fleet guide/driver/vehicle-owner lookup, assignment guide lookup) are
+  untouched -- those are real login-capable accounts, where "must already
+  exist" is still correct. New `tests/auth-find-or-create-tourist.test.ts`.
+  No schema/permission/RLS change.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1394,7 +1413,14 @@ New `PATCH /users/{userId}`, `POST /users/{userId}/reset-password`,
 settings" deliberately not built -- user never specified which settings.
 Also fixed a systemic test-fixture bug (undefined-id fixtures silently
 becoming unscoped `deleteMany({})` calls) across 51 files, root-caused
-after it wiped the real `users` table twice this session.
+after it wiped the real `users` table twice this session · DR-036 staff
+booking-for-client no-account-required: closes the gap DR-014 explicitly
+deferred, inconsistent with DR-016's "tourists never sign up." New
+`authRepository.createBareTourist` (login-less `User` row) +
+`authService.findOrCreateTouristByEmail` (lookup-then-create); the two
+staff booking actions use it instead of erroring on an unknown email; a
+client created this way is still findable via the existing
+`lookupByConfirmationCode`. No schema/permission/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

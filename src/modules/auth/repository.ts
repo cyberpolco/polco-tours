@@ -64,6 +64,17 @@ export const authRepository = {
     return toPublicUser(u, await resolveRoles(u));
   },
 
+  /** DR-036: a login-less User row for a staff-entered client email --
+   * `role` defaults to TOURIST and no Account/credential row is ever
+   * created, so this person can never sign in (tourists never sign up,
+   * DR-016). Exists purely so Booking.touristUserId has a real row to point
+   * at; the client can still find their booking via
+   * bookingService.lookupByConfirmationCode, same as a guest checkout. */
+  async createBareTourist(email: string, organizationId: string): Promise<PublicUser> {
+    const u = await prisma.user.create({ data: { email, organizationId } });
+    return toPublicUser(u, await resolveRoles(u));
+  },
+
   /** DR-026: every non-deleted user in the org, for the admin user-management
    * page (authService.listUsers). */
   async listAll(organizationId: string): Promise<PublicUser[]> {

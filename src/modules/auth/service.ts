@@ -14,11 +14,25 @@ export const authService = {
     return authRepository.findUserById(id);
   },
 
-  /** Internal backend-to-backend lookup (mirrors getUser) -- used by staff
-   * booking-on-behalf-of-a-client flows to resolve an existing tourist by
-   * email. No internal permission check; the caller gates first. */
+  /** Internal backend-to-backend lookup (mirrors getUser). No internal
+   * permission check; the caller gates first. */
   async getUserByEmail(email: string): Promise<PublicUser | null> {
     return authRepository.findUserByEmail(email);
+  },
+
+  /** Staff booking-on-behalf-of-a-client flows (DR-036): resolves a tourist
+   * by email, creating a login-less User row if none exists yet -- tourists
+   * never sign up (DR-016), so requiring a pre-existing account here was
+   * never consistent with that rule. The created row has no Account/
+   * credential row and can never sign in; the client can still find their
+   * booking via bookingService.lookupByConfirmationCode (confirmation code +
+   * last name), same as a guest checkout. No internal permission check; the
+   * caller (booking.create) already gates. */
+  async findOrCreateTouristByEmail(ctx: AuthContext, email: string): Promise<PublicUser> {
+    const existing = await authRepository.findUserByEmail(email);
+    if (existing) return existing;
+    if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+    return authRepository.createBareTourist(email, ctx.organizationId);
   },
 
   /** Self-service only -- ctx.userId is always the target, no ownership

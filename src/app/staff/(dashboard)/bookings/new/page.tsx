@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
-import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
@@ -12,26 +11,19 @@ import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
 import { createBookingForClientAction, createTailorMadeBookingAction } from './actions';
 
 interface Props {
-  searchParams: Promise<{ packageId?: string; departureId?: string; tailorMade?: string; error?: string }>;
+  searchParams: Promise<{ packageId?: string; departureId?: string; tailorMade?: string }>;
 }
 
 export default async function NewBookingPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
-  const { packageId, departureId, tailorMade, error } = await searchParams;
+  const { packageId, departureId, tailorMade } = await searchParams;
 
   if (tailorMade) {
     return (
       <div className="max-w-md">
         <PageHeader eyebrow="New booking" title="Tailor-made request" />
-        {error === 'client_not_found' && (
-          <div className="mt-3">
-            <Alert tone="error">
-              No account found for that email. The client needs to sign up before staff can book on their behalf.
-            </Alert>
-          </div>
-        )}
         <form action={createTailorMadeBookingAction} className="mt-6 space-y-4">
-          <FormField label="Client email (must already have an account)" htmlFor="email">
+          <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
             <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Destination country (ISO-3166 alpha-2, e.g. NA or CD)" htmlFor="customCountry">
@@ -84,16 +76,9 @@ export default async function NewBookingPage({ searchParams }: Props) {
           eyebrow="New booking"
           title={`${detail.departure.startDate.toLocaleDateString()} · ${format(detail.effectiveUnitPrice)}/seat`}
         />
-        {error === 'client_not_found' && (
-          <div className="mt-3">
-            <Alert tone="error">
-              No account found for that email. The client needs to sign up before staff can book on their behalf.
-            </Alert>
-          </div>
-        )}
         <form action={createBookingForClientAction} className="mt-6 space-y-4">
           <input type="hidden" name="departureId" value={departureId} />
-          <FormField label="Client email (must already have an account)" htmlFor="email">
+          <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
             <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Seats" htmlFor="seats">
