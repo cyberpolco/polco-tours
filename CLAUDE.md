@@ -1569,22 +1569,31 @@ human rather than fabricating volume content.
   transaction for all of them — do the same (split into smaller transactions)
   rather than raising `withOrg`'s global timeout, since that function is
   shared by every request path, not just scripts/tests.
-- **A failed test setup can silently wipe an entire table.** When a fixture's
-  `beforeAll` throws partway through (e.g. the transaction-timeout gotcha
-  above), some `afterAll` cleanups still run with an `undefined` id captured
-  from the failed setup — e.g. `admin.user.deleteMany({ where: {
-  organizationId: orgId } })` with `orgId` still `undefined`. Prisma's client
-  drops keys with an `undefined` value before sending the query, silently
-  turning that into `deleteMany({})` — an **unscoped delete of every row in
-  the table**. `users` has no RLS policy (see the gotcha above on why), so
-  nothing stopped this from deleting every seeded user (Lam + superadmin)
-  during this session's first real test run against Neon; `db:seed` is
-  idempotent and safely restored them. `deleteMany` calls in test cleanup
-  should guard against an undefined id (e.g. skip cleanup or assert the id is
-  defined first) rather than trusting Prisma to no-op — this is a latent bug
-  in existing fixtures, not something introduced by the Neon setup, just
-  never triggered before because these tests always ran against a fast local
-  Postgres where the timeout gotcha above never fired.
+- **A failed test setup can silently wipe an entire table -- fixed 2026-07-16
+  across every affected file, after it hit real production data twice.**
+  When a fixture's `beforeAll` throws partway through (e.g. the
+  transaction-timeout gotcha above, or the transient Neon-pooler
+  connectivity gotcha below), some `afterAll` cleanups still ran with an
+  `undefined` id captured from the failed setup — e.g. `admin.user
+  .deleteMany({ where: { organizationId: orgId } })` with `orgId` still
+  `undefined`. Prisma's client drops keys with an `undefined` value before
+  sending the query, silently turning that into `deleteMany({})` — an
+  **unscoped delete of every row in the table**. `users` has no RLS policy
+  (see the gotcha above on why), so nothing stopped this from deleting
+  every real user (Lam + superadmin) not once but **twice** in the same
+  session (2026-07-16) — the second time wiping the two accounts that had
+  just been recovered from the first wipe. Both incidents were recovered
+  via `db:seed` (idempotent, restores Lam) + `scripts/create-staff-user.ts`
+  (recreates the superadmin) + `scripts/set-staff-password.ts` (fresh
+  generated passwords, `mustChangePassword: true` forced). **Root cause
+  fixed** across all 51 affected files: every `afterAll` that scopes a
+  delete by a `beforeAll`-assigned id now guards with `if (!id) { await
+  admin.$disconnect(); await prisma.$disconnect(); return; }` (or the
+  equivalent for a two-org RLS fixture's `orgA`/`orgB` pair) before running
+  any scoped `deleteMany`/`delete` — skipping cleanup entirely is safe;
+  leftover fixture rows are cheap, a wiped production table is not. Any
+  *new* test file added after 2026-07-16 must follow this same guard
+  convention, not just the old "trust Prisma to no-op" assumption.
 - First-time local `.env`/`.env.local` setup for this Neon project was
   completed 2026-07-10 (`DATABASE_URL`/`DIRECT_URL` via `polco_app`,
   `BETTER_AUTH_SECRET` generated, `BLOB_READ_WRITE_TOKEN` carried over from

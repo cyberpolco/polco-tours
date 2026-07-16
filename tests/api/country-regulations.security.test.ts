@@ -69,6 +69,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard: if beforeAll failed before orgId was assigned, Prisma silently
+  // drops the undefined where-clause value, turning the user cleanup into an
+  // unscoped deleteMany that wipes the whole table -- this has hit real
+  // production data twice. Skip cleanup entirely rather than risk it.
+  if (!orgId) {
+    await admin.$disconnect();
+    await prisma.$disconnect();
+    return;
+  }
   await admin.countryRegulation.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });

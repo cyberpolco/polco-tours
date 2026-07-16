@@ -32,6 +32,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard: if beforeAll failed before orgA/orgB were assigned, Prisma
+  // silently drops the undefined where-clause value, turning these into
+  // unscoped deleteMany calls that wipe the whole table -- this has hit
+  // real production data twice. Skip cleanup entirely rather than risk it.
+  if (!orgA || !orgB) {
+    await admin.$disconnect();
+    await prisma.$disconnect();
+    return;
+  }
   for (const id of [orgA, orgB]) {
     await withOrg(id, (tx) => tx.addonService.deleteMany({ where: { organizationId: id } }));
   }

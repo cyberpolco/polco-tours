@@ -72,6 +72,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard: if beforeAll failed before orgAId/orgBId were assigned, Prisma
+  // silently drops the undefined where-clause value, turning these into
+  // unscoped deleteMany calls that wipe the whole table -- this has hit
+  // real production data twice. Skip cleanup entirely rather than risk it.
+  if (!orgAId || !orgBId) {
+    await admin.$disconnect();
+    await prisma.$disconnect();
+    return;
+  }
   await withOrg(orgAId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgAId } }));
   await withOrg(orgAId, (tx) => tx.driverProfile.deleteMany({ where: { organizationId: orgAId } }));
   await withOrg(orgBId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgBId } }));

@@ -74,6 +74,18 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Guard: if beforeAll failed before these ids were all assigned, Prisma
+  // silently drops/mishandles the undefined where-clause value, turning
+  // these into unscoped deleteMany calls -- and since orgId here is the
+  // real shared PRIMARY organization (not a throwaway fixture org), that
+  // would wipe every package/departure belonging to it. This has hit real
+  // production data twice already. Skip cleanup entirely rather than risk
+  // it.
+  if (!orgId || !publishedPackageId || !draftPackageId || !scheduledDepartureId || !cancelledDepartureId) {
+    await admin.$disconnect();
+    await prisma.$disconnect();
+    return;
+  }
   await withOrg(orgId, (tx) =>
     tx.departure.deleteMany({ where: { id: { in: [scheduledDepartureId, cancelledDepartureId] } } }),
   );
