@@ -8,7 +8,8 @@ export default function AboutPage() {
       <p className="mt-4 text-mist">
         Polco Tours is a Tourism Operating System for Visit Kasai &amp; Mufasa Safaris and
         Tours -- a solution Cyber PolCo built with the aim of having a presence in every
-        African country, starting here with Namibia and the Democratic Republic of Congo.
+        African country, starting here with Namibia, the Democratic Republic of Congo,
+        Zambia, and Zimbabwe.
       </p>
       <p className="mt-4 text-mist">
         It brings tour package sales and the operations behind them -- guides, drivers,

@@ -132,12 +132,22 @@ src/
       [assignmentId], api/v1/assignments/mine
                                            # assignments (DR-018)
     api/v1/bookings/[bookingId]/travelers/[travelerId]/visa(/submit,/decide,
-      /document)                          # visa documents (DR-019)
+      /document,/contact,/request-documents)
+                                           # visa documents (DR-019);
+                                           #   /contact + /request-documents
+                                           #   are real notification-
+                                           #   triggering actions (DR-034)
     api/v1/visa/queue                     # VISA_FACILITATOR's own whole-org
                                            #   queue (My Schedule, DR-031);
                                            #   the only visa-overview route
                                            #   left after DR-032 removed
-                                           #   IMMIGRATION_OFFICER entirely
+                                           #   IMMIGRATION_OFFICER entirely;
+                                           #   TOUR_OPERATOR also reaches it
+                                           #   since DR-034
+    api/v1/country-regulations(/[country]) # Immigration Module (DR-034):
+                                           #   platform-wide reference data,
+                                           #   read by anyone processing
+                                           #   visas, write is SUPERADMIN-only
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -171,7 +181,15 @@ src/
         assigned itineraries
       visa-queue = VISA_FACILITATOR's own whole-org visa queue, read-only
         (My Schedule, DR-031; closes the gap DR-019/020/021/025 each
-        re-flagged -- this role previously had zero staff UI at all)
+        re-flagged -- this role previously had zero staff UI at all);
+        also reachable by TOUR_OPERATOR since DR-034, and now the one
+        non-read-only surface here: contact-traveller/request-missing-
+        documents action forms per row
+      country-regulations(/new|/[country]) = Immigration Module (DR-034):
+        read-only for anyone with country_regulation.read, write controls
+        rendered only for SUPERADMIN (PLATFORM_ADMIN passes the route-level
+        permission but would 403 in the service, so the UI hides rather
+        than dangles those controls)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -224,7 +242,10 @@ src/
                        #   booking+catalog modules (DR-031) -- the sole
                        #   visa-overview surface since DR-032 removed
                        #   IMMIGRATION_OFFICER/OfficerVisaView/listForCountry
-                       #   entirely
+                       #   entirely; contactTraveler/requestMissingDocuments
+                       #   (DR-034) resolve the notification recipient via
+                       #   bookingService.getBookingForTraveler (a Traveler
+                       #   isn't itself a User)
     itinerary/         # Itinerary (1:1 Booking, DRAFT/IN_REVIEW/APPROVED) +
                        #   ItineraryDay (per-day schedule) + Hotel/Restaurant
                        #   (lightweight reference entities) + join tables
@@ -232,6 +253,14 @@ src/
                        #   public interfaces rather than duplicating vehicle/
                        #   driver/guide assignment data, which stays owned by
                        #   the assignment module
+    immigration/       # CountryRegulation (DR-034) -- platform-wide
+                       #   reference data (no organizationId, no RLS, same
+                       #   precedent as TaxRate); write is SUPERADMIN-only
+                       #   (isCountryRegulationWriter), the first real
+                       #   behavioral gap between SUPERADMIN and
+                       #   PLATFORM_ADMIN in this app -- see rbac.ts's
+                       #   country_regulation.write comment for why the
+                       #   permission matrix alone can't express it
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -313,20 +342,32 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 
 ---
 
-## Domain & regulatory context (Namibia & DRC)
+## Domain & regulatory context (Namibia, DRC, Zambia & Zimbabwe)
 
 Why the app is shaped the way it is — and the real-world rules any feature
 touching operators, vehicles, guides, visas, or destinations must respect.
 **All figures are effective-dated and change often; never hardcode them —
-verify against NTB/MEFT (Namibia), ICCN/Ministry of Tourism (DRC) and the
-relevant embassies. Treat this as orientation, not legal ground truth.**
+verify against NTB/MEFT (Namibia), ICCN/Ministry of Tourism (DRC), and the
+relevant Zambia/Zimbabwe authorities/embassies. Treat this as orientation,
+not legal ground truth.**
 
-**Two regimes, one platform.** Namibia and the DRC have very different tourism
-governance. This is the reason for per-country tax (DR-006), per-country
-operator compliance (BR-12), country-scoped visa applications (`VisaApplication
-.country`, DR-019), EN/FR bilingual content, and packages priced in one of four
+**Four regimes, one platform.** Namibia, the DRC, Zambia, and Zimbabwe (the
+last two added DR-034) have very different tourism governance. This is the
+reason for per-country tax (DR-006), per-country operator compliance
+(BR-12), country-scoped visa applications (`VisaApplication.country`,
+DR-019), EN/FR bilingual content, and packages priced in one of four
 currencies with **no FX conversion anywhere** (never rank/compare by price
 across currencies — see `scorePackagesForQuiz`).
+
+**Country Regulations (DR-034, `immigration` module) is the structured
+source of truth going forward** for visa requirements, required documents,
+processing times, entry conditions, immigration fees, embassy details,
+health requirements, travel advisories, and special restrictions, one row
+per country — staff-editable at `/staff/country-regulations`
+(`SUPERADMIN`-only write). The bullets below (Namibia/DRC detail predating
+DR-034) and the seeded Zambia/Zimbabwe rows are general-knowledge starting
+points, not verified against each country's actual immigration authority —
+correct them in the UI, not by hand-editing this file or `seed.ts`.
 
 - **Namibia — operator & fleet compliance (feeds `fleet`/`documents`, DR-017).**
   Operators register with the **Namibia Tourism Board (NTB)** (Act 21/2000):
@@ -1017,6 +1058,34 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   page -- the same `/staff/itineraries/{id}` page already renders read-only
   once `itinerary.write`/`itinerary.approve` are both false for the viewer;
   `/staff/schedule` only gained a discovery link section.
+- **Immigration Module + Country Regulations + Zambia/Zimbabwe expansion
+  done 2026-07-16 (DR-034):** `TOUR_OPERATOR` gains `visa.process` (explicit
+  user instruction: "the Tour Operator is by default also a Visa
+  Facilitator role"). New `CountryRegulation` (platform-wide, no
+  `organizationId`/RLS, same precedent as `TaxRate`) holds visa
+  requirements/required documents/processing time/entry conditions/
+  immigration fee (BR-02 money)/embassy contact/health requirements/travel
+  advisories/special restrictions, one row per country. **The first real
+  behavioral gap between `SUPERADMIN` and `PLATFORM_ADMIN` in this app**:
+  country-regulation write is `SUPERADMIN`-only, enforced one layer below
+  the permission matrix (both admin roles pass the route-level
+  `country_regulation.write` gate via their `'*'` wildcard; a new
+  `isCountryRegulationWriter` check inside `immigration/service.ts`
+  actually excludes `PLATFORM_ADMIN`). New standalone `immigration` module;
+  new `/staff/country-regulations` pages (read-only for
+  `country_regulation.read` holders, write UI only for `SUPERADMIN`). New
+  real notification-triggering `visaService.contactTraveler`/
+  `requestMissingDocuments` (resolve the recipient via
+  `bookingService.getBookingForTraveler`, since a `Traveler` isn't itself a
+  `User`), surfaced on the existing `/staff/visa-queue` page. Full platform
+  expansion to Zambia (ZM) and Zimbabwe (ZW) as real operable countries
+  (explicit user choice) -- confirmed the schema/zod/tax layers were
+  already country-agnostic, so this was a data/config/UI change: seed
+  data, every guest/staff country dropdown, the homepage map's highlight
+  set, and new (unverified, flagged for `SUPERADMIN` review) `FAQ`/`About`
+  content. Packages in the new countries stay priced in `USD`/`EUR` (no new
+  `Currency` enum value). Per explicit user choice, the guest Contact page
+  was **not** extended with fabricated Zambia/Zimbabwe office entries.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1202,7 +1271,23 @@ the redundant `/staff/departures` nav tab, not the `Departure` model --
 `/staff/departures/[id]` (vehicle/driver/guide assignment) stays unchanged,
 linked from the new itinerary page and a widened booking-detail link
 instead. Guide/driver read-only access reuses the same itinerary detail
-page (renders read-only once `itinerary.write`/`approve` are both false).
+page (renders read-only once `itinerary.write`/`approve` are both false) ·
+DR-034 Immigration Module + Country Regulations + Zambia/Zimbabwe
+expansion: `TOUR_OPERATOR` gains `visa.process` (explicit user choice: "the
+Tour Operator is by default also a Visa Facilitator role"). New
+platform-wide `CountryRegulation` (no `organizationId`/RLS, same precedent
+as `TaxRate`) in a new `immigration` module. **First real behavioral gap
+between `SUPERADMIN` and `PLATFORM_ADMIN`**: country-regulation write is
+`SUPERADMIN`-only, enforced via a new `isCountryRegulationWriter` check
+inside `immigration/service.ts` (not expressible in `rbac.ts`'s MATRIX
+alone, since both admin roles hold `'*'`). New real notification-triggering
+`visaService.contactTraveler`/`requestMissingDocuments`, resolving the
+recipient via `bookingService.getBookingForTraveler`. Full platform
+expansion to Zambia/Zimbabwe (explicit user choice) -- confirmed
+country-acceptance needed no schema/zod change (already plain strings), so
+this was seed data + UI dropdowns + map/FAQ/About content; no new
+`Currency` enum value (priced in USD/EUR); the guest Contact page
+deliberately not extended with fabricated offices there.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

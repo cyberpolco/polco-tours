@@ -31,6 +31,12 @@ export interface VisaApplicationView {
 export interface FacilitatorVisaView {
   id: string;
   travelerId: string;
+  // Resolved live alongside travelStartDate (DR-034) -- lets the visa-queue
+  // page call contactTraveler/requestMissingDocuments, which need a
+  // bookingId the same way submit/decide/resubmit do (findTraveler's
+  // anti-BOLA check). Null only if the reverse booking lookup itself fails
+  // (same rare case travelStartDate already tolerates).
+  bookingId: string | null;
   travelerFirstName: string;
   travelerLastName: string;
   travelerNationality: string;
@@ -44,6 +50,14 @@ export interface FacilitatorVisaView {
   decidedAt: Date | null;
   travelStartDate: Date | null;
 }
+
+// Immigration Module (DR-034): "contact travellers" -- a staff-authored
+// free-text message, sent to the booking's tour lead (the traveler itself
+// isn't a User account, see visa/service.ts's contactTraveler).
+export const ContactTravelerInput = z.object({
+  message: z.string().trim().min(1).max(1000),
+});
+export type ContactTravelerInput = z.infer<typeof ContactTravelerInput>;
 
 export const DecideVisaInput = z.object({
   outcome: z.enum(['APPROVED', 'REJECTED']),

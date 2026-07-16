@@ -61,7 +61,10 @@ export const AFRICA_COUNTRY_IDS: ReadonlySet<string> = new Set([
   '716', // Zimbabwe
 ]);
 
-// The two countries this platform operates in -- get a second, distinct
-// highlight color once the map is zoomed in (AfricaMap.tsx).
+// The countries this platform operates in -- get a second, distinct
+// highlight color once the map is zoomed in (AfricaMap.tsx). Zambia/
+// Zimbabwe added DR-034 (full platform expansion).
 export const NAMIBIA_ID = '516';
 export const DRC_ID = '180';
+export const ZAMBIA_ID = '894';
+export const ZIMBABWE_ID = '716';

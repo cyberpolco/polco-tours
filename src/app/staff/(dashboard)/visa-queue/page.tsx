@@ -2,8 +2,10 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { visaService } from '@modules/visa';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { VISA_STATUS_TONE } from '@lib/status-tones';
+import { contactTravelerAction, requestMissingDocumentsAction } from './actions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -12,10 +14,14 @@ function daysUntil(date: Date, now: Date): number {
 }
 
 // VISA_FACILITATOR's "My Schedule" (DR-031) -- whole-org queue, no country
-// scoping concept exists for this role. Read-only -- decide/resubmit/upload
-// stay API-only for now (this page is the discovery/overview surface the
-// spec calls "immigration tasks / missing documents / visa deadlines", not a
-// new decision-making UI). (IMMIGRATION_OFFICER and its own separate
+// scoping concept exists for this role. Now also reachable by TOUR_OPERATOR
+// (DR-034: "the Tour Operator is by default also a Visa Facilitator role").
+// Mostly read-only -- decide/resubmit/upload stay API-only (this page is the
+// discovery/overview surface the spec calls "immigration tasks / missing
+// documents / visa deadlines", not a new decision-making UI) -- except the
+// two new DR-034 actions below (contact traveller / request missing
+// documents), which real notification-triggering actions make simple enough
+// to surface directly here. (IMMIGRATION_OFFICER and its own separate
 // country-scoped /staff/immigration page were removed entirely in DR-032.)
 export default async function VisaQueuePage() {
   const ctx = await requireStaffContext('visa.process');
@@ -50,6 +56,7 @@ export default async function VisaQueuePage() {
               <Th>Travel date</Th>
               <Th>Document</Th>
               <Th>Rejection reason</Th>
+              <Th>Actions</Th>
             </TableHeaderRow>
           </thead>
           <tbody>
@@ -77,6 +84,30 @@ export default async function VisaQueuePage() {
                   {a.hasDocument ? 'Yes' : <Badge tone="warning">Missing</Badge>}
                 </Td>
                 <Td>{a.rejectionReason ?? '—'}</Td>
+                <Td>
+                  {a.bookingId && (
+                    <div className="space-y-2">
+                      <form action={contactTravelerAction.bind(null, a.bookingId, a.travelerId)} className="flex gap-2">
+                        <input
+                          name="message"
+                          required
+                          placeholder="Message…"
+                          className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
+                        />
+                        <SubmitButton size="compact" pendingLabel="Sending…">
+                          Contact
+                        </SubmitButton>
+                      </form>
+                      {!a.hasDocument && (
+                        <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
+                          <SubmitButton size="compact" variant="secondary" pendingLabel="Sending…">
+                            Request documents
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </Td>
               </Tr>
             ))}
           </tbody>

@@ -9,6 +9,8 @@ interface Props {
 const COUNTRIES = [
   { code: 'NA', name: 'Namibia' },
   { code: 'CD', name: 'DR Congo' },
+  { code: 'ZM', name: 'Zambia' },
+  { code: 'ZW', name: 'Zimbabwe' },
 ];
 
 export default async function PackagesPage({ searchParams }: Props) {

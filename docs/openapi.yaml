@@ -1,8 +1,24 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.10.0
+  version: 0.11.0
   description: >
+    DR-034 adds Immigration Module + Country Regulations + Zambia/Zimbabwe
+    expansion: TOUR_OPERATOR gains visa.process ("the Tour Operator is by
+    default also a Visa Facilitator role"); a new platform-wide
+    CountryRegulation (no organizationId/RLS, same precedent as TaxRate)
+    under /country-regulations(/{country}), read via
+    country_regulation.read (TOUR_OPERATOR/VISA_FACILITATOR, admins via
+    '*'), write via country_regulation.write -- but the service layer's
+    isCountryRegulationWriter additionally excludes PLATFORM_ADMIN, the
+    first real behavioral gap between SUPERADMIN and PLATFORM_ADMIN in this
+    app (rbac.ts's MATRIX wildcard can't express this alone). Two new real
+    notification-triggering visa actions,
+    /bookings/{bookingId}/travelers/{travelerId}/visa/(contact|
+    request-documents), resolving the recipient via
+    bookingService.getBookingForTraveler. Zambia (ZM) and Zimbabwe (ZW) are
+    now real operable countries (packages/departures/tax), priced in the
+    existing USD/EUR Currency values.
     DR-033 adds Itinerary Management: a new Itinerary (1:1 with a Booking,
     DRAFT -> IN_REVIEW -> APPROVED), ItineraryDay (per-day schedule), and
     lightweight Hotel/Restaurant reference entities under
@@ -824,6 +840,40 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/contact:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Send a staff-authored message about a traveler's visa application (DR-034)
+      description: >-
+        Real notification-triggering action (WhatsApp -> SMS -> email
+        fallback) -- a Traveler isn't itself a User account, so this
+        notifies the booking's tour lead (touristUserId), resolved via
+        bookingService.getBookingForTraveler.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactTravelerInput' }
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/request-documents:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Notify the tour lead that a visa document is missing (DR-034)
+      description: Same recipient-resolution and fallback-chain shape as .../visa/contact.
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /visa/queue:
     get:
@@ -1968,6 +2018,79 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /country-regulations:
+    get:
+      summary: List every country's immigration regulations (country_regulation.read, DR-034)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { regulations: { type: array, items: { $ref: '#/components/schemas/CountryRegulation' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Add a country's regulations (country_regulation.write)
+      description: >-
+        Passes the route gate for SUPERADMIN/PLATFORM_ADMIN alike (both hold
+        '*') -- the service layer's isCountryRegulationWriter check then
+        rejects PLATFORM_ADMIN, the first real behavioral gap between the
+        two admin roles in this app.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCountryRegulationInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { regulation: { $ref: '#/components/schemas/CountryRegulation' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: A regulation already exists for this country }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /country-regulations/{country}:
+    parameters:
+      - name: country
+        in: path
+        required: true
+        schema: { type: string, minLength: 2, maxLength: 2 }
+        description: ISO-3166 alpha-2 -- a natural key, not a synthetic id
+    get:
+      summary: Get a country's immigration regulations (country_regulation.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { regulation: { $ref: '#/components/schemas/CountryRegulation' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a country's regulations (country_regulation.write, SUPERADMIN-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCountryRegulationInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { regulation: { $ref: '#/components/schemas/CountryRegulation' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      summary: Delete a country's regulations (country_regulation.write, SUPERADMIN-only)
+      description: Hard delete -- global config, no soft-delete concept; history lives in audit_logs.
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -2682,19 +2805,27 @@ components:
         outcome: { type: string, enum: [APPROVED, REJECTED] }
         reason: { type: string, maxLength: 500, description: 'Only persisted when outcome is REJECTED (DR-025)' }
 
+    ContactTravelerInput:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 1000 }
+
     FacilitatorVisaView:
       type: object
       description: >-
         VISA_FACILITATOR's own whole-org visa queue (My Schedule, DR-031) --
         includes rejectionReason and travelerId since this role already
         holds unscoped visa.process; documentId itself still isn't exposed,
-        only hasDocument. travelStartDate is resolved live via
+        only hasDocument. travelStartDate and bookingId (DR-034, needed for
+        the contact/request-documents actions) are both resolved live via
         Traveler -> Booking -> Departure (or Booking.customTravelStart for a
         TAILOR_MADE booking), null if that chain can't be resolved for this
         caller.
       properties:
         id: { type: string, format: uuid }
         travelerId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid, nullable: true }
         travelerFirstName: { type: string }
         travelerLastName: { type: string }
         travelerNationality: { type: string }
@@ -2869,3 +3000,66 @@ components:
         contactName: { type: string, maxLength: 200 }
         contactPhone: { type: string, maxLength: 50 }
         contactEmail: { type: string, format: email }
+
+    CountryRegulation:
+      type: object
+      description: >-
+        Platform-wide reference data, one row per country (Immigration
+        Module, DR-034) -- no organizationId, same precedent as TaxRate.
+        Write is SUPERADMIN-only (country_regulation.write, enforced past
+        the route gate in immigration/service.ts).
+      properties:
+        id: { type: string, format: uuid }
+        country: { type: string, minLength: 2, maxLength: 2, description: ISO-3166 alpha-2, unique }
+        visaRequirements: { type: string }
+        requiredDocuments: { type: string }
+        processingTimeDays: { type: integer, nullable: true }
+        entryConditions: { type: string }
+        immigrationFeeMinor: { type: integer, nullable: true, description: Integer minor units (BR-02), paired with feeCurrency }
+        feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true }
+        embassyName: { type: string, nullable: true }
+        embassyAddress: { type: string, nullable: true }
+        embassyPhone: { type: string, nullable: true }
+        embassyEmail: { type: string, nullable: true }
+        healthRequirements: { type: string }
+        travelAdvisories: { type: string, nullable: true }
+        specialRestrictions: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateCountryRegulationInput:
+      type: object
+      required: [country, visaRequirements, requiredDocuments, entryConditions, healthRequirements]
+      properties:
+        country: { type: string, minLength: 2, maxLength: 2 }
+        visaRequirements: { type: string, minLength: 1 }
+        requiredDocuments: { type: string, minLength: 1 }
+        processingTimeDays: { type: integer, minimum: 0 }
+        entryConditions: { type: string, minLength: 1 }
+        immigrationFeeMinor: { type: integer, minimum: 0 }
+        feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        embassyName: { type: string, maxLength: 200 }
+        embassyAddress: { type: string, maxLength: 500 }
+        embassyPhone: { type: string, maxLength: 50 }
+        embassyEmail: { type: string, format: email }
+        healthRequirements: { type: string, minLength: 1 }
+        travelAdvisories: { type: string }
+        specialRestrictions: { type: string }
+
+    UpdateCountryRegulationInput:
+      type: object
+      description: Same as CreateCountryRegulationInput minus country (the natural key, immutable after creation), all optional.
+      properties:
+        visaRequirements: { type: string, minLength: 1 }
+        requiredDocuments: { type: string, minLength: 1 }
+        processingTimeDays: { type: integer, minimum: 0 }
+        entryConditions: { type: string, minLength: 1 }
+        immigrationFeeMinor: { type: integer, minimum: 0 }
+        feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF] }
+        embassyName: { type: string, maxLength: 200 }
+        embassyAddress: { type: string, maxLength: 500 }
+        embassyPhone: { type: string, maxLength: 50 }
+        embassyEmail: { type: string, format: email }
+        healthRequirements: { type: string, minLength: 1 }
+        travelAdvisories: { type: string }
+        specialRestrictions: { type: string }

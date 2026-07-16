@@ -4,12 +4,14 @@ import type { AuthContext } from '@modules/auth';
 import { bookingService, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { documentsService, type DocumentSummary, type DocumentStream } from '@modules/documents';
+import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
   canDecide,
   canResubmit,
+  type ContactTravelerInput,
   type DecideVisaInput,
   type FacilitatorVisaView,
   type VisaApplicationView,
@@ -132,6 +134,58 @@ export const visaService = {
     return resubmitted;
   },
 
+  /** Immigration Module (DR-034): "contact travellers." A Traveler isn't
+   * itself a User account (only the booking's tour lead is), so this
+   * notifies the booking's touristUserId -- the person actually responsible
+   * for that traveler's paperwork -- via the existing notifications module
+   * (WhatsApp -> SMS -> email fallback, charter rule 8). */
+  async contactTraveler(ctx: AuthContext, bookingId: string, travelerId: string, input: ContactTravelerInput): Promise<void> {
+    assertCan(ctx.roles, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
+    const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
+    if (!booking) throw Errors.notFound('Booking not found for this traveler');
+
+    await notificationsService.notify('VISA_CONTACT_TRAVELER', booking.touristUserId, organizationId, {
+      travelerName: `${traveler.firstName} ${traveler.lastName}`,
+      message: input.message,
+    });
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.contacted_traveler',
+      resourceType: 'Traveler',
+      resourceId: travelerId,
+      organizationId,
+      metadata: { message: input.message },
+    });
+  },
+
+  /** Immigration Module (DR-034): "request missing documents" -- same
+   * notification target/reasoning as contactTraveler above. */
+  async requestMissingDocuments(ctx: AuthContext, bookingId: string, travelerId: string): Promise<void> {
+    assertCan(ctx.roles, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
+
+    const application = await visaRepository.findByTravelerId(organizationId, travelerId);
+    const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
+    if (!booking) throw Errors.notFound('Booking not found for this traveler');
+
+    await notificationsService.notify('VISA_MISSING_DOCUMENTS', booking.touristUserId, organizationId, {
+      travelerName: `${traveler.firstName} ${traveler.lastName}`,
+      country: application?.country,
+    });
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.requested_missing_documents',
+      resourceType: 'Traveler',
+      resourceId: travelerId,
+      organizationId,
+    });
+  },
+
   async uploadDocument(
     ctx: AuthContext,
     bookingId: string,
@@ -189,9 +243,11 @@ export const visaService = {
     const withDates = await Promise.all(
       rows.map(async (row) => {
         let travelStartDate: Date | null = null;
+        let bookingId: string | null = null;
         try {
           const booking = await bookingService.getBookingForTraveler(ctx, row.travelerId);
           if (booking) {
+            bookingId = booking.id;
             if (booking.departureId) {
               const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
               travelStartDate = departure.startDate;
@@ -201,10 +257,10 @@ export const visaService = {
           }
         } catch {
           // Booking/departure no longer resolvable for this role (e.g. a
-          // COMPLETED trip) -- leave travelStartDate null rather than fail
-          // the whole queue over one unresolvable row.
+          // COMPLETED trip) -- leave travelStartDate/bookingId null rather
+          // than fail the whole queue over one unresolvable row.
         }
-        return { ...row, travelStartDate };
+        return { ...row, bookingId, travelStartDate };
       }),
     );
 

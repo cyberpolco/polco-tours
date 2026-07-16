@@ -264,6 +264,43 @@ model TaxRate {
   @@map("tax_rates")
 }
 
+// Platform-wide reference data, one row per country (Immigration Module,
+// DR-034) -- NOT tenant-scoped (no organizationId), same "objective fact
+// about a country, not operator-owned data" reasoning as TaxRate above; no
+// RLS policy either, same precedent. Deliberately not effective-dated like
+// TaxRate -- a single current snapshot per country, edited in place; a
+// historical trail of who changed what lives in audit_logs, not here.
+// Write access is SUPERADMIN-only (country_regulation.write in rbac.ts,
+// enforced in immigration/service.ts -- PLATFORM_ADMIN is deliberately
+// excluded, the first real behavioral gap between the two admin roles in
+// this app). Read access goes to whoever processes visas (rbac.ts).
+model CountryRegulation {
+  id      String @id @default(uuid()) @db.Uuid
+  country String @unique @db.VarChar(2) // ISO-3166 alpha-2, matches TaxRate.country/Traveler.nationality
+
+  visaRequirements   String @db.Text // who needs what (e-visa/on-arrival/exempt) -- free text since nationality-by-nationality rules shift too often for a relational model here
+  requiredDocuments  String @db.Text // free text checklist (passport validity window, photos, invitation letter, etc.)
+  processingTimeDays Int? // typical turnaround; nullable, not every country publishes one figure
+
+  entryConditions     String    @db.Text // yellow fever proof, health forms, quarantine rules, etc.
+  immigrationFeeMinor Int? // integer minor units (BR-02), paired with feeCurrency -- never a bare number
+  feeCurrency         Currency? // paired with immigrationFeeMinor -- both null together when no flat fee is published
+
+  embassyName    String?
+  embassyAddress String?
+  embassyPhone   String?
+  embassyEmail   String?
+
+  healthRequirements  String  @db.Text // vaccination/malaria prophylaxis guidance
+  travelAdvisories    String? @db.Text // current advisory summary -- nullable, not every country has an active one
+  specialRestrictions String? @db.Text // e.g. DRC's BR-07 security-zone posture -- nullable, most countries have none
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("country_regulations")
+}
+
 // ---------------------------------------------------------------- system
 // Append-only. INSERT/UPDATE/DELETE grants are locked down in rls.sql.
 model AuditLog {

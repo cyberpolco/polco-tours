@@ -12,7 +12,9 @@ export type NotificationEvent =
   | 'BOOKING_CANCELLED'
   | 'PAYMENT_SUCCEEDED'
   | 'PAYMENT_FAILED'
-  | 'QUOTATION_SENT';
+  | 'QUOTATION_SENT'
+  | 'VISA_CONTACT_TRAVELER'
+  | 'VISA_MISSING_DOCUMENTS';
 
 export interface NotificationRecipient {
   phone: string | null;
@@ -28,6 +30,9 @@ export interface NotificationData {
   bookingId?: string;
   amountMinor?: number;
   currency?: Currency;
+  travelerName?: string; // VISA_CONTACT_TRAVELER / VISA_MISSING_DOCUMENTS
+  message?: string; // VISA_CONTACT_TRAVELER: staff-authored free text
+  country?: string; // VISA_MISSING_DOCUMENTS
 }
 
 const FALLBACK_ORDER: NotificationChannel[] = ['WHATSAPP', 'SMS', 'EMAIL'];
@@ -82,6 +87,26 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
     FR: (d) => ({
       subject: 'Votre devis est prêt',
       body: `Votre devis pour la réservation ${d.bookingId} est prêt : ${amount(d, 'fr')}. Connectez-vous pour consulter et payer.`,
+    }),
+  },
+  VISA_CONTACT_TRAVELER: {
+    EN: (d) => ({
+      subject: 'A message about your visa application',
+      body: `Regarding ${d.travelerName ?? 'your'} visa application: ${d.message ?? ''}`,
+    }),
+    FR: (d) => ({
+      subject: 'Un message concernant votre demande de visa',
+      body: `Concernant la demande de visa de ${d.travelerName ?? ''} : ${d.message ?? ''}`,
+    }),
+  },
+  VISA_MISSING_DOCUMENTS: {
+    EN: (d) => ({
+      subject: 'A document is missing for your visa application',
+      body: `Please upload the missing visa document for ${d.travelerName ?? 'your traveler'}'s upcoming trip to ${d.country ?? 'your destination'}.`,
+    }),
+    FR: (d) => ({
+      subject: 'Un document manque pour votre demande de visa',
+      body: `Merci de téléverser le document de visa manquant pour le prochain voyage de ${d.travelerName ?? 'votre voyageur'} vers ${d.country ?? 'votre destination'}.`,
     }),
   },
 };

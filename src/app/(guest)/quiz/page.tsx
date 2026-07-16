@@ -36,6 +36,8 @@ export default function QuizPage() {
             <option value="">No preference</option>
             <option value="NA">Namibia</option>
             <option value="CD">DR Congo</option>
+            <option value="ZM">Zambia</option>
+            <option value="ZW">Zimbabwe</option>
           </select>
         </div>
 

@@ -120,11 +120,29 @@ describe('RBAC permission matrix', () => {
     expect(can(['VISA_FACILITATOR'], 'admin.all')).toBe(false);
   });
 
-  it('TOUR_OPERATOR and TOUR_GUIDE can read documents (needed for the visa-status line, DR-019) but not process visas', () => {
-    expect(can(['TOUR_OPERATOR'], 'documents.read')).toBe(true);
-    expect(can(['TOUR_OPERATOR'], 'visa.process')).toBe(false);
+  it('TOUR_GUIDE can read documents (needed for the visa-status line, DR-019) but not process visas', () => {
     expect(can(['TOUR_GUIDE'], 'documents.read')).toBe(true);
     expect(can(['TOUR_GUIDE'], 'visa.process')).toBe(false);
+  });
+
+  it('TOUR_OPERATOR gains visa.process (DR-034: "by default also a Visa Facilitator role") and country_regulation.read, but not country_regulation.write', () => {
+    expect(can(['TOUR_OPERATOR'], 'documents.read')).toBe(true);
+    expect(can(['TOUR_OPERATOR'], 'visa.process')).toBe(true);
+    expect(can(['TOUR_OPERATOR'], 'country_regulation.read')).toBe(true);
+    expect(can(['TOUR_OPERATOR'], 'country_regulation.write')).toBe(false);
+  });
+
+  it('VISA_FACILITATOR gains country_regulation.read (DR-034) but not country_regulation.write', () => {
+    expect(can(['VISA_FACILITATOR'], 'country_regulation.read')).toBe(true);
+    expect(can(['VISA_FACILITATOR'], 'country_regulation.write')).toBe(false);
+  });
+
+  it('country_regulation.write passes only via the SUPERADMIN/PLATFORM_ADMIN wildcard at the permission-matrix layer -- the real SUPERADMIN-only exclusion of PLATFORM_ADMIN lives one layer down, in immigration/service.ts (DR-034, see isCountryRegulationWriter)', () => {
+    expect(can(['SUPERADMIN'], 'country_regulation.write')).toBe(true);
+    expect(can(['PLATFORM_ADMIN'], 'country_regulation.write')).toBe(true);
+    expect(can(['TOUR_GUIDE'], 'country_regulation.write')).toBe(false);
+    expect(can(['DRIVER'], 'country_regulation.write')).toBe(false);
+    expect(can(['TOURIST'], 'country_regulation.write')).toBe(false);
   });
 
   it('isStaffRole: every role except TOURIST reaches the staff dashboard baseline gate (DR-020)', () => {

@@ -36,7 +36,11 @@ const FAQS = [
   },
   {
     q: 'Do I need proof of yellow fever vaccination?',
-    a: "If you're arriving from (or have recently transited through) a country with a risk of yellow fever, both Namibia and the DRC may require proof of vaccination on entry. Malaria risk is also present in parts of both countries. Check current requirements with your travel clinic or the relevant embassy before you go.",
+    a: "If you're arriving from (or have recently transited through) a country with a risk of yellow fever, Namibia, the DRC, Zambia, and Zimbabwe may all require proof of vaccination on entry. Malaria risk is also present in parts of each country. Check current requirements with your travel clinic or the relevant embassy before you go.",
+  },
+  {
+    q: 'Do I need a visa to enter Zambia or Zimbabwe?',
+    a: "Most visitors can get a visa on arrival or an e-visa before travel, and some nationalities are visa-exempt for short stays -- a joint KAZA UniVisa (where available) can cover both countries plus day trips across the border to Botswana. Requirements vary by nationality, so confirm directly with Zambia's or Zimbabwe's Department of Immigration, or your nearest embassy, before you travel.",
   },
 ] as const;
 

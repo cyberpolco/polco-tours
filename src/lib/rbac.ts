@@ -30,6 +30,22 @@ export type Permission =
   | 'itinerary.read'
   | 'itinerary.write'
   | 'itinerary.approve'
+  | 'country_regulation.read'
+  // Granted to NO role explicitly in MATRIX below (DR-034) -- SUPERADMIN and
+  // PLATFORM_ADMIN both pass this at the route/assertCan layer purely via
+  // their '*' wildcard. The real, narrower restriction ("only SUPERADMIN
+  // may write country regulations, PLATFORM_ADMIN may not" -- the first
+  // genuine behavioral gap between the two admin roles in this app) can't be
+  // expressed here: grantsPermission() below short-circuits true for any
+  // wildcard role regardless of which permission is checked, so there is no
+  // way to grant this to SUPERADMIN but not PLATFORM_ADMIN through MATRIX
+  // alone. It's enforced one layer down instead, in
+  // immigration/service.ts's mutation methods, via an explicit
+  // `roles.includes('SUPERADMIN')` check (see isCountryRegulationWriter) --
+  // the same "RBAC decides broad category, service does the narrower
+  // role-identity check" layering already used by isItineraryManager/
+  // isFleetManager for anti-BOLA-style scoping.
+  | 'country_regulation.write'
   | 'admin.all';
 
 type RoleName =
@@ -71,6 +87,13 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'itinerary.read',
     'itinerary.write',
     'itinerary.approve',
+    // Immigration Module (DR-034): "The Tour Operator is by default also a
+    // Visa Facilitator role" -- explicit user instruction. Grants the same
+    // visa-processing capability VISA_FACILITATOR holds (documents.read/
+    // write are already above). Does NOT get country_regulation.write --
+    // that stays SUPERADMIN-only (see PLATFORM_ADMIN note below).
+    'visa.process',
+    'country_regulation.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to
@@ -110,6 +133,7 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'documents.write',
     'visa.process',
     'profile.write',
+    'country_regulation.read', // needs to see a country's requirements to process its applications (DR-034)
   ],
   TOURIST: [
     'catalog.read',

@@ -9,7 +9,7 @@ import { feature } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
 import type { FeatureCollection, Geometry } from 'geojson';
 import worldTopology from 'world-atlas/countries-110m.json';
-import { AFRICA_COUNTRY_IDS, NAMIBIA_ID, DRC_ID } from '@lib/africa-country-ids';
+import { AFRICA_COUNTRY_IDS, NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID } from '@lib/africa-country-ids';
 import { COUNTRY_FACTS, type CountryFact } from '@lib/country-facts';
 
 const ANTARCTICA_ID = '010';
@@ -27,17 +27,23 @@ function useWorldFeatures() {
   }, []);
 }
 
+const OPERATING_IDS = new Set([NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID]);
+
+function isOperatingCountry(id: string | number | undefined): boolean {
+  return OPERATING_IDS.has(String(id));
+}
+
 function fillFor(id: string | number | undefined, zoomedIn: boolean): string {
-  const key = String(id);
-  if (key === NAMIBIA_ID || key === DRC_ID) return zoomedIn ? 'fill-forest' : 'fill-amber';
-  if (AFRICA_COUNTRY_IDS.has(key)) return 'fill-amber';
+  if (isOperatingCountry(id)) return zoomedIn ? 'fill-forest' : 'fill-amber';
+  if (AFRICA_COUNTRY_IDS.has(String(id))) return 'fill-amber';
   return 'fill-mist/30';
 }
 
 // Homepage decorative map (between the Featured and How-it-works sections):
 // world map with Africa highlighted; a "zoom" toggle centers on and
-// distinctly re-colors Namibia/DRC, with a hover tooltip on those two
-// showing capital/language/currency/population/area (src/lib/country-facts.ts).
+// distinctly re-colors Namibia/DRC/Zambia/Zimbabwe (DR-034), with a hover
+// tooltip on those four showing capital/language/currency/population/area
+// (src/lib/country-facts.ts).
 export function AfricaMap() {
   const [zoomedIn, setZoomedIn] = useState(false);
   const features = useWorldFeatures();
@@ -57,12 +63,10 @@ export function AfricaMap() {
           const translate: [number, number] = [width / 2, height / 1.7];
 
           return (
-            <svg width={width} height={height} role="img" aria-label="Map of Africa with Namibia and DR Congo highlighted">
+            <svg width={width} height={height} role="img" aria-label="Map of Africa with Namibia, DR Congo, Zambia, and Zimbabwe highlighted">
               <Mercator data={features} scale={scale} translate={translate}>
                 {(mercator) => {
-                  const highlighted = mercator.features.filter(
-                    (f) => String(f.feature.id) === NAMIBIA_ID || String(f.feature.id) === DRC_ID,
-                  );
+                  const highlighted = mercator.features.filter((f) => isOperatingCountry(f.feature.id));
                   const cx = highlighted.reduce((sum, f) => sum + f.centroid[0], 0) / (highlighted.length || 1);
                   const cy = highlighted.reduce((sum, f) => sum + f.centroid[1], 0) / (highlighted.length || 1);
                   const k = zoomedIn ? ZOOM_FACTOR : 1;
@@ -72,7 +76,7 @@ export function AfricaMap() {
                     <g style={{ transform: groupTransform, transformOrigin: '0 0', transition: 'transform 700ms ease-in-out' }}>
                       {mercator.features.map(({ feature: f, path, index }) => {
                         const id = String(f.id);
-                        const isHighlightCountry = id === NAMIBIA_ID || id === DRC_ID;
+                        const isHighlightCountry = isOperatingCountry(id);
                         const fact = COUNTRY_FACTS[id];
                         return (
                           <path
@@ -107,7 +111,7 @@ export function AfricaMap() {
         onClick={() => setZoomedIn((z) => !z)}
         className="absolute bottom-3 right-3 rounded-survey border border-rule bg-bone px-3 py-1 text-sm text-ink hover:bg-mist/10"
       >
-        {zoomedIn ? 'Zoom out' : 'Zoom into Namibia & DR Congo'}
+        {zoomedIn ? 'Zoom out' : 'Zoom into our operating countries'}
       </button>
 
       {tooltipOpen && tooltipData && (

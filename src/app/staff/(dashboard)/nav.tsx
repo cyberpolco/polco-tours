@@ -16,6 +16,7 @@ const LINKS: { href: string; label: string; permission: Permission }[] = [
   { href: '/staff/restaurants', label: 'Restaurants', permission: 'itinerary.write' },
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
+  { href: '/staff/country-regulations', label: 'Country regulations', permission: 'country_regulation.read' },
   { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
 ];
 

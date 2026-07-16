@@ -24,6 +24,8 @@ export default async function NewPackagePage() {
           <select name="country" required className="w-full rounded-survey border border-rule px-3 py-2">
             <option value="NA">🇳🇦 Namibia</option>
             <option value="CD">🇨🇩 DR Congo</option>
+            <option value="ZM">🇿🇲 Zambia</option>
+            <option value="ZW">🇿🇼 Zimbabwe</option>
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">

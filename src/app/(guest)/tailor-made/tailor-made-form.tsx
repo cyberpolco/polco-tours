@@ -72,10 +72,12 @@ export default function TailorMadeForm() {
         </div>
       </div>
 
-      <FormField label="Destination country (Namibia or DR Congo)" htmlFor="customCountry">
+      <FormField label="Destination country (Namibia, DR Congo, Zambia, or Zimbabwe)" htmlFor="customCountry">
         <select name="customCountry" required className="w-full rounded-survey border border-rule px-3 py-2">
           <option value="NA">🇳🇦 Namibia</option>
           <option value="CD">🇨🇩 DR Congo</option>
+          <option value="ZM">🇿🇲 Zambia</option>
+          <option value="ZW">🇿🇼 Zimbabwe</option>
         </select>
       </FormField>
 
