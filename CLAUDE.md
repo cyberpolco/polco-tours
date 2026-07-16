@@ -6,7 +6,7 @@ engineering charter, the current state, and the rules that must not be broken.
 POLCO TOURS is a **Tourism Operating System** for **Namibia** and the
 **Democratic Republic of Congo (DRC)** — tour package sales plus operations
 management (tourists, operators, guides, drivers, vehicle owners, hotels,
-restaurants, visa facilitators, immigration officers). Web platform first;
+restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
 > Last updated: 2026-07-11, against repo HEAD `41ed25c` (DR-021, self-service
@@ -132,12 +132,12 @@ src/
       [assignmentId], api/v1/assignments/mine
                                            # assignments (DR-018)
     api/v1/bookings/[bookingId]/travelers/[travelerId]/visa(/submit,/decide,
-      /document), api/v1/immigration/visa-applications,
-      api/v1/immigration/officers, api/v1/users/[userId]/assign-country
-                                           # visa documents (DR-019) + officer
-                                           #   listing (DR-020)
+      /document)                          # visa documents (DR-019)
     api/v1/visa/queue                     # VISA_FACILITATOR's own whole-org
-                                           #   queue (My Schedule, DR-031)
+                                           #   queue (My Schedule, DR-031);
+                                           #   the only visa-overview route
+                                           #   left after DR-032 removed
+                                           #   IMMIGRATION_OFFICER entirely
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
@@ -149,10 +149,6 @@ src/
         = fleet + compliance (DR-017); guides folded in (DR-030)
       departures(/[departureId]) = browse + manage assignments (DR-018;
         first staff departures UI -- packages/departures were API-only before)
-      immigration = IMMIGRATION_OFFICER's own country-scoped visa queue,
-        strictly read-only (BR-10, DR-020)
-      admin/officers = admin-only: assign/reassign an officer's country
-        (DR-020; account creation itself stays CLI-only)
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
         read-only (DR-021; closes the gap DR-018/019/020 each deferred);
         TOUR_GUIDE and (since DR-031) DRIVER viewers additionally get a
@@ -206,14 +202,14 @@ src/
                        #   ACTIVE-status gate when one exists (DR-030);
                        #   self-service portal (schedule page) since DR-021
     visa/              # VisaApplication (per Traveler, SUBMITTED ->
-                       #   APPROVED/REJECTED), canDecide rule, OfficerVisaView
-                       #   (data-minimized, country-scoped) (DR-019); traveler
-                       #   identity snapshotted so IMMIGRATION_OFFICER's list
-                       #   never needs booking.read; listForCountry now
-                       #   audits an officer's own reads (DR-020, BR-10);
-                       #   listForFacilitator = VISA_FACILITATOR's whole-org
-                       #   queue, FacilitatorVisaView, travelStartDate
-                       #   resolved via booking+catalog modules (DR-031)
+                       #   APPROVED/REJECTED), canDecide rule; traveler
+                       #   identity snapshotted onto it (DR-019); listForFacilitator
+                       #   = VISA_FACILITATOR's whole-org queue,
+                       #   FacilitatorVisaView, travelStartDate resolved via
+                       #   booking+catalog modules (DR-031) -- the sole
+                       #   visa-overview surface since DR-032 removed
+                       #   IMMIGRATION_OFFICER/OfficerVisaView/listForCountry
+                       #   entirely
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -292,8 +288,6 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 - **Errors:** RFC 9457 `application/problem+json` via `src/lib/errors.ts`. No
   internals/stack traces to clients.
 - **i18n:** full EN + FR parity for every user-facing string.
-- **Immigration Officer:** strictly read-only, country-scoped, every view
-  audited (BR-10).
 
 ---
 
@@ -307,8 +301,8 @@ relevant embassies. Treat this as orientation, not legal ground truth.**
 
 **Two regimes, one platform.** Namibia and the DRC have very different tourism
 governance. This is the reason for per-country tax (DR-006), per-country
-operator compliance (BR-12), `IMMIGRATION_OFFICER.assignedCountry` scoping
-(DR-019), EN/FR bilingual content, and packages priced in one of four
+operator compliance (BR-12), country-scoped visa applications (`VisaApplication
+.country`, DR-019), EN/FR bilingual content, and packages priced in one of four
 currencies with **no FX conversion anywhere** (never rank/compare by price
 across currencies — see `scorePackagesForQuiz`).
 
@@ -960,6 +954,19 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   Fixed two stale `tests/rbac.test.ts` assertions left over from DR-030
   giving `TOUR_GUIDE` `fleet.read` (that test file wasn't run during
   DR-030's own verification).
+- **Immigration/Officers removed 2026-07-16 (DR-032):** per explicit user
+  instruction ("no longer needed"), a full teardown -- not just hiding the
+  UI. `IMMIGRATION_OFFICER` dropped from the `Role` enum (the 2 accounts
+  holding it were confirmed test fixtures and deleted first, then the enum
+  swapped the same create-new-type/drop-old-type way DR-027 replaced
+  `BookingStatus`); `User.assignedCountry` column dropped entirely;
+  `immigration.read` removed from `rbac.ts`. Removed
+  `authService.assignOfficerCountry`/`listOfficers`, `visaService
+  .listForCountry`/`OfficerVisaView` (DR-031's `listForFacilitator` already
+  gave admins a superset whole-org view, so nothing needed it once the
+  officer's own use was gone), `/staff/immigration`, `/staff/admin/officers`,
+  and their API routes. `/staff/visa-queue` (DR-031) is now the only
+  visa-overview surface for staff.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1121,7 +1128,16 @@ reverse lookup, same "caller already gates" convention as DR-030. New
 `GET /api/v1/visa/queue` (a real public route -- no caller-supplied id,
 unlike DR-030's `listTravelersForDeparture`) + `/staff/visa-queue` page,
 read-only. Fixed two `tests/rbac.test.ts` assertions left stale since DR-030
-gave `TOUR_GUIDE` `fleet.read`.
+gave `TOUR_GUIDE` `fleet.read` · DR-032 Immigration/Officers removal: full
+teardown per explicit user instruction, not a UI hide. `IMMIGRATION_OFFICER`
+dropped from the `Role` enum (2 confirmed test-fixture accounts deleted
+first, then the same enum-swap migration technique DR-027 used for
+`BookingStatus`); `User.assignedCountry` column dropped; `immigration.read`
+removed from `rbac.ts`. Removed `authService.assignOfficerCountry`/
+`listOfficers`, `visaService.listForCountry`/`OfficerVisaView` (superseded
+by DR-031's `listForFacilitator`), `/staff/immigration`, `/staff/admin
+/officers`, and their routes -- `/staff/visa-queue` is now the sole
+visa-overview surface for staff.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

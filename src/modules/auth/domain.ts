@@ -12,8 +12,6 @@ export interface AuthContext {
   roles: Role[];
   organizationId: string | null;
   sessionId: string;
-  // ISO-3166 alpha-2; IMMIGRATION_OFFICER only (BR-10 country-scoping, DR-019).
-  assignedCountry: string | null;
   // DR-026: forces a redirect to /staff/change-password (staff-guard.ts)
   // until cleared -- set true only for admin-created accounts with a
   // generated temporary password, never for self-signup or the bootstrap
@@ -31,7 +29,6 @@ export interface PublicUser {
   emailVerified: boolean;
   phone: string | null;
   preferredLocale: Locale;
-  assignedCountry: string | null;
   deletedAt: Date | null; // DR-026: null = active, set = soft-deleted/deactivated
   mustChangePassword: boolean; // DR-026
 }
@@ -46,13 +43,6 @@ export const UpdateProfileInput = z.object({
 });
 export type UpdateProfileInput = z.infer<typeof UpdateProfileInput>;
 
-// Admin-only (assertCan('admin.all') in service.ts); assigns an
-// IMMIGRATION_OFFICER's country scope (BR-10, DR-019).
-export const AssignOfficerCountryInput = z.object({
-  country: z.string().length(2),
-});
-export type AssignOfficerCountryInput = z.infer<typeof AssignOfficerCountryInput>;
-
 // TOURIST is deliberately excluded -- tourists only ever come from guest
 // checkout (DR-016), never an admin-created account (DR-026). Exported so
 // the admin user-management UI's role checklist doesn't duplicate this list.
@@ -64,7 +54,6 @@ export const ASSIGNABLE_ROLES = [
   'DRIVER',
   'VEHICLE_OWNER',
   'VISA_FACILITATOR',
-  'IMMIGRATION_OFFICER',
 ] as const;
 
 // Admin-only (assertCan('admin.all') in service.ts); creates a staff account

@@ -13,7 +13,6 @@ const admin = new PrismaClient();
 
 let orgId: string;
 let touristId: string;
-let officerId: string;
 
 function jsonRequest(headers: Headers, body: unknown): NextRequest {
   const h = new Headers(headers);
@@ -27,12 +26,10 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [tourist, officer] = await Promise.all([
-    admin.user.create({ data: { email: `profile-a-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
-    admin.user.create({ data: { email: `profile-b-${Date.now()}@example.test`, role: 'IMMIGRATION_OFFICER', organizationId: orgId } }),
-  ]);
+  const tourist = await admin.user.create({
+    data: { email: `profile-a-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId },
+  });
   touristId = tourist.id;
-  officerId = officer.id;
 });
 
 afterAll(async () => {
@@ -58,12 +55,5 @@ describe('PATCH /api/v1/users/me', () => {
     const req = jsonRequest(headers, { phone: 'not-a-phone-number' });
     const res = await updateProfile(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(422);
-  });
-
-  it('denies IMMIGRATION_OFFICER (403 -- strictly read-only, BR-10)', async () => {
-    const headers = await loginAs(officerId);
-    const req = jsonRequest(headers, { phone: '+15559876543' });
-    const res = await updateProfile(req, { params: Promise.resolve({}) });
-    expect(res.status).toBe(403);
   });
 });

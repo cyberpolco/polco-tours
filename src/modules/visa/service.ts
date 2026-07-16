@@ -12,7 +12,6 @@ import {
   canResubmit,
   type DecideVisaInput,
   type FacilitatorVisaView,
-  type OfficerVisaView,
   type VisaApplicationView,
 } from './domain';
 import { visaRepository } from './repository';
@@ -216,37 +215,5 @@ export const visaService = {
       return 0;
     });
     return withDates;
-  },
-
-  /** IMMIGRATION_OFFICER: forced to their own assignedCountry (BR-10), any
-   * `country` argument is ignored. Admins (SUPERADMIN/PLATFORM_ADMIN, via
-   * '*') may pass a country to filter or omit it to see every country.
-   *
-   * audit.ts's own docstring requires "immigration-officer reads" to be
-   * logged -- true since DR-019 but never actually implemented until this
-   * increment surfaced a real dashboard page an officer would hit
-   * repeatedly (DR-020). Only the officer's own reads are audited here,
-   * not an admin's broader overview, matching BR-10's specific concern. */
-  async listForCountry(ctx: AuthContext, country?: string): Promise<OfficerVisaView[]> {
-    assertCan(ctx.roles, 'immigration.read');
-    const organizationId = requireOrg(ctx);
-
-    // DR-026: if held alongside another role (e.g. SUPERADMIN), the officer
-    // country-scope still applies -- BR-10's country-scoping is a property
-    // of holding the role at all, not of it being the only role.
-    if (ctx.roles.includes('IMMIGRATION_OFFICER')) {
-      if (!ctx.assignedCountry) throw Errors.forbidden('No country assigned to this officer');
-      const results = await visaRepository.listForCountry(organizationId, ctx.assignedCountry);
-      await audit({
-        actorUserId: ctx.userId,
-        actorRole: ctx.roles[0],
-        action: 'visa.officer_viewed_queue',
-        resourceType: 'VisaApplication',
-        organizationId,
-        metadata: { country: ctx.assignedCountry, count: results.length },
-      });
-      return results;
-    }
-    return country ? visaRepository.listForCountry(organizationId, country) : visaRepository.listAll(organizationId);
   },
 };

@@ -23,7 +23,6 @@ enum Role {
   DRIVER
   VEHICLE_OWNER
   VISA_FACILITATOR
-  IMMIGRATION_OFFICER
   TOURIST
 }
 
@@ -190,7 +189,6 @@ model User {
   phone           String? // E.164 -- WhatsApp/SMS addressing (DR-013)
   preferredLocale Locale    @default(EN)
   isAnonymous     Boolean?  @default(false) // better-auth `anonymous` plugin (DR-016 guest checkout)
-  assignedCountry String? // ISO-3166 alpha-2; IMMIGRATION_OFFICER only, set via authService.assignOfficerCountry (DR-019)
   organizationId  String?   @db.Uuid
   mustChangePassword Boolean @default(false) // set true for admin-created accounts with a generated temp password (DR-026)
   createdAt       DateTime  @default(now())
@@ -265,7 +263,13 @@ model TaxRate {
 model AuditLog {
   id             String   @id @default(uuid()) @db.Uuid
   actorUserId    String?  @db.Uuid
-  actorRole      Role?
+  // Plain string, not the Role enum -- this table is meant to outlive its
+  // actors (same reasoning as actorUserId staying a bare, non-FK uuid after
+  // DR-026's user deletions), and DR-032 confirmed why the enum shape
+  // breaks that: 22 historical rows record `IMMIGRATION_OFFICER` actions
+  // from before that role was removed entirely, which a real enum could
+  // no longer represent once the value stopped existing.
+  actorRole      String?
   action         String
   resourceType   String
   resourceId     String?
@@ -494,10 +498,10 @@ enum VisaStatus {
 
 // A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED, with a
 // REJECTED application resubmittable back to SUBMITTED (DR-025). Traveler
-// identity fields are snapshotted here (not joined live) so
-// IMMIGRATION_OFFICER's country-scoped list never needs booking.read --
-// that role's whole footprint stays `immigration.read` only (BR-10 "strictly
-// read-only, single-permission").
+// identity fields are snapshotted here (not joined live) -- originally so
+// IMMIGRATION_OFFICER's country-scoped list never needed booking.read; that
+// role was removed in DR-032, but the snapshot stays since
+// VISA_FACILITATOR's own queue (DR-031) also benefits from it.
 model VisaApplication {
   id                         String     @id @default(uuid()) @db.Uuid
   organizationId             String     @db.Uuid

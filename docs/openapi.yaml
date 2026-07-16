@@ -1,8 +1,14 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.8.0
+  version: 0.9.0
   description: >
+    DR-032 removes the IMMIGRATION_OFFICER role and Officers admin tooling
+    entirely (no longer needed): /immigration/visa-applications,
+    /immigration/officers, and /users/{userId}/assign-country are gone,
+    along with User.assignedCountry and the OfficerVisaView projection.
+    VISA_FACILITATOR's own whole-org queue (/visa/queue, DR-031) is the
+    remaining visa-overview surface for staff.
     DR-026 adds real user management: GET/POST /users (list/create, admin-
     only) and DELETE /users/{userId} (soft-delete/deactivate, admin-only).
     A user can hold several simultaneous roles now (Membership rows) --
@@ -17,20 +23,13 @@ info:
     DecideVisaInput gains an optional reason, persisted as
     VisaApplicationView.rejectionReason only while REJECTED (cleared on
     resubmit or a later APPROVED decision); resubmissionCount is a
-    display-only counter also exposed on the officer's minimized
-    OfficerVisaView.
+    display-only counter.
     DR-019 adds Phase 2 Increment 3 (visa documents): a per-traveler
     VisaApplication workflow (SUBMITTED -> APPROVED/REJECTED, resubmittable
     per DR-025) under
     /bookings/{bookingId}/travelers/{travelerId}/visa(/submit|/decide
     |/resubmit|/document), reusing documentsService.uploadDocument (kind: VISA).
-    /immigration/visa-applications is a country-scoped list for
-    IMMIGRATION_OFFICER (BR-10) -- forced to their own assignedCountry,
-    set via the new admin-only PATCH /users/{userId}/assign-country.
-    The officer's list returns a minimal OfficerVisaView (traveler
-    identity is snapshotted onto VisaApplication at submit time, so this
-    never calls into the booking module, which that role has no
-    permission for). DR-018 adds Phase 2 Increment 2 (assignments): /departures/{id}
+    DR-018 adds Phase 2 Increment 2 (assignments): /departures/{id}
     /assignments and /assignments/{id}, linking a Departure to the vehicle/
     driver/guide staffing it (a departure can have several, one per vehicle).
     Rejects an inactive vehicle/driver, a guideUserId not referencing a
@@ -817,31 +816,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
-  /immigration/visa-applications:
-    get:
-      summary: List visa applications, country-scoped (IMMIGRATION_OFFICER, DR-019)
-      description: >-
-        IMMIGRATION_OFFICER is forced to their own assignedCountry (BR-10);
-        ?country= is ignored for that role. Admins may pass ?country= to
-        filter or omit it to see every country in the org.
-      parameters:
-        - name: country
-          in: query
-          required: false
-          schema: { type: string, minLength: 2, maxLength: 2 }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  applications:
-                    type: array
-                    items: { $ref: '#/components/schemas/OfficerVisaView' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
   /visa/queue:
     get:
       summary: VISA_FACILITATOR's own whole-org visa queue (My Schedule, DR-031)
@@ -926,29 +900,6 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
-
-  /users/{userId}/assign-country:
-    parameters:
-      - $ref: '#/components/parameters/userId'
-    patch:
-      summary: Assign an IMMIGRATION_OFFICER's country scope (admin-only, DR-019)
-      description: Admin-only (SUPERADMIN/PLATFORM_ADMIN). No staff UI -- API-only this increment.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/AssignOfficerCountryInput' }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  user: { $ref: '#/components/schemas/User' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /bookings/{bookingId}/addons:
     parameters:
@@ -1594,8 +1545,7 @@ paths:
       summary: Update your own phone / preferred notification locale
       description: >-
         The first "no target id" endpoint -- ctx.userId is always the
-        subject, so there is no ownership id to spoof. Denied to
-        IMMIGRATION_OFFICER (BR-10).
+        subject, so there is no ownership id to spoof.
       requestBody:
         required: true
         content:
@@ -2055,10 +2005,6 @@ components:
         emailVerified: { type: boolean }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }
-        assignedCountry:
-          type: string
-          nullable: true
-          description: ISO-3166 alpha-2; IMMIGRATION_OFFICER only (BR-10, DR-019)
         deletedAt: { type: string, format: date-time, nullable: true, description: 'DR-026: null = active, set = deactivated' }
         mustChangePassword: { type: boolean, description: 'DR-026: forces a password change at first sign-in' }
 
@@ -2068,12 +2014,6 @@ components:
         name: { type: string, minLength: 1, maxLength: 200, description: 'Added for the guest-checkout contact-info step (DR-016)' }
         phone: { type: string, nullable: true, description: E.164 }
         preferredLocale: { type: string, enum: [EN, FR] }
-
-    AssignOfficerCountryInput:
-      type: object
-      required: [country]
-      properties:
-        country: { type: string, minLength: 2, maxLength: 2, description: Must be one of the target's Organization.countries }
 
     CreateUserInput:
       type: object
@@ -2087,7 +2027,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [SUPERADMIN, PLATFORM_ADMIN, TOUR_OPERATOR, TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR, IMMIGRATION_OFFICER]
+            enum: [SUPERADMIN, PLATFORM_ADMIN, TOUR_OPERATOR, TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR]
           description: TOURIST is deliberately not assignable -- tourists only ever come from guest checkout (DR-016)
 
     Vehicle:
@@ -2300,7 +2240,7 @@ components:
 
     VisaApplication:
       type: object
-      description: Facilitator-facing view (DR-019). See OfficerVisaView for the IMMIGRATION_OFFICER projection.
+      description: Facilitator-facing view (DR-019).
       properties:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
@@ -2322,36 +2262,16 @@ components:
         outcome: { type: string, enum: [APPROVED, REJECTED] }
         reason: { type: string, maxLength: 500, description: 'Only persisted when outcome is REJECTED (DR-025)' }
 
-    OfficerVisaView:
-      type: object
-      description: >-
-        Minimal projection for IMMIGRATION_OFFICER (BR-10 data minimization)
-        -- deliberately excludes disabilities/allergies/phone/drinkPreference,
-        and (DR-025) rejectionReason; resubmissionCount is included as a bare
-        count, enough signal that "this bounced before".
-      properties:
-        id: { type: string, format: uuid }
-        travelerFirstName: { type: string }
-        travelerLastName: { type: string }
-        travelerNationality: { type: string }
-        travelerIdOrPassportNumber: { type: string }
-        country: { type: string }
-        status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
-        resubmissionCount: { type: integer }
-        submittedAt: { type: string, format: date-time }
-        decidedAt: { type: string, format: date-time, nullable: true }
-        hasDocument: { type: boolean }
-
     FacilitatorVisaView:
       type: object
       description: >-
         VISA_FACILITATOR's own whole-org visa queue (My Schedule, DR-031) --
-        richer than OfficerVisaView since this role already holds unscoped
-        visa.process (includes rejectionReason and travelerId); documentId
-        itself still isn't exposed, only hasDocument. travelStartDate is
-        resolved live via Traveler -> Booking -> Departure (or
-        Booking.customTravelStart for a TAILOR_MADE booking), null if that
-        chain can't be resolved for this caller.
+        includes rejectionReason and travelerId since this role already
+        holds unscoped visa.process; documentId itself still isn't exposed,
+        only hasDocument. travelStartDate is resolved live via
+        Traveler -> Booking -> Departure (or Booking.customTravelStart for a
+        TAILOR_MADE booking), null if that chain can't be resolved for this
+        caller.
       properties:
         id: { type: string, format: uuid }
         travelerId: { type: string, format: uuid }

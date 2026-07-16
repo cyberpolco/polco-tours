@@ -2,4 +2,4 @@
 export { visaService } from './service';
 export type { UploadVisaDocumentInput } from './service';
 export { DecideVisaInput } from './domain';
-export type { FacilitatorVisaView, OfficerVisaView, VisaApplicationView } from './domain';
+export type { FacilitatorVisaView, VisaApplicationView } from './domain';

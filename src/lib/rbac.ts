@@ -25,7 +25,6 @@ export type Permission =
   | 'documents.read'
   | 'documents.write'
   | 'visa.process'
-  | 'immigration.read'
   | 'fleet.read'
   | 'fleet.write'
   | 'admin.all';
@@ -38,7 +37,6 @@ type RoleName =
   | 'DRIVER'
   | 'VEHICLE_OWNER'
   | 'VISA_FACILITATOR'
-  | 'IMMIGRATION_OFFICER'
   | 'TOURIST';
 
 // A role's granted permissions. '*' means all (superadmin).
@@ -99,11 +97,6 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'visa.process',
     'profile.write',
   ],
-  // Deliberately no profile.write either: BR-10's "strictly read-only" is
-  // interpreted broadly here to preserve this role's single-permission
-  // footprint, even though a self-service phone/locale update isn't itself
-  // an immigration-data write (DR-013).
-  IMMIGRATION_OFFICER: ['immigration.read'], // strictly read-only (BR-10)
   TOURIST: [
     'catalog.read',
     'booking.create',
@@ -140,10 +133,9 @@ export function can(roles: Role[], permission: Permission): boolean {
  * tourists never get one (guest checkout is a separate, account-less site,
  * DR-016). Used as the `(dashboard)` layout's baseline "are you staff at
  * all" gate (staff-guard.ts), which previously hardcoded `booking.confirm`
- * and so silently locked out any role that isn't TOUR_OPERATOR/admin --
- * IMMIGRATION_OFFICER included, despite holding a real permission
- * (`immigration.read`). Individual pages still gate on their own specific
- * permission; this only decides who reaches the shell.
+ * and so silently locked out any role that isn't TOUR_OPERATOR/admin
+ * (DR-020). Individual pages still gate on their own specific permission;
+ * this only decides who reaches the shell.
  */
 export function isStaffRole(roles: Role[]): boolean {
   return roles.some((role) => (role as RoleName) !== 'TOURIST');

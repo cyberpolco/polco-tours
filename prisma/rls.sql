@@ -169,9 +169,8 @@ DROP POLICY IF EXISTS tenant_isolation ON visa_applications;
 CREATE POLICY tenant_isolation ON visa_applications
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
--- Isolates by org only. Country-scoping for IMMIGRATION_OFFICER (BR-10) is
--- enforced in visa/service.ts's listForCountry, covered by
--- tests/api/visa.security.test.ts.
+-- Isolates by org only. (IMMIGRATION_OFFICER's country-scoped read, formerly
+-- enforced in visa/service.ts's listForCountry, was removed in DR-032.)
 
 -- ----------------------------------------------------- organization_members (DR-026)
 -- The `Membership` model existed since early on but was never queried

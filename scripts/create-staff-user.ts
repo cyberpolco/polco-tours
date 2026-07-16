@@ -9,7 +9,7 @@
 //
 // Usage: npx tsx scripts/create-staff-user.ts <email> <password> <role> [name]
 // Role must be one of: SUPERADMIN, PLATFORM_ADMIN, TOUR_OPERATOR,
-// TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR, IMMIGRATION_OFFICER
+// TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR
 import { Role } from '@prisma/client';
 import { auth } from '@lib/auth';
 import { prisma } from '@lib/db';

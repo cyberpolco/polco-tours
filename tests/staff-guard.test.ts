@@ -40,7 +40,6 @@ describe('requireStaffContext', () => {
       roles: ['TOURIST'],
       organizationId: 'org1',
       sessionId: 's1',
-      assignedCountry: null,
       mustChangePassword: false,
     });
     await expect(requireStaffContext('booking.confirm')).rejects.toMatchObject({
@@ -54,7 +53,6 @@ describe('requireStaffContext', () => {
       roles: ['TOUR_OPERATOR'],
       organizationId: 'org1',
       sessionId: 's1',
-      assignedCountry: null,
       mustChangePassword: false,
     };
     resolveSession.mockResolvedValue(ctx);
@@ -63,15 +61,13 @@ describe('requireStaffContext', () => {
 
   // DR-020: the (dashboard) layout now calls requireStaffContext() with no
   // permission -- "any staff role" -- instead of hardcoding booking.confirm,
-  // which previously locked IMMIGRATION_OFFICER out of the dashboard shell
-  // entirely despite holding a real permission (immigration.read).
+  // which previously locked out any role that isn't TOUR_OPERATOR/admin.
   it('with no permission argument, any staff-side role passes (baseline dashboard gate)', async () => {
     const ctx = {
       userId: 'u2',
-      roles: ['IMMIGRATION_OFFICER'],
+      roles: ['VISA_FACILITATOR'],
       organizationId: 'org1',
       sessionId: 's2',
-      assignedCountry: 'NA',
       mustChangePassword: false,
     };
     resolveSession.mockResolvedValue(ctx);
@@ -84,7 +80,6 @@ describe('requireStaffContext', () => {
       roles: ['TOURIST'],
       organizationId: 'org1',
       sessionId: 's3',
-      assignedCountry: null,
       mustChangePassword: false,
     });
     await expect(requireStaffContext()).rejects.toMatchObject({
@@ -100,7 +95,6 @@ describe('requireStaffContext', () => {
       roles: ['SUPERADMIN'],
       organizationId: 'org1',
       sessionId: 's4',
-      assignedCountry: null,
       mustChangePassword: true,
     });
     await expect(requireStaffContext('admin.all')).rejects.toMatchObject({
@@ -114,7 +108,6 @@ describe('requireStaffContext', () => {
       roles: ['TOURIST', 'DRIVER'],
       organizationId: 'org1',
       sessionId: 's5',
-      assignedCountry: null,
       mustChangePassword: false,
     };
     resolveSession.mockResolvedValue(ctx);

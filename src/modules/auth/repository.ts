@@ -12,7 +12,6 @@ interface RawUser {
   emailVerified: boolean;
   phone: string | null;
   preferredLocale: PublicUser['preferredLocale'];
-  assignedCountry: string | null;
   deletedAt: Date | null;
   mustChangePassword: boolean;
 }
@@ -28,7 +27,6 @@ function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
     emailVerified: u.emailVerified,
     phone: u.phone,
     preferredLocale: u.preferredLocale,
-    assignedCountry: u.assignedCountry,
     deletedAt: u.deletedAt,
     mustChangePassword: u.mustChangePassword,
   };
@@ -63,34 +61,6 @@ export const authRepository = {
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<PublicUser> {
     const u = await prisma.user.update({ where: { id: userId }, data: input });
     return toPublicUser(u, await resolveRoles(u));
-  },
-
-  async updateAssignedCountry(userId: string, country: string): Promise<PublicUser> {
-    const u = await prisma.user.update({ where: { id: userId }, data: { assignedCountry: country } });
-    return toPublicUser(u, await resolveRoles(u));
-  },
-
-  /** Organization is a shared/platform table (like src/lib/primary-org.ts's
-   * reads), not owned by any single feature module -- this is just a
-   * read of the countries an officer's org actually operates in. */
-  async findOrganizationCountries(organizationId: string): Promise<string[] | null> {
-    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
-    return org ? org.countries : null;
-  },
-
-  /** Powers the admin officer-management page (assign/reassign
-   * assignedCountry) -- lists users who HOLD a given role, whether it's
-   * their primary User.role or one of their Membership rows. Goes through
-   * withOrg since the nested `memberships` relation filter touches the
-   * RLS-protected organization_members table (users itself has no RLS). */
-  async listByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
-    const users = await withOrg(organizationId, (tx) =>
-      tx.user.findMany({
-        where: { organizationId, deletedAt: null, OR: [{ role }, { memberships: { some: { role, organizationId } } }] },
-        orderBy: { email: 'asc' },
-      }),
-    );
-    return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
 
   /** DR-026: every non-deleted user in the org, for the admin user-management

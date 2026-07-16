@@ -157,7 +157,6 @@ describe('requestQuotation (DR-024)', () => {
       roles: ['TOURIST'],
       organizationId: orgId,
       sessionId: 'test',
-      assignedCountry: null,
       mustChangePassword: false,
     };
   }

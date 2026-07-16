@@ -37,12 +37,6 @@ describe('RBAC permission matrix', () => {
     expect(can(['DRIVER'], 'booking.cancel')).toBe(false);
   });
 
-  it('IMMIGRATION_OFFICER is strictly read-only', () => {
-    expect(can(['IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
-    expect(can(['IMMIGRATION_OFFICER'], 'documents.write')).toBe(false);
-    expect(can(['IMMIGRATION_OFFICER'], 'booking.create')).toBe(false);
-  });
-
   it('TOUR_OPERATOR can read invoices and both initiate and resolve payments', () => {
     expect(can(['TOUR_OPERATOR'], 'invoice.read')).toBe(true);
     expect(can(['TOUR_OPERATOR'], 'payment.initiate')).toBe(true);
@@ -62,14 +56,13 @@ describe('RBAC permission matrix', () => {
     expect(can(['DRIVER'], 'payment.initiate')).toBe(false);
   });
 
-  it('every role except IMMIGRATION_OFFICER can self-service their profile (DR-013)', () => {
+  it('every operational role can self-service their profile (DR-013)', () => {
     expect(can(['TOUR_OPERATOR'], 'profile.write')).toBe(true);
     expect(can(['TOURIST'], 'profile.write')).toBe(true);
     expect(can(['TOUR_GUIDE'], 'profile.write')).toBe(true);
     expect(can(['DRIVER'], 'profile.write')).toBe(true);
     expect(can(['VEHICLE_OWNER'], 'profile.write')).toBe(true);
     expect(can(['VISA_FACILITATOR'], 'profile.write')).toBe(true);
-    expect(can(['IMMIGRATION_OFFICER'], 'profile.write')).toBe(false);
   });
 
   it('TOUR_OPERATOR manages the whole fleet (DR-017)', () => {
@@ -110,7 +103,7 @@ describe('RBAC permission matrix', () => {
     expect(can(['TOURIST'], 'assignment.read')).toBe(false);
   });
 
-  it('VISA_FACILITATOR can process visas, read catalog/bookings/documents, but not immigration.read (DR-019)', () => {
+  it('VISA_FACILITATOR can process visas and read catalog/bookings/documents (DR-019)', () => {
     expect(can(['VISA_FACILITATOR'], 'visa.process')).toBe(true);
     expect(can(['VISA_FACILITATOR'], 'documents.read')).toBe(true);
     // Needed to resolve a traveler by bookingId+travelerId (findTraveler) and
@@ -118,16 +111,9 @@ describe('RBAC permission matrix', () => {
     // -- missing these caused every visa route to 500 in CI.
     expect(can(['VISA_FACILITATOR'], 'booking.read')).toBe(true);
     expect(can(['VISA_FACILITATOR'], 'catalog.read')).toBe(true);
-    expect(can(['VISA_FACILITATOR'], 'immigration.read')).toBe(false);
   });
 
-  it('IMMIGRATION_OFFICER holds only immigration.read -- no visa.process, no documents.read (DR-019, BR-10 single-permission footprint)', () => {
-    expect(can(['IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
-    expect(can(['IMMIGRATION_OFFICER'], 'visa.process')).toBe(false);
-    expect(can(['IMMIGRATION_OFFICER'], 'documents.read')).toBe(false);
-  });
-
-  it('only SUPERADMIN/PLATFORM_ADMIN hold admin.all (DR-019: gates assignOfficerCountry)', () => {
+  it('only SUPERADMIN/PLATFORM_ADMIN hold admin.all (gates user management, DR-026)', () => {
     expect(can(['SUPERADMIN'], 'admin.all')).toBe(true);
     expect(can(['PLATFORM_ADMIN'], 'admin.all')).toBe(true);
     expect(can(['TOUR_OPERATOR'], 'admin.all')).toBe(false);
@@ -149,22 +135,21 @@ describe('RBAC permission matrix', () => {
     expect(isStaffRole(['DRIVER'])).toBe(true);
     expect(isStaffRole(['VEHICLE_OWNER'])).toBe(true);
     expect(isStaffRole(['VISA_FACILITATOR'])).toBe(true);
-    expect(isStaffRole(['IMMIGRATION_OFFICER'])).toBe(true);
     expect(isStaffRole(['TOURIST'])).toBe(false);
   });
 
   it('DR-026: a user holding multiple roles gets the union of their grants', () => {
-    // TOUR_OPERATOR alone has assignment.write but not immigration.read;
-    // IMMIGRATION_OFFICER alone has immigration.read but not
-    // assignment.write. Holding both should grant whatever either role
-    // grants individually, not the intersection.
-    expect(can(['TOUR_OPERATOR'], 'assignment.write')).toBe(true);
-    expect(can(['IMMIGRATION_OFFICER'], 'assignment.write')).toBe(false);
-    expect(can(['TOUR_OPERATOR'], 'immigration.read')).toBe(false);
-    expect(can(['IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
-    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'assignment.write')).toBe(true);
-    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
-    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'admin.all')).toBe(false);
+    // VISA_FACILITATOR alone has visa.process but not fleet.read;
+    // TOUR_GUIDE alone has fleet.read but not visa.process. Holding both
+    // should grant whatever either role grants individually, not the
+    // intersection.
+    expect(can(['VISA_FACILITATOR'], 'fleet.read')).toBe(false);
+    expect(can(['TOUR_GUIDE'], 'fleet.read')).toBe(true);
+    expect(can(['VISA_FACILITATOR'], 'visa.process')).toBe(true);
+    expect(can(['TOUR_GUIDE'], 'visa.process')).toBe(false);
+    expect(can(['VISA_FACILITATOR', 'TOUR_GUIDE'], 'fleet.read')).toBe(true);
+    expect(can(['VISA_FACILITATOR', 'TOUR_GUIDE'], 'visa.process')).toBe(true);
+    expect(can(['VISA_FACILITATOR', 'TOUR_GUIDE'], 'admin.all')).toBe(false);
   });
 
   it('DR-026: isStaffRole is true if ANY held role is non-TOURIST', () => {

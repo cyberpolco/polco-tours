@@ -1,7 +1,7 @@
 // visa module — repository. The only place that touches the DB for this module.
 import type { VisaApplication, VisaStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
-import type { FacilitatorVisaView, OfficerVisaView, VisaApplicationView } from './domain';
+import type { FacilitatorVisaView, VisaApplicationView } from './domain';
 
 type FacilitatorVisaRow = Omit<FacilitatorVisaView, 'travelStartDate'>;
 
@@ -49,22 +49,6 @@ function toFacilitatorRow(a: VisaApplication): FacilitatorVisaRow {
   };
 }
 
-function toOfficerView(a: VisaApplication): OfficerVisaView {
-  return {
-    id: a.id,
-    travelerFirstName: a.travelerFirstName,
-    travelerLastName: a.travelerLastName,
-    travelerNationality: a.travelerNationality,
-    travelerIdOrPassportNumber: a.travelerIdOrPassportNumber,
-    country: a.country,
-    status: a.status,
-    resubmissionCount: a.resubmissionCount,
-    submittedAt: a.submittedAt,
-    decidedAt: a.decidedAt,
-    hasDocument: a.documentId !== null,
-  };
-}
-
 export const visaRepository = {
   async create(organizationId: string, params: CreateVisaApplicationParams): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
@@ -99,8 +83,8 @@ export const visaRepository = {
   /** DR-025: resets the SAME row REJECTED -> SUBMITTED. Nulls documentId so
    * a stale rejected document stops 200'ing from streamDocument; nulls
    * rejectionReason/decidedAt to reflect a fresh, undecided cycle; bumps
-   * submittedAt so the officer/facilitator queues (ordered by submittedAt
-   * desc) actually resurface it for review. */
+   * submittedAt so the facilitator queue (ordered by submittedAt desc)
+   * actually resurfaces it for review. */
   async resubmit(organizationId: string, id: string): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
       const a = await tx.visaApplication.update({
@@ -125,26 +109,12 @@ export const visaRepository = {
     });
   },
 
-  async listForCountry(organizationId: string, country: string): Promise<OfficerVisaView[]> {
-    return withOrg(organizationId, async (tx) => {
-      const rows = await tx.visaApplication.findMany({ where: { country }, orderBy: { submittedAt: 'desc' } });
-      return rows.map(toOfficerView);
-    });
-  },
-
-  /** No country filter -- admin-only auditing view (visaService.listForCountry). */
-  async listAll(organizationId: string): Promise<OfficerVisaView[]> {
-    return withOrg(organizationId, async (tx) => {
-      const rows = await tx.visaApplication.findMany({ orderBy: { submittedAt: 'desc' } });
-      return rows.map(toOfficerView);
-    });
-  },
-
-  /** No country filter, richer than OfficerVisaView -- VISA_FACILITATOR's
-   * own queue (DR-031), not IMMIGRATION_OFFICER's BR-10-minimized one.
-   * travelStartDate isn't resolved here (that's a live cross-module join the
-   * service layer does); order is left as submittedAt desc, the service
-   * re-sorts by travelStartDate once resolved. */
+  /** VISA_FACILITATOR's whole-org queue (DR-031) -- no country filter, since
+   * this role has no scoping concept of its own (IMMIGRATION_OFFICER, which
+   * did, was removed entirely in DR-032). travelStartDate isn't resolved
+   * here (that's a live cross-module join the service layer does); order is
+   * left as submittedAt desc, the service re-sorts by travelStartDate once
+   * resolved. */
   async listAllForFacilitator(organizationId: string): Promise<FacilitatorVisaRow[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.visaApplication.findMany({ orderBy: { submittedAt: 'desc' } });

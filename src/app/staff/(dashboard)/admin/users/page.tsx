@@ -7,10 +7,9 @@ import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { CreateUserForm } from './create-user-form';
 import { deactivateUserAction } from './actions';
 
-// Admin-only (admin.all): general user management (DR-026), separate from
-// /staff/admin/officers (narrowly about IMMIGRATION_OFFICER country
-// assignment) -- replaces CLI-only staff account creation
-// (scripts/create-staff-user.ts) with a real in-app flow.
+// Admin-only (admin.all): general user management (DR-026) -- replaces
+// CLI-only staff account creation (scripts/create-staff-user.ts) with a
+// real in-app flow.
 export default async function UsersPage() {
   const ctx = await requireStaffContext('admin.all');
   const users = await authService.listUsers(ctx);

@@ -17,33 +17,13 @@ export interface VisaApplicationView {
   updatedAt: Date;
 }
 
-// Minimal projection for IMMIGRATION_OFFICER (BR-10 data minimization) --
-// built from VisaApplication's own snapshotted traveler fields, never a live
-// join into the booking module (that role holds no booking.read grant).
-// rejectionReason is deliberately excluded (same minimization posture as
-// disabilities/allergies/phone) -- resubmissionCount is a bare count and
-// enough signal that "this bounced before" without exposing the free-text
-// reason to a strictly read-only role with no visa.process stake in it.
-export interface OfficerVisaView {
-  id: string;
-  travelerFirstName: string;
-  travelerLastName: string;
-  travelerNationality: string;
-  travelerIdOrPassportNumber: string;
-  country: string;
-  status: VisaStatus;
-  resubmissionCount: number;
-  submittedAt: Date;
-  decidedAt: Date | null;
-  hasDocument: boolean;
-}
-
 // My Schedule (DR-031): a VISA_FACILITATOR's own read-only dashboard --
-// broader than OfficerVisaView since this role already holds visa.process
-// (can act on any traveler in the org), so rejectionReason and travelerId
-// (needed to resolve a travel date) are included, unlike the BR-10-minimized
-// officer projection. documentId itself still isn't exposed -- hasDocument
-// is enough signal, same minimization posture as OfficerVisaView.
+// includes rejectionReason and travelerId (needed to resolve a travel date)
+// since this role already holds visa.process (can act on any traveler in the
+// org) -- documentId itself still isn't exposed, hasDocument is enough
+// signal. (This was originally described as "broader than the
+// IMMIGRATION_OFFICER projection" -- that role and its BR-10-minimized
+// OfficerVisaView were removed entirely in DR-032.)
 // travelStartDate is resolved by the service (a live join through the
 // booking/catalog modules, not stored on VisaApplication) -- null only if
 // the underlying booking/departure data is itself missing, which shouldn't

@@ -38,8 +38,6 @@ const { POST: resubmitApplication } = await import(
 const { GET: downloadVisaDocument, POST: uploadVisaDocument } = await import(
   '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/visa/document/route'
 );
-const { GET: listForCountry } = await import('../../src/app/api/v1/immigration/visa-applications/route');
-const { PATCH: assignCountry } = await import('../../src/app/api/v1/users/[userId]/assign-country/route');
 
 const admin = new PrismaClient();
 
@@ -47,8 +45,6 @@ let orgId: string;
 let touristId: string;
 let facilitatorId: string;
 let operatorId: string;
-let officerId: string; // assignedCountry pre-set to 'NA' via fixture
-let superadminId: string;
 let bookingId: string;
 let travelerId: string;
 let travelerId2: string; // dedicated to the resubmit lifecycle, so it doesn't collide with travelerId's APPROVED end state
@@ -65,20 +61,14 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [tourist, facilitator, operator, officer, superadmin] = await Promise.all([
+  const [tourist, facilitator, operator] = await Promise.all([
     admin.user.create({ data: { email: `t-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `vf-${Date.now()}@example.test`, role: 'VISA_FACILITATOR', organizationId: orgId } }),
     admin.user.create({ data: { email: `op-${Date.now()}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgId } }),
-    admin.user.create({
-      data: { email: `io-${Date.now()}@example.test`, role: 'IMMIGRATION_OFFICER', organizationId: orgId, assignedCountry: 'NA' },
-    }),
-    admin.user.create({ data: { email: `sa-${Date.now()}@example.test`, role: 'SUPERADMIN', organizationId: orgId } }),
   ]);
   touristId = tourist.id;
   facilitatorId = facilitator.id;
   operatorId = operator.id;
-  officerId = officer.id;
-  superadminId = superadmin.id;
 
   await withOrg(orgId, async (tx) => {
     const pkg = await tx.tourPackage.create({
@@ -389,67 +379,5 @@ describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/visa/docume
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe('%PDF-visa-fixture');
-  });
-});
-
-describe('GET /api/v1/immigration/visa-applications', () => {
-  it("an officer assigned to NA sees the NA-bound application", async () => {
-    const headers = await loginAs(officerId);
-    const req = new NextRequest('http://localhost/api/v1/immigration/visa-applications', { headers });
-    const res = await listForCountry(req, { params: Promise.resolve({}) });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.applications.some((a: { travelerIdOrPassportNumber: string }) => a.travelerIdOrPassportNumber === 'PASS123')).toBe(
-      true,
-    );
-    // Data minimization: no disabilities/allergies/phone fields on this projection,
-    // and (DR-025) no rejectionReason -- resubmissionCount (a bare count) is fine.
-    expect(body.applications[0]).not.toHaveProperty('disabilities');
-    expect(body.applications[0]).not.toHaveProperty('rejectionReason');
-    expect(body.applications[0]).toHaveProperty('resubmissionCount');
-  });
-
-  it('a TOUR_OPERATOR cannot use the officer list (403)', async () => {
-    const headers = await loginAs(operatorId);
-    const req = new NextRequest('http://localhost/api/v1/immigration/visa-applications', { headers });
-    const res = await listForCountry(req, { params: Promise.resolve({}) });
-    expect(res.status).toBe(403);
-  });
-});
-
-describe('PATCH /api/v1/users/:userId/assign-country', () => {
-  it('a SUPERADMIN can assign a new officer a country (200)', async () => {
-    const newOfficer = await admin.user.create({
-      data: { email: `io2-${Date.now()}@example.test`, role: 'IMMIGRATION_OFFICER', organizationId: orgId },
-    });
-    const headers = await loginAs(superadminId);
-    const req = jsonRequest(`http://localhost/api/v1/users/${newOfficer.id}/assign-country`, headers, 'PATCH', {
-      country: 'CD',
-    });
-    const res = await assignCountry(req, { params: Promise.resolve({ userId: newOfficer.id }) });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.user.assignedCountry).toBe('CD');
-  });
-
-  it('a TOUR_OPERATOR cannot assign an officer a country (403)', async () => {
-    const headers = await loginAs(operatorId);
-    const req = jsonRequest(`http://localhost/api/v1/users/${officerId}/assign-country`, headers, 'PATCH', {
-      country: 'CD',
-    });
-    const res = await assignCountry(req, { params: Promise.resolve({ userId: officerId }) });
-    expect(res.status).toBe(403);
-  });
-
-  it('rejects assigning a country not in the org (422)', async () => {
-    const newOfficer = await admin.user.create({
-      data: { email: `io3-${Date.now()}@example.test`, role: 'IMMIGRATION_OFFICER', organizationId: orgId },
-    });
-    const headers = await loginAs(superadminId);
-    const req = jsonRequest(`http://localhost/api/v1/users/${newOfficer.id}/assign-country`, headers, 'PATCH', {
-      country: 'US',
-    });
-    const res = await assignCountry(req, { params: Promise.resolve({ userId: newOfficer.id }) });
-    expect(res.status).toBe(422);
   });
 });

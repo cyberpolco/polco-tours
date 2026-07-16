@@ -67,7 +67,6 @@ beforeAll(async () => {
     roles: ['DRIVER'],
     organizationId: orgAId,
     sessionId: 's1',
-    assignedCountry: null,
     mustChangePassword: false,
   };
 });

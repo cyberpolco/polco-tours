@@ -11,12 +11,12 @@ function daysUntil(date: Date, now: Date): number {
   return Math.ceil((date.getTime() - now.getTime()) / MS_PER_DAY);
 }
 
-// VISA_FACILITATOR's "My Schedule" (DR-031) -- whole-org queue (no
-// country-scoping concept exists for this role, unlike IMMIGRATION_OFFICER).
-// Read-only, same posture as /staff/immigration -- decide/resubmit/upload
+// VISA_FACILITATOR's "My Schedule" (DR-031) -- whole-org queue, no country
+// scoping concept exists for this role. Read-only -- decide/resubmit/upload
 // stay API-only for now (this page is the discovery/overview surface the
 // spec calls "immigration tasks / missing documents / visa deadlines", not a
-// new decision-making UI).
+// new decision-making UI). (IMMIGRATION_OFFICER and its own separate
+// country-scoped /staff/immigration page were removed entirely in DR-032.)
 export default async function VisaQueuePage() {
   const ctx = await requireStaffContext('visa.process');
   const applications = await visaService.listForFacilitator(ctx);

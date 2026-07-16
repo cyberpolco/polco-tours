@@ -52,53 +52,8 @@ export const authService = {
       roles: user.roles,
       organizationId: user.organizationId,
       sessionId: session.session.id,
-      assignedCountry: user.assignedCountry,
       mustChangePassword: user.mustChangePassword,
     };
-  },
-
-  /** Admin-only: assigns an IMMIGRATION_OFFICER's country scope (BR-10,
-   * DR-019) -- first real use of admin.all, which nothing has exercised
-   * before either. */
-  async assignOfficerCountry(ctx: AuthContext, userId: string, country: string): Promise<PublicUser> {
-    assertCan(ctx.roles, 'admin.all');
-
-    const target = await authRepository.findUserById(userId);
-    if (!target || !target.roles.includes('IMMIGRATION_OFFICER')) {
-      throw Errors.validation('userId must reference an IMMIGRATION_OFFICER account');
-    }
-    if (!target.organizationId) throw Errors.validation('Target user has no organization membership');
-
-    const countries = await authRepository.findOrganizationCountries(target.organizationId);
-    if (!countries?.includes(country)) {
-      throw Errors.validation(`country must be one of this organization's countries: ${countries?.join(', ') ?? ''}`);
-    }
-
-    const updated = await authRepository.updateAssignedCountry(userId, country);
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'auth.officer_country_assigned',
-      resourceType: 'User',
-      resourceId: userId,
-      organizationId: target.organizationId,
-      metadata: { country },
-    });
-    return updated;
-  },
-
-  /** Admin-only: powers the officer-management page (list IMMIGRATION_OFFICER
-   * accounts in the org + the org's own countries, for the assign/reassign
-   * form) -- DR-020, the UI this admin.all capability was missing. */
-  async listOfficers(ctx: AuthContext): Promise<{ officers: PublicUser[]; availableCountries: string[] }> {
-    assertCan(ctx.roles, 'admin.all');
-    if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
-
-    const [officers, countries] = await Promise.all([
-      authRepository.listByRole(ctx.organizationId, 'IMMIGRATION_OFFICER'),
-      authRepository.findOrganizationCountries(ctx.organizationId),
-    ]);
-    return { officers, availableCountries: countries ?? [] };
   },
 
   /** Admin-only: powers the general user-management page (DR-026) -- every
