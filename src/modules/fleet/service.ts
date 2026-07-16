@@ -3,13 +3,20 @@
 import type { Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { documentsService, type DocumentSummary } from '@modules/documents';
+import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import type {
   CreateDriverProfileInput,
+  CreateMaintenanceRecordInput,
+  CreateStarlinkKitInput,
   CreateVehicleInput,
   DriverProfileView,
+  MaintenanceRecordView,
+  SetStarlinkLocationInput,
+  StarlinkKitView,
   UpdateDriverProfileInput,
+  UpdateStarlinkKitInput,
   UpdateVehicleInput,
   VehicleView,
 } from './domain';
@@ -159,5 +166,110 @@ export const fleetService = {
   async listDriverDocuments(ctx: AuthContext, driverProfileId: string): Promise<DocumentSummary[]> {
     await fleetService.getDriverProfile(ctx, driverProfileId); // fleet.read + ownership check
     return documentsService.listDriverProfileDocuments(ctx, driverProfileId);
+  },
+
+  // ------------------------------------------------------------ maintenance history (DR-029)
+
+  async addMaintenanceRecord(
+    ctx: AuthContext,
+    vehicleId: string,
+    input: CreateMaintenanceRecordInput,
+  ): Promise<MaintenanceRecordView> {
+    assertCan(ctx.roles, 'fleet.write');
+    const organizationId = requireOrg(ctx);
+    await fleetService.getVehicle(ctx, vehicleId); // 404s if not in this org
+    const record = await fleetRepository.createMaintenanceRecord(organizationId, vehicleId, input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.maintenance_logged',
+      resourceType: 'MaintenanceRecord',
+      resourceId: record.id,
+      organizationId,
+    });
+    return record;
+  },
+
+  async listMaintenanceRecords(ctx: AuthContext, vehicleId: string): Promise<MaintenanceRecordView[]> {
+    assertCan(ctx.roles, 'fleet.read');
+    await fleetService.getVehicle(ctx, vehicleId); // fleet.read + ownership check
+    return fleetRepository.listMaintenanceRecordsForVehicle(requireOrg(ctx), vehicleId);
+  },
+
+  // ------------------------------------------------------------ Starlink kits (DR-029)
+
+  async createStarlinkKit(ctx: AuthContext, input: CreateStarlinkKitInput): Promise<StarlinkKitView> {
+    assertCan(ctx.roles, 'fleet.write');
+    const organizationId = requireOrg(ctx);
+    const kit = await fleetRepository.createStarlinkKit(organizationId, input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.starlink_kit_created',
+      resourceType: 'StarlinkKit',
+      resourceId: kit.id,
+      organizationId,
+    });
+    return kit;
+  },
+
+  async updateStarlinkKit(ctx: AuthContext, kitId: string, input: UpdateStarlinkKitInput): Promise<StarlinkKitView> {
+    assertCan(ctx.roles, 'fleet.write');
+    const organizationId = requireOrg(ctx);
+    const updated = await fleetRepository.updateStarlinkKit(organizationId, kitId, input);
+    if (!updated) throw Errors.notFound('Starlink kit not found');
+    return updated;
+  },
+
+  /** Staff-entered position (no live API feed yet -- see the StarlinkKit
+   * model comment in schema.prisma). */
+  async setStarlinkLocation(ctx: AuthContext, kitId: string, input: SetStarlinkLocationInput): Promise<StarlinkKitView> {
+    assertCan(ctx.roles, 'fleet.write');
+    const organizationId = requireOrg(ctx);
+    const updated = await fleetRepository.updateStarlinkKit(organizationId, kitId, {
+      lastLatitude: input.latitude,
+      lastLongitude: input.longitude,
+      lastLocationAt: new Date(),
+    });
+    if (!updated) throw Errors.notFound('Starlink kit not found');
+    return updated;
+  },
+
+  async getStarlinkKit(ctx: AuthContext, kitId: string): Promise<StarlinkKitView> {
+    assertCan(ctx.roles, 'fleet.read');
+    const kit = await fleetRepository.findStarlinkKitById(requireOrg(ctx), kitId);
+    if (!kit) throw Errors.notFound('Starlink kit not found');
+    return kit;
+  },
+
+  async listStarlinkKits(ctx: AuthContext): Promise<StarlinkKitView[]> {
+    assertCan(ctx.roles, 'fleet.read');
+    return fleetRepository.listStarlinkKits(requireOrg(ctx));
+  },
+
+  /** Backs assignmentService.recommendAssignment's maintenance-recency
+   * scoring -- one query across every candidate vehicle, not an N+1. */
+  async getMaintenanceRecencyByVehicleIds(ctx: AuthContext, vehicleIds: string[]): Promise<Map<string, Date>> {
+    assertCan(ctx.roles, 'fleet.read');
+    if (vehicleIds.length === 0) return new Map();
+    return fleetRepository.findMostRecentMaintenanceByVehicleIds(requireOrg(ctx), vehicleIds);
+  },
+
+  /** Backs assignmentService.recommendAssignment's distance-from-pickup
+   * scoring -- only vehicles with a located Starlink kit contribute. */
+  async getStarlinkLocationsByVehicleIds(
+    ctx: AuthContext,
+    vehicleIds: string[],
+  ): Promise<Map<string, { latitude: number; longitude: number }>> {
+    assertCan(ctx.roles, 'fleet.read');
+    if (vehicleIds.length === 0) return new Map();
+    const kits = await fleetRepository.findStarlinkKitsByVehicleIds(requireOrg(ctx), vehicleIds);
+    const locations = new Map<string, { latitude: number; longitude: number }>();
+    for (const [vehicleId, kit] of kits) {
+      if (kit.lastLatitude != null && kit.lastLongitude != null) {
+        locations.set(vehicleId, { latitude: kit.lastLatitude, longitude: kit.lastLongitude });
+      }
+    }
+    return locations;
   },
 };

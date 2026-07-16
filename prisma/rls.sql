@@ -185,3 +185,21 @@ DROP POLICY IF EXISTS tenant_isolation ON organization_members;
 CREATE POLICY tenant_isolation ON organization_members
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ----------------------------------------------------- maintenance_records (DR-029)
+ALTER TABLE maintenance_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE maintenance_records FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON maintenance_records;
+CREATE POLICY tenant_isolation ON maintenance_records
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ----------------------------------------------------- starlink_kits (DR-029)
+ALTER TABLE starlink_kits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE starlink_kits FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON starlink_kits;
+CREATE POLICY tenant_isolation ON starlink_kits
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

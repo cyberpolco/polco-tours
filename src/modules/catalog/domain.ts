@@ -31,6 +31,10 @@ export interface DepartureView {
   priceOverrideMinor: number | null;
   currency: Currency | null;
   customCountry: string | null;
+  // Staff-entered (DR-029) -- feeds the assignment recommendation engine's
+  // distance-from-pickup factor. Optional; most departures won't have it.
+  pickupLatitude: number | null;
+  pickupLongitude: number | null;
   status: DepartureStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -61,6 +65,16 @@ export const CreateDepartureInput = z.object({
   priceOverrideMinor: z.number().int().nonnegative().optional(),
 });
 export type CreateDepartureInput = z.infer<typeof CreateDepartureInput>;
+
+// DR-029: the only mutable fields on an existing Departure are its pickup
+// coordinates -- nothing else about a scheduled departure (dates/capacity/
+// price/package) has ever needed post-creation editing, so this stays
+// narrow rather than a general-purpose UpdateDepartureInput.
+export const SetDeparturePickupLocationInput = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+export type SetDeparturePickupLocationInput = z.infer<typeof SetDeparturePickupLocationInput>;
 
 /** Business-facing reference, e.g. PKG-00034 -- the numeric part comes from
  * a plain Postgres sequence (repository.ts); this just formats it. No year

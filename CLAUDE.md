@@ -845,9 +845,31 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `assignmentService.createAssignment`, all completely unchanged. New
   routes: `DELETE .../packages/{id}`, `POST .../packages/{id}/duplicate`,
   `POST /bookings/{id}/convert-to-itinerary`.
+- **Fleet Management expansion done 2026-07-15 (DR-029):** new Starlink kit
+  resource (`kitId`/`status`/1:1 `vehicleId`/staff-entered
+  `lastLatitude`/`lastLongitude` -- no live API feed yet, `OI-09`), vehicle
+  `vin`, an append-only `MaintenanceRecord` log, and driver `languages`.
+  Driver rating deliberately NOT built (no reviews system exists yet -- a
+  staff-typed number with nothing backing it would mislead); "availability"
+  needed no new field (computed from the existing `departuresOverlap`
+  double-booking gate, DR-018). New `assignmentService.recommendAssignment`
+  -- a simple, transparent, equal-weighted rules-based scorer (capacity fit,
+  maintenance recency, distance-from-pickup via new `src/lib/geo.ts`
+  haversine helper, no new external dependency), explicitly **not** the
+  Phase 3 "AI assignment engine" and honest about that distinction
+  throughout the code/docs; built now ahead of the roadmap line below per
+  explicit user choice. New `Departure.pickupLatitude`/`pickupLongitude`
+  (first mutable field on an existing departure, `PATCH
+  /departures/{id}`). Staff UI: `/staff/fleet` gained a Starlink Kits
+  section; the departure-detail assignment form pre-selects/reorders by
+  recommendation but never narrows the pickable list, so a manual override
+  always stays fully available.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
-  GPS v1, CRM, and reviews.
-- **Phase 3:** AI assignment engine (operator-validated), analytics.
+  real Starlink API integration (OI-09), CRM, and reviews (which would also
+  unlock a real driver-rating field, deliberately skipped in DR-029).
+- **Phase 3:** a first rules-based assignment recommendation shipped early
+  (DR-029, explicit user choice) -- real ML/AI-driven assignment and
+  analytics remain open.
 - **Phase 4:** native Android/iOS, more countries.
 
 Full roadmap and testing strategy: Volume 10.
@@ -963,9 +985,19 @@ packages module: first-ever staff package-management UI (`/staff/packages*`)
 a new bespoke-departure kind so an approved `TAILOR_MADE` booking can
 finally get a real operational itinerary via new
 `bookingService.convertToItinerary` -- the existing `Assignment` module
-then works completely unchanged.
+then works completely unchanged · DR-029 fleet management expansion: new
+`StarlinkKit` (staff-entered location, no live API yet -- `OI-09`),
+`Vehicle.vin`, `MaintenanceRecord` log, `DriverProfile.languages`; driver
+rating deliberately skipped (no reviews system to back it); availability
+computed from the existing overlap check, no new field. New
+`assignmentService.recommendAssignment` -- an honest, simple rules-based
+scorer (capacity fit + maintenance recency + haversine distance-from-pickup
+via new `src/lib/geo.ts`, no new external dependency), explicitly not real
+AI, built ahead of the Phase 3 roadmap line per explicit user choice; the
+staff assignment form pre-selects/reorders by it but never narrows the
+pickable list.
 
-## Open items — cannot be decided in code (see log OI-01..03, 05..07; OI-04/08 resolved)
+## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -990,8 +1022,11 @@ then works completely unchanged.
   Playwright e2e spec stops at the passport step's upload form rather than
   submitting a real file; a future increment can extend that spec without a
   second CI trip.
+- **OI-09** Real Starlink API/account access (live kit location feed).
+  `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now
+  (DR-029). Blocks real-time fleet location tracking.
 
-Surface OI-01..03/05..07 to the human — don't invent answers.
+Surface OI-01..03/05..07/09 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —

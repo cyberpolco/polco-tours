@@ -54,6 +54,8 @@ function toDepartureView(d: Departure): DepartureView {
     priceOverrideMinor: d.priceOverrideMinor,
     currency: d.currency,
     customCountry: d.customCountry,
+    pickupLatitude: d.pickupLatitude,
+    pickupLongitude: d.pickupLongitude,
     status: d.status,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
@@ -173,6 +175,22 @@ export const catalogRepository = {
           currency: params.currency,
           customCountry: params.customCountry,
         },
+      });
+      return toDepartureView(d);
+    });
+  },
+
+  async setDeparturePickupLocation(
+    organizationId: string,
+    id: string,
+    location: { latitude: number; longitude: number },
+  ): Promise<DepartureView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.departure.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const d = await tx.departure.update({
+        where: { id },
+        data: { pickupLatitude: location.latitude, pickupLongitude: location.longitude },
       });
       return toDepartureView(d);
     });

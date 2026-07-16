@@ -39,6 +39,8 @@ function departure(overrides: Partial<DepartureView> = {}): DepartureView {
     priceOverrideMinor: null,
     currency: null,
     customCountry: null,
+    pickupLatitude: null,
+    pickupLongitude: null,
     status: 'SCHEDULED',
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),

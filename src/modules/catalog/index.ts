@@ -5,6 +5,7 @@ export {
   CreateDepartureInput,
   CreatePackageInput,
   QuizAnswers,
+  SetDeparturePickupLocationInput,
   UpdatePackageInput,
   effectivePrice,
   formatPackageReference,

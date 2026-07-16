@@ -8,9 +8,13 @@ export async function updateDriverProfileAction(driverProfileId: string, formDat
   const ctx = await requireStaffContext('fleet.write');
 
   const licenseExpiresAtRaw = String(formData.get('licenseExpiresAt') ?? '');
+  const languagesRaw = String(formData.get('languages') ?? '').trim();
   const input = UpdateDriverProfileInput.parse({
     licenseNumber: String(formData.get('licenseNumber') ?? '').trim(),
     licenseExpiresAt: licenseExpiresAtRaw || undefined,
+    languages: languagesRaw
+      ? languagesRaw.split(',').map((l) => l.trim().toLowerCase()).filter(Boolean)
+      : undefined,
     status: formData.get('status') || undefined,
   });
 

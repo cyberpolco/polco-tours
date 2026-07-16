@@ -63,6 +63,14 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
+        <FormField label="Languages (ISO-639-1 codes, comma-separated, e.g. en, fr)" htmlFor="languages" optional>
+          <input
+            name="languages"
+            defaultValue={driver.languages.join(', ')}
+            placeholder="en, fr"
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <SubmitButton>Save changes</SubmitButton>
       </form>
 

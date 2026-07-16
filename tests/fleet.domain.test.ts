@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   complianceStatus,
+  maintenanceRecencyScore,
   CreateDriverProfileInput,
   CreateVehicleInput,
   UpdateVehicleInput,
@@ -97,6 +98,28 @@ describe('fleet domain', () => {
     it('rejects a non-uuid userId', () => {
       const result = CreateDriverProfileInput.safeParse({ userId: 'not-a-uuid', licenseNumber: 'DL-001' });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('maintenanceRecencyScore (DR-029)', () => {
+    const now = new Date('2026-07-10T00:00:00Z');
+
+    it('is a neutral 0.5 with no logged history -- not a penalty', () => {
+      expect(maintenanceRecencyScore(null, now)).toBe(0.5);
+    });
+
+    it('is 1 for maintenance performed right now', () => {
+      expect(maintenanceRecencyScore(now, now)).toBe(1);
+    });
+
+    it('decreases the longer ago maintenance was performed', () => {
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      expect(maintenanceRecencyScore(ninetyDaysAgo, now)).toBeCloseTo(0.5, 5);
+    });
+
+    it('floors at 0 for maintenance long past the lookback window', () => {
+      const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      expect(maintenanceRecencyScore(yearAgo, now)).toBe(0);
     });
   });
 });

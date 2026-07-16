@@ -2,14 +2,16 @@
 
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { UpdateVehicleInput, fleetService } from '@modules/fleet';
+import { CreateMaintenanceRecordInput, UpdateVehicleInput, fleetService } from '@modules/fleet';
 
 export async function updateVehicleAction(vehicleId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');
 
   const yearRaw = formData.get('year');
+  const vinRaw = String(formData.get('vin') ?? '').trim();
   const input = UpdateVehicleInput.parse({
     plateNumber: String(formData.get('plateNumber') ?? '').trim(),
+    vin: vinRaw || undefined,
     make: String(formData.get('make') ?? '').trim(),
     model: String(formData.get('model') ?? '').trim(),
     year: yearRaw ? Number(yearRaw) : undefined,
@@ -19,6 +21,22 @@ export async function updateVehicleAction(vehicleId: string, formData: FormData)
   });
 
   await fleetService.updateVehicle(ctx, vehicleId, input);
+  redirect(`/staff/fleet/vehicles/${vehicleId}`);
+}
+
+export async function addMaintenanceRecordAction(vehicleId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('fleet.write');
+
+  const amountRaw = formData.get('amount');
+  const currencyRaw = String(formData.get('currency') ?? '').trim();
+  const input = CreateMaintenanceRecordInput.parse({
+    performedAt: String(formData.get('performedAt')),
+    description: String(formData.get('description') ?? '').trim(),
+    costMinor: amountRaw && currencyRaw ? Math.round(Number(amountRaw) * 100) : undefined,
+    currency: currencyRaw || undefined,
+  });
+
+  await fleetService.addMaintenanceRecord(ctx, vehicleId, input);
   redirect(`/staff/fleet/vehicles/${vehicleId}`);
 }
 

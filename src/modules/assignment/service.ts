@@ -3,17 +3,55 @@
 import { Prisma } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
-import { catalogService } from '@modules/catalog';
-import { fleetService } from '@modules/fleet';
+import { catalogService, type DepartureView } from '@modules/catalog';
+import { fleetService, maintenanceRecencyScore, type DriverProfileView, type VehicleView } from '@modules/fleet';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { haversineDistanceKm } from '@lib/geo';
 import { assertCan } from '@lib/rbac';
-import { departuresOverlap, type AssignmentView, type CreateAssignmentInput } from './domain';
+import {
+  capacityFitScore,
+  combineVehicleScore,
+  departuresOverlap,
+  distanceScore,
+  type AssignmentView,
+  type CreateAssignmentInput,
+} from './domain';
 import { assignmentRepository } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   return ctx.organizationId;
+}
+
+/** Shared by createAssignment's hard validation and recommendAssignment's
+ * eligibility filter -- neither a vehicle nor a driver may already be on a
+ * different, date-overlapping departure. */
+async function hasOverlappingAssignment(
+  ctx: AuthContext,
+  organizationId: string,
+  departureId: string,
+  departure: DepartureView,
+  otherDepartureIds: Iterable<string>,
+): Promise<boolean> {
+  for (const otherDepartureId of otherDepartureIds) {
+    if (otherDepartureId === departureId) continue;
+    const other = await catalogService.getDepartureDetail(ctx, otherDepartureId);
+    if (departuresOverlap(departure, other.departure)) return true;
+  }
+  return false;
+}
+
+export interface ScoredVehicle {
+  vehicle: VehicleView;
+  score: number;
+}
+
+export interface AssignmentRecommendation {
+  vehicles: ScoredVehicle[]; // eligible only, sorted desc by score
+  drivers: DriverProfileView[]; // eligible only -- no ranking beyond eligibility (driver rating deferred, no reviews system exists)
+  recommendedVehicleId: string | null;
+  recommendedDriverId: string | null;
 }
 
 export const assignmentService = {
@@ -52,14 +90,9 @@ export const assignmentService = {
       assignmentRepository.listForVehicle(organizationId, input.vehicleId),
       assignmentRepository.listForDriverProfile(organizationId, input.driverProfileId),
     ]);
-    const otherDepartureIds = new Set(
-      [...vehicleAssignments, ...driverAssignments].map((a) => a.departureId).filter((id) => id !== departureId),
-    );
-    for (const otherDepartureId of otherDepartureIds) {
-      const other = await catalogService.getDepartureDetail(ctx, otherDepartureId);
-      if (departuresOverlap(departure, other.departure)) {
-        throw Errors.conflict('Vehicle or driver is already assigned to an overlapping departure');
-      }
+    const otherDepartureIds = new Set([...vehicleAssignments, ...driverAssignments].map((a) => a.departureId));
+    if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) {
+      throw Errors.conflict('Vehicle or driver is already assigned to an overlapping departure');
     }
 
     let assignment: AssignmentView;
@@ -83,6 +116,77 @@ export const assignmentService = {
     });
 
     return assignment;
+  },
+
+  /** DR-029: a simple, transparent rules-based recommendation -- NOT the
+   * real "AI assignment engine" this project's roadmap lists as Phase 3.
+   * Vehicles are hard-filtered to ACTIVE + capacity-fits + not conflicting,
+   * then scored (capacity fit, maintenance recency, distance from pickup
+   * when the data exists) and ranked. Drivers are filtered the same way
+   * (ACTIVE + not conflicting) but never ranked -- there's no rating data to
+   * rank them by (deliberately deferred, no reviews system exists yet).
+   * The caller (staff UI) pre-selects the top pick; the admin can still
+   * choose any other eligible candidate instead. */
+  async recommendAssignment(ctx: AuthContext, departureId: string): Promise<AssignmentRecommendation> {
+    assertCan(ctx.roles, 'assignment.write');
+    const organizationId = requireOrg(ctx);
+    const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
+
+    const [allVehicles, allDrivers] = await Promise.all([
+      fleetService.listVehicles(ctx),
+      fleetService.listDriverProfiles(ctx),
+    ]);
+
+    const vehicleCandidates: Array<{ vehicle: VehicleView; capacityFit: number }> = [];
+    for (const vehicle of allVehicles) {
+      if (vehicle.status !== 'ACTIVE') continue;
+      const capacityFit = capacityFitScore(vehicle.seatCapacity, departure.capacity);
+      if (capacityFit === null) continue;
+      const otherDepartureIds = (await assignmentRepository.listForVehicle(organizationId, vehicle.id)).map(
+        (a) => a.departureId,
+      );
+      if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) continue;
+      vehicleCandidates.push({ vehicle, capacityFit });
+    }
+
+    const eligibleDrivers: DriverProfileView[] = [];
+    for (const driverProfile of allDrivers) {
+      if (driverProfile.status !== 'ACTIVE') continue;
+      const otherDepartureIds = (
+        await assignmentRepository.listForDriverProfile(organizationId, driverProfile.id)
+      ).map((a) => a.departureId);
+      if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) continue;
+      eligibleDrivers.push(driverProfile);
+    }
+
+    const vehicleIds = vehicleCandidates.map((c) => c.vehicle.id);
+    const [maintenanceByVehicle, locationByVehicle] = await Promise.all([
+      fleetService.getMaintenanceRecencyByVehicleIds(ctx, vehicleIds),
+      fleetService.getStarlinkLocationsByVehicleIds(ctx, vehicleIds),
+    ]);
+
+    const now = new Date();
+    const scoredVehicles: ScoredVehicle[] = vehicleCandidates.map(({ vehicle, capacityFit }) => {
+      const maintenanceRecency = maintenanceRecencyScore(maintenanceByVehicle.get(vehicle.id) ?? null, now);
+      let distance: number | null = null;
+      const kitLocation = locationByVehicle.get(vehicle.id);
+      if (kitLocation && departure.pickupLatitude != null && departure.pickupLongitude != null) {
+        const km = haversineDistanceKm(kitLocation, {
+          latitude: departure.pickupLatitude,
+          longitude: departure.pickupLongitude,
+        });
+        distance = distanceScore(km);
+      }
+      return { vehicle, score: combineVehicleScore({ capacityFit, maintenanceRecency, distance }) };
+    });
+    scoredVehicles.sort((a, b) => b.score - a.score);
+
+    return {
+      vehicles: scoredVehicles,
+      drivers: eligibleDrivers,
+      recommendedVehicleId: scoredVehicles[0]?.vehicle.id ?? null,
+      recommendedDriverId: eligibleDrivers[0]?.id ?? null,
+    };
   },
 
   /** Manager-only -- the staff departure-detail page's data source. */

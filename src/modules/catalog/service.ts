@@ -19,6 +19,7 @@ import {
   type CreatePackageInput,
   type DepartureView,
   type QuizAnswers,
+  type SetDeparturePickupLocationInput,
   type TourPackageView,
   type UpdatePackageInput,
 } from './domain';
@@ -85,6 +86,20 @@ export const catalogService = {
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg) throw Errors.notFound('Package not found');
     return catalogRepository.createDeparture(organizationId, packageId, input);
+  },
+
+  /** DR-029: the only mutable field on an existing Departure. Feeds the
+   * assignment recommendation engine's distance-from-pickup factor. */
+  async setDeparturePickupLocation(
+    ctx: AuthContext,
+    departureId: string,
+    input: SetDeparturePickupLocationInput,
+  ): Promise<DepartureView> {
+    assertCan(ctx.roles, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const updated = await catalogRepository.setDeparturePickupLocation(organizationId, departureId, input);
+    if (!updated) throw Errors.notFound('Departure not found');
+    return updated;
   },
 
   async listDepartures(ctx: AuthContext, packageId: string): Promise<DepartureView[]> {

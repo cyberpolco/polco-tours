@@ -161,10 +161,12 @@ model Organization {
   documents        Document[]
   addonServices    AddonService[]
   bookingAddons    BookingAddon[]
-  vehicles         Vehicle[]
-  driverProfiles   DriverProfile[]
-  assignments      Assignment[]
-  visaApplications VisaApplication[]
+  vehicles           Vehicle[]
+  driverProfiles     DriverProfile[]
+  assignments        Assignment[]
+  visaApplications   VisaApplication[]
+  maintenanceRecords MaintenanceRecord[]
+  starlinkKits       StarlinkKit[]
 
   @@map("organizations")
 }
@@ -321,6 +323,12 @@ model Departure {
   priceOverrideMinor Int? // null = inherit TourPackage.priceMinor/currency; for a bespoke departure, this IS the price (no package to inherit from)
   currency           Currency? // bespoke departures only -- a package-backed departure inherits TourPackage.currency
   customCountry      String?         @db.VarChar(2) // bespoke departures only -- ISO-3166 alpha-2, snapshotted from the originating Booking
+  // Staff-entered pickup point (DR-029) -- feeds the assignment
+  // recommendation engine's "distance from pickup" factor. Optional: most
+  // departures won't have this set initially, and the engine degrades
+  // gracefully (skips that factor) when it's missing.
+  pickupLatitude     Float?
+  pickupLongitude    Float?
   status             DepartureStatus @default(SCHEDULED)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -548,6 +556,7 @@ model Vehicle {
   organizationId String        @db.Uuid
   ownerId        String?       @db.Uuid // VEHICLE_OWNER user; null = operator-owned
   plateNumber    String
+  vin            String?       // chassis/VIN (DR-029) -- distinct from plateNumber, not every jurisdiction requires it up front
   make           String
   model          String
   year           Int?
@@ -558,10 +567,12 @@ model Vehicle {
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  owner        User?        @relation(fields: [ownerId], references: [id])
-  documents    Document[]
-  assignments  Assignment[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner              User?               @relation(fields: [ownerId], references: [id])
+  documents          Document[]
+  assignments        Assignment[]
+  maintenanceRecords MaintenanceRecord[]
+  starlinkKit        StarlinkKit?
 
   @@index([organizationId])
   @@index([ownerId])
@@ -577,6 +588,10 @@ model DriverProfile {
   userId           String       @unique @db.Uuid
   licenseNumber    String
   licenseExpiresAt DateTime?
+  // ISO-639-1 codes, e.g. ["en","fr"] (DR-029). No rating field -- deferred
+  // until a real reviews system exists (Phase 2 remaining item); a
+  // staff-typed number with nothing backing it would be actively misleading.
+  languages        String[]     @default([])
   status           DriverStatus @default(ACTIVE)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -588,6 +603,63 @@ model DriverProfile {
 
   @@index([organizationId])
   @@map("driver_profiles")
+}
+
+// ---------------------------------------------------------- fleet: maintenance history (DR-029)
+// A simple append-only log per vehicle -- no scheduled/due-date concept yet
+// (that would need a maintenance-interval policy this spec doesn't define),
+// just a record of what was done and when. Feeds the assignment
+// recommendation engine's "maintenance status" factor (recency as a proxy
+// for risk) alongside the existing VehicleStatus.MAINTENANCE hard gate.
+model MaintenanceRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  vehicleId      String   @db.Uuid
+  performedAt    DateTime
+  description    String
+  costMinor      Int? // integer minor units (BR-02), paired with currency below -- never a bare number
+  currency       Currency?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([vehicleId])
+  @@map("maintenance_records")
+}
+
+enum StarlinkStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+// A Starlink kit is a fleet resource in its own right (DR-029), 1:1 with the
+// Vehicle it's currently mounted in (nullable -- a kit can be unassigned,
+// e.g. newly received or being serviced). lastLatitude/lastLongitude/
+// lastLocationAt are staff-entered for now, not a live feed -- there is no
+// real Starlink API integration yet (no credentials, not in the approved
+// stack table), matching how Resend/WhatsApp/Africa's Talking each started
+// as a stub before real credentials existed (OI-05/06/07). Real live
+// tracking is a future open item, not modeled here.
+model StarlinkKit {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  kitId           String         @unique // Starlink's own serial/kit identifier, staff-entered
+  status          StarlinkStatus @default(ACTIVE)
+  vehicleId       String?        @unique @db.Uuid
+  lastLatitude    Float?
+  lastLongitude   Float?
+  lastLocationAt  DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id])
+
+  @@index([organizationId])
+  @@map("starlink_kits")
 }
 
 // Org-scoped catalog of priced add-on services (photography, video,

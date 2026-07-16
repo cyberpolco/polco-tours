@@ -5,6 +5,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError } from '@lib/errors';
 import { authService } from '@modules/auth';
 import { CreateAssignmentInput, assignmentService } from '@modules/assignment';
+import { SetDeparturePickupLocationInput, catalogService } from '@modules/catalog';
 
 export async function createAssignmentAction(departureId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
@@ -39,5 +40,15 @@ export async function createAssignmentAction(departureId: string, formData: Form
 export async function removeAssignmentAction(departureId: string, assignmentId: string): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
   await assignmentService.removeAssignment(ctx, assignmentId);
+  redirect(`/staff/departures/${departureId}`);
+}
+
+export async function setPickupLocationAction(departureId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('catalog.write');
+  const input = SetDeparturePickupLocationInput.parse({
+    latitude: Number(formData.get('latitude')),
+    longitude: Number(formData.get('longitude')),
+  });
+  await catalogService.setDeparturePickupLocation(ctx, departureId, input);
   redirect(`/staff/departures/${departureId}`);
 }

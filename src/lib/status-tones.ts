@@ -5,6 +5,7 @@ import type {
   InvoiceStatus,
   PackageStatus,
   PaymentStatus,
+  StarlinkStatus,
   VehicleStatus,
   VisaStatus,
 } from '@prisma/client';
@@ -43,6 +44,12 @@ export const VEHICLE_STATUS_TONE: Record<VehicleStatus, BadgeTone> = {
 export const DRIVER_STATUS_TONE: Record<DriverStatus, BadgeTone> = {
   ACTIVE: 'success',
   SUSPENDED: 'warning',
+};
+
+export const STARLINK_STATUS_TONE: Record<StarlinkStatus, BadgeTone> = {
+  ACTIVE: 'success',
+  INACTIVE: 'neutral',
+  MAINTENANCE: 'warning',
 };
 
 export const PACKAGE_STATUS_TONE: Record<PackageStatus, BadgeTone> = {

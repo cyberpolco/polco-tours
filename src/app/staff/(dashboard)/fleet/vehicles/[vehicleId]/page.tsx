@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { format, money } from '@lib/money';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
-import { updateVehicleAction, uploadVehicleDocumentAction } from './actions';
+import { addMaintenanceRecordAction, updateVehicleAction, uploadVehicleDocumentAction } from './actions';
 
 interface Props {
   params: Promise<{ vehicleId: string }>;
@@ -32,7 +33,10 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
     notFound();
   }
 
-  const documents = await fleetService.listVehicleDocuments(ctx, vehicleId);
+  const [documents, maintenanceRecords] = await Promise.all([
+    fleetService.listVehicleDocuments(ctx, vehicleId),
+    fleetService.listMaintenanceRecords(ctx, vehicleId),
+  ]);
   const now = new Date();
 
   return (
@@ -45,12 +49,8 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
           <FormField label="Plate number" htmlFor="plateNumber">
             <input name="plateNumber" defaultValue={vehicle.plateNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Status" htmlFor="status">
-            <select name="status" defaultValue={vehicle.status} className="w-full rounded-survey border border-rule px-3 py-2">
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="MAINTENANCE">MAINTENANCE</option>
-              <option value="RETIRED">RETIRED</option>
-            </select>
+          <FormField label="VIN" htmlFor="vin" optional>
+            <input name="vin" defaultValue={vehicle.vin ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -59,6 +59,15 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
           </FormField>
           <FormField label="Model" htmlFor="model">
             <input name="model" defaultValue={vehicle.model} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Status" htmlFor="status">
+            <select name="status" defaultValue={vehicle.status} className="w-full rounded-survey border border-rule px-3 py-2">
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="MAINTENANCE">MAINTENANCE</option>
+              <option value="RETIRED">RETIRED</option>
+            </select>
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -142,6 +151,49 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             );
           })}
         </div>
+      </div>
+
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Maintenance history</p>
+        {maintenanceRecords.length === 0 ? (
+          <p className="mt-2 text-sm text-mist">No maintenance logged yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-2 text-sm">
+            {maintenanceRecords.map((m) => (
+              <li key={m.id} className="flex items-center justify-between border-b border-rule pb-2">
+                <span>
+                  {m.performedAt.toLocaleDateString()} · {m.description}
+                </span>
+                {m.costMinor != null && m.currency && <span className="text-mist">{format(money(m.costMinor, m.currency))}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form action={addMaintenanceRecordAction.bind(null, vehicleId)} className="mt-4 flex flex-wrap items-end gap-3">
+          <FormField label="Date" htmlFor="performedAt">
+            <input name="performedAt" type="date" required className="rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Description" htmlFor="description">
+            <input name="description" required className="w-64 rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Cost" htmlFor="amount" optional>
+            <input name="amount" type="number" step="0.01" min="0" className="w-28 rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Currency" htmlFor="currency" optional>
+            <select name="currency" className="rounded-survey border border-rule px-2 py-2">
+              <option value="">—</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="NAD">NAD</option>
+              <option value="CDF">CDF</option>
+            </select>
+          </FormField>
+          <SubmitButton size="compact" pendingLabel="Logging…">
+            Log maintenance
+          </SubmitButton>
+        </form>
       </div>
     </div>
   );

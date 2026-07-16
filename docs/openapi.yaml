@@ -213,6 +213,43 @@ paths:
                   bookable: { type: boolean }
                   seatsAvailable: { type: integer }
         '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Set a departure's pickup location (operator only)
+      description: DR-029. The only mutable field on an existing departure -- feeds the assignment recommendation's distance factor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetDeparturePickupLocationInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  departure: { $ref: '#/components/schemas/Departure' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /departures/{departureId}/recommend-assignment:
+    parameters:
+      - $ref: '#/components/parameters/departureId'
+    get:
+      summary: Get a rules-based vehicle/driver recommendation (operator only)
+      description: >-
+        DR-029. NOT the "AI assignment engine" this project's roadmap lists
+        as Phase 3 -- a simple, transparent, equal-weighted scorer. The
+        Platform Admin still confirms or overrides via POST .../assignments.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssignmentRecommendation' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /departures/{departureId}/availability:
     parameters:
@@ -1134,6 +1171,43 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /fleet/vehicles/{vehicleId}/maintenance:
+    parameters:
+      - $ref: '#/components/parameters/vehicleId'
+    get:
+      summary: List a vehicle's maintenance history (DR-029)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items: { $ref: '#/components/schemas/MaintenanceRecord' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Log a maintenance event (operator only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMaintenanceRecordInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  record: { $ref: '#/components/schemas/MaintenanceRecord' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /fleet/drivers:
     get:
       summary: List driver profiles (staff only -- DR-017)
@@ -1262,6 +1336,104 @@ paths:
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/starlink-kits:
+    get:
+      summary: List Starlink kits (DR-029)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kits:
+                    type: array
+                    items: { $ref: '#/components/schemas/StarlinkKit' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Register a Starlink kit (operator only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateStarlinkKitInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kit: { $ref: '#/components/schemas/StarlinkKit' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /fleet/starlink-kits/{kitId}:
+    parameters:
+      - name: kitId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get a Starlink kit
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kit: { $ref: '#/components/schemas/StarlinkKit' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a Starlink kit's status or vehicle assignment (operator only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateStarlinkKitInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kit: { $ref: '#/components/schemas/StarlinkKit' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fleet/starlink-kits/{kitId}/location:
+    parameters:
+      - name: kitId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Set a Starlink kit's last known location (operator only)
+      description: Staff-entered for now -- no live Starlink API integration exists yet (OI-09).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetStarlinkLocationInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kit: { $ref: '#/components/schemas/StarlinkKit' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -1443,6 +1615,8 @@ components:
           description: For a bespoke departure (no package), this IS the price -- not an override of anything.
         currency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true, description: Bespoke departures only. }
         customCountry: { type: string, nullable: true, description: 'Bespoke departures only -- ISO-3166 alpha-2 (DR-028).' }
+        pickupLatitude: { type: number, nullable: true, description: 'Staff-entered (DR-029); feeds the assignment recommendation''s distance factor.' }
+        pickupLongitude: { type: number, nullable: true }
         status: { type: string, enum: [SCHEDULED, CANCELLED, COMPLETED] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -1736,6 +1910,7 @@ components:
         organizationId: { type: string, format: uuid }
         ownerId: { type: string, format: uuid, nullable: true, description: VEHICLE_OWNER user; null = operator-owned }
         plateNumber: { type: string }
+        vin: { type: string, nullable: true, description: Chassis/VIN (DR-029) -- distinct from plateNumber. }
         make: { type: string }
         model: { type: string }
         year: { type: integer, nullable: true }
@@ -1751,6 +1926,7 @@ components:
       properties:
         ownerId: { type: string, format: uuid }
         plateNumber: { type: string, minLength: 1, maxLength: 32 }
+        vin: { type: string, minLength: 1, maxLength: 64 }
         make: { type: string, minLength: 1, maxLength: 100 }
         model: { type: string, minLength: 1, maxLength: 100 }
         year: { type: integer, minimum: 1 }
@@ -1774,6 +1950,7 @@ components:
         userId: { type: string, format: uuid }
         licenseNumber: { type: string }
         licenseExpiresAt: { type: string, format: date-time, nullable: true }
+        languages: { type: array, items: { type: string }, description: 'ISO-639-1 codes, e.g. ["en","fr"] (DR-029)' }
         status: { type: string, enum: [ACTIVE, SUSPENDED] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -1785,13 +1962,104 @@ components:
         userId: { type: string, format: uuid }
         licenseNumber: { type: string, minLength: 1, maxLength: 100 }
         licenseExpiresAt: { type: string, format: date-time }
+        languages: { type: array, items: { type: string, minLength: 2, maxLength: 2 } }
 
     UpdateDriverProfileInput:
       type: object
       properties:
         licenseNumber: { type: string, minLength: 1, maxLength: 100 }
         licenseExpiresAt: { type: string, format: date-time }
+        languages: { type: array, items: { type: string, minLength: 2, maxLength: 2 } }
         status: { type: string, enum: [ACTIVE, SUSPENDED] }
+
+    MaintenanceRecord:
+      type: object
+      description: Append-only maintenance log per vehicle (DR-029). No scheduled/due-date concept yet.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        vehicleId: { type: string, format: uuid }
+        performedAt: { type: string, format: date-time }
+        description: { type: string }
+        costMinor: { type: integer, nullable: true }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true, description: Given together with costMinor, or not at all. }
+        createdAt: { type: string, format: date-time }
+
+    CreateMaintenanceRecordInput:
+      type: object
+      required: [performedAt, description]
+      properties:
+        performedAt: { type: string, format: date-time }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        costMinor: { type: integer, minimum: 0 }
+        currency: { type: string, enum: [USD, EUR, NAD, CDF] }
+
+    StarlinkKit:
+      type: object
+      description: >-
+        A Starlink kit is a fleet resource in its own right (DR-029), 1:1 with
+        the Vehicle it's mounted in. lastLatitude/lastLongitude/lastLocationAt
+        are staff-entered for now -- no live Starlink API integration exists
+        yet (OI-09).
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        kitId: { type: string, description: "Starlink's own serial/kit identifier, staff-entered" }
+        status: { type: string, enum: [ACTIVE, INACTIVE, MAINTENANCE] }
+        vehicleId: { type: string, format: uuid, nullable: true }
+        lastLatitude: { type: number, nullable: true }
+        lastLongitude: { type: number, nullable: true }
+        lastLocationAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateStarlinkKitInput:
+      type: object
+      required: [kitId]
+      properties:
+        kitId: { type: string, minLength: 1, maxLength: 100 }
+        vehicleId: { type: string, format: uuid }
+
+    UpdateStarlinkKitInput:
+      type: object
+      properties:
+        status: { type: string, enum: [ACTIVE, INACTIVE, MAINTENANCE] }
+        vehicleId: { type: string, format: uuid, nullable: true }
+
+    SetStarlinkLocationInput:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+
+    SetDeparturePickupLocationInput:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+
+    AssignmentRecommendation:
+      type: object
+      description: >-
+        DR-029. A simple, transparent rules-based recommendation -- NOT the
+        "AI assignment engine" this project's roadmap lists as Phase 3.
+        Drivers are eligibility-filtered only (no rating data exists to rank
+        them by).
+      properties:
+        vehicles:
+          type: array
+          items:
+            type: object
+            properties:
+              vehicle: { $ref: '#/components/schemas/Vehicle' }
+              score: { type: number, description: '0-1, equal-weighted average of available factors' }
+        drivers:
+          type: array
+          items: { $ref: '#/components/schemas/DriverProfile' }
+        recommendedVehicleId: { type: string, format: uuid, nullable: true }
+        recommendedDriverId: { type: string, format: uuid, nullable: true }
 
     Assignment:
       type: object

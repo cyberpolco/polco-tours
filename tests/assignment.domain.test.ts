@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { departuresOverlap, CreateAssignmentInput } from '../src/modules/assignment/domain';
+import {
+  capacityFitScore,
+  combineVehicleScore,
+  departuresOverlap,
+  distanceScore,
+  CreateAssignmentInput,
+} from '../src/modules/assignment/domain';
 
 describe('assignment domain', () => {
   describe('departuresOverlap', () => {
@@ -78,6 +84,39 @@ describe('assignment domain', () => {
         guideUserId: 'not-a-uuid',
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('capacityFitScore (DR-029)', () => {
+    it('excludes a vehicle too small for the departure', () => {
+      expect(capacityFitScore(4, 5)).toBeNull();
+    });
+
+    it('rewards a tighter fit with a higher score', () => {
+      expect(capacityFitScore(5, 5)).toBe(1);
+      expect(capacityFitScore(10, 5)).toBe(0.5);
+      expect(capacityFitScore(20, 5)).toBe(0.25);
+    });
+  });
+
+  describe('distanceScore (DR-029)', () => {
+    it('is 1 at zero distance', () => {
+      expect(distanceScore(0)).toBe(1);
+    });
+
+    it('decreases as distance grows, floored at 0 beyond the relevant range', () => {
+      expect(distanceScore(100)).toBeCloseTo(0.5, 5);
+      expect(distanceScore(500)).toBe(0);
+    });
+  });
+
+  describe('combineVehicleScore (DR-029)', () => {
+    it('averages all three factors when distance data exists', () => {
+      expect(combineVehicleScore({ capacityFit: 1, maintenanceRecency: 0.5, distance: 0 })).toBeCloseTo(0.5, 5);
+    });
+
+    it('excludes distance from the average (not penalizing) when there is no data', () => {
+      expect(combineVehicleScore({ capacityFit: 1, maintenanceRecency: 0.5, distance: null })).toBeCloseTo(0.75, 5);
     });
   });
 });

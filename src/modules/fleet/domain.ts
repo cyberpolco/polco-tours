@@ -1,5 +1,5 @@
 // fleet module — domain types & rules. Pure; no framework or DB imports.
-import type { DriverStatus, VehicleStatus } from '@prisma/client';
+import type { Currency, DriverStatus, StarlinkStatus, VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VehicleView {
@@ -7,6 +7,7 @@ export interface VehicleView {
   organizationId: string;
   ownerId: string | null;
   plateNumber: string;
+  vin: string | null;
   make: string;
   model: string;
   year: number | null;
@@ -23,6 +24,7 @@ export interface DriverProfileView {
   userId: string;
   licenseNumber: string;
   licenseExpiresAt: Date | null;
+  languages: string[];
   status: DriverStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -31,6 +33,7 @@ export interface DriverProfileView {
 export const CreateVehicleInput = z.object({
   ownerId: z.string().uuid().optional(),
   plateNumber: z.string().min(1).max(32),
+  vin: z.string().min(1).max(64).optional(),
   make: z.string().min(1).max(100),
   model: z.string().min(1).max(100),
   year: z.number().int().positive().optional(),
@@ -48,15 +51,90 @@ export const CreateDriverProfileInput = z.object({
   userId: z.string().uuid(),
   licenseNumber: z.string().min(1).max(100),
   licenseExpiresAt: z.coerce.date().optional(),
+  languages: z.array(z.string().length(2)).optional(), // ISO-639-1
 });
 export type CreateDriverProfileInput = z.infer<typeof CreateDriverProfileInput>;
 
 export const UpdateDriverProfileInput = z.object({
   licenseNumber: z.string().min(1).max(100).optional(),
   licenseExpiresAt: z.coerce.date().optional(),
+  languages: z.array(z.string().length(2)).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
 });
 export type UpdateDriverProfileInput = z.infer<typeof UpdateDriverProfileInput>;
+
+// -------------------------------------------------------------- maintenance history (DR-029)
+
+export interface MaintenanceRecordView {
+  id: string;
+  organizationId: string;
+  vehicleId: string;
+  performedAt: Date;
+  description: string;
+  costMinor: number | null;
+  currency: Currency | null;
+  createdAt: Date;
+}
+
+export const CreateMaintenanceRecordInput = z
+  .object({
+    performedAt: z.coerce.date(),
+    description: z.string().min(1).max(500),
+    costMinor: z.number().int().nonnegative().optional(),
+    currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']).optional(),
+  })
+  .refine((v) => (v.costMinor == null) === (v.currency == null), {
+    message: 'costMinor and currency must be given together, or not at all',
+  });
+export type CreateMaintenanceRecordInput = z.infer<typeof CreateMaintenanceRecordInput>;
+
+/** Recency-based proxy for maintenance risk -- 1 = serviced very recently,
+ * trending toward 0 the longer it's been. No record at all is a neutral
+ * middle score (0.5), not a penalty -- most vehicles won't have logged
+ * history yet and shouldn't be unfairly ranked below ones that do. */
+const MAINTENANCE_LOOKBACK_DAYS = 180;
+
+export function maintenanceRecencyScore(mostRecentPerformedAt: Date | null, now: Date): number {
+  if (!mostRecentPerformedAt) return 0.5;
+  const daysSince = (now.getTime() - mostRecentPerformedAt.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysSince <= 0) return 1;
+  return Math.max(0, 1 - daysSince / MAINTENANCE_LOOKBACK_DAYS);
+}
+
+// -------------------------------------------------------------- Starlink kits (DR-029)
+
+export interface StarlinkKitView {
+  id: string;
+  organizationId: string;
+  kitId: string;
+  status: StarlinkStatus;
+  vehicleId: string | null;
+  lastLatitude: number | null;
+  lastLongitude: number | null;
+  lastLocationAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const CreateStarlinkKitInput = z.object({
+  kitId: z.string().min(1).max(100),
+  vehicleId: z.string().uuid().optional(),
+});
+export type CreateStarlinkKitInput = z.infer<typeof CreateStarlinkKitInput>;
+
+export const UpdateStarlinkKitInput = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']).optional(),
+  vehicleId: z.string().uuid().nullable().optional(),
+});
+export type UpdateStarlinkKitInput = z.infer<typeof UpdateStarlinkKitInput>;
+
+// Staff manually update this for now -- see the StarlinkKit model comment
+// (schema.prisma) for why there's no live API feed yet.
+export const SetStarlinkLocationInput = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+export type SetStarlinkLocationInput = z.infer<typeof SetStarlinkLocationInput>;
 
 export type ComplianceStatus = 'MISSING' | 'VALID' | 'EXPIRING_SOON' | 'EXPIRED';
 

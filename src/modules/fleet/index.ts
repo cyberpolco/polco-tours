@@ -3,9 +3,20 @@ export { fleetService } from './service';
 export type { UploadComplianceDocumentInput } from './service';
 export {
   CreateDriverProfileInput,
+  CreateMaintenanceRecordInput,
+  CreateStarlinkKitInput,
   CreateVehicleInput,
+  SetStarlinkLocationInput,
   UpdateDriverProfileInput,
+  UpdateStarlinkKitInput,
   UpdateVehicleInput,
   complianceStatus,
+  maintenanceRecencyScore,
 } from './domain';
-export type { ComplianceStatus, DriverProfileView, VehicleView } from './domain';
+export type {
+  ComplianceStatus,
+  DriverProfileView,
+  MaintenanceRecordView,
+  StarlinkKitView,
+  VehicleView,
+} from './domain';

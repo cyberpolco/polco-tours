@@ -33,3 +33,46 @@ export function departuresOverlap(a: DateRange, b: DateRange): boolean {
   const bEnd = b.endDate ?? b.startDate;
   return a.startDate <= bEnd && b.startDate <= aEnd;
 }
+
+// -------------------------------------------------------------- recommendation scoring (DR-029)
+//
+// This is a simple, transparent rules-based scorer -- NOT the "AI assignment
+// engine" this project's own roadmap lists as Phase 3. It's an honest MVP
+// built only from data that actually exists today: availability (reuses
+// departuresOverlap, the existing hard gate), vehicle capacity fit,
+// maintenance recency (fleetService.maintenanceRecencyScore), and distance
+// from pickup (only when both a Departure pickup point and a vehicle's
+// Starlink location are on file). Driver rating is deliberately NOT a
+// factor -- no reviews system exists yet (explicit user decision), so
+// drivers are only filtered to eligible (ACTIVE + not conflicting), never
+// ranked; adding a rating factor later is a small, additive change to
+// scoreVehicle's sibling once that data exists.
+
+/** How tightly a vehicle's capacity matches what's needed -- rewards
+ * minimal wasted seats. Null (excluded, not merely down-scored) if it can't
+ * even fit the departure -- this is a hard requirement, not a preference. */
+export function capacityFitScore(seatCapacity: number, seatsNeeded: number): number | null {
+  if (seatCapacity < seatsNeeded) return null;
+  return seatsNeeded / seatCapacity;
+}
+
+// Beyond this, distance stops meaningfully differentiating candidates in a
+// Namibia/DRC road-trip context -- a same-day, reasonable-driving-distance
+// heuristic, not a precise cutoff.
+const MAX_RELEVANT_DISTANCE_KM = 200;
+
+export function distanceScore(distanceKm: number): number {
+  return Math.max(0, 1 - distanceKm / MAX_RELEVANT_DISTANCE_KM);
+}
+
+export interface VehicleScoreFactors {
+  capacityFit: number;
+  maintenanceRecency: number;
+  distance: number | null; // null = no Starlink/pickup data on file -- excluded from the average, not penalized
+}
+
+/** Equal-weighted average of whichever factors have real data. */
+export function combineVehicleScore(factors: VehicleScoreFactors): number {
+  const values = [factors.capacityFit, factors.maintenanceRecency, ...(factors.distance != null ? [factors.distance] : [])];
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}

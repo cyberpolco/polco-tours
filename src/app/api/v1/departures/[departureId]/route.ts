@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@lib/route-guard';
-import { catalogService } from '@modules/catalog';
+import { SetDeparturePickupLocationInput, catalogService } from '@modules/catalog';
 import { bookingService } from '@modules/booking';
 
 export const runtime = 'nodejs';
@@ -23,4 +23,12 @@ export const GET = withAuth<Params>('catalog.read', async (ctx, _req, { departur
     bookable: detail.bookable,
     seatsAvailable: availability.seatsAvailable,
   });
+});
+
+// DR-029: the only mutable field on an existing departure -- feeds the
+// assignment recommendation engine's distance-from-pickup factor.
+export const PATCH = withAuth<Params>('catalog.write', async (ctx, req: NextRequest, { departureId }) => {
+  const input = SetDeparturePickupLocationInput.parse(await req.json());
+  const departure = await catalogService.setDeparturePickupLocation(ctx, departureId, input);
+  return NextResponse.json({ departure });
 });

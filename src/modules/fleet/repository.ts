@@ -1,11 +1,16 @@
 // fleet module — repository. The only place that touches the DB for this module.
-import type { DriverProfile, Vehicle } from '@prisma/client';
+import type { DriverProfile, MaintenanceRecord, StarlinkKit, Vehicle } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
   CreateDriverProfileInput,
+  CreateMaintenanceRecordInput,
+  CreateStarlinkKitInput,
   CreateVehicleInput,
   DriverProfileView,
+  MaintenanceRecordView,
+  StarlinkKitView,
   UpdateDriverProfileInput,
+  UpdateStarlinkKitInput,
   UpdateVehicleInput,
   VehicleView,
 } from './domain';
@@ -16,6 +21,7 @@ function toVehicleView(v: Vehicle): VehicleView {
     organizationId: v.organizationId,
     ownerId: v.ownerId,
     plateNumber: v.plateNumber,
+    vin: v.vin,
     make: v.make,
     model: v.model,
     year: v.year,
@@ -34,9 +40,38 @@ function toDriverProfileView(d: DriverProfile): DriverProfileView {
     userId: d.userId,
     licenseNumber: d.licenseNumber,
     licenseExpiresAt: d.licenseExpiresAt,
+    languages: d.languages,
     status: d.status,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
+  };
+}
+
+function toMaintenanceRecordView(m: MaintenanceRecord): MaintenanceRecordView {
+  return {
+    id: m.id,
+    organizationId: m.organizationId,
+    vehicleId: m.vehicleId,
+    performedAt: m.performedAt,
+    description: m.description,
+    costMinor: m.costMinor,
+    currency: m.currency,
+    createdAt: m.createdAt,
+  };
+}
+
+function toStarlinkKitView(k: StarlinkKit): StarlinkKitView {
+  return {
+    id: k.id,
+    organizationId: k.organizationId,
+    kitId: k.kitId,
+    status: k.status,
+    vehicleId: k.vehicleId,
+    lastLatitude: k.lastLatitude,
+    lastLongitude: k.lastLongitude,
+    lastLocationAt: k.lastLocationAt,
+    createdAt: k.createdAt,
+    updatedAt: k.updatedAt,
   };
 }
 
@@ -124,6 +159,92 @@ export const fleetRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.driverProfile.findMany({ where: { id: { in: ids } } });
       return rows.map(toDriverProfileView);
+    });
+  },
+
+  // ------------------------------------------------------------ maintenance history (DR-029)
+
+  async createMaintenanceRecord(
+    organizationId: string,
+    vehicleId: string,
+    input: CreateMaintenanceRecordInput,
+  ): Promise<MaintenanceRecordView> {
+    return withOrg(organizationId, async (tx) => {
+      const m = await tx.maintenanceRecord.create({ data: { organizationId, vehicleId, ...input } });
+      return toMaintenanceRecordView(m);
+    });
+  },
+
+  async listMaintenanceRecordsForVehicle(organizationId: string, vehicleId: string): Promise<MaintenanceRecordView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.maintenanceRecord.findMany({ where: { vehicleId }, orderBy: { performedAt: 'desc' } });
+      return rows.map(toMaintenanceRecordView);
+    });
+  },
+
+  /** Most recent record per vehicle, in one query -- backs the recommendation
+   * engine's maintenance-recency scoring across every candidate vehicle
+   * without an N+1. */
+  async findMostRecentMaintenanceByVehicleIds(
+    organizationId: string,
+    vehicleIds: string[],
+  ): Promise<Map<string, Date>> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.maintenanceRecord.findMany({
+        where: { vehicleId: { in: vehicleIds } },
+        orderBy: { performedAt: 'desc' },
+        select: { vehicleId: true, performedAt: true },
+      });
+      const map = new Map<string, Date>();
+      for (const row of rows) {
+        if (!map.has(row.vehicleId)) map.set(row.vehicleId, row.performedAt);
+      }
+      return map;
+    });
+  },
+
+  // ------------------------------------------------------------ Starlink kits (DR-029)
+
+  async createStarlinkKit(organizationId: string, input: CreateStarlinkKitInput): Promise<StarlinkKitView> {
+    return withOrg(organizationId, async (tx) => {
+      const k = await tx.starlinkKit.create({ data: { organizationId, ...input } });
+      return toStarlinkKitView(k);
+    });
+  },
+
+  async updateStarlinkKit(
+    organizationId: string,
+    id: string,
+    input: UpdateStarlinkKitInput & { lastLatitude?: number; lastLongitude?: number; lastLocationAt?: Date },
+  ): Promise<StarlinkKitView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.starlinkKit.findUnique({ where: { id } });
+      if (!existing) return null;
+      const k = await tx.starlinkKit.update({ where: { id }, data: input });
+      return toStarlinkKitView(k);
+    });
+  },
+
+  async findStarlinkKitById(organizationId: string, id: string): Promise<StarlinkKitView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const k = await tx.starlinkKit.findUnique({ where: { id } });
+      return k ? toStarlinkKitView(k) : null;
+    });
+  },
+
+  async listStarlinkKits(organizationId: string): Promise<StarlinkKitView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.starlinkKit.findMany({ orderBy: { createdAt: 'desc' } });
+      return rows.map(toStarlinkKitView);
+    });
+  },
+
+  /** Backs the recommendation engine's distance-from-pickup scoring -- one
+   * query for every candidate vehicle's kit, keyed by vehicleId. */
+  async findStarlinkKitsByVehicleIds(organizationId: string, vehicleIds: string[]): Promise<Map<string, StarlinkKitView>> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.starlinkKit.findMany({ where: { vehicleId: { in: vehicleIds } } });
+      return new Map(rows.map((k) => [k.vehicleId as string, toStarlinkKitView(k)]));
     });
   },
 };
