@@ -136,6 +136,8 @@ src/
       api/v1/immigration/officers, api/v1/users/[userId]/assign-country
                                            # visa documents (DR-019) + officer
                                            #   listing (DR-020)
+    api/v1/visa/queue                     # VISA_FACILITATOR's own whole-org
+                                           #   queue (My Schedule, DR-031)
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
@@ -153,8 +155,12 @@ src/
         (DR-020; account creation itself stays CLI-only)
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
         read-only (DR-021; closes the gap DR-018/019/020 each deferred);
-        TOUR_GUIDE viewers additionally get a data-minimized client-list/
-        daily-itinerary/emergency-contacts section (DR-030)
+        TOUR_GUIDE and (since DR-031) DRIVER viewers additionally get a
+        data-minimized client-list/daily-itinerary/emergency-contacts
+        section (DR-030/031)
+      visa-queue = VISA_FACILITATOR's own whole-org visa queue, read-only
+        (My Schedule, DR-031; closes the gap DR-019/020/021/025 each
+        re-flagged -- this role previously had zero staff UI at all)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -176,8 +182,11 @@ src/
                        #   confirmationCode/bookingReference (DR-016/027);
                        #   Traveler (+ emergency contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
-                       #   listTravelersForDeparture = data-minimized guide
-                       #   client-list, internal only, no REST route (DR-030)
+                       #   listTravelersForDeparture = data-minimized guide/
+                       #   driver client-list, internal only, no REST route
+                       #   (DR-030/031); getBookingForTraveler = reverse
+                       #   traveler->booking lookup, used by visa's
+                       #   facilitator queue (DR-031)
     invoicing/         # Invoice + Payment (stubbed DPO gateway) (DR-012)
     notifications/     # WhatsApp→SMS→email fallback, no repository.ts (DR-013)
     documents/         # Document metadata + Vercel Blob gateway, access:
@@ -201,7 +210,10 @@ src/
                        #   (data-minimized, country-scoped) (DR-019); traveler
                        #   identity snapshotted so IMMIGRATION_OFFICER's list
                        #   never needs booking.read; listForCountry now
-                       #   audits an officer's own reads (DR-020, BR-10)
+                       #   audits an officer's own reads (DR-020, BR-10);
+                       #   listForFacilitator = VISA_FACILITATOR's whole-org
+                       #   queue, FacilitatorVisaView, travelStartDate
+                       #   resolved via booking+catalog modules (DR-031)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -919,6 +931,35 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   emergency contact), not a stripped subset -- still strictly scoped to the
   guide's own assigned departures. New `/staff/fleet/guides*` pages +
   `/api/v1/fleet/guides*` routes, mirroring the driver equivalents.
+- **My Schedule done 2026-07-15 (DR-031):** personalizes the self-service
+  dashboard per operational role. `DRIVER` now gets the same client-list/
+  daily-itinerary/pickup-points section DR-030 built for `TOUR_GUIDE` --
+  pure reuse, just widening the gate (`DRIVER` already held `booking.read`);
+  `VEHICLE_OWNER` deliberately excluded, no operational reason to see a
+  client manifest. "Tour notes" reuses `Booking.specialRequests` (already
+  shown in the DR-030 client-list header), not a new field. The real new
+  work: a first-ever `VISA_FACILITATOR` dashboard -- this role had zero
+  staff UI at all (DR-019/020/021/025 each independently re-flagged the
+  gap), despite already passing the `isStaffRole` baseline gate since
+  DR-020; there was also no "list mine to process" query anywhere, only
+  per-traveler actions. New `visaService.listForFacilitator` +
+  `FacilitatorVisaView` (richer than the BR-10-minimized `OfficerVisaView`,
+  since this role already holds unscoped `visa.process`) -- whole-org queue
+  per explicit user choice (no per-facilitator assignment concept exists or
+  was added); "missing documents" flags ANY status with no document
+  attached, per explicit user choice (not an existing invariant --
+  `uploadDocument` has no status gate anywhere); "visa deadlines" derived
+  live via `Traveler -> Booking -> Departure.startDate` (or
+  `Booking.customTravelStart` for a tailor-made trip), since
+  `VisaApplication` has no date field of its own -- required a new reverse
+  lookup, `bookingService.getBookingForTraveler`, same "caller already
+  gates" convention as DR-030's `listTravelersForDeparture`. New
+  `GET /api/v1/visa/queue` (a real public route this time -- no
+  caller-supplied id, same safe shape as `listForCountry`) + `/staff/
+  visa-queue` page, read-only (decide/resubmit/upload stay API-only).
+  Fixed two stale `tests/rbac.test.ts` assertions left over from DR-030
+  giving `TOUR_GUIDE` `fleet.read` (that test file wasn't run during
+  DR-030's own verification).
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1065,7 +1106,22 @@ data-minimized client list/daily itinerary/pickup points/emergency contacts
 section -- new `bookingService.listTravelersForDeparture` is deliberately
 NOT a public route (would otherwise leak the org's full booking manifest
 through `bookingService.list`'s `TOUR_GUIDE`-treated-as-staff gap), following
-the same "caller already gates" convention as `listVehiclesByIds`.
+the same "caller already gates" convention as `listVehiclesByIds` · DR-031 My
+Schedule: personalizes the self-service dashboard per role. `DRIVER` gets
+DR-030's client-list/itinerary/pickup-points section too (pure gate widen,
+`VEHICLE_OWNER` excluded); "tour notes" reuses `Booking.specialRequests`.
+First-ever `VISA_FACILITATOR` dashboard (previously zero staff UI, a gap
+DR-019/020/021/025 each re-flagged) -- new `visaService.listForFacilitator` +
+`FacilitatorVisaView` (whole-org queue, no per-facilitator assignment
+concept, explicit user choice), "missing documents" = any status with no
+document (explicit user choice, not an existing invariant), "visa deadlines"
+resolved live via `Traveler -> Booking -> Departure.startDate` (or
+`customTravelStart`) through a new `bookingService.getBookingForTraveler`
+reverse lookup, same "caller already gates" convention as DR-030. New
+`GET /api/v1/visa/queue` (a real public route -- no caller-supplied id,
+unlike DR-030's `listTravelersForDeparture`) + `/staff/visa-queue` page,
+read-only. Fixed two `tests/rbac.test.ts` assertions left stale since DR-030
+gave `TOUR_GUIDE` `fleet.read`.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
@@ -1485,3 +1541,14 @@ human rather than fabricating volume content.
   `bookingService.listTravelersForDeparture`'s "caller already gates"
   convention) and never expose that kind of method as a public `/api/v1`
   route unless it re-verifies the caller's ownership of the id itself.
+- **A pure-domain unit test suite can go stale silently after an `rbac.ts`
+  change, with nothing catching it until it's actually run.** DR-030 added
+  `fleet.read` to `TOUR_GUIDE` but `tests/rbac.test.ts` (a plain, fast,
+  no-DB unit test -- nothing about running it is hard or slow) wasn't run as
+  part of that increment's verification, so two hardcoded `.toBe(false)`
+  assertions about `TOUR_GUIDE`'s fleet permission sat wrong for a full
+  session until DR-031 happened to touch `rbac.ts` again and someone ran
+  the file. `tsc`/lint don't catch this class of bug (the assertions are
+  perfectly well-typed, just factually wrong) -- after any `rbac.ts` edit,
+  run `tests/rbac.test.ts` specifically (it's fast, no DB needed), not just
+  the DB-backed tests for whatever module prompted the change.

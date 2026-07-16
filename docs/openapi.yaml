@@ -842,6 +842,27 @@ paths:
                     items: { $ref: '#/components/schemas/OfficerVisaView' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /visa/queue:
+    get:
+      summary: VISA_FACILITATOR's own whole-org visa queue (My Schedule, DR-031)
+      description: >-
+        No country scoping (unlike /immigration/visa-applications) -- this
+        role has no per-facilitator assignment concept, so it sees every
+        application in the org. Sorted by resolved travelStartDate ascending
+        (nulls last).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applications:
+                    type: array
+                    items: { $ref: '#/components/schemas/FacilitatorVisaView' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /users:
     get:
       summary: List every non-deleted user in the org, with their held roles (admin-only, DR-026)
@@ -2320,3 +2341,29 @@ components:
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: string, format: date-time, nullable: true }
         hasDocument: { type: boolean }
+
+    FacilitatorVisaView:
+      type: object
+      description: >-
+        VISA_FACILITATOR's own whole-org visa queue (My Schedule, DR-031) --
+        richer than OfficerVisaView since this role already holds unscoped
+        visa.process (includes rejectionReason and travelerId); documentId
+        itself still isn't exposed, only hasDocument. travelStartDate is
+        resolved live via Traveler -> Booking -> Departure (or
+        Booking.customTravelStart for a TAILOR_MADE booking), null if that
+        chain can't be resolved for this caller.
+      properties:
+        id: { type: string, format: uuid }
+        travelerId: { type: string, format: uuid }
+        travelerFirstName: { type: string }
+        travelerLastName: { type: string }
+        travelerNationality: { type: string }
+        travelerIdOrPassportNumber: { type: string }
+        country: { type: string }
+        status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED] }
+        rejectionReason: { type: string, nullable: true }
+        resubmissionCount: { type: integer }
+        hasDocument: { type: boolean }
+        submittedAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        travelStartDate: { type: string, format: date-time, nullable: true }

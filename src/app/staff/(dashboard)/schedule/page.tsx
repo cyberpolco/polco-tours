@@ -63,16 +63,17 @@ export default async function MySchedulePage() {
     .filter((r) => r.detail !== undefined)
     .sort((a, b) => a.detail!.departure.startDate.getTime() - b.detail!.departure.startDate.getTime());
 
-  // Guides Module (DR-030): a guide's "client list" -- travelers on their own
+  // Guides Module (DR-030), widened to DRIVER by the "My Schedule" spec
+  // section (DR-031): client details for travelers on the caller's own
   // assigned departures only (departureIds come from this caller's own
   // listMyAssignments result above, never an arbitrary id -- see
   // bookingService.listTravelersForDeparture's own "caller already gates"
-  // convention comment). Scoped to TOUR_GUIDE specifically, since that's the
-  // role the spec's "client list"/"daily itinerary"/"emergency contacts"
-  // dashboard describes; DRIVER/VEHICLE_OWNER keep the plain table above.
-  const isGuide = ctx.roles.includes('TOUR_GUIDE');
+  // convention comment). VEHICLE_OWNER is deliberately excluded -- the spec
+  // only asks for this level of detail for TOUR_GUIDE/DRIVER, and a vehicle
+  // owner has no operational reason to see a client manifest.
+  const showClientDetails = ctx.roles.includes('TOUR_GUIDE') || ctx.roles.includes('DRIVER');
   const clientGroupsByDeparture = new Map<string, TravelerDutyGroup[]>();
-  if (isGuide) {
+  if (showClientDetails) {
     const uniqueDepartureIds = [...new Set(rows.map((r) => r.detail!.departure.id))];
     const groups = await Promise.all(
       uniqueDepartureIds.map((id) => bookingService.listTravelersForDeparture(ctx, id)),
@@ -118,10 +119,10 @@ export default async function MySchedulePage() {
         </Table>
       )}
 
-      {isGuide && rows.length > 0 && (
+      {showClientDetails && rows.length > 0 && (
         <div className="space-y-8">
           <div className="survey-rule" />
-          <PageHeader eyebrow="Guide dashboard" title="Daily itinerary & clients" />
+          <PageHeader eyebrow="My schedule" title="Daily itinerary & clients" />
           {rows.map(({ assignment, detail }) => {
             const groups = clientGroupsByDeparture.get(detail!.departure.id) ?? [];
             return (
@@ -142,7 +143,7 @@ export default async function MySchedulePage() {
                       <p className="text-sm font-medium text-navy">
                         {group.booking.bookingReference}
                         {group.booking.specialRequests && (
-                          <span className="ml-2 font-normal text-mist">— {group.booking.specialRequests}</span>
+                          <span className="ml-2 font-normal text-mist">Tour notes: {group.booking.specialRequests}</span>
                         )}
                       </p>
                       <Table className="mt-3">

@@ -7,7 +7,14 @@ import { documentsService, type DocumentSummary, type DocumentStream } from '@mo
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import { canDecide, canResubmit, type DecideVisaInput, type OfficerVisaView, type VisaApplicationView } from './domain';
+import {
+  canDecide,
+  canResubmit,
+  type DecideVisaInput,
+  type FacilitatorVisaView,
+  type OfficerVisaView,
+  type VisaApplicationView,
+} from './domain';
 import { visaRepository } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
@@ -162,6 +169,53 @@ export const visaService = {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!application?.documentId) throw Errors.notFound('Visa document not found');
     return documentsService.streamDocument(ctx, application.documentId);
+  },
+
+  /** VISA_FACILITATOR's own "My Schedule" dashboard (DR-031) -- unlike
+   * listForCountry (IMMIGRATION_OFFICER, country-scoped, BR-10-minimized),
+   * this role has no scoping concept of its own, so it sees the whole org's
+   * queue (explicit user choice) -- matches its existing unscoped
+   * visa.process permission, no new exposure. Resolves each application's
+   * travel start date via a live join (Traveler -> Booking -> Departure, or
+   * Booking.customTravelStart for a TAILOR_MADE booking) since
+   * VisaApplication itself has no date field for this -- sorted soonest
+   * travel date first (nulls -- unresolvable, e.g. a COMPLETED departure
+   * catalogService.getDepartureDetail no longer shows a non-operator role --
+   * sort last since there's nothing to prioritize against). */
+  async listForFacilitator(ctx: AuthContext): Promise<FacilitatorVisaView[]> {
+    assertCan(ctx.roles, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    const rows = await visaRepository.listAllForFacilitator(organizationId);
+
+    const withDates = await Promise.all(
+      rows.map(async (row) => {
+        let travelStartDate: Date | null = null;
+        try {
+          const booking = await bookingService.getBookingForTraveler(ctx, row.travelerId);
+          if (booking) {
+            if (booking.departureId) {
+              const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+              travelStartDate = departure.startDate;
+            } else {
+              travelStartDate = booking.customTravelStart;
+            }
+          }
+        } catch {
+          // Booking/departure no longer resolvable for this role (e.g. a
+          // COMPLETED trip) -- leave travelStartDate null rather than fail
+          // the whole queue over one unresolvable row.
+        }
+        return { ...row, travelStartDate };
+      }),
+    );
+
+    withDates.sort((a, b) => {
+      if (a.travelStartDate && b.travelStartDate) return a.travelStartDate.getTime() - b.travelStartDate.getTime();
+      if (a.travelStartDate) return -1;
+      if (b.travelStartDate) return 1;
+      return 0;
+    });
+    return withDates;
   },
 
   /** IMMIGRATION_OFFICER: forced to their own assignedCountry (BR-10), any

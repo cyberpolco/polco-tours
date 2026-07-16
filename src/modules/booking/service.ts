@@ -405,6 +405,21 @@ export const bookingService = {
     return bookingRepository.listTravelersForBooking(organizationId, bookingId);
   },
 
+  /** Reverse lookup: given only a travelerId (no bookingId in hand), resolves
+   * the booking it belongs to. Org-scoped only, no further ownership check --
+   * same "caller already gates" convention as fleetService.listVehiclesByIds
+   * (DR-021) and bookingService.listTravelersForDeparture (DR-030). Built for
+   * visaService.listForFacilitator (DR-031), whose caller already holds the
+   * broad visa.process permission (any traveler in the org), so this adds no
+   * new exposure beyond what that role can already reach via the visa routes. */
+  async getBookingForTraveler(ctx: AuthContext, travelerId: string): Promise<BookingView | null> {
+    assertCan(ctx.roles, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const traveler = await bookingRepository.findTravelerById(organizationId, travelerId);
+    if (!traveler) return null;
+    return bookingRepository.findById(organizationId, traveler.bookingId);
+  },
+
   /** Attaches an uploaded passport Document to the booking's tour lead. The
    * Document itself is created by documentsService -- this just records the
    * link, keeping the module boundary intact (booking never touches Blob). */

@@ -84,8 +84,9 @@ describe('RBAC permission matrix', () => {
     expect(can(['DRIVER'], 'fleet.write')).toBe(false);
   });
 
-  it('TOUR_GUIDE, VISA_FACILITATOR, and TOURIST have no fleet grants (DR-017)', () => {
-    expect(can(['TOUR_GUIDE'], 'fleet.read')).toBe(false);
+  it('VISA_FACILITATOR and TOURIST have no fleet grants (DR-017); TOUR_GUIDE gained fleet.read in DR-030 for its own GuideProfile self-view', () => {
+    expect(can(['TOUR_GUIDE'], 'fleet.read')).toBe(true);
+    expect(can(['TOUR_GUIDE'], 'fleet.write')).toBe(false);
     expect(can(['VISA_FACILITATOR'], 'fleet.read')).toBe(false);
     expect(can(['TOURIST'], 'fleet.read')).toBe(false);
   });
@@ -153,14 +154,17 @@ describe('RBAC permission matrix', () => {
   });
 
   it('DR-026: a user holding multiple roles gets the union of their grants', () => {
-    // DRIVER alone has fleet.read but not assignment.write; TOUR_GUIDE alone
-    // has neither fleet.read nor assignment.write. Holding both should grant
-    // whatever either role grants individually, not the intersection.
-    expect(can(['DRIVER'], 'fleet.read')).toBe(true);
-    expect(can(['TOUR_GUIDE'], 'fleet.read')).toBe(false);
-    expect(can(['DRIVER', 'TOUR_GUIDE'], 'fleet.read')).toBe(true);
-    expect(can(['DRIVER', 'TOUR_GUIDE'], 'assignment.read')).toBe(true);
-    expect(can(['DRIVER', 'TOUR_GUIDE'], 'admin.all')).toBe(false);
+    // TOUR_OPERATOR alone has assignment.write but not immigration.read;
+    // IMMIGRATION_OFFICER alone has immigration.read but not
+    // assignment.write. Holding both should grant whatever either role
+    // grants individually, not the intersection.
+    expect(can(['TOUR_OPERATOR'], 'assignment.write')).toBe(true);
+    expect(can(['IMMIGRATION_OFFICER'], 'assignment.write')).toBe(false);
+    expect(can(['TOUR_OPERATOR'], 'immigration.read')).toBe(false);
+    expect(can(['IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
+    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'assignment.write')).toBe(true);
+    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'immigration.read')).toBe(true);
+    expect(can(['TOUR_OPERATOR', 'IMMIGRATION_OFFICER'], 'admin.all')).toBe(false);
   });
 
   it('DR-026: isStaffRole is true if ANY held role is non-TOURIST', () => {

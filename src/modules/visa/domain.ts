@@ -38,6 +38,33 @@ export interface OfficerVisaView {
   hasDocument: boolean;
 }
 
+// My Schedule (DR-031): a VISA_FACILITATOR's own read-only dashboard --
+// broader than OfficerVisaView since this role already holds visa.process
+// (can act on any traveler in the org), so rejectionReason and travelerId
+// (needed to resolve a travel date) are included, unlike the BR-10-minimized
+// officer projection. documentId itself still isn't exposed -- hasDocument
+// is enough signal, same minimization posture as OfficerVisaView.
+// travelStartDate is resolved by the service (a live join through the
+// booking/catalog modules, not stored on VisaApplication) -- null only if
+// the underlying booking/departure data is itself missing, which shouldn't
+// happen in practice but isn't schema-enforced.
+export interface FacilitatorVisaView {
+  id: string;
+  travelerId: string;
+  travelerFirstName: string;
+  travelerLastName: string;
+  travelerNationality: string;
+  travelerIdOrPassportNumber: string;
+  country: string;
+  status: VisaStatus;
+  rejectionReason: string | null;
+  resubmissionCount: number;
+  hasDocument: boolean;
+  submittedAt: Date;
+  decidedAt: Date | null;
+  travelStartDate: Date | null;
+}
+
 export const DecideVisaInput = z.object({
   outcome: z.enum(['APPROVED', 'REJECTED']),
   // Only persisted when outcome is REJECTED (service/repository clear it

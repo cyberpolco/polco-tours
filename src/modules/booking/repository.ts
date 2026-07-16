@@ -329,6 +329,16 @@ export const bookingRepository = {
     });
   },
 
+  /** Reverse lookup by travelerId alone, with no bookingId already in hand --
+   * needed by the visa module's facilitator queue (DR-031) to resolve a
+   * VisaApplication's travel date via Traveler -> Booking -> Departure. */
+  async findTravelerById(organizationId: string, travelerId: string): Promise<TravelerView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const t = await tx.traveler.findUnique({ where: { id: travelerId } });
+      return t ? toTravelerView(t) : null;
+    });
+  },
+
   async setTravelerPassport(organizationId: string, travelerId: string, documentId: string): Promise<void> {
     await withOrg(organizationId, (tx) => tx.traveler.update({ where: { id: travelerId }, data: { passportDocumentId: documentId } }));
   },
