@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { authService } from '@modules/auth';
@@ -5,10 +6,11 @@ import { assignmentService } from '@modules/assignment';
 import { bookingService, type TravelerDutyGroup } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService, type DriverProfileView, type VehicleView } from '@modules/fleet';
+import { itineraryService } from '@modules/itinerary';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Th, Tr, Td } from '@/components/ui/Table';
-import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
+import { DEPARTURE_STATUS_TONE, ITINERARY_STATUS_TONE } from '@lib/status-tones';
 
 // Self-service read for TOUR_GUIDE/DRIVER/VEHICLE_OWNER -- closes the gap
 // DR-018/019/020 each deferred. No actions.ts: strictly read-only, same
@@ -79,6 +81,21 @@ export default async function MySchedulePage() {
       uniqueDepartureIds.map((id) => bookingService.listTravelersForDeparture(ctx, id)),
     );
     uniqueDepartureIds.forEach((id, i) => clientGroupsByDeparture.set(id, groups[i] ?? []));
+  }
+
+  // Itinerary Management (DR-033): "Drivers and Tour Guides have read-only
+  // access to their assigned itineraries." itineraryService.listMine is
+  // already scoped to the caller's own assigned departures (same pattern as
+  // listMyAssignments); VEHICLE_OWNER deliberately doesn't hold
+  // itinerary.read (spec names only the other two roles), so this section
+  // never renders for that role.
+  const canReadItineraries = can(ctx.roles, 'itinerary.read');
+  let myItineraries: Awaited<ReturnType<typeof itineraryService.listMine>> = [];
+  let itineraryBookingRefs = new Map<string, string>();
+  if (canReadItineraries) {
+    myItineraries = await itineraryService.listMine(ctx);
+    const bookings = await Promise.all(myItineraries.map((i) => bookingService.getById(ctx, i.bookingId)));
+    itineraryBookingRefs = new Map(myItineraries.map((i, idx) => [i.id, bookings[idx]?.bookingReference ?? i.bookingId]));
   }
 
   return (
@@ -180,6 +197,26 @@ export default async function MySchedulePage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {canReadItineraries && myItineraries.length > 0 && (
+        <div className="space-y-4">
+          <div className="survey-rule" />
+          <PageHeader eyebrow="My schedule" title="Itineraries" />
+          <ul className="space-y-2 text-sm">
+            {myItineraries.map((itinerary) => (
+              <li key={itinerary.id} className="flex items-center justify-between border-b border-rule pb-2">
+                <span>{itineraryBookingRefs.get(itinerary.id)}</span>
+                <span className="flex items-center gap-3">
+                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>
+                  <Link href={`/staff/itineraries/${itinerary.id}`} className="text-forest hover:underline">
+                    View
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

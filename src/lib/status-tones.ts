@@ -4,6 +4,7 @@ import type {
   DriverStatus,
   GuideStatus,
   InvoiceStatus,
+  ItineraryStatus,
   PackageStatus,
   PaymentStatus,
   StarlinkStatus,
@@ -92,4 +93,10 @@ export const VISA_STATUS_TONE: Record<VisaStatus, BadgeTone> = {
   SUBMITTED: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
+};
+
+export const ITINERARY_STATUS_TONE: Record<ItineraryStatus, BadgeTone> = {
+  DRAFT: 'neutral',
+  IN_REVIEW: 'warning',
+  APPROVED: 'success',
 };

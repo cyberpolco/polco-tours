@@ -1,8 +1,17 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.9.0
+  version: 0.10.0
   description: >
+    DR-033 adds Itinerary Management: a new Itinerary (1:1 with a Booking,
+    DRAFT -> IN_REVIEW -> APPROVED), ItineraryDay (per-day schedule), and
+    lightweight Hotel/Restaurant reference entities under
+    /bookings/{bookingId}/itinerary, /itineraries(/mine|/{id}(/review|
+    /send-back|/approve|/days|/hotels|/restaurants)), /hotels, /restaurants.
+    itinerary.read/write/approve are new permissions -- TOUR_OPERATOR holds
+    all three (SUPERADMIN/PLATFORM_ADMIN stay undifferentiated, via '*');
+    TOUR_GUIDE/DRIVER hold itinerary.read only, scoped to their own assigned
+    departures.
     DR-032 removes the IMMIGRATION_OFFICER role and Officers admin tooling
     entirely (no longer needed): /immigration/visa-applications,
     /immigration/officers, and /users/{userId}/assign-country are gone,
@@ -1563,6 +1572,402 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /bookings/{bookingId}/itinerary:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    get:
+      summary: Get the itinerary for a booking (Itinerary Management, DR-033)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Create an itinerary for a booking (itinerary.write)
+      description: One itinerary per booking ("Every itinerary is linked to a single Booking ID").
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateItineraryInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: This booking already has an itinerary
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /itineraries:
+    get:
+      summary: List every itinerary in the org (manager-only, itinerary.write)
+      description: A TOUR_GUIDE/DRIVER looks up their own via GET /itineraries/mine instead.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itineraries: { type: array, items: { $ref: '#/components/schemas/Itinerary' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /itineraries/mine:
+    get:
+      summary: List the caller's own assigned itineraries (TOUR_GUIDE/DRIVER, DR-033)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itineraries: { type: array, items: { $ref: '#/components/schemas/Itinerary' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /itineraries/{itineraryId}:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    get:
+      summary: Get an itinerary
+      description: >-
+        itinerary.read holders that aren't managers (TOUR_GUIDE/DRIVER) only
+        see it if they're assigned to the underlying departure -- 404 not
+        403, same anti-BOLA convention as everywhere else in this app.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update an itinerary's notes/emergency contact (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateItineraryInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /itineraries/{itineraryId}/review:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    post:
+      summary: DRAFT -> IN_REVIEW (itinerary.write)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Invalid status transition
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /itineraries/{itineraryId}/send-back:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    post:
+      summary: IN_REVIEW -> DRAFT (itinerary.write)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Invalid status transition
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /itineraries/{itineraryId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    post:
+      summary: '-> APPROVED (itinerary.approve -- "Super Admin can: ... Approve itineraries")'
+      description: Stamps approvedAt/approvedByUserId. No path out of APPROVED.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { itinerary: { $ref: '#/components/schemas/Itinerary' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Invalid status transition
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /itineraries/{itineraryId}/days:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    get:
+      summary: List an itinerary's daily schedule
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { days: { type: array, items: { $ref: '#/components/schemas/ItineraryDay' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Add a day to the schedule (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddItineraryDayInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { day: { $ref: '#/components/schemas/ItineraryDay' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /itineraries/{itineraryId}/days/{dayId}:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+      - name: dayId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Update a day (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateItineraryDayInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { day: { $ref: '#/components/schemas/ItineraryDay' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Remove a day (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /itineraries/{itineraryId}/hotels:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    get:
+      summary: List hotels assigned to this itinerary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { hotels: { type: array, items: { $ref: '#/components/schemas/Hotel' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Assign a hotel to this itinerary (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [hotelId], properties: { hotelId: { type: string, format: uuid } } }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { hotels: { type: array, items: { $ref: '#/components/schemas/Hotel' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /itineraries/{itineraryId}/hotels/{hotelId}:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+      - $ref: '#/components/parameters/hotelId'
+    delete:
+      summary: Unassign a hotel from this itinerary (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /itineraries/{itineraryId}/restaurants:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+    get:
+      summary: List restaurants assigned to this itinerary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurants: { type: array, items: { $ref: '#/components/schemas/Restaurant' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Assign a restaurant to this itinerary (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [restaurantId], properties: { restaurantId: { type: string, format: uuid } } }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurants: { type: array, items: { $ref: '#/components/schemas/Restaurant' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /itineraries/{itineraryId}/restaurants/{restaurantId}:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+      - $ref: '#/components/parameters/restaurantId'
+    delete:
+      summary: Unassign a restaurant from this itinerary (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /hotels:
+    get:
+      summary: List every hotel reference entity in the org (itinerary.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { hotels: { type: array, items: { $ref: '#/components/schemas/Hotel' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a hotel reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateHotelInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { hotel: { $ref: '#/components/schemas/Hotel' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /hotels/{hotelId}:
+    parameters:
+      - $ref: '#/components/parameters/hotelId'
+    get:
+      summary: Get a hotel reference entity
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { hotel: { $ref: '#/components/schemas/Hotel' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a hotel reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateHotelInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { hotel: { $ref: '#/components/schemas/Hotel' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Soft-delete a hotel reference entity (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /restaurants:
+    get:
+      summary: List every restaurant reference entity in the org (itinerary.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurants: { type: array, items: { $ref: '#/components/schemas/Restaurant' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a restaurant reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRestaurantInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurant: { $ref: '#/components/schemas/Restaurant' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /restaurants/{restaurantId}:
+    parameters:
+      - $ref: '#/components/parameters/restaurantId'
+    get:
+      summary: Get a restaurant reference entity
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurant: { $ref: '#/components/schemas/Restaurant' } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a restaurant reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRestaurantInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { restaurant: { $ref: '#/components/schemas/Restaurant' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Soft-delete a restaurant reference entity (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1619,6 +2024,21 @@ components:
       schema: { type: string, format: uuid }
     documentId:
       name: documentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    itineraryId:
+      name: itineraryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    hotelId:
+      name: hotelId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    restaurantId:
+      name: restaurantId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2287,3 +2707,165 @@ components:
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: string, format: date-time, nullable: true }
         travelStartDate: { type: string, format: date-time, nullable: true }
+
+    Itinerary:
+      type: object
+      description: >-
+        "The operational plan for the entire tour" (Itinerary Management,
+        DR-033) -- 1:1 with a Booking. Does NOT include vehicle/driver/guide
+        assignment data (that stays owned by the assignment module, GET
+        /departures/{id}/assignments) since it's shared across every booking
+        on a PREDEFINED_PACKAGE departure, not 1:1 with any single Itinerary.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, IN_REVIEW, APPROVED] }
+        notes: { type: string, nullable: true }
+        emergencyContactName: { type: string, nullable: true, description: Trip-level, not per-traveler (see Traveler.emergencyContactName, DR-030) }
+        emergencyContactPhone: { type: string, nullable: true }
+        emergencyContactRelation: { type: string, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        approvedByUserId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateItineraryInput:
+      type: object
+      properties:
+        notes: { type: string, maxLength: 2000 }
+        emergencyContactName: { type: string, maxLength: 200 }
+        emergencyContactPhone: { type: string, maxLength: 50 }
+        emergencyContactRelation: { type: string, maxLength: 100 }
+
+    UpdateItineraryInput:
+      type: object
+      properties:
+        notes: { type: string, maxLength: 2000 }
+        emergencyContactName: { type: string, maxLength: 200 }
+        emergencyContactPhone: { type: string, maxLength: 50 }
+        emergencyContactRelation: { type: string, maxLength: 100 }
+
+    ItineraryDay:
+      type: object
+      description: One row per calendar day of the trip (DR-033).
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        itineraryId: { type: string, format: uuid }
+        dayNumber: { type: integer, minimum: 1 }
+        date: { type: string, format: date-time }
+        departureTime: { type: string, nullable: true, description: 'Plain "HH:MM" 24h, no timezone' }
+        arrivalTime: { type: string, nullable: true }
+        pickupLocation: { type: string, nullable: true }
+        dropoffLocation: { type: string, nullable: true }
+        plannedSites: { type: string, nullable: true }
+        activities: { type: string, nullable: true }
+        estimatedTravelMinutes: { type: integer, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AddItineraryDayInput:
+      type: object
+      required: [dayNumber, date]
+      properties:
+        dayNumber: { type: integer, minimum: 1 }
+        date: { type: string, format: date }
+        departureTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
+        arrivalTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
+        pickupLocation: { type: string, maxLength: 500 }
+        dropoffLocation: { type: string, maxLength: 500 }
+        plannedSites: { type: string, maxLength: 2000 }
+        activities: { type: string, maxLength: 2000 }
+        estimatedTravelMinutes: { type: integer, minimum: 0 }
+        notes: { type: string, maxLength: 2000 }
+
+    UpdateItineraryDayInput:
+      type: object
+      description: Same fields as AddItineraryDayInput, minus dayNumber, all optional.
+      properties:
+        date: { type: string, format: date }
+        departureTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
+        arrivalTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
+        pickupLocation: { type: string, maxLength: 500 }
+        dropoffLocation: { type: string, maxLength: 500 }
+        plannedSites: { type: string, maxLength: 2000 }
+        activities: { type: string, maxLength: 2000 }
+        estimatedTravelMinutes: { type: integer, minimum: 0 }
+        notes: { type: string, maxLength: 2000 }
+
+    Hotel:
+      type: object
+      description: >-
+        Lightweight reusable reference entity (Itinerary Management, DR-033)
+        -- name/contact info only, no compliance tracking like the fleet
+        module's Vehicle/DriverProfile have.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, description: ISO-3166 alpha-2 }
+        address: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateHotelInput:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        address: { type: string, maxLength: 500 }
+        contactName: { type: string, maxLength: 200 }
+        contactPhone: { type: string, maxLength: 50 }
+        contactEmail: { type: string, format: email }
+
+    UpdateHotelInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        address: { type: string, maxLength: 500 }
+        contactName: { type: string, maxLength: 200 }
+        contactPhone: { type: string, maxLength: 50 }
+        contactEmail: { type: string, format: email }
+
+    Restaurant:
+      type: object
+      description: Same shape as Hotel (Itinerary Management, DR-033).
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, description: ISO-3166 alpha-2 }
+        address: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateRestaurantInput:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        address: { type: string, maxLength: 500 }
+        contactName: { type: string, maxLength: 200 }
+        contactPhone: { type: string, maxLength: 50 }
+        contactEmail: { type: string, format: email }
+
+    UpdateRestaurantInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+        address: { type: string, maxLength: 500 }
+        contactName: { type: string, maxLength: 200 }
+        contactPhone: { type: string, maxLength: 50 }
+        contactEmail: { type: string, format: email }

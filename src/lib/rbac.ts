@@ -27,6 +27,9 @@ export type Permission =
   | 'visa.process'
   | 'fleet.read'
   | 'fleet.write'
+  | 'itinerary.read'
+  | 'itinerary.write'
+  | 'itinerary.approve'
   | 'admin.all';
 
 type RoleName =
@@ -61,6 +64,13 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'profile.write',
     'fleet.read', // manages the whole org's fleet (DR-017)
     'fleet.write',
+    // Itinerary Management (DR-033): the spec's literal "Super Admin"/
+    // "Platform Admin" split is deliberately NOT introduced here (explicit
+    // user choice) -- same "Tour operator = platform admin" precedent as
+    // DR-027/028, so TOUR_OPERATOR gets full create/edit/review/approve.
+    'itinerary.read',
+    'itinerary.write',
+    'itinerary.approve',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to
@@ -69,6 +79,9 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
   // fleet.read at all, a deliberate DR-021 choice that's now superseded by
   // the Guides Module needing a real self-view of languages/certifications/
   // specialties).
+  // itinerary.read scoped to only itineraries for their own assigned
+  // departures in itinerary/service.ts (DR-033: "Drivers and Tour Guides
+  // have read-only access to their assigned itineraries").
   TOUR_GUIDE: [
     'catalog.read',
     'booking.read',
@@ -76,9 +89,10 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
     'profile.write',
     'assignment.read',
     'fleet.read',
+    'itinerary.read',
   ],
   // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
-  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read'],
+  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read', 'itinerary.read'],
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
   VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // booking.read is needed to resolve a traveler by bookingId+travelerId

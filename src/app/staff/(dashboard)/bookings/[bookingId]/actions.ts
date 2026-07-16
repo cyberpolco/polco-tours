@@ -1,10 +1,12 @@
 'use server';
 
 import type { PaymentKind } from '@prisma/client';
+import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import { itineraryService } from '@modules/itinerary';
 
 export async function confirmBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
@@ -54,4 +56,14 @@ export async function convertToItineraryAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
   await bookingService.convertToItinerary(ctx, bookingId);
   revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
+// Itinerary Management (DR-033) -- creates the new Itinerary record (day-by-
+// day plan, hotels/restaurants, approval workflow), distinct from
+// convertToItineraryAction above (which creates the underlying bespoke
+// Departure for a TAILOR_MADE booking, the older DR-028 sense of the word).
+export async function createItineraryAction(bookingId: string) {
+  const ctx = await requireStaffContext('itinerary.write');
+  const itinerary = await itineraryService.createItinerary(ctx, bookingId, {});
+  redirect(`/staff/itineraries/${itinerary.id}`);
 }

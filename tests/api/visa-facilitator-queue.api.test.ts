@@ -21,6 +21,7 @@ let orgId: string;
 let facilitatorId: string;
 let operatorId: string;
 let touristId: string;
+let travelerA2Id: string;
 
 beforeAll(async () => {
   const org = await admin.organization.create({
@@ -91,6 +92,14 @@ beforeAll(async () => {
       },
     });
 
+    travelerA2Id = travelerA2.id;
+  });
+
+  // Split into further withOrg calls -- Prisma's 5000ms interactive-
+  // transaction timeout is measurably too short for this sandbox's real
+  // network path to Neon once a beforeAll does this much sequential work in
+  // one transaction (documented gotcha, CLAUDE.md).
+  await withOrg(orgId, async (tx) => {
     const doc = await tx.document.create({
       data: {
         organizationId: orgId,
@@ -104,7 +113,7 @@ beforeAll(async () => {
     await tx.visaApplication.create({
       data: {
         organizationId: orgId,
-        travelerId: travelerA2.id,
+        travelerId: travelerA2Id,
         country: 'NA',
         travelerFirstName: 'Has',
         travelerLastName: 'Doc',
@@ -178,12 +187,14 @@ describe('GET /api/v1/visa/queue', () => {
     const body = await res.json();
     expect(body.applications.length).toBe(3);
 
-    // Sorted soonest travel date first: TAILOR_MADE (Nov 1) before PREDEFINED_PACKAGE (Dec 1).
+    // Sorted soonest travel date first: TAILOR_MADE (Nov 1) before
+    // PREDEFINED_PACKAGE (Dec 1) -- A1/A2 share the exact same Dec 1
+    // departure, so their relative order versus each other isn't asserted,
+    // only that both sort after B1's earlier date.
     const byPassport = new Map<string, number>(
       body.applications.map((a: { travelerIdOrPassportNumber: string }, i: number) => [a.travelerIdOrPassportNumber, i]),
     );
-    expect(byPassport.get('B1')!).toBeLessThan(byPassport.get('A1')!);
-    expect(byPassport.get('B1')!).toBeLessThan(byPassport.get('A2')!);
+    expect(byPassport.get('B1')).toBe(0);
 
     const a1 = body.applications.find((a: { travelerIdOrPassportNumber: string }) => a.travelerIdOrPassportNumber === 'A1');
     expect(a1.hasDocument).toBe(false);

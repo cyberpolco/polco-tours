@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import { itineraryService } from '@modules/itinerary';
 import { visaService } from '@modules/visa';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
@@ -10,11 +11,12 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
-import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
+import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import {
   confirmBookingAction,
   cancelBookingAction,
   convertToItineraryAction,
+  createItineraryAction,
   initiatePaymentAction,
   refundBookingAction,
   resolvePaymentAction,
@@ -45,6 +47,11 @@ export default async function BookingDetailPage({ params }: Props) {
   } catch {
     notFound();
   }
+
+  // Itinerary Management (DR-033) -- null just means none exists yet
+  // (getItineraryForBooking returns null rather than 404ing, so a booking
+  // with no itinerary still renders the rest of this page normally).
+  const itinerary = await itineraryService.getItineraryForBooking(ctx, bookingId);
 
   const travelers = await bookingService.listTravelers(ctx, bookingId);
   const lead = travelers.find((t) => t.isTourLead);
@@ -132,9 +139,9 @@ export default async function BookingDetailPage({ params }: Props) {
             </SubmitButton>
           </form>
         )}
-        {booking.origin === 'TAILOR_MADE' && booking.departureId && (
+        {booking.departureId && (
           <p className="mt-3 text-sm">
-            <LinkButton href={`/staff/departures/${booking.departureId}`}>Manage itinerary &amp; assign resources</LinkButton>
+            <LinkButton href={`/staff/departures/${booking.departureId}`}>Assign vehicle/driver/guide</LinkButton>
           </p>
         )}
 
@@ -288,6 +295,23 @@ export default async function BookingDetailPage({ params }: Props) {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div>
+        <div className="survey-rule mb-6" />
+        <p className="eyebrow text-mist">Itinerary</p>
+        {itinerary ? (
+          <p className="mt-2 text-sm">
+            <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>{' '}
+            <LinkButton href={`/staff/itineraries/${itinerary.id}`}>Open itinerary</LinkButton>
+          </p>
+        ) : (
+          <form action={createItineraryAction.bind(null, booking.id)} className="mt-2">
+            <SubmitButton variant="secondary" pendingLabel="Creating…">
+              Create itinerary
+            </SubmitButton>
+          </form>
+        )}
       </div>
     </div>
   );

@@ -214,3 +214,60 @@ CREATE POLICY tenant_isolation ON guide_profiles
 -- Same anti-BOLA caveat as driver_profiles: isolates by org only, not by
 -- TOUR_GUIDE self-ownership -- enforced in fleet/service.ts, covered by
 -- tests/api/guides.security.test.ts.
+
+-- ---------------------------------------------------------- itineraries (DR-033)
+ALTER TABLE itineraries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itineraries FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON itineraries;
+CREATE POLICY tenant_isolation ON itineraries
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+-- Isolates by org only, not by TOUR_GUIDE/DRIVER "my assigned itineraries"
+-- scoping -- enforced in itinerary/service.ts, covered by
+-- tests/api/itinerary.security.test.ts.
+
+-- -------------------------------------------------------- itinerary_days (DR-033)
+ALTER TABLE itinerary_days ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itinerary_days FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON itinerary_days;
+CREATE POLICY tenant_isolation ON itinerary_days
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ---------------------------------------------------------------- hotels (DR-033)
+ALTER TABLE hotels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hotels FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON hotels;
+CREATE POLICY tenant_isolation ON hotels
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------------ restaurants (DR-033)
+ALTER TABLE restaurants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE restaurants FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON restaurants;
+CREATE POLICY tenant_isolation ON restaurants
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------- itinerary_hotels (DR-033)
+ALTER TABLE itinerary_hotels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itinerary_hotels FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON itinerary_hotels;
+CREATE POLICY tenant_isolation ON itinerary_hotels
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- --------------------------------------------------- itinerary_restaurants (DR-033)
+ALTER TABLE itinerary_restaurants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itinerary_restaurants FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON itinerary_restaurants;
+CREATE POLICY tenant_isolation ON itinerary_restaurants
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

@@ -138,6 +138,13 @@ src/
                                            #   the only visa-overview route
                                            #   left after DR-032 removed
                                            #   IMMIGRATION_OFFICER entirely
+    api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
+      /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
+      /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
+      api/v1/hotels(/[hotelId]), api/v1/restaurants(/[restaurantId])
+                                           # Itinerary Management (DR-033):
+                                           #   new itinerary module + Hotel/
+                                           #   Restaurant reference entities
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
@@ -147,13 +154,21 @@ src/
       fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]),
         /guides(/new|/[guideProfileId]))
         = fleet + compliance (DR-017); guides folded in (DR-030)
-      departures(/[departureId]) = browse + manage assignments (DR-018;
-        first staff departures UI -- packages/departures were API-only before)
+      departures(/[departureId]) = manage vehicle/driver/guide assignments
+        (DR-018/029) -- the list-browse page was removed in DR-033 (folded
+        into itineraries/booking-detail links instead), this detail page
+        itself is unchanged and still the only place assignments are made
+      itineraries(/[itineraryId]), hotels(/[hotelId](/new)),
+        restaurants(/[restaurantId](/new)) = Itinerary Management (DR-033):
+        day-by-day schedule, hotel/restaurant assignment, DRAFT/IN_REVIEW/
+        APPROVED workflow; the same itinerary detail page renders read-only
+        for TOUR_GUIDE/DRIVER (itinerary.write/approve both false for them)
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
         read-only (DR-021; closes the gap DR-018/019/020 each deferred);
         TOUR_GUIDE and (since DR-031) DRIVER viewers additionally get a
         data-minimized client-list/daily-itinerary/emergency-contacts
-        section (DR-030/031)
+        section (DR-030/031) and (since DR-033) a link into their own
+        assigned itineraries
       visa-queue = VISA_FACILITATOR's own whole-org visa queue, read-only
         (My Schedule, DR-031; closes the gap DR-019/020/021/025 each
         re-flagged -- this role previously had zero staff UI at all)
@@ -210,6 +225,13 @@ src/
                        #   visa-overview surface since DR-032 removed
                        #   IMMIGRATION_OFFICER/OfficerVisaView/listForCountry
                        #   entirely
+    itinerary/         # Itinerary (1:1 Booking, DRAFT/IN_REVIEW/APPROVED) +
+                       #   ItineraryDay (per-day schedule) + Hotel/Restaurant
+                       #   (lightweight reference entities) + join tables
+                       #   (DR-033); composes booking/assignment/catalog's
+                       #   public interfaces rather than duplicating vehicle/
+                       #   driver/guide assignment data, which stays owned by
+                       #   the assignment module
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -967,6 +989,34 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   officer's own use was gone), `/staff/immigration`, `/staff/admin/officers`,
   and their API routes. `/staff/visa-queue` (DR-031) is now the only
   visa-overview surface for staff.
+- **Itinerary Management done 2026-07-16 (DR-033):** a first-class
+  `Itinerary` entity (1:1 with a Booking, "the operational plan for the
+  entire tour"), where "itinerary" previously only meant "a Departure with
+  Assignments" (DR-028). New standalone `itinerary` module (mirrors DR-018's
+  `assignment` precedent) with `Itinerary` (DRAFT/IN_REVIEW/APPROVED, notes,
+  trip-level emergency contact), `ItineraryDay` (per-day schedule: times,
+  pickup/drop-off, planned sites, activities, travel time), and lightweight
+  `Hotel`/`Restaurant` reference entities (name/contact only, no compliance
+  tracking) + join tables -- none of these existed in any form before this
+  increment. Deliberately does NOT duplicate vehicle/driver/guide assignment
+  data (stays owned by the `assignment` module, shared across every booking
+  on a `PREDEFINED_PACKAGE` departure) -- composes it via
+  `assignmentService`/`bookingService`/`catalogService` instead. Per
+  explicit user choice, `SUPERADMIN`/`PLATFORM_ADMIN` stay undifferentiated
+  (confirmed zero exceptions exist anywhere in this codebase before
+  deciding) -- new `itinerary.read`/`write`/`approve` permissions all go to
+  `TOUR_OPERATOR` too, matching the "Tour operator = platform admin"
+  precedent; `TOUR_GUIDE`/`DRIVER` get `itinerary.read` only, anti-BOLA-
+  scoped to their own assigned departures. Removed the redundant
+  `/staff/departures` **nav tab** (a mid-session clarification -- NOT the
+  `Departure` model or its shared-capacity-pooling role, which stay fully
+  intact); the working assignment page at `/staff/departures/[id]` is
+  unchanged, just reached via links from the new itinerary page and from
+  the booking-detail page instead (widened from `TAILOR_MADE`-only to any
+  booking with a `departureId`). Guide/driver read-only access needed no new
+  page -- the same `/staff/itineraries/{id}` page already renders read-only
+  once `itinerary.write`/`itinerary.approve` are both false for the viewer;
+  `/staff/schedule` only gained a discovery link section.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1137,7 +1187,22 @@ removed from `rbac.ts`. Removed `authService.assignOfficerCountry`/
 `listOfficers`, `visaService.listForCountry`/`OfficerVisaView` (superseded
 by DR-031's `listForFacilitator`), `/staff/immigration`, `/staff/admin
 /officers`, and their routes -- `/staff/visa-queue` is now the sole
-visa-overview surface for staff.
+visa-overview surface for staff · DR-033 Itinerary Management: new
+standalone `itinerary` module -- `Itinerary` (1:1 Booking, DRAFT/IN_REVIEW/
+APPROVED, trip-level emergency contact), `ItineraryDay` (per-day schedule),
+`Hotel`/`Restaurant` (lightweight reference entities, no compliance
+tracking) + join tables, none of which existed before. Composes
+`assignment`/`booking`/`catalog` rather than duplicating vehicle/driver/
+guide assignment data. Per explicit user choice, `SUPERADMIN`/
+`PLATFORM_ADMIN` stay undifferentiated (verified zero prior exceptions) --
+new `itinerary.read`/`write`/`approve` all go to `TOUR_OPERATOR` too;
+`TOUR_GUIDE`/`DRIVER` get `itinerary.read` only, anti-BOLA-scoped to their
+own assigned departures. "Remove Departure" clarified mid-session to mean
+the redundant `/staff/departures` nav tab, not the `Departure` model --
+`/staff/departures/[id]` (vehicle/driver/guide assignment) stays unchanged,
+linked from the new itinerary page and a widened booking-detail link
+instead. Guide/driver read-only access reuses the same itinerary detail
+page (renders read-only once `itinerary.write`/`approve` are both false).
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
