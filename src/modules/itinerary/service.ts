@@ -62,7 +62,7 @@ export const itineraryService = {
   /** Staff-only (itinerary.write) -- "Every itinerary is linked to a single
    * Booking ID". One itinerary per booking (DB-unique on bookingId). */
   async createItinerary(ctx: AuthContext, bookingId: string, input: CreateItineraryInput): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await bookingService.getById(ctx, bookingId); // 404s if not found/visible in this org
 
@@ -82,13 +82,13 @@ export const itineraryService = {
   },
 
   async getItinerary(ctx: AuthContext, itineraryId: string): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     return getOwnedItinerary(ctx, organizationId, itineraryId);
   },
 
   async getItineraryForBooking(ctx: AuthContext, bookingId: string): Promise<ItineraryView | null> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     await bookingService.getById(ctx, bookingId); // 404s if not found/visible
     const itinerary = await itineraryRepository.findByBookingId(organizationId, bookingId);
@@ -99,7 +99,7 @@ export const itineraryService = {
 
   /** Manager-only -- the staff itinerary-list page. */
   async listAll(ctx: AuthContext): Promise<ItineraryView[]> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     if (!isItineraryManager(ctx.roles)) throw Errors.forbidden('Only itinerary managers may list every itinerary');
     return itineraryRepository.listAll(requireOrg(ctx));
   },
@@ -108,7 +108,7 @@ export const itineraryService = {
    * mirrors assignmentService.listMyAssignments' self-service shape
    * (DR-021/030/031). Managers use listAll instead. */
   async listMine(ctx: AuthContext): Promise<ItineraryView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     const assignments = await assignmentService.listMyAssignments(ctx);
     const departureIds = [...new Set(assignments.map((a) => a.departureId))];
@@ -116,7 +116,7 @@ export const itineraryService = {
   },
 
   async updateItinerary(ctx: AuthContext, itineraryId: string, input: UpdateItineraryInput): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     const updated = await itineraryRepository.update(organizationId, itineraryId, input);
     if (!updated) throw Errors.notFound('Itinerary not found');
@@ -125,20 +125,20 @@ export const itineraryService = {
 
   /** DRAFT -> IN_REVIEW ("Platform Admin can: Review assigned itineraries"). */
   async submitForReview(ctx: AuthContext, itineraryId: string): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     return transition(ctx, itineraryId, 'IN_REVIEW');
   },
 
   /** Sends an IN_REVIEW itinerary back to DRAFT for edits. */
   async sendBackToDraft(ctx: AuthContext, itineraryId: string): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     return transition(ctx, itineraryId, 'DRAFT');
   },
 
   /** itinerary.approve -- "Super Admin can: ... Approve itineraries". Stamps
    * approvedAt/approvedByUserId. */
   async approveItinerary(ctx: AuthContext, itineraryId: string): Promise<ItineraryView> {
-    assertCan(ctx.roles, 'itinerary.approve');
+    assertCan(ctx, 'itinerary.approve');
     const organizationId = requireOrg(ctx);
     const existing = await itineraryRepository.findById(organizationId, itineraryId);
     if (!existing) throw Errors.notFound('Itinerary not found');
@@ -164,7 +164,7 @@ export const itineraryService = {
   // ------------------------------------------------------------ days
 
   async addDay(ctx: AuthContext, itineraryId: string, input: AddItineraryDayInput): Promise<ItineraryDayView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     return itineraryRepository.addDay(organizationId, itineraryId, input);
@@ -176,7 +176,7 @@ export const itineraryService = {
     dayId: string,
     input: UpdateItineraryDayInput,
   ): Promise<ItineraryDayView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     const updated = await itineraryRepository.updateDay(organizationId, dayId, input);
@@ -185,7 +185,7 @@ export const itineraryService = {
   },
 
   async removeDay(ctx: AuthContext, itineraryId: string, dayId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     const removed = await itineraryRepository.removeDay(organizationId, dayId);
@@ -195,7 +195,7 @@ export const itineraryService = {
   /** Read path shared by staff and the guide/driver read-only view -- same
    * anti-BOLA scoping as getItinerary. */
   async listDays(ctx: AuthContext, itineraryId: string): Promise<ItineraryDayView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     await getOwnedItinerary(ctx, organizationId, itineraryId);
     return itineraryRepository.listDays(organizationId, itineraryId);
@@ -204,69 +204,69 @@ export const itineraryService = {
   // ------------------------------------------------------------ hotels / restaurants (reference data)
 
   async createHotel(ctx: AuthContext, input: CreateHotelInput): Promise<HotelView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     return itineraryRepository.createHotel(requireOrg(ctx), input);
   },
 
   async getHotel(ctx: AuthContext, hotelId: string): Promise<HotelView> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const hotel = await itineraryRepository.findHotelById(requireOrg(ctx), hotelId);
     if (!hotel) throw Errors.notFound('Hotel not found');
     return hotel;
   },
 
   async updateHotel(ctx: AuthContext, hotelId: string, input: UpdateHotelInput): Promise<HotelView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const updated = await itineraryRepository.updateHotel(requireOrg(ctx), hotelId, input);
     if (!updated) throw Errors.notFound('Hotel not found');
     return updated;
   },
 
   async deleteHotel(ctx: AuthContext, hotelId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const removed = await itineraryRepository.deleteHotel(requireOrg(ctx), hotelId);
     if (!removed) throw Errors.notFound('Hotel not found');
   },
 
   async listHotels(ctx: AuthContext): Promise<HotelView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     return itineraryRepository.listHotels(requireOrg(ctx));
   },
 
   async createRestaurant(ctx: AuthContext, input: CreateRestaurantInput): Promise<RestaurantView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     return itineraryRepository.createRestaurant(requireOrg(ctx), input);
   },
 
   async getRestaurant(ctx: AuthContext, restaurantId: string): Promise<RestaurantView> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const restaurant = await itineraryRepository.findRestaurantById(requireOrg(ctx), restaurantId);
     if (!restaurant) throw Errors.notFound('Restaurant not found');
     return restaurant;
   },
 
   async updateRestaurant(ctx: AuthContext, restaurantId: string, input: UpdateRestaurantInput): Promise<RestaurantView> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const updated = await itineraryRepository.updateRestaurant(requireOrg(ctx), restaurantId, input);
     if (!updated) throw Errors.notFound('Restaurant not found');
     return updated;
   },
 
   async deleteRestaurant(ctx: AuthContext, restaurantId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const removed = await itineraryRepository.deleteRestaurant(requireOrg(ctx), restaurantId);
     if (!removed) throw Errors.notFound('Restaurant not found');
   },
 
   async listRestaurants(ctx: AuthContext): Promise<RestaurantView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     return itineraryRepository.listRestaurants(requireOrg(ctx));
   },
 
   // ------------------------------------------------------------ assignment (join tables)
 
   async assignHotel(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     const hotels = await itineraryRepository.findHotelsByIds(organizationId, [hotelId]);
@@ -275,14 +275,14 @@ export const itineraryService = {
   },
 
   async unassignHotel(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     await itineraryRepository.unassignHotel(organizationId, itineraryId, hotelId);
   },
 
   async listAssignedHotels(ctx: AuthContext, itineraryId: string): Promise<HotelView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     await getOwnedItinerary(ctx, organizationId, itineraryId);
     const ids = await itineraryRepository.listAssignedHotelIds(organizationId, itineraryId);
@@ -290,7 +290,7 @@ export const itineraryService = {
   },
 
   async assignRestaurant(ctx: AuthContext, itineraryId: string, restaurantId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     const restaurants = await itineraryRepository.findRestaurantsByIds(organizationId, [restaurantId]);
@@ -299,14 +299,14 @@ export const itineraryService = {
   },
 
   async unassignRestaurant(ctx: AuthContext, itineraryId: string, restaurantId: string): Promise<void> {
-    assertCan(ctx.roles, 'itinerary.write');
+    assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     await requireManagedItinerary(organizationId, itineraryId);
     await itineraryRepository.unassignRestaurant(organizationId, itineraryId, restaurantId);
   },
 
   async listAssignedRestaurants(ctx: AuthContext, itineraryId: string): Promise<RestaurantView[]> {
-    assertCan(ctx.roles, 'itinerary.read');
+    assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     await getOwnedItinerary(ctx, organizationId, itineraryId);
     const ids = await itineraryRepository.listAssignedRestaurantIds(organizationId, itineraryId);

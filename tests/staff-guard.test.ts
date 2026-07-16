@@ -38,6 +38,7 @@ describe('requireStaffContext', () => {
     resolveSession.mockResolvedValue({
       userId: 'u1',
       roles: ['TOURIST'],
+      permissions: new Set([]),
       organizationId: 'org1',
       sessionId: 's1',
       mustChangePassword: false,
@@ -51,6 +52,7 @@ describe('requireStaffContext', () => {
     const ctx = {
       userId: 'u1',
       roles: ['TOUR_OPERATOR'],
+      permissions: new Set(['booking.confirm']),
       organizationId: 'org1',
       sessionId: 's1',
       mustChangePassword: false,
@@ -66,6 +68,7 @@ describe('requireStaffContext', () => {
     const ctx = {
       userId: 'u2',
       roles: ['VISA_FACILITATOR'],
+      permissions: new Set([]),
       organizationId: 'org1',
       sessionId: 's2',
       mustChangePassword: false,
@@ -78,6 +81,7 @@ describe('requireStaffContext', () => {
     resolveSession.mockResolvedValue({
       userId: 'u3',
       roles: ['TOURIST'],
+      permissions: new Set([]),
       organizationId: 'org1',
       sessionId: 's3',
       mustChangePassword: false,
@@ -93,6 +97,7 @@ describe('requireStaffContext', () => {
     resolveSession.mockResolvedValue({
       userId: 'u4',
       roles: ['SUPERADMIN'],
+      permissions: new Set(['admin.all']),
       organizationId: 'org1',
       sessionId: 's4',
       mustChangePassword: true,
@@ -106,6 +111,7 @@ describe('requireStaffContext', () => {
     const ctx = {
       userId: 'u5',
       roles: ['TOURIST', 'DRIVER'],
+      permissions: new Set(['fleet.read']),
       organizationId: 'org1',
       sessionId: 's5',
       mustChangePassword: false,

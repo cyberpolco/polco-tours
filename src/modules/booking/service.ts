@@ -71,7 +71,7 @@ async function getOwnedBooking(ctx: AuthContext, organizationId: string, booking
 
 export const bookingService = {
   async getAvailability(ctx: AuthContext, departureId: string): Promise<Availability> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
     const seatsTaken = await bookingRepository.seatsTakenFor(organizationId, departureId);
@@ -79,7 +79,7 @@ export const bookingService = {
   },
 
   async createHold(ctx: AuthContext, input: CreateBookingInput): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
 
     // Anti-BOLA: a tourist can only ever book for themselves. Only staff
@@ -123,7 +123,7 @@ export const bookingService = {
    * check applies (there's nothing to reserve yet). Staff price it manually
    * afterward via sendQuotation. */
   async createTailorMadeRequest(ctx: AuthContext, input: CreateTailorMadeInput): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
 
@@ -152,7 +152,7 @@ export const bookingService = {
    * both a TAILOR_MADE request and a PREDEFINED_PACKAGE booking that asked
    * for a quote instead of paying immediately -- see requestQuotation). */
   async sendQuotation(ctx: AuthContext, bookingId: string, input: SendQuotationInput): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.confirm');
+    assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -180,7 +180,7 @@ export const bookingService = {
    * timer -- there's nothing shared/contended to protect for a quote that
    * already skipped (or released) its capacity reservation. */
   async acceptQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -198,7 +198,7 @@ export const bookingService = {
   },
 
   async confirm(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.confirm');
+    assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'CONFIRMED');
     if (!updated) throw Errors.notFound('Booking not found');
@@ -217,7 +217,7 @@ export const bookingService = {
   },
 
   async cancel(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.cancel');
+    assertCan(ctx, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
@@ -243,7 +243,7 @@ export const bookingService = {
    * concept in the invoicing module's Payment/PaymentStatus) -- issuing the
    * actual money back is a future Payments-module concern. */
   async refund(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.confirm');
+    assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -268,7 +268,7 @@ export const bookingService = {
    * and attaches it, after which the existing Assignment module works
    * completely unchanged -- see assignmentService.createAssignment. */
   async convertToItinerary(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.confirm');
+    assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -318,7 +318,7 @@ export const bookingService = {
    * close enough. No notification fired; staff see these via the
    * quote-requests dashboard queue instead. */
   async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.cancel');
+    assertCan(ctx, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
@@ -341,7 +341,7 @@ export const bookingService = {
    * both land on FULLY_PAID (BALANCE only ever follows an already-paid
    * deposit). Staff-gated -- same actor as payment.resolve itself. */
   async recordPaymentReceived(ctx: AuthContext, bookingId: string, kind: PaymentKind): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.confirm');
+    assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const to = kind === 'DEPOSIT' ? 'DEPOSIT_PAID' : 'FULLY_PAID';
     const updated = await bookingRepository.updateStatus(organizationId, bookingId, to);
@@ -359,14 +359,14 @@ export const bookingService = {
   },
 
   async getById(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     return getOwnedBooking(ctx, organizationId, bookingId);
   },
 
   /** Tourist -> their own bookings only. Staff -> the full org manifest. */
   async list(ctx: AuthContext): Promise<BookingView[]> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     return isStaff(ctx)
       ? bookingRepository.listForOrg(organizationId)
@@ -374,7 +374,7 @@ export const bookingService = {
   },
 
   async addTraveler(ctx: AuthContext, bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -399,7 +399,7 @@ export const bookingService = {
   },
 
   async listTravelers(ctx: AuthContext, bookingId: string): Promise<TravelerView[]> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
     return bookingRepository.listTravelersForBooking(organizationId, bookingId);
@@ -413,7 +413,7 @@ export const bookingService = {
    * broad visa.process permission (any traveler in the org), so this adds no
    * new exposure beyond what that role can already reach via the visa routes. */
   async getBookingForTraveler(ctx: AuthContext, travelerId: string): Promise<BookingView | null> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     const traveler = await bookingRepository.findTravelerById(organizationId, travelerId);
     if (!traveler) return null;
@@ -424,7 +424,7 @@ export const bookingService = {
    * Document itself is created by documentsService -- this just records the
    * link, keeping the module boundary intact (booking never touches Blob). */
   async setTravelerPassport(ctx: AuthContext, bookingId: string, travelerId: string, documentId: string): Promise<void> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
@@ -447,7 +447,7 @@ export const bookingService = {
    * what gates invoicing (see getBillableTotal). Requires a priced booking --
    * a TAILOR_MADE booking has no currency to match against until quoted. */
   async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
-    assertCan(ctx.roles, 'booking.create');
+    assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
     if (!booking.currency) {
@@ -481,7 +481,7 @@ export const bookingService = {
    * TAILOR_MADE booking needs a sent quotation) and the traveler manifest +
    * add-ons step are both complete (see domain.isTravelerManifestComplete). */
   async getBillableTotal(ctx: AuthContext, bookingId: string): Promise<BillableTotal> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
@@ -519,7 +519,7 @@ export const bookingService = {
    * re-verify that. Returns duty-relevant traveler detail only (see
    * TravelerDutyView) -- never idOrPassportNumber or passport document refs. */
   async listTravelersForDeparture(ctx: AuthContext, departureId: string): Promise<TravelerDutyGroup[]> {
-    assertCan(ctx.roles, 'booking.read');
+    assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     const rows = await bookingRepository.listBookingsWithTravelersForDeparture(organizationId, departureId);
     return rows.map(({ booking, travelers }) => ({

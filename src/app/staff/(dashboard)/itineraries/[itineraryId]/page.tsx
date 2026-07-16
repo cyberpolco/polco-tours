@@ -49,8 +49,8 @@ export default async function ItineraryDetailPage({ params }: Props) {
     notFound();
   }
 
-  const canWrite = can(ctx.roles, 'itinerary.write');
-  const canApprove = can(ctx.roles, 'itinerary.approve');
+  const canWrite = can(ctx, 'itinerary.write');
+  const canApprove = can(ctx, 'itinerary.approve');
 
   const [booking, days, assignedHotels, assignedRestaurants] = await Promise.all([
     bookingService.getById(ctx, itinerary.bookingId),

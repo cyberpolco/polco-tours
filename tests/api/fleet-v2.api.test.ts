@@ -91,6 +91,11 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
+  // Guard against the undefined-id-wipes-a-table class of bug (this exact
+  // pattern caused a real incident this session): if beforeAll never
+  // finished, orgId is undefined and admin.user.deleteMany's raw (non-RLS,
+  // users has no policy) filter would silently become an unscoped
+  // deleteMany({}) -- skip the deletion entirely rather than risk that.
   if (orgId) {
     await withOrg(orgId, (tx) => tx.starlinkKit.deleteMany({ where: { organizationId: orgId } }));
     await withOrg(orgId, (tx) => tx.maintenanceRecord.deleteMany({ where: { organizationId: orgId } }));

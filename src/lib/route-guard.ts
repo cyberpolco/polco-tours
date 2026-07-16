@@ -21,7 +21,7 @@ export function withAuth<P = Record<string, string>>(
       const ctx = await authService.resolveSession(req.headers);
 
       try {
-        assertCan(ctx.roles, permission);
+        assertCan(ctx, permission);
       } catch {
         // rbac.ts throws a bare Error to stay framework-free; translate here.
         throw Errors.forbidden(`${ctx.roles.join('+')} lacks ${permission}`);

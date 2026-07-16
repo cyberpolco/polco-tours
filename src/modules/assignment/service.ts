@@ -63,7 +63,7 @@ export const assignmentService = {
     departureId: string,
     input: CreateAssignmentInput,
   ): Promise<AssignmentView> {
-    assertCan(ctx.roles, 'assignment.write');
+    assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
 
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
@@ -141,7 +141,7 @@ export const assignmentService = {
    * The caller (staff UI) pre-selects the top pick; the admin can still
    * choose any other eligible candidate instead. */
   async recommendAssignment(ctx: AuthContext, departureId: string): Promise<AssignmentRecommendation> {
-    assertCan(ctx.roles, 'assignment.write');
+    assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
 
@@ -204,14 +204,14 @@ export const assignmentService = {
 
   /** Manager-only -- the staff departure-detail page's data source. */
   async listForDeparture(ctx: AuthContext, departureId: string): Promise<AssignmentView[]> {
-    assertCan(ctx.roles, 'assignment.write');
+    assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 
   async removeAssignment(ctx: AuthContext, assignmentId: string): Promise<void> {
-    assertCan(ctx.roles, 'assignment.write');
+    assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const removed = await assignmentRepository.remove(organizationId, assignmentId);
     if (!removed) throw Errors.notFound('Assignment not found');
@@ -235,7 +235,7 @@ export const assignmentService = {
    * match) and dedupes by assignment id in case the same row surfaces via
    * more than one angle. */
   async listMyAssignments(ctx: AuthContext): Promise<AssignmentView[]> {
-    assertCan(ctx.roles, 'assignment.read');
+    assertCan(ctx, 'assignment.read');
     const organizationId = requireOrg(ctx);
 
     const lists: AssignmentView[][] = [];

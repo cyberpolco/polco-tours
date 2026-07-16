@@ -26,7 +26,7 @@ function isStaff(ctx: AuthContext): boolean {
 
 export const invoicingService = {
   async getOrCreateInvoiceForBooking(ctx: AuthContext, bookingId: string): Promise<InvoiceView> {
-    assertCan(ctx.roles, 'invoice.read');
+    assertCan(ctx, 'invoice.read');
     const organizationId = requireOrg(ctx);
 
     // Anti-BOLA inherited for free: bookingService.getById already 404s if
@@ -89,7 +89,7 @@ export const invoicingService = {
   },
 
   async listPayments(ctx: AuthContext, invoiceId: string): Promise<PaymentView[]> {
-    assertCan(ctx.roles, 'invoice.read');
+    assertCan(ctx, 'invoice.read');
     const organizationId = requireOrg(ctx);
     const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
     if (!detail) throw Errors.notFound('Invoice not found');
@@ -102,7 +102,7 @@ export const invoicingService = {
     invoiceId: string,
     kind: PaymentKind,
   ): Promise<{ payment: PaymentView; redirectUrl: string }> {
-    assertCan(ctx.roles, 'payment.initiate');
+    assertCan(ctx, 'payment.initiate');
     const organizationId = requireOrg(ctx);
 
     const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
@@ -146,7 +146,7 @@ export const invoicingService = {
     paymentId: string,
     outcome: Extract<PaymentStatus, 'SUCCEEDED' | 'FAILED'>,
   ): Promise<{ payment: PaymentView; invoice: InvoiceView }> {
-    assertCan(ctx.roles, 'payment.resolve');
+    assertCan(ctx, 'payment.resolve');
     const organizationId = requireOrg(ctx);
 
     const result = await invoicingRepository.resolvePayment(organizationId, paymentId, outcome);

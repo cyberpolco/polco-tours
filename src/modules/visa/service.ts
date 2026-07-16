@@ -41,7 +41,7 @@ export interface UploadVisaDocumentInput {
 
 export const visaService = {
   async submitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     const traveler = await findTraveler(ctx, bookingId, travelerId);
 
@@ -87,7 +87,7 @@ export const visaService = {
     travelerId: string,
     input: DecideVisaInput,
   ): Promise<VisaApplicationView> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -111,7 +111,7 @@ export const visaService = {
   /** DR-025: closes the DR-019-deferred dead end. Same anti-BOLA/permission
    * shape as submitApplication/decideApplication. */
   async resubmitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -140,7 +140,7 @@ export const visaService = {
    * for that traveler's paperwork -- via the existing notifications module
    * (WhatsApp -> SMS -> email fallback, charter rule 8). */
   async contactTraveler(ctx: AuthContext, bookingId: string, travelerId: string, input: ContactTravelerInput): Promise<void> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     const traveler = await findTraveler(ctx, bookingId, travelerId);
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
@@ -164,7 +164,7 @@ export const visaService = {
   /** Immigration Module (DR-034): "request missing documents" -- same
    * notification target/reasoning as contactTraveler above. */
   async requestMissingDocuments(ctx: AuthContext, bookingId: string, travelerId: string): Promise<void> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     const traveler = await findTraveler(ctx, bookingId, travelerId);
 
@@ -192,7 +192,7 @@ export const visaService = {
     travelerId: string,
     input: UploadVisaDocumentInput,
   ): Promise<DocumentSummary> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -205,7 +205,7 @@ export const visaService = {
   },
 
   async getApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
-    assertCan(ctx.roles, 'documents.read');
+    assertCan(ctx, 'documents.read');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -215,7 +215,7 @@ export const visaService = {
   },
 
   async streamDocument(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {
-    assertCan(ctx.roles, 'documents.read');
+    assertCan(ctx, 'documents.read');
     const organizationId = requireOrg(ctx);
     await findTraveler(ctx, bookingId, travelerId);
 
@@ -236,7 +236,7 @@ export const visaService = {
    * catalogService.getDepartureDetail no longer shows a non-operator role --
    * sort last since there's nothing to prioritize against). */
   async listForFacilitator(ctx: AuthContext): Promise<FacilitatorVisaView[]> {
-    assertCan(ctx.roles, 'visa.process');
+    assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
     const rows = await visaRepository.listAllForFacilitator(organizationId);
 

@@ -6,6 +6,7 @@ import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { bookingService, generateConfirmationCode } from '../../src/modules/booking';
 import type { AuthContext } from '../../src/modules/auth';
+import { DEFAULT_PERMISSIONS } from '../../src/lib/rbac';
 
 // Real RESEND_API_KEY/AFRICAS_TALKING_* credentials now exist in .env/.env.local
 // (2026-07-15) and Vitest loads .env automatically -- without this mock,
@@ -164,6 +165,7 @@ describe('requestQuotation (DR-024)', () => {
     return {
       userId,
       roles: ['TOURIST'],
+      permissions: new Set(DEFAULT_PERMISSIONS.TOURIST),
       organizationId: orgId,
       sessionId: 'test',
       mustChangePassword: false,

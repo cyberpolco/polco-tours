@@ -8,7 +8,7 @@ import { isCountryRegulationWriter, type CountryRegulationView, type CreateCount
 import { immigrationRepository } from './repository';
 
 function requireWriter(ctx: AuthContext): void {
-  assertCan(ctx.roles, 'country_regulation.write');
+  assertCan(ctx, 'country_regulation.write');
   if (!isCountryRegulationWriter(ctx.roles)) {
     throw Errors.forbidden('Only SUPERADMIN may modify country regulations');
   }
@@ -16,12 +16,12 @@ function requireWriter(ctx: AuthContext): void {
 
 export const immigrationService = {
   async listRegulations(ctx: AuthContext): Promise<CountryRegulationView[]> {
-    assertCan(ctx.roles, 'country_regulation.read');
+    assertCan(ctx, 'country_regulation.read');
     return immigrationRepository.list();
   },
 
   async getRegulation(ctx: AuthContext, country: string): Promise<CountryRegulationView> {
-    assertCan(ctx.roles, 'country_regulation.read');
+    assertCan(ctx, 'country_regulation.read');
     const regulation = await immigrationRepository.findByCountry(country.toUpperCase());
     if (!regulation) throw Errors.notFound('No regulation on file for this country');
     return regulation;

@@ -7,6 +7,25 @@ import type { Role } from '@prisma/client';
  *
  * Permissions are `resource.action`. Scope (own/org) is enforced separately by
  * object-level ownership checks in services (anti-BOLA, Vol. 8 API1).
+ *
+ * DR-035 (User Management / permission-matrix editor): what a role grants is
+ * now DB-backed (`RolePermission`, one row per role+permission), not a
+ * static in-memory map -- a SUPERADMIN can edit it at runtime via
+ * `/staff/admin/permissions`. SUPERADMIN itself is the one exception: it
+ * stays a hardcoded, unconditional wildcard below, never stored in the DB
+ * and never editable, so there is always at least one role that can never
+ * be locked out of the system ("Super Admin: full system access", per the
+ * spec). Every other role -- including PLATFORM_ADMIN, which lost its own
+ * hardcoded wildcard this increment -- is fully editable.
+ *
+ * `can`/`assertCan` stay synchronous: the effective permission set is
+ * resolved ONCE per request inside `authService.resolveSession` (already
+ * async, already hitting the DB for the session/user) and attached to
+ * `AuthContext.permissions` -- not re-derived from the DB on every check.
+ * This avoids making `can`/`assertCan` themselves async, which would have
+ * broken `StaffNav` (a client component that can't `await`) and turned
+ * `tests/rbac.test.ts`'s pure, DB-free unit tests into DB-backed ones for
+ * no benefit the already-async session resolution doesn't already give.
  */
 export type Permission =
   | 'catalog.read'
@@ -31,24 +50,51 @@ export type Permission =
   | 'itinerary.write'
   | 'itinerary.approve'
   | 'country_regulation.read'
-  // Granted to NO role explicitly in MATRIX below (DR-034) -- SUPERADMIN and
-  // PLATFORM_ADMIN both pass this at the route/assertCan layer purely via
-  // their '*' wildcard. The real, narrower restriction ("only SUPERADMIN
-  // may write country regulations, PLATFORM_ADMIN may not" -- the first
-  // genuine behavioral gap between the two admin roles in this app) can't be
-  // expressed here: grantsPermission() below short-circuits true for any
-  // wildcard role regardless of which permission is checked, so there is no
-  // way to grant this to SUPERADMIN but not PLATFORM_ADMIN through MATRIX
-  // alone. It's enforced one layer down instead, in
-  // immigration/service.ts's mutation methods, via an explicit
-  // `roles.includes('SUPERADMIN')` check (see isCountryRegulationWriter) --
-  // the same "RBAC decides broad category, service does the narrower
-  // role-identity check" layering already used by isItineraryManager/
-  // isFleetManager for anti-BOLA-style scoping.
+  // Deliberately NOT included in PLATFORM_ADMIN's DR-035 "full access" seed
+  // grants (see prisma/seed.ts) -- immigration/service.ts's
+  // isCountryRegulationWriter check (`roles.includes('SUPERADMIN')`) blocks
+  // every non-SUPERADMIN role unconditionally regardless of what this table
+  // says, so granting it to PLATFORM_ADMIN would just be a checkbox that
+  // silently lies in the matrix editor. This was the first genuine
+  // behavioral gap between the two admin roles in this app (DR-034), before
+  // PLATFORM_ADMIN lost its own hardcoded wildcard entirely (DR-035).
   | 'country_regulation.write'
   | 'admin.all';
 
-type RoleName =
+/** Runtime enumeration of every Permission literal -- powers the
+ * permission-matrix editor's columns (DR-035). Keep in sync with the
+ * `Permission` union above by hand; there's no existing automatic
+ * completeness check in this file for role/permission lists (same as
+ * ASSIGNABLE_ROLES not being checked against the Role enum), so add new
+ * permissions here when adding them to the union. */
+export const ALL_PERMISSIONS = [
+  'catalog.read',
+  'catalog.write',
+  'booking.create',
+  'booking.read',
+  'booking.confirm',
+  'booking.cancel',
+  'assignment.read',
+  'assignment.write',
+  'finance.read',
+  'invoice.read',
+  'payment.initiate',
+  'payment.resolve',
+  'profile.write',
+  'documents.read',
+  'documents.write',
+  'visa.process',
+  'fleet.read',
+  'fleet.write',
+  'itinerary.read',
+  'itinerary.write',
+  'itinerary.approve',
+  'country_regulation.read',
+  'country_regulation.write',
+  'admin.all',
+] as const satisfies readonly Permission[];
+
+export type RoleName =
   | 'SUPERADMIN'
   | 'PLATFORM_ADMIN'
   | 'TOUR_OPERATOR'
@@ -58,10 +104,56 @@ type RoleName =
   | 'VISA_FACILITATOR'
   | 'TOURIST';
 
-// A role's granted permissions. '*' means all (superadmin).
-const MATRIX: Record<RoleName, Permission[] | ['*']> = {
-  SUPERADMIN: ['*'],
-  PLATFORM_ADMIN: ['*'],
+/** Every role whose grants live in the DB-backed RolePermission table
+ * (DR-035) -- every role except SUPERADMIN, which is hardcoded and never
+ * gets rows. Used by the permission-matrix editor to enumerate rows and by
+ * prisma/seed.ts to know what to seed. */
+export const EDITABLE_ROLES = [
+  'PLATFORM_ADMIN',
+  'TOUR_OPERATOR',
+  'TOUR_GUIDE',
+  'DRIVER',
+  'VEHICLE_OWNER',
+  'VISA_FACILITATOR',
+  'TOURIST',
+] as const satisfies readonly Exclude<RoleName, 'SUPERADMIN'>[];
+
+/**
+ * DR-035: the historical default permission set, one-time-seeded into
+ * `RolePermission` (see prisma/seed.ts) and never consulted directly by
+ * `can()`/`assertCan()` after that -- kept here purely as a readable record
+ * of what used to be hardcoded, and as the seed script's data source.
+ * SUPERADMIN is deliberately absent (see the Permission union's top-of-file
+ * comment): it never gets DB rows, and PLATFORM_ADMIN's list below is the
+ * former SUPERADMIN-equivalent "full access" set MINUS
+ * `country_regulation.write` (see that permission's own comment for why).
+ */
+export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]> = {
+  PLATFORM_ADMIN: [
+    'catalog.read',
+    'catalog.write',
+    'booking.create',
+    'booking.read',
+    'booking.confirm',
+    'booking.cancel',
+    'assignment.read',
+    'assignment.write',
+    'finance.read',
+    'invoice.read',
+    'payment.initiate',
+    'payment.resolve',
+    'profile.write',
+    'documents.read',
+    'documents.write',
+    'visa.process',
+    'fleet.read',
+    'fleet.write',
+    'itinerary.read',
+    'itinerary.write',
+    'itinerary.approve',
+    'country_regulation.read',
+    'admin.all',
+  ],
   TOUR_OPERATOR: [
     'catalog.read',
     'catalog.write',
@@ -151,19 +243,32 @@ const MATRIX: Record<RoleName, Permission[] | ['*']> = {
 };
 
 /**
- * DR-026: a user may hold several simultaneous roles (Membership rows) --
- * `can` grants a permission if ANY held role grants it (union semantics).
- * `roles` is always non-empty (resolveSession falls back to [User.role]
- * when a user has no Membership rows, e.g. every tourist/guest).
+ * Structural, not nominal -- `AuthContext` (src/modules/auth/domain.ts)
+ * satisfies this without importing it, keeping rbac.ts dependency-free
+ * (same reasoning the old code gave for lazily importing Error). `roles` is
+ * always non-empty (resolveSession falls back to [User.role] when a user
+ * has no Membership rows, e.g. every tourist/guest). `permissions` is the
+ * union of every DB-backed grant across all held roles, resolved once per
+ * request by `authService.resolveSession` (DR-035) -- never re-queried
+ * here.
  */
-function grantsPermission(role: Role, permission: Permission): boolean {
-  const grants = MATRIX[role as RoleName];
-  if (!grants) return false; // unknown role -> deny
-  return grants[0] === '*' || (grants as Permission[]).includes(permission);
+export interface PermissionSource {
+  roles: Role[];
+  permissions: ReadonlySet<Permission>;
 }
 
-export function can(roles: Role[], permission: Permission): boolean {
-  return roles.some((role) => grantsPermission(role, permission));
+/**
+ * DR-026: a user may hold several simultaneous roles (Membership rows) --
+ * `can` grants a permission if ANY held role grants it, which is why the
+ * union is precomputed as a flat set rather than checked per-role here.
+ * DR-035: SUPERADMIN is the one hardcoded exception -- an unconditional
+ * wildcard that bypasses `permissions` entirely, so this platform always
+ * has at least one role that can never be locked out by a permission-matrix
+ * edit gone wrong.
+ */
+export function can(ctx: PermissionSource, permission: Permission): boolean {
+  if (ctx.roles.includes('SUPERADMIN')) return true;
+  return ctx.permissions.has(permission);
 }
 
 /**
@@ -180,9 +285,9 @@ export function isStaffRole(roles: Role[]): boolean {
 }
 
 /** Throwable guard for use in services/route handlers. */
-export function assertCan(roles: Role[], permission: Permission): void {
-  if (!can(roles, permission)) {
+export function assertCan(ctx: PermissionSource, permission: Permission): void {
+  if (!can(ctx, permission)) {
     // Imported lazily to keep this module free of framework deps for unit tests.
-    throw new Error(`FORBIDDEN: ${roles.join('+')} lacks ${permission}`);
+    throw new Error(`FORBIDDEN: ${ctx.roles.join('+')} lacks ${permission}`);
   }
 }

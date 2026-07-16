@@ -4,6 +4,7 @@
 import { PrismaClient, Role, OrgStatus, AddonCode, Currency, PackageTag, PackageStatus } from '@prisma/client';
 import { formatPackageReference } from '@modules/catalog';
 import { withOrg } from '@lib/db';
+import { EDITABLE_ROLES, DEFAULT_PERMISSIONS } from '@lib/rbac';
 
 const prisma = new PrismaClient();
 
@@ -272,6 +273,25 @@ async function main() {
     });
   }
 
+  // --- Role permissions (User Management / permission-matrix editor,
+  // DR-035) -- one-time seed of the historical DEFAULT_PERMISSIONS map into
+  // the DB-backed RolePermission table. SUPERADMIN deliberately excluded:
+  // it never gets rows, staying a hardcoded wildcard in rbac.ts's can().
+  // `update: {}` makes this create-if-missing, not a resync -- re-running
+  // this seed must never clobber a SUPERADMIN's live edit made via
+  // /staff/admin/permissions after the initial seed. ---
+  let rolePermissionCount = 0;
+  for (const role of EDITABLE_ROLES) {
+    for (const permission of DEFAULT_PERMISSIONS[role]) {
+      await prisma.rolePermission.upsert({
+        where: { role_permission: { role: role as Role, permission } },
+        update: {},
+        create: { role: role as Role, permission },
+      });
+      rolePermissionCount++;
+    }
+  }
+
   console.log('Seeded:', {
     operator: lam.name,
     superadmin: admin.email,
@@ -279,6 +299,7 @@ async function main() {
     countryRegulations: countryRegulations.length,
     addonServices: addons.length,
     packages: packages.length,
+    rolePermissions: rolePermissionCount,
   });
 }
 

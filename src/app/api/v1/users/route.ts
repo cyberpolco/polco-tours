@@ -5,8 +5,8 @@ import { CreateUserInput, authService } from '@modules/auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Admin-only (SUPERADMIN/PLATFORM_ADMIN via '*') -- powers the general
-// user-management page (DR-026), replacing CLI-only staff account creation.
+// Admin-only (admin.all) -- powers the general user-management page
+// (DR-026), replacing CLI-only staff account creation.
 export const GET = withAuth('admin.all', async (ctx) => {
   const users = await authService.listUsers(ctx);
   return NextResponse.json({ users });

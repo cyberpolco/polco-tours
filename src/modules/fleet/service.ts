@@ -50,19 +50,19 @@ export interface UploadComplianceDocumentInput {
 
 export const fleetService = {
   async createVehicle(ctx: AuthContext, input: CreateVehicleInput): Promise<VehicleView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     return fleetRepository.createVehicle(requireOrg(ctx), input);
   },
 
   async updateVehicle(ctx: AuthContext, vehicleId: string, input: UpdateVehicleInput): Promise<VehicleView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const updated = await fleetRepository.updateVehicle(requireOrg(ctx), vehicleId, input);
     if (!updated) throw Errors.notFound('Vehicle not found');
     return updated;
   },
 
   async getVehicle(ctx: AuthContext, vehicleId: string): Promise<VehicleView> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     const vehicle = await fleetRepository.findVehicleById(requireOrg(ctx), vehicleId);
     // Ownership check returns notFound (not forbidden) so a non-owner can't
     // tell a vehicle exists at all -- same convention as invoicing/service.ts.
@@ -73,7 +73,7 @@ export const fleetService = {
   },
 
   async listVehicles(ctx: AuthContext): Promise<VehicleView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     const all = await fleetRepository.listVehicles(requireOrg(ctx));
     if (isFleetManager(ctx.roles)) return all;
     // VEHICLE_OWNER sees only their own vehicles; any other fleet.read role
@@ -83,7 +83,7 @@ export const fleetService = {
   },
 
   async createDriverProfile(ctx: AuthContext, input: CreateDriverProfileInput): Promise<DriverProfileView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     return fleetRepository.createDriverProfile(requireOrg(ctx), input);
   },
 
@@ -92,14 +92,14 @@ export const fleetService = {
     driverProfileId: string,
     input: UpdateDriverProfileInput,
   ): Promise<DriverProfileView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const updated = await fleetRepository.updateDriverProfile(requireOrg(ctx), driverProfileId, input);
     if (!updated) throw Errors.notFound('Driver profile not found');
     return updated;
   },
 
   async getDriverProfile(ctx: AuthContext, driverProfileId: string): Promise<DriverProfileView> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     const profile = await fleetRepository.findDriverProfileById(requireOrg(ctx), driverProfileId);
     if (!profile || (!isFleetManager(ctx.roles) && profile.userId !== ctx.userId)) {
       throw Errors.notFound('Driver profile not found');
@@ -109,7 +109,7 @@ export const fleetService = {
 
   /** Managers only -- a DRIVER looks up their own profile via getDriverProfile. */
   async listDriverProfiles(ctx: AuthContext): Promise<DriverProfileView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (!isFleetManager(ctx.roles)) throw Errors.forbidden('Only fleet managers may list all driver profiles');
     return fleetRepository.listDriverProfiles(requireOrg(ctx));
   },
@@ -118,7 +118,7 @@ export const fleetService = {
    * have one) -- used by assignment/service.ts's listMyAssignments (DR-018),
    * since a DRIVER's assignments are keyed by driverProfileId, not userId. */
   async getMyDriverProfile(ctx: AuthContext): Promise<DriverProfileView | null> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     return fleetRepository.findDriverProfileByUserId(requireOrg(ctx), ctx.userId);
   },
 
@@ -129,13 +129,13 @@ export const fleetService = {
    * own assignment even though they don't own it; the assignment itself is
    * the caller's authorization, not fleet ownership. */
   async listVehiclesByIds(ctx: AuthContext, ids: string[]): Promise<VehicleView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (ids.length === 0) return [];
     return fleetRepository.findVehiclesByIds(requireOrg(ctx), ids);
   },
 
   async listDriverProfilesByIds(ctx: AuthContext, ids: string[]): Promise<DriverProfileView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (ids.length === 0) return [];
     return fleetRepository.findDriverProfilesByIds(requireOrg(ctx), ids);
   },
@@ -143,7 +143,7 @@ export const fleetService = {
   // ------------------------------------------------------------ guides (DR-030)
 
   async createGuideProfile(ctx: AuthContext, input: CreateGuideProfileInput): Promise<GuideProfileView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     return fleetRepository.createGuideProfile(requireOrg(ctx), input);
   },
 
@@ -152,14 +152,14 @@ export const fleetService = {
     guideProfileId: string,
     input: UpdateGuideProfileInput,
   ): Promise<GuideProfileView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const updated = await fleetRepository.updateGuideProfile(requireOrg(ctx), guideProfileId, input);
     if (!updated) throw Errors.notFound('Guide profile not found');
     return updated;
   },
 
   async getGuideProfile(ctx: AuthContext, guideProfileId: string): Promise<GuideProfileView> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     const profile = await fleetRepository.findGuideProfileById(requireOrg(ctx), guideProfileId);
     if (!profile || (!isFleetManager(ctx.roles) && profile.userId !== ctx.userId)) {
       throw Errors.notFound('Guide profile not found');
@@ -169,7 +169,7 @@ export const fleetService = {
 
   /** Managers only -- a TOUR_GUIDE looks up their own profile via getGuideProfile. */
   async listGuideProfiles(ctx: AuthContext): Promise<GuideProfileView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (!isFleetManager(ctx.roles)) throw Errors.forbidden('Only fleet managers may list all guide profiles');
     return fleetRepository.listGuideProfiles(requireOrg(ctx));
   },
@@ -177,7 +177,7 @@ export const fleetService = {
   /** Resolves the caller's own GuideProfile by userId (null if they don't
    * have one yet) -- mirrors getMyDriverProfile. */
   async getMyGuideProfile(ctx: AuthContext): Promise<GuideProfileView | null> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     return fleetRepository.findGuideProfileByUserId(requireOrg(ctx), ctx.userId);
   },
 
@@ -187,7 +187,7 @@ export const fleetService = {
    * getGuideProfile/getMyGuideProfile this is keyed by User.id, since
    * Assignment.guideUserId references User directly, not GuideProfile. */
   async findGuideProfileByUserId(ctx: AuthContext, userId: string): Promise<GuideProfileView | null> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (!isFleetManager(ctx.roles)) throw Errors.forbidden('Only fleet managers may look up another user\'s guide profile');
     return fleetRepository.findGuideProfileByUserId(requireOrg(ctx), userId);
   },
@@ -196,7 +196,7 @@ export const fleetService = {
    * same "caller already gates" convention as listVehiclesByIds/
    * listDriverProfilesByIds (DR-021). */
   async listGuideProfilesByIds(ctx: AuthContext, ids: string[]): Promise<GuideProfileView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (ids.length === 0) return [];
     return fleetRepository.findGuideProfilesByIds(requireOrg(ctx), ids);
   },
@@ -206,7 +206,7 @@ export const fleetService = {
     guideProfileId: string,
     input: UploadComplianceDocumentInput,
   ): Promise<DocumentSummary> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const profile = await fleetRepository.findGuideProfileById(requireOrg(ctx), guideProfileId);
     if (!profile) throw Errors.notFound('Guide profile not found');
     return documentsService.uploadDocument(ctx, { ...input, guideProfileId });
@@ -222,7 +222,7 @@ export const fleetService = {
     vehicleId: string,
     input: UploadComplianceDocumentInput,
   ): Promise<DocumentSummary> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     await fleetService.getVehicle(ctx, vehicleId); // 404s if the vehicle isn't in this org
     return documentsService.uploadDocument(ctx, { ...input, vehicleId });
   },
@@ -237,7 +237,7 @@ export const fleetService = {
     driverProfileId: string,
     input: UploadComplianceDocumentInput,
   ): Promise<DocumentSummary> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const profile = await fleetRepository.findDriverProfileById(requireOrg(ctx), driverProfileId);
     if (!profile) throw Errors.notFound('Driver profile not found');
     return documentsService.uploadDocument(ctx, { ...input, driverProfileId });
@@ -255,7 +255,7 @@ export const fleetService = {
     vehicleId: string,
     input: CreateMaintenanceRecordInput,
   ): Promise<MaintenanceRecordView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const organizationId = requireOrg(ctx);
     await fleetService.getVehicle(ctx, vehicleId); // 404s if not in this org
     const record = await fleetRepository.createMaintenanceRecord(organizationId, vehicleId, input);
@@ -271,7 +271,7 @@ export const fleetService = {
   },
 
   async listMaintenanceRecords(ctx: AuthContext, vehicleId: string): Promise<MaintenanceRecordView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     await fleetService.getVehicle(ctx, vehicleId); // fleet.read + ownership check
     return fleetRepository.listMaintenanceRecordsForVehicle(requireOrg(ctx), vehicleId);
   },
@@ -279,7 +279,7 @@ export const fleetService = {
   // ------------------------------------------------------------ Starlink kits (DR-029)
 
   async createStarlinkKit(ctx: AuthContext, input: CreateStarlinkKitInput): Promise<StarlinkKitView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const organizationId = requireOrg(ctx);
     const kit = await fleetRepository.createStarlinkKit(organizationId, input);
     await audit({
@@ -294,7 +294,7 @@ export const fleetService = {
   },
 
   async updateStarlinkKit(ctx: AuthContext, kitId: string, input: UpdateStarlinkKitInput): Promise<StarlinkKitView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const organizationId = requireOrg(ctx);
     const updated = await fleetRepository.updateStarlinkKit(organizationId, kitId, input);
     if (!updated) throw Errors.notFound('Starlink kit not found');
@@ -304,7 +304,7 @@ export const fleetService = {
   /** Staff-entered position (no live API feed yet -- see the StarlinkKit
    * model comment in schema.prisma). */
   async setStarlinkLocation(ctx: AuthContext, kitId: string, input: SetStarlinkLocationInput): Promise<StarlinkKitView> {
-    assertCan(ctx.roles, 'fleet.write');
+    assertCan(ctx, 'fleet.write');
     const organizationId = requireOrg(ctx);
     const updated = await fleetRepository.updateStarlinkKit(organizationId, kitId, {
       lastLatitude: input.latitude,
@@ -316,21 +316,21 @@ export const fleetService = {
   },
 
   async getStarlinkKit(ctx: AuthContext, kitId: string): Promise<StarlinkKitView> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     const kit = await fleetRepository.findStarlinkKitById(requireOrg(ctx), kitId);
     if (!kit) throw Errors.notFound('Starlink kit not found');
     return kit;
   },
 
   async listStarlinkKits(ctx: AuthContext): Promise<StarlinkKitView[]> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     return fleetRepository.listStarlinkKits(requireOrg(ctx));
   },
 
   /** Backs assignmentService.recommendAssignment's maintenance-recency
    * scoring -- one query across every candidate vehicle, not an N+1. */
   async getMaintenanceRecencyByVehicleIds(ctx: AuthContext, vehicleIds: string[]): Promise<Map<string, Date>> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (vehicleIds.length === 0) return new Map();
     return fleetRepository.findMostRecentMaintenanceByVehicleIds(requireOrg(ctx), vehicleIds);
   },
@@ -341,7 +341,7 @@ export const fleetService = {
     ctx: AuthContext,
     vehicleIds: string[],
   ): Promise<Map<string, { latitude: number; longitude: number }>> {
-    assertCan(ctx.roles, 'fleet.read');
+    assertCan(ctx, 'fleet.read');
     if (vehicleIds.length === 0) return new Map();
     const kits = await fleetRepository.findStarlinkKitsByVehicleIds(requireOrg(ctx), vehicleIds);
     const locations = new Map<string, { latitude: number; longitude: number }>();

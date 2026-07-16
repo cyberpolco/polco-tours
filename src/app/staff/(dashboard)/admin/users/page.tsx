@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService } from '@modules/auth';
 import { Badge } from '@/components/ui/Badge';
@@ -48,13 +49,20 @@ export default async function UsersPage() {
                 <Badge tone={u.deletedAt ? 'danger' : 'success'}>{u.deletedAt ? 'Deactivated' : 'Active'}</Badge>
               </Td>
               <Td>
-                {u.id !== ctx.userId && !u.deletedAt && (
-                  <form action={deactivateUserAction.bind(null, u.id)}>
-                    <SubmitButton variant="secondary" size="compact">
-                      Deactivate
-                    </SubmitButton>
-                  </form>
-                )}
+                <div className="flex items-center gap-3">
+                  {u.id !== ctx.userId && (
+                    <Link href={`/staff/admin/users/${u.id}`} className="text-forest hover:underline">
+                      Edit
+                    </Link>
+                  )}
+                  {u.id !== ctx.userId && !u.deletedAt && (
+                    <form action={deactivateUserAction.bind(null, u.id)}>
+                      <SubmitButton variant="secondary" size="compact">
+                        Deactivate
+                      </SubmitButton>
+                    </form>
+                  )}
+                </div>
               </Td>
             </Tr>
           ))}

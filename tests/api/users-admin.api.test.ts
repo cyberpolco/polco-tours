@@ -5,7 +5,8 @@ import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 
 const { GET: listUsers, POST: createUser } = await import('../../src/app/api/v1/users/route');
-const { DELETE: deactivateUser } = await import('../../src/app/api/v1/users/[userId]/route');
+const { PATCH: updateUser, DELETE: deactivateUser } = await import('../../src/app/api/v1/users/[userId]/route');
+const { POST: resetPassword } = await import('../../src/app/api/v1/users/[userId]/reset-password/route');
 const { PATCH: updateProfile } = await import('../../src/app/api/v1/users/me/route');
 
 /** DR-026: admin user-management routes -- distinct from tests/api/users.api.test.ts, which covers the self-service /users/me route. */
@@ -156,6 +157,110 @@ describe('DELETE /api/v1/users/:userId', () => {
       headers,
     });
     const res = await deactivateUser(req, { params: Promise.resolve({ userId: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
+  });
+});
+
+/** DR-035: edit an existing user's profile fields and/or role set. */
+describe('PATCH /api/v1/users/:userId', () => {
+  let editTargetId: string;
+
+  beforeAll(async () => {
+    const target = await admin.user.create({
+      data: { email: `edit-target-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId },
+    });
+    editTargetId = target.id;
+  });
+
+  it('a SUPERADMIN edits a user\'s name/phone/roles (200)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/users/${editTargetId}`, headers, 'PATCH', {
+      name: 'Renamed Driver',
+      phone: '+264811112222',
+      roles: ['DRIVER', 'TOUR_GUIDE'],
+    });
+    const res = await updateUser(req, { params: Promise.resolve({ userId: editTargetId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.user.name).toBe('Renamed Driver');
+    expect(body.user.roles.sort()).toEqual(['DRIVER', 'TOUR_GUIDE']);
+
+    const memberships = await withOrg(orgId, (tx) => tx.membership.findMany({ where: { userId: editTargetId } }));
+    expect(memberships.map((m) => m.role).sort()).toEqual(['DRIVER', 'TOUR_GUIDE']);
+  });
+
+  it('a SUPERADMIN cannot edit their own account this way (409)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/users/${superadminId}`, headers, 'PATCH', { name: 'Self Edit' });
+    const res = await updateUser(req, { params: Promise.resolve({ userId: superadminId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects an edit to an already-used email (409)', async () => {
+    const headers = await loginAs(superadminId);
+    const existing = await admin.user.findUniqueOrThrow({ where: { id: superadminId } });
+    const req = jsonRequest(`http://localhost/api/v1/users/${editTargetId}`, headers, 'PATCH', { email: existing.email });
+    const res = await updateUser(req, { params: Promise.resolve({ userId: editTargetId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('editing an unknown user 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(
+      'http://localhost/api/v1/users/00000000-0000-0000-0000-000000000000',
+      headers,
+      'PATCH',
+      { name: 'Ghost' },
+    );
+    const res = await updateUser(req, { params: Promise.resolve({ userId: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
+  });
+});
+
+/** DR-035: generate-and-reveal-once a new temporary password for an existing user. */
+describe('POST /api/v1/users/:userId/reset-password', () => {
+  let resetTargetId: string;
+
+  beforeAll(async () => {
+    const target = await admin.user.create({
+      data: { email: `reset-target-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId },
+    });
+    resetTargetId = target.id;
+  });
+
+  it("a SUPERADMIN resets a user's password, returning it once (200)", async () => {
+    const headers = await loginAs(superadminId);
+    const req = new NextRequest(`http://localhost/api/v1/users/${resetTargetId}/reset-password`, {
+      method: 'POST',
+      headers,
+    });
+    const res = await resetPassword(req, { params: Promise.resolve({ userId: resetTargetId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.temporaryPassword).toBe('string');
+    expect(body.temporaryPassword.length).toBeGreaterThanOrEqual(16);
+
+    const updated = await admin.user.findUniqueOrThrow({ where: { id: resetTargetId } });
+    expect(updated.mustChangePassword).toBe(true);
+  });
+
+  it('a SUPERADMIN cannot reset their own password this way (409)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = new NextRequest(`http://localhost/api/v1/users/${superadminId}/reset-password`, {
+      method: 'POST',
+      headers,
+    });
+    const res = await resetPassword(req, { params: Promise.resolve({ userId: superadminId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('resetting an unknown user\'s password 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = new NextRequest('http://localhost/api/v1/users/00000000-0000-0000-0000-000000000000/reset-password', {
+      method: 'POST',
+      headers,
+    });
+    const res = await resetPassword(req, { params: Promise.resolve({ userId: '00000000-0000-0000-0000-000000000000' }) });
     expect(res.status).toBe(404);
   });
 });

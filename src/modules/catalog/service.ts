@@ -52,26 +52,26 @@ function requireOrg(ctx: AuthContext): string {
 
 export const catalogService = {
   async createPackage(ctx: AuthContext, input: CreatePackageInput): Promise<TourPackageView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     return catalogRepository.createPackage(requireOrg(ctx), input);
   },
 
   async updatePackage(ctx: AuthContext, packageId: string, input: UpdatePackageInput): Promise<TourPackageView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const updated = await catalogRepository.updatePackage(requireOrg(ctx), packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
   },
 
   async getPackage(ctx: AuthContext, packageId: string): Promise<TourPackageView> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const pkg = await catalogRepository.findPackageById(requireOrg(ctx), packageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
     return pkg;
   },
 
   async listPackages(ctx: AuthContext): Promise<TourPackageView[]> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const all = await catalogRepository.listPackages(requireOrg(ctx));
     return all.filter((p) => isPackageVisible(p, ctx.roles));
   },
@@ -81,7 +81,7 @@ export const catalogService = {
     packageId: string,
     input: CreateDepartureInput,
   ): Promise<DepartureView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg) throw Errors.notFound('Package not found');
@@ -95,7 +95,7 @@ export const catalogService = {
     departureId: string,
     input: SetDeparturePickupLocationInput,
   ): Promise<DepartureView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const updated = await catalogRepository.setDeparturePickupLocation(organizationId, departureId, input);
     if (!updated) throw Errors.notFound('Departure not found');
@@ -103,7 +103,7 @@ export const catalogService = {
   },
 
   async listDepartures(ctx: AuthContext, packageId: string): Promise<DepartureView[]> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
@@ -119,7 +119,7 @@ export const catalogService = {
    * up any other way (module boundary). Never bookable -- it's not for
    * public sale, it exists for exactly the one group it was created for. */
   async getDepartureDetail(ctx: AuthContext, departureId: string): Promise<DepartureDetail> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const organizationId = requireOrg(ctx);
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure) throw Errors.notFound('Departure not found');
@@ -154,7 +154,7 @@ export const catalogService = {
   /** Soft delete (DR-028) -- hides it from every listing (all reads already
    * filter deletedAt: null); no cascade risk to real Departures/Bookings. */
   async deletePackage(ctx: AuthContext, packageId: string): Promise<void> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const deleted = await catalogRepository.deletePackage(organizationId, packageId);
     if (!deleted) throw Errors.notFound('Package not found');
@@ -171,7 +171,7 @@ export const catalogService = {
   /** Clones the package definition only, as a new DRAFT package -- no
    * departures come along (old dates wouldn't make sense on a copy). */
   async duplicatePackage(ctx: AuthContext, packageId: string): Promise<TourPackageView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const duplicated = await catalogRepository.duplicatePackage(organizationId, packageId);
     if (!duplicated) throw Errors.notFound('Package not found');
@@ -192,7 +192,7 @@ export const catalogService = {
    * knowledge of Booking at all (module boundary); bookingService.
    * convertToItinerary builds these from its own already-validated fields. */
   async createBespokeDeparture(ctx: AuthContext, params: CreateBespokeDepartureParams): Promise<DepartureView> {
-    assertCan(ctx.roles, 'catalog.write');
+    assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const departure = await catalogRepository.createBespokeDeparture(organizationId, params);
     await audit({
@@ -208,13 +208,13 @@ export const catalogService = {
 
   /** Staff-managed, read-only for now -- seeded via prisma/seed.ts. */
   async listActiveAddonServices(ctx: AuthContext): Promise<AddonServiceView[]> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     return catalogRepository.listActiveAddonServices(requireOrg(ctx));
   },
 
   /** The cross-module entry point the booking module calls to price-snapshot a selection. */
   async getAddonService(ctx: AuthContext, addonServiceId: string): Promise<AddonServiceView> {
-    assertCan(ctx.roles, 'catalog.read');
+    assertCan(ctx, 'catalog.read');
     const addon = await catalogRepository.findAddonServiceById(requireOrg(ctx), addonServiceId);
     if (!addon || !addon.active) throw Errors.notFound('Add-on service not found');
     return addon;

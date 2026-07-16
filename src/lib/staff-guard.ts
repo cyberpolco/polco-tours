@@ -51,7 +51,7 @@ export async function requireStaffContext(permission?: Permission): Promise<Auth
   if (ctx.mustChangePassword) redirect('/staff/change-password');
   if (permission) {
     try {
-      assertCan(ctx.roles, permission);
+      assertCan(ctx, permission);
     } catch {
       redirect('/staff/forbidden');
     }

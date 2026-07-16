@@ -5,7 +5,8 @@ import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 
 const { GET: listUsers, POST: createUser } = await import('../../src/app/api/v1/users/route');
-const { DELETE: deactivateUser } = await import('../../src/app/api/v1/users/[userId]/route');
+const { PATCH: updateUser, DELETE: deactivateUser } = await import('../../src/app/api/v1/users/[userId]/route');
+const { POST: resetPassword } = await import('../../src/app/api/v1/users/[userId]/reset-password/route');
 
 /**
  * DR-026: only SUPERADMIN/PLATFORM_ADMIN (admin.all, via '*') may reach any
@@ -97,5 +98,22 @@ describe('anti-BOLA: only admin.all may reach /users* (DR-026)', () => {
       { params: Promise.resolve({ userId: targetId }) },
     );
     expect(deactivateRes.status).toBe(403);
+  });
+
+  it('a TOURIST/TOUR_OPERATOR (no admin.all) gets 403 on PATCH /users/:id and POST .../reset-password (DR-035)', async () => {
+    for (const userId of [touristId, operatorId]) {
+      const headers = await loginAs(userId);
+      const editRes = await updateUser(
+        jsonRequest(`http://localhost/api/v1/users/${targetId}`, headers, 'PATCH', { name: 'Hacked' }),
+        { params: Promise.resolve({ userId: targetId }) },
+      );
+      expect(editRes.status).toBe(403);
+
+      const resetRes = await resetPassword(
+        new NextRequest(`http://localhost/api/v1/users/${targetId}/reset-password`, { method: 'POST', headers }),
+        { params: Promise.resolve({ userId: targetId }) },
+      );
+      expect(resetRes.status).toBe(403);
+    }
   });
 });

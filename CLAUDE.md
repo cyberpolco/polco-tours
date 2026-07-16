@@ -9,11 +9,13 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-11, against repo HEAD `41ed25c` (DR-021, self-service
-> "my schedule" portal, complete). This revision also confirms Production's
-> `INVALID_ORIGIN` sign-in bug is fixed, and records that this session's
-> "incorrect password" report was a missing-credential issue, not a bug —
-> see Gotchas.
+> Last updated: 2026-07-16, against repo HEAD `a135844` (DR-035, User
+> Management + a runtime permission-matrix editor, in progress — DR-035
+> itself is not yet committed as of this revision). Also records the DR-034
+> Immigration Module/Country Regulations/Zambia+Zimbabwe expansion, and a
+> systemic test-fixture bug (undefined-id fixtures silently turning into
+> unscoped `deleteMany({})` calls) that wiped the real `users` table twice
+> this session — fixed across 51 files, see Gotchas.
 
 The governance record in `docs/decisions/DECISION_LOG.md` is the **canonical,
 in-repo source of truth** and must be kept current (DR-007). The 11-volume
@@ -122,6 +124,19 @@ src/
     api/v1/invoices/[invoiceId]/payments  #   ...
     api/v1/payments/[paymentId]/resolve   #   ...
     api/v1/users/me                       # profile self-service (DR-013)
+    api/v1/users(/[userId](/reset-password)) # admin user management (DR-026);
+                                           #   PATCH /users/[userId] (edit
+                                           #   name/email/phone/roles) +
+                                           #   POST .../reset-password
+                                           #   added DR-035
+    api/v1/permissions                    # runtime permission-matrix editor
+                                           #   (DR-035): route-level gate is
+                                           #   admin.all (broad category),
+                                           #   but GET/PATCH are both
+                                           #   SUPERADMIN-only one layer
+                                           #   down in authService --
+                                           #   PLATFORM_ADMIN passes the
+                                           #   route but 403s in the service
     api/v1/fleet/vehicles(/[vehicleId](/documents(/[documentId]))),
       api/v1/fleet/drivers(/[driverProfileId](/documents(/[documentId])))
                                            # fleet + compliance (DR-017)
@@ -157,6 +172,10 @@ src/
                                            #   Restaurant reference entities
     api/auth/[...all]/                    # Better Auth's own mount (DR-014)
     staff/login, staff/forbidden          # outside the auth gate (DR-014)
+    staff/change-password                 # forced first-login flow for
+                                           #   admin-created accounts
+                                           #   (mustChangePassword, DR-026),
+                                           #   also outside the auth gate
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
       baseline gate is "any staff role" (isStaffRole), not one hardcoded
       permission, since DR-020 -- StaffNav filters links per-role
@@ -190,6 +209,12 @@ src/
         rendered only for SUPERADMIN (PLATFORM_ADMIN passes the route-level
         permission but would 403 in the service, so the UI hides rather
         than dangles those controls)
+      admin/users(/[userId]) = user management (DR-026); edit form + reveal-
+        once reset-password panel added to the detail page in DR-035
+      admin/permissions = runtime permission-matrix editor (DR-035),
+        SUPERADMIN-only -- explicit redirect to /staff/forbidden for anyone
+        else, beyond the route's own admin.all gate; 168 auto-submitting
+        checkboxes (EDITABLE_ROLES x ALL_PERMISSIONS), no batch save step
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -320,6 +345,16 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 - **RBAC** (`src/lib/rbac.ts`) is the app-layer source of truth; RLS is defense
   in depth. Every API route declares a required permission; unmapped routes
   fail closed. Re-check object ownership in services (anti-BOLA).
+  **Since DR-035**, what a role grants is DB-backed (`RolePermission`, global
+  table, no RLS — same precedent as `TaxRate`) and editable at runtime by
+  SUPERADMIN via `/staff/admin/permissions`, not a static in-memory map.
+  SUPERADMIN itself is the one hardcoded, permanently-uneditable wildcard
+  exception (`can`/`assertCan` short-circuit true for it, never consulting
+  the DB) — every other role, including PLATFORM_ADMIN, is fully editable.
+  `can`/`assertCan` now take a `PermissionSource` (`{ roles, permissions }`)
+  instead of a bare role list; the permission set is resolved once per
+  request inside `authService.resolveSession` and attached to
+  `AuthContext.permissions`, keeping both functions synchronous.
 - **Launch tenancy (DR-005):** single operator **Lam** (Namibia + DRC), seeded
   as `lam@polcotours.com` with role `SUPERADMIN` (PLATFORM_ADMIN + own-org
   TOUR_OPERATOR). Multi-tenant isolation stays on so more operators can onboard
@@ -445,7 +480,10 @@ review that killed an insecure design before code was written** — do that.
   crude audit-log-backed limiter on booking lookup, DR-016); real Upstash
   rate-limiting is a known gap.
 - **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes denied;
-  `SUPERADMIN`/`admin.all` actions are audited.
+  `SUPERADMIN`/`admin.all` actions are audited. Since DR-035 the permission
+  matrix itself is a runtime-editable, SUPERADMIN-only attack surface — a
+  role-identity check (`isSuperAdmin`), not just a permission, gates who can
+  write it, and SUPERADMIN's own access can never be edited away.
 
 **OWASP focus for this app:** BOLA is the #1 marketplace risk — every read/write
 re-checks object ownership *and* is backstopped by RLS, with dedicated
@@ -1086,6 +1124,55 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   content. Packages in the new countries stay priced in `USD`/`EUR` (no new
   `Currency` enum value). Per explicit user choice, the guest Contact page
   was **not** extended with fabricated Zambia/Zimbabwe office entries.
+- **User Management done 2026-07-16 (DR-035):** against an external spec
+  giving `SUPERADMIN` "Add/Remove/Edit users, Reset passwords, Manage
+  permissions, Configure system settings" and `TOUR_OPERATOR` only
+  operational access. User picked the large reading of "Manage
+  permissions" -- a full runtime permission-matrix editor, not just
+  per-user role editing -- so this is the first change to how RBAC itself
+  is sourced. New `RolePermission` table (global, no `organizationId`/RLS,
+  same precedent as `TaxRate`/`CountryRegulation`) is now the live source
+  of what a role grants; `rbac.ts`'s old static `MATRIX` is renamed
+  `DEFAULT_PERMISSIONS` and only used once, to seed `RolePermission`.
+  **`SUPERADMIN` stays a hardcoded, unconditional wildcard** (never gets
+  `RolePermission` rows, can never be locked out) while **`PLATFORM_ADMIN`
+  loses its own wildcard** and becomes the first fully DB-editable admin
+  role (seeded with everything except `country_regulation.write`, which
+  DR-034's `isCountryRegulationWriter` still blocks unconditionally). `can`/
+  `assertCan` now take a `PermissionSource` (`{ roles, permissions }`)
+  instead of a bare role list -- kept synchronous by resolving the
+  permission set once per request inside `authService.resolveSession`,
+  avoiding an async ripple into `StaffNav` (a client component) and
+  `tests/rbac.test.ts`'s pure unit tests. New `authService.updateUser`/
+  `resetPassword` (edit name/email/phone/roles; generate-and-reveal-once a
+  new temporary password + force `mustChangePassword`, reusing
+  `createUser`'s existing reveal-once UX) and `getPermissionMatrix`/
+  `setRolePermission`, both `SUPERADMIN`-only via the same "RBAC decides
+  the broad category, service does the narrower role-identity check"
+  layering DR-034 established -- `PLATFORM_ADMIN` passes the route's
+  `admin.all` gate but is rejected inside the service, and the staff page
+  itself additionally redirects any non-`SUPERADMIN` caller so
+  `PLATFORM_ADMIN` never sees a control that would 403. New
+  `PATCH /users/{userId}`, `POST /users/{userId}/reset-password`,
+  `GET/PATCH /permissions` routes; new `/staff/admin/users/{userId}` (edit
+  + reset-password panel) and `/staff/admin/permissions` (168
+  auto-submitting checkboxes, `EDITABLE_ROLES` x `ALL_PERMISSIONS`, no
+  batch save step) pages. **"Configure system settings" is deliberately
+  not built** -- the user chose "I have specific settings in mind" but
+  never answered which ones (tax rates / notification toggles / branding /
+  other); flagged as an open question, not guessed at. **This session also
+  surfaced and fixed a systemic test-fixture bug**, twice triggered against
+  the real production database: a `beforeAll` throwing partway through
+  (transient Neon-pooler/transaction-timeout issues, both pre-existing
+  sandbox gotchas) left a scoping variable `undefined`, and Prisma silently
+  drops `undefined`-valued `where`-clause keys, turning a fixture's
+  `afterAll` cleanup (`deleteMany({ where: { organizationId: orgId } })`)
+  into an unscoped `deleteMany({})` that wiped the entire `users` table
+  (which has no RLS policy) -- including both real `SUPERADMIN` accounts.
+  Recovered both times via `db:seed` + `scripts/create-staff-user.ts` +
+  `scripts/set-staff-password.ts`, each with explicit user confirmation.
+  Fixed at the root across all 51 affected test files with an early-return
+  guard against an undefined id before any `deleteMany` cleanup call.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), CRM, and reviews (which would also
   unlock real driver/guide-rating fields, deliberately skipped in
@@ -1287,7 +1374,27 @@ expansion to Zambia/Zimbabwe (explicit user choice) -- confirmed
 country-acceptance needed no schema/zod change (already plain strings), so
 this was seed data + UI dropdowns + map/FAQ/About content; no new
 `Currency` enum value (priced in USD/EUR); the guest Contact page
-deliberately not extended with fabricated offices there.
+deliberately not extended with fabricated offices there. · DR-035 User
+Management: the first change to how RBAC itself is sourced. New
+`RolePermission` table (global, no RLS, same precedent as `TaxRate`/
+`CountryRegulation`) becomes the live source of what a role grants;
+`rbac.ts`'s static `MATRIX` is renamed `DEFAULT_PERMISSIONS` and demoted to
+a one-time seed source. `SUPERADMIN` stays a hardcoded, permanently
+unlockable wildcard; `PLATFORM_ADMIN` loses its own wildcard and becomes
+the first fully DB-editable admin role. `can`/`assertCan` now take a
+`PermissionSource` (`{ roles, permissions }`) instead of a bare role list,
+kept synchronous by resolving the set once per request in
+`authService.resolveSession`. New `authService.updateUser`/`resetPassword`
+(reveal-once temporary password + forced `mustChangePassword`) and
+`getPermissionMatrix`/`setRolePermission` (`SUPERADMIN`-only, same
+route-gate/service-check layering as DR-034's `isCountryRegulationWriter`).
+New `PATCH /users/{userId}`, `POST /users/{userId}/reset-password`,
+`GET/PATCH /permissions` + `/staff/admin/users/{userId}` and
+`/staff/admin/permissions` (168-checkbox matrix) pages. "Configure system
+settings" deliberately not built -- user never specified which settings.
+Also fixed a systemic test-fixture bug (undefined-id fixtures silently
+becoming unscoped `deleteMany({})` calls) across 51 files, root-caused
+after it wiped the real `users` table twice this session.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

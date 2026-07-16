@@ -14,7 +14,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
       <nav className="flex items-center justify-between border-b border-rule bg-navy px-8 py-4 text-bone">
         <span className="eyebrow">Polco Tours · Staff</span>
         <div className="flex items-center gap-6 text-sm">
-          <StaffNav roles={ctx.roles} />
+          <StaffNav roles={ctx.roles} permissions={[...ctx.permissions]} />
           <SignOutButton />
         </div>
       </nav>

@@ -1,5 +1,6 @@
 // auth module — repository. The only place that touches the DB for this module.
 import type { Role } from '@prisma/client';
+import type { Permission } from '@lib/rbac';
 import { prisma, withOrg } from '@lib/db';
 import type { PublicUser, UpdateProfileInput } from './domain';
 
@@ -101,6 +102,46 @@ export const authRepository = {
     );
   },
 
+  /** DR-035: edit an already-created user's profile fields. Deliberately
+   * separate from updateProfile (self-service only, DR-013) -- this is the
+   * admin-facing equivalent, called on behalf of someone else. */
+  async updateUserFields(userId: string, input: { name?: string; email?: string; phone?: string | null }): Promise<void> {
+    await prisma.user.update({ where: { id: userId }, data: input });
+  },
+
+  /** DR-035: replaces a user's full held role set (all existing Membership
+   * rows for this org + the primary User.role) -- not a partial add/remove,
+   * matching createMemberships/CreateUserInput's "give me the full set"
+   * shape. `withOrg`'s callback already runs inside one transaction (its
+   * `tx` type deliberately omits `$transaction` -- Prisma doesn't support
+   * nesting), so these three statements are already atomic as-is. */
+  async replaceRoles(userId: string, organizationId: string, roles: Role[]): Promise<void> {
+    const primaryRole = roles[0];
+    if (!primaryRole) throw new Error('replaceRoles requires at least one role');
+    await withOrg(organizationId, async (tx) => {
+      await tx.membership.deleteMany({ where: { userId, organizationId } });
+      await tx.membership.createMany({ data: roles.map((role) => ({ userId, organizationId, role })) });
+      await tx.user.update({ where: { id: userId }, data: { role: primaryRole } });
+    });
+  },
+
+  /** DR-035: admin-facing password reset -- same shape as
+   * scripts/set-staff-password.ts's Account upsert (hashed the same way
+   * better-auth's own sign-up flow does), but reachable from the staff UI
+   * instead of requiring shell/DB access. Always forces mustChangePassword
+   * so the generated password is never the user's last one. */
+  async resetPassword(userId: string, hashedPassword: string): Promise<void> {
+    const existing = await prisma.account.findFirst({ where: { userId, providerId: 'credential' } });
+    if (existing) {
+      await prisma.account.update({ where: { id: existing.id }, data: { password: hashedPassword } });
+    } else {
+      await prisma.account.create({
+        data: { userId, providerId: 'credential', accountId: userId, password: hashedPassword },
+      });
+    }
+    await prisma.user.update({ where: { id: userId }, data: { mustChangePassword: true } });
+  },
+
   /** DR-026: soft-delete -- see the deletedAt read-side checks above and in
    * authService.resolveSession, which already treat this as "gone". */
   async softDeleteUser(userId: string): Promise<void> {
@@ -111,5 +152,43 @@ export const authRepository = {
    * self-service change (better-auth's changePassword API). */
   async clearMustChangePassword(userId: string): Promise<void> {
     await prisma.user.update({ where: { id: userId }, data: { mustChangePassword: false } });
+  },
+
+  /** DR-035: the union of every DB-backed grant across the given roles --
+   * called once per request by resolveSession. RolePermission is
+   * platform-wide reference data (no organizationId/RLS, same as TaxRate/
+   * CountryRegulation), so this queries the bare `prisma` client directly,
+   * never `withOrg`. SUPERADMIN is never passed in here in practice (its
+   * wildcard is checked before this in rbac.ts's can()), but querying for
+   * it would just harmlessly return nothing, since it never holds rows.
+   */
+  async listPermissionsForRoles(roles: Role[]): Promise<Permission[]> {
+    const rows = await prisma.rolePermission.findMany({
+      where: { role: { in: roles } },
+      select: { permission: true },
+    });
+    return [...new Set(rows.map((r) => r.permission))] as Permission[];
+  },
+
+  /** DR-035: every row in the platform-wide RolePermission table -- powers
+   * the permission-matrix editor's full grid (grouped by role in the
+   * service layer). Same bare-`prisma`-client convention as
+   * listPermissionsForRoles (no organizationId/RLS on this table). */
+  async listAllRolePermissions(): Promise<{ role: Role; permission: string }[]> {
+    return prisma.rolePermission.findMany({ select: { role: true, permission: true } });
+  },
+
+  /** DR-035: idempotent grant -- the matrix editor toggles a checkbox on,
+   * not "create if not exists then error if it does". */
+  async grantRolePermission(role: Role, permission: Permission): Promise<void> {
+    await prisma.rolePermission.upsert({
+      where: { role_permission: { role, permission } },
+      update: {},
+      create: { role, permission },
+    });
+  },
+
+  async revokeRolePermission(role: Role, permission: Permission): Promise<void> {
+    await prisma.rolePermission.deleteMany({ where: { role, permission } });
   },
 };

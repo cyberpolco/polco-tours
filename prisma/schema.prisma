@@ -301,6 +301,29 @@ model CountryRegulation {
   @@map("country_regulations")
 }
 
+// Platform-wide, DB-backed permission grants (User Management, DR-035) --
+// one row per (role, permission) currently granted. Global, no
+// organizationId/RLS, same precedent as TaxRate/CountryRegulation: role
+// definitions are a platform concept, not per-tenant data.
+//
+// SUPERADMIN deliberately has NO rows here and never will -- it stays a
+// hardcoded, unconditional wildcard in src/lib/rbac.ts, a permanent
+// "master key" that can never be edited or locked out via this table.
+// Every other role (including PLATFORM_ADMIN, per explicit user choice --
+// the first role since DR-034 to lose its permanent wildcard) is fully
+// editable through this table; `authService.resolveSession` reads it once
+// per request to build AuthContext.permissions. Seeded from the static
+// matrix that existed before this table (see prisma/seed.ts).
+model RolePermission {
+  id         String   @id @default(uuid()) @db.Uuid
+  role       Role
+  permission String
+  createdAt  DateTime @default(now())
+
+  @@unique([role, permission])
+  @@map("role_permissions")
+}
+
 // ---------------------------------------------------------------- system
 // Append-only. INSERT/UPDATE/DELETE grants are locked down in rls.sql.
 model AuditLog {

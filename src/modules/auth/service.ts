@@ -1,12 +1,13 @@
 // auth module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import { generateRandomString } from 'better-auth/crypto';
-import { assertCan, can, type Permission } from '@lib/rbac';
+import { generateRandomString, hashPassword } from 'better-auth/crypto';
+import { assertCan, can, EDITABLE_ROLES, type Permission, type RoleName } from '@lib/rbac';
 import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
-import type { AuthContext, CreateUserInput, PublicUser, UpdateProfileInput } from './domain';
+import { isSuperAdmin } from './domain';
+import type { AuthContext, CreateUserInput, PublicUser, UpdateProfileInput, UpdateUserInput } from './domain';
 
 export const authService = {
   async getUser(id: string): Promise<PublicUser | null> {
@@ -25,13 +26,13 @@ export const authService = {
    * withAuth gate but matches every other business-action service method's
    * double-check convention (unlike this module's identity primitives). */
   async updateProfile(ctx: AuthContext, input: UpdateProfileInput): Promise<PublicUser> {
-    assertCan(ctx.roles, 'profile.write');
+    assertCan(ctx, 'profile.write');
     return authRepository.updateProfile(ctx.userId, input);
   },
 
   /** Central authorization check other modules rely on. */
   authorize(ctx: AuthContext, permission: Permission): boolean {
-    return can(ctx.roles, permission);
+    return can(ctx, permission);
   },
 
   /**
@@ -39,6 +40,11 @@ export const authService = {
    * the user back through our own repository (not Better Auth's session
    * payload) so roles/organizationId/deletedAt/mustChangePassword are always
    * current, not whatever was true when the session cookie was issued.
+   *
+   * DR-035: also resolves the DB-backed effective permission set here, once
+   * per request -- SUPERADMIN sessions skip the query entirely (its
+   * wildcard in rbac.ts's can() never consults `permissions`, so there's
+   * nothing to look up).
    */
   async resolveSession(headers: Headers): Promise<AuthContext> {
     const session = await auth.api.getSession({ headers });
@@ -47,9 +53,14 @@ export const authService = {
     const user = await authRepository.findUserById(session.user.id);
     if (!user) throw Errors.unauthorized('Account no longer active');
 
+    const permissions = user.roles.includes('SUPERADMIN')
+      ? new Set<Permission>()
+      : new Set(await authRepository.listPermissionsForRoles(user.roles));
+
     return {
       userId: user.id,
       roles: user.roles,
+      permissions,
       organizationId: user.organizationId,
       sessionId: session.session.id,
       mustChangePassword: user.mustChangePassword,
@@ -59,7 +70,7 @@ export const authService = {
   /** Admin-only: powers the general user-management page (DR-026) -- every
    * non-deleted user in the org, with their full role set. */
   async listUsers(ctx: AuthContext): Promise<PublicUser[]> {
-    assertCan(ctx.roles, 'admin.all');
+    assertCan(ctx, 'admin.all');
     if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
     return authRepository.listAll(ctx.organizationId);
   },
@@ -70,7 +81,7 @@ export const authService = {
    * retrievable again (DR-026). Mirrors scripts/create-staff-user.ts's use
    * of auth.api.signUpEmail for real credential hashing. */
   async createUser(ctx: AuthContext, input: CreateUserInput): Promise<{ user: PublicUser; temporaryPassword: string }> {
-    assertCan(ctx.roles, 'admin.all');
+    assertCan(ctx, 'admin.all');
     if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
 
     const existing = await authRepository.findUserByEmail(input.email);
@@ -111,7 +122,7 @@ export const authService = {
    * unauthenticated, so the next request they make fails closed with no
    * separate session-revocation step needed. Blocks self-deactivation. */
   async deactivateUser(ctx: AuthContext, userId: string): Promise<void> {
-    assertCan(ctx.roles, 'admin.all');
+    assertCan(ctx, 'admin.all');
     if (userId === ctx.userId) throw Errors.conflict('You cannot deactivate your own account');
 
     const target = await authRepository.findUserById(userId);
@@ -134,6 +145,122 @@ export const authService = {
    * better-auth additionalField, so set directly, same as role/phone. */
   async clearMustChangePassword(userId: string): Promise<void> {
     await authRepository.clearMustChangePassword(userId);
+  },
+
+  /** Admin-only: edits an existing user's profile fields and/or role set
+   * (DR-035) -- distinct from the permission-matrix editor, which edits
+   * what a ROLE grants, not which roles a specific user holds. Blocks
+   * self-edit (same "an admin can't accidentally lock themselves out"
+   * reasoning as deactivateUser's self-deactivation block -- removing your
+   * own admin.all-granting role here would strand you outside the very
+   * page you're using; ask another admin instead). */
+  async updateUser(ctx: AuthContext, userId: string, input: UpdateUserInput): Promise<PublicUser> {
+    assertCan(ctx, 'admin.all');
+    if (userId === ctx.userId) throw Errors.conflict('You cannot edit your own account this way');
+
+    const target = await authRepository.findUserById(userId);
+    if (!target) throw Errors.notFound('User not found');
+
+    if (input.email && input.email !== target.email) {
+      const existing = await authRepository.findUserByEmail(input.email);
+      if (existing) throw Errors.conflict('A user with this email already exists');
+    }
+
+    const { roles, ...profileFields } = input;
+    if (Object.keys(profileFields).length > 0) {
+      await authRepository.updateUserFields(userId, profileFields);
+    }
+    if (roles) {
+      if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+      await authRepository.replaceRoles(userId, ctx.organizationId, roles);
+    }
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'auth.user_updated',
+      resourceType: 'User',
+      resourceId: userId,
+      organizationId: ctx.organizationId ?? undefined,
+      metadata: { ...input },
+    });
+
+    const updated = await authRepository.findUserById(userId);
+    if (!updated) throw Errors.internal();
+    return updated;
+  },
+
+  /** Admin-only: generates a fresh one-time password for an existing user,
+   * shown exactly once (DR-035) -- closes the gap where a password reset
+   * previously required shell/DB access (scripts/set-staff-password.ts).
+   * Always forces mustChangePassword so the generated password is never
+   * left as the user's long-term one. Blocks self-reset -- the existing
+   * self-service change-password flow (staff/change-password) is the
+   * correct path for your own account. */
+  async resetPassword(ctx: AuthContext, userId: string): Promise<{ temporaryPassword: string }> {
+    assertCan(ctx, 'admin.all');
+    if (userId === ctx.userId) throw Errors.conflict('Use the change-password page to reset your own password');
+
+    const target = await authRepository.findUserById(userId);
+    if (!target) throw Errors.notFound('User not found');
+
+    const temporaryPassword = generateRandomString(16, 'a-z', 'A-Z', '0-9');
+    const hashed = await hashPassword(temporaryPassword);
+    await authRepository.resetPassword(userId, hashed);
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'auth.password_reset',
+      resourceType: 'User',
+      resourceId: userId,
+      organizationId: ctx.organizationId ?? undefined,
+    });
+
+    return { temporaryPassword };
+  },
+
+  /** SUPERADMIN-only (DR-035): the full permission-matrix grid, one array
+   * per editable role (every role except SUPERADMIN, which is fixed --
+   * see rbac.ts's EDITABLE_ROLES). Powers /staff/admin/permissions. */
+  async getPermissionMatrix(ctx: AuthContext): Promise<Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]>> {
+    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may view the permission matrix');
+
+    const rows = await authRepository.listAllRolePermissions();
+    const matrix = Object.fromEntries(EDITABLE_ROLES.map((role) => [role, [] as Permission[]])) as Record<
+      Exclude<RoleName, 'SUPERADMIN'>,
+      Permission[]
+    >;
+    for (const row of rows) {
+      const role = row.role as Exclude<RoleName, 'SUPERADMIN'>;
+      if (role in matrix) matrix[role].push(row.permission as Permission);
+    }
+    return matrix;
+  },
+
+  /** SUPERADMIN-only (DR-035): toggles a single (role, permission) grant.
+   * SUPERADMIN itself can never be targeted -- it's a hardcoded,
+   * unconditional wildcard in rbac.ts, not a DB row, so there is nothing
+   * here to toggle for it. */
+  async setRolePermission(ctx: AuthContext, role: RoleName, permission: Permission, granted: boolean): Promise<void> {
+    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may edit the permission matrix');
+    if (role === 'SUPERADMIN') throw Errors.conflict('SUPERADMIN is a fixed role and cannot be edited');
+
+    if (granted) {
+      await authRepository.grantRolePermission(role, permission);
+    } else {
+      await authRepository.revokeRolePermission(role, permission);
+    }
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: granted ? 'auth.permission_granted' : 'auth.permission_revoked',
+      resourceType: 'RolePermission',
+      resourceId: `${role}:${permission}`,
+      organizationId: ctx.organizationId ?? undefined,
+      metadata: { role, permission, granted },
+    });
   },
 };
 
