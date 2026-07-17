@@ -9,16 +9,15 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `eed3f2c` (DR-041, Tracking,
-> committed). DR-042 (Settings) is on top of it as of this revision —
-> module/routes/pages/tests written, `lint`/`typecheck`/`build` are green,
+> Last updated: 2026-07-17, against repo HEAD `9578d14` (DR-042, Settings,
+> committed — not yet pushed). `lint`/`typecheck`/`build` and all
 > pure-domain tests are green; the DB-backed API/security tests
 > (`settings.api`/`settings.security`/`invoices.api`) hit this sandbox's
 > documented intermittent Prisma-to-Neon connectivity gotcha for 20+ minutes
 > straight and could not be run to completion this session (schema/data
 > state confirmed directly via `psql` instead — see Gotchas and the DR-042
-> entry below). About to be committed on that basis; re-run those three
-> files once connectivity clears or let CI confirm them. Also records the
+> entry below). Re-run those three files once connectivity clears, or let
+> CI confirm them on push. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
