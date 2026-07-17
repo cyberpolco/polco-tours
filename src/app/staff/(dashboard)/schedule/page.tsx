@@ -7,6 +7,7 @@ import { bookingService, type TravelerDutyGroup } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService, type DriverProfileView, type VehicleView } from '@modules/fleet';
 import { itineraryService } from '@modules/itinerary';
+import { resolveTripProgress } from '@modules/tracking';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Th, Tr, Td } from '@/components/ui/Table';
@@ -121,6 +122,18 @@ export default async function MySchedulePage() {
                 <Td>
                   {detail!.departure.startDate.toLocaleDateString()} · {detail!.packageCountry}{' '}
                   <Badge tone={DEPARTURE_STATUS_TONE[detail!.departure.status]}>{detail!.departure.status}</Badge>
+                  {(() => {
+                    // Tracking (DR-041): departure-level date-range progress,
+                    // not itinerary-day-level -- see tracking/domain.ts's
+                    // resolveTripProgress comment for why.
+                    const progress = resolveTripProgress(detail!.departure.startDate, detail!.departure.endDate, new Date());
+                    if (progress.status !== 'IN_PROGRESS') return null;
+                    return (
+                      <span className="ml-2 text-xs text-mist">
+                        {progress.totalDays != null ? `Day ${progress.dayNumber} of ${progress.totalDays}` : `Day ${progress.dayNumber}`}
+                      </span>
+                    );
+                  })()}
                 </Td>
                 <Td>{vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : 'Unknown vehicle'}</Td>
                 <Td>{driverProfile ? `License ${driverProfile.licenseNumber}` : 'Unknown driver'}</Td>

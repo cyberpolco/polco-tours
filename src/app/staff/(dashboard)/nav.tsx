@@ -7,6 +7,7 @@ import type { Permission } from '@lib/rbac';
 
 const LINKS: { href: string; label: string; permission: Permission; superadminOnly?: boolean }[] = [
   { href: '/staff/insights', label: 'Insights', permission: 'insights.read' },
+  { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
   { href: '/staff/bookings', label: 'Bookings', permission: 'booking.read' },
   { href: '/staff/bookings/new', label: 'New booking', permission: 'booking.create' },
   { href: '/staff/quote-requests', label: 'Quote requests', permission: 'booking.read' },

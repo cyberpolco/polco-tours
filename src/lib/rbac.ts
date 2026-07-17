@@ -82,7 +82,13 @@ export type Permission =
   // (`roles.includes('SUPERADMIN')`) blocks every non-SUPERADMIN role
   // unconditionally, same layering as isCountryRegulationWriter (DR-034).
   | 'finance_config.read'
-  | 'finance_config.write';
+  | 'finance_config.write'
+  // Tracking (DR-041): gates the "what's happening right now" fleet-
+  // location + active-trip-progress page/route -- every composed call
+  // still re-checks its own underlying permission (fleet.read,
+  // assignment.write, catalog.read) inside the module it calls through,
+  // same additional-gate-not-a-bypass posture as insights.read.
+  | 'tracking.read';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -120,6 +126,7 @@ export const ALL_PERMISSIONS = [
   'insights.read',
   'finance_config.read',
   'finance_config.write',
+  'tracking.read',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -189,6 +196,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // the Permission union's comment); only SUPERADMIN's hardcoded wildcard
     // reaches it, mirroring country_regulation.write's precedent.
     'finance_config.read',
+    // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
+    'tracking.read',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -233,6 +242,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // catalog.write, already held above) -- not finance_config.write,
     // which stays SUPERADMIN-only.
     'finance_config.read',
+    // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
+    'tracking.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to

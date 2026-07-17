@@ -374,18 +374,20 @@ export const fleetService = {
   },
 
   /** Backs assignmentService.recommendAssignment's distance-from-pickup
-   * scoring -- only vehicles with a located Starlink kit contribute. */
+   * scoring -- only vehicles with a located Starlink kit contribute.
+   * lastLocationAt is included for the tracking module's freshness display
+   * (DR-041) -- recommendAssignment itself just ignores the extra field. */
   async getStarlinkLocationsByVehicleIds(
     ctx: AuthContext,
     vehicleIds: string[],
-  ): Promise<Map<string, { latitude: number; longitude: number }>> {
+  ): Promise<Map<string, { latitude: number; longitude: number; lastLocationAt: Date | null }>> {
     assertCan(ctx, 'fleet.read');
     if (vehicleIds.length === 0) return new Map();
     const kits = await fleetRepository.findStarlinkKitsByVehicleIds(requireOrg(ctx), vehicleIds);
-    const locations = new Map<string, { latitude: number; longitude: number }>();
+    const locations = new Map<string, { latitude: number; longitude: number; lastLocationAt: Date | null }>();
     for (const [vehicleId, kit] of kits) {
       if (kit.lastLatitude != null && kit.lastLongitude != null) {
-        locations.set(vehicleId, { latitude: kit.lastLatitude, longitude: kit.lastLongitude });
+        locations.set(vehicleId, { latitude: kit.lastLatitude, longitude: kit.lastLongitude, lastLocationAt: kit.lastLocationAt });
       }
     }
     return locations;

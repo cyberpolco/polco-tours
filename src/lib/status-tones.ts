@@ -12,6 +12,7 @@ import type {
   VisaStatus,
 } from '@prisma/client';
 import type { ComplianceStatus } from '@modules/fleet';
+import type { LocationFreshness } from '@modules/tracking';
 import type { BadgeTone } from '@/components/ui/Badge';
 
 // Every status->tone mapping in one place, shared by the guest and staff
@@ -99,4 +100,11 @@ export const ITINERARY_STATUS_TONE: Record<ItineraryStatus, BadgeTone> = {
   DRAFT: 'neutral',
   IN_REVIEW: 'warning',
   APPROVED: 'success',
+};
+
+// Tracking (DR-041) -- same tone intent as complianceStatus/COMPLIANCE_STATUS_TONE.
+export const LOCATION_FRESHNESS_TONE: Record<LocationFreshness, BadgeTone> = {
+  FRESH: 'success',
+  STALE: 'warning',
+  UNKNOWN: 'neutral',
 };

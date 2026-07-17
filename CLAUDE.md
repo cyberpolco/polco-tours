@@ -9,15 +9,13 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `d820b12` (DR-039, Financial
-> Management, committed and pushed). Checking CI status right after that push
-> surfaced DR-040: `main`'s CI had actually been red for three consecutive
-> pushes (DR-037/038/039) due to a pre-existing gap — `booking_reference_seq`/
-> `package_reference_seq` were hand-created against the shared Neon DB and
-> never scripted, so every fresh Postgres (CI, or a future `db:setup`) was
-> missing them. Fixed the same session, in progress on top of DR-039 as of
-> this revision — see Gotchas and DR-040. Also records
-> the DR-034 Immigration Module/Country
+> Last updated: 2026-07-17, against repo HEAD `2942b27` (DR-040, CI/e2e fix,
+> committed and pushed — both the `quality` and `e2e` CI jobs confirmed green).
+> DR-041 (Tracking) is in progress on top of it as of this revision — the
+> module/route/pages/tests are written, `lint`/`typecheck` are green; the
+> local test run hit this sandbox's documented intermittent Prisma-to-Neon
+> connectivity gotcha mid-verification, being retried. Not yet committed. Also
+> records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -193,6 +191,10 @@ src/
                                            #   route but 403s in the
                                            #   service, same layering as
                                            #   country_regulation.write)
+    api/v1/tracking                       # Tracking (DR-041): tracking.read,
+                                           #   fleet last-known-location +
+                                           #   departure-level trip
+                                           #   progress, no new tables
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -262,6 +264,12 @@ src/
         computedBaseCostMinor/computedSellingPriceMinor, writes the
         per-seat result back onto TourPackage.priceMinor; override panel
         also SUPERADMIN-only
+      tracking = Tracking (DR-041), tracking.read -- Fleet Locations
+        (whole-org StarlinkKit last-known-position + freshness) and Active
+        Trips (departures currently IN_PROGRESS per resolveTripProgress,
+        with driver/guide/vehicle + day-X-of-Y); /staff/schedule also
+        gained a small same-function "Day X of Y" badge for TOUR_GUIDE/
+        DRIVER's own assignments, no new permission there
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -382,6 +390,21 @@ src/
                        #   isFinanceConfigWriter blocks everyone but
                        #   SUPERADMIN at the service layer, same layering
                        #   as isCountryRegulationWriter (DR-034)
+    tracking/          # Tracking (DR-041) -- no repository.ts, owns no
+                       #   table, same shape as insights/notifications.
+                       #   Two pure rules: resolveTripProgress (NOT_STARTED/
+                       #   IN_PROGRESS/COMPLETED + day-number/percent,
+                       #   computed at the Departure level only -- a shared
+                       #   predefined-package departure can serve several
+                       #   Bookings each with its own or no Itinerary, so
+                       #   there's no canonical itinerary to resolve
+                       #   day-by-day detail from) and locationFreshness
+                       #   (FRESH/STALE/UNKNOWN, 24h threshold).
+                       #   getFleetSnapshot composes fleet's StarlinkKit/
+                       #   Vehicle lookups + assignment's listAllAssignments
+                       #   + catalog's getDepartureDetail, sequential await
+                       #   throughout (Insights' DR-038 connection-pool
+                       #   precedent, not /staff/schedule's Promise.all)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -1387,6 +1410,33 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   confirmation), same precedent as every prior schema change this session.
   Full finance test suite (31 tests, 6 files) verified green post-migration,
   both standalone and inside the full `npm test` run.
+- **Tracking done 2026-07-17 (DR-041):** the last of the two remaining
+  modules from the 5-module spec (Ratings/Insights/Finance already shipped).
+  Combines real-time-ish fleet location (building on DR-029's `StarlinkKit`,
+  still staff-entered-only -- OI-09, no live feed) with booking/itinerary
+  trip-progress ("where is this trip right now"). New standalone
+  `src/modules/tracking/` -- no new Prisma tables at all, same "compose via
+  existing public interfaces" shape as Insights. Two pure rule functions:
+  `resolveTripProgress` (NOT_STARTED/IN_PROGRESS/COMPLETED + day-number/
+  percent-complete, computed at the Departure level only -- a shared
+  predefined-package departure can have several bookings, each with its own
+  or no Itinerary, so there's no canonical itinerary to resolve day-by-day
+  detail from) and `locationFreshness` (FRESH/STALE/UNKNOWN, 24h threshold).
+  New `tracking.read` permission (`PLATFORM_ADMIN`/`TOUR_OPERATOR`, mirrors
+  `insights.read`). New `GET /api/v1/tracking` + `/staff/tracking` page
+  (Fleet Locations + Active Trips tables), plus a small "Day X of Y" badge
+  added to the existing self-service `/staff/schedule` page for TOUR_GUIDE/
+  DRIVER. A design-review pass before coding caught two real issues: (1)
+  "active trips" must filter on the new `resolveTripProgress`'s own
+  `IN_PROGRESS` status, not Insights' utilization-window definition (which
+  deliberately includes not-yet-started departures -- fine for a
+  utilization ratio, wrong for a page that would otherwise show a future
+  trip as "active"); (2) the sequential-`await`-not-`Promise.all`
+  discipline this composition follows is Insights' own documented
+  connection-pool-exhaustion fix, not `/staff/schedule`'s (which still uses
+  `Promise.all`/`allSettled` and was incorrectly assumed to be the
+  precedent early in planning). No RLS/schema change -- the second DR this
+  session (after DR-038) that didn't touch `prisma/schema.prisma`.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1666,7 +1716,27 @@ layering as `isCountryRegulationWriter` (DR-034). New standalone
 `finance` module, 12 routes, 2 staff pages. Schema pushed + RLS applied
 to the shared Neon DB via `neondb_owner` (ephemeral, explicit user
 confirmation); full new finance test suite (31 tests, 6 files) verified
-green both standalone and inside the full suite.
+green both standalone and inside the full suite · DR-040 fixes a real
+CI/disaster-recovery gap found checking CI status right after DR-039's
+push: `booking_reference_seq`/`package_reference_seq` were hand-created
+against the shared Neon DB and never scripted, so every fresh Postgres
+(CI, or a future `db:setup`) was missing them -- new `prisma/sequences.sql`
++ `scripts/apply-sequences.mjs` + a `db:sequences` step wired into
+`db:setup` and both CI jobs fixes it. Also fixed a cascade of stale tests
+(API and e2e) the sequence bug had been masking for several pushes,
+including one genuine e2e-suite bug (a `.click()`/navigation race in
+`fleet.spec.ts`, unrelated to the product) · DR-041 Tracking (the last of
+the two remaining spec modules): combines fleet last-known-location
+(DR-029's `StarlinkKit`, still staff-entered-only, OI-09) with
+departure-level trip progress. New `src/modules/tracking/` -- no new
+Prisma tables, same composing shape as Insights. New `tracking.read`
+permission, `GET /api/v1/tracking` + `/staff/tracking` page, small
+`/staff/schedule` enrichment. A pre-implementation design-review pass
+caught two issues: "active trips" needed its own `IN_PROGRESS` filter
+rather than reusing Insights' utilization-window definition, and the
+sequential-composition precedent to follow was Insights' (not
+`/staff/schedule`'s, which still uses `Promise.all`). No schema/RLS
+change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
