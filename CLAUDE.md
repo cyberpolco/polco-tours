@@ -2126,3 +2126,16 @@ human rather than fabricating volume content.
   CI jobs, between `db:push` and `db:rls`. This was also a live production
   disaster-recovery gap, not just a CI annoyance -- rebuilding the production
   database from schema alone would have hit the same failure.
+- **Same class of bug as the `tests/rbac.test.ts` gotcha above, just in an
+  API test this time.** DR-040's CI run also surfaced
+  `tests/api/visa-facilitator-queue.api.test.ts` asserting `TOUR_OPERATOR`
+  gets 403 from `GET /api/v1/visa/queue` -- true when that test was written
+  (DR-031) but stale since DR-034 explicitly granted `TOUR_OPERATOR`
+  `visa.process`. Nobody had actually run this specific CI job to green
+  since DR-034 landed (masked entirely by the DR-040 sequence bug in the
+  interim), so it sat wrong for three DRs. Fixed by flipping the assertion
+  to expect 200 (the now-correct, intentional behavior), not by reverting
+  the permission. After granting/revoking any permission in `rbac.ts`, grep
+  `tests/` for the role name against the changed permission's route, not
+  just `tests/rbac.test.ts` -- API-level security tests assert the same
+  facts and go stale exactly the same way.

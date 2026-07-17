@@ -222,11 +222,17 @@ describe('GET /api/v1/visa/queue', () => {
     expect(a1).not.toHaveProperty('documentId');
   }, 30_000);
 
-  it('a TOUR_OPERATOR (no visa.process) cannot use this route (403)', async () => {
+  // Stale since DR-034: TOUR_OPERATOR was granted visa.process ("the Tour
+  // Operator is by default also a Visa Facilitator role"), so this route is
+  // now legitimately reachable for it too -- this CI-only failure (never
+  // reproduced locally, since local dev always points at the same
+  // already-provisioned Neon DB) is what surfaced it, alongside DR-040's
+  // sequence fix.
+  it('a TOUR_OPERATOR can also use this route since DR-034 (200)', async () => {
     const headers = await loginAs(operatorId);
     const req = new NextRequest('http://localhost/api/v1/visa/queue', { headers });
     const res = await getFacilitatorQueue(req, { params: Promise.resolve({}) });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it('a TOURIST cannot use this route (403)', async () => {
