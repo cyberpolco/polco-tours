@@ -50,11 +50,20 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     await page.goto('/staff/fleet/drivers/new');
     await page.getByLabel("Driver's account email").fill(driverUser.email);
     await page.getByLabel('License number').fill('DL-E2E-1');
-    await page.getByRole('button', { name: 'Add driver' }).click();
+    // A bare .click() here races with the server action's redirect: without
+    // waiting for the URL to actually change, the very next assertion below
+    // can run while the new document is still loading, and Chromium aborts
+    // the in-flight navigation's request (net::ERR_ABORTED) -- the driver
+    // profile is never created because the request never completes. Found
+    // by reproducing locally against a disposable Postgres instance (this
+    // spec had never actually been run/verified outside CI before).
+    await Promise.all([
+      page.waitForURL(/\/staff\/fleet\/drivers\/[0-9a-f-]+$/),
+      page.getByRole('button', { name: 'Add driver' }).click(),
+    ]);
 
     // License number only appears as a form field's value, not as plain
-    // text -- getByText doesn't match input values (caught by CI, this repo
-    // has no way to run Playwright e2e tests in this sandbox).
+    // text -- getByText doesn't match input values.
     await expect(page.getByLabel('License number')).toHaveValue('DL-E2E-1');
 
     await page.goto('/staff/fleet');

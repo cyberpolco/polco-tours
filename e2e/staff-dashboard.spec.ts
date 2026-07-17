@@ -42,7 +42,8 @@ test.describe('staff dashboard (DR-014)', () => {
     await expect(page.getByRole('heading', { name: 'Bookings' })).toBeVisible();
 
     await page.goto(`/staff/bookings/${bookingId}`);
-    await expect(page.getByText('HELD')).toBeVisible();
+    // AWAITING_DEPOSIT is the DR-027 replacement for the old HELD status.
+    await expect(page.getByText('AWAITING_DEPOSIT')).toBeVisible();
   });
 
   // DR-015: booking-setup wizard. Stops at the passport step's upload form

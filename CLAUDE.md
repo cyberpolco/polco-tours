@@ -2139,3 +2139,44 @@ human rather than fabricating volume content.
   `tests/` for the role name against the changed permission's route, not
   just `tests/rbac.test.ts` -- API-level security tests assert the same
   facts and go stale exactly the same way.
+- **A disposable local Postgres needs no sudo and no Docker.** To safely
+  reproduce a CI-only e2e failure without risking the shared dev/production
+  Neon database (running Playwright locally would otherwise seed real-looking
+  fixture rows into Lam's real primary org, since e2e fixtures reuse the
+  existing primary org rather than creating their own), initialize a
+  throwaway cluster into a scratch dir: `/usr/lib/postgresql/16/bin/initdb -D
+  <dir> -U postgres --auth=trust`, then start it with
+  `pg_ctl -D <dir> -o "-p <port> -k <short-socket-dir>" -l <logfile> start` --
+  the `-k` socket directory MUST be short (Unix socket paths cap at 107
+  bytes; a `/tmp/claude-*/.../scratchpad/...` path is too long, use something
+  like `/tmp/pg_e2e_sock`). From there, run the exact same `db:push` /
+  `db:sequences` / `db:rls` / `db:seed` sequence CI does, then
+  `npm run build && npm run start` (or let Playwright's own `webServer` start
+  it) against `DATABASE_URL`/`DIRECT_URL` pointed at that instance. Tear down
+  with `pg_ctl -D <dir> stop`. **Re-running e2e specs against the same
+  un-reset local DB across multiple manual attempts pollutes it** -- several
+  of this repo's e2e fixtures hardcode literal values with no dedup (e.g.
+  `fleet.spec.ts`'s vehicle plate `'E2E-PLATE-1'`, no unique suffix, no DB
+  constraint stopping duplicates) that accumulate across runs and can produce
+  confusing, run-dependent failures that look like flakiness but are really
+  just leftover data; `db push --force-reset` (or a fresh `initdb`) between
+  investigation attempts avoids chasing a self-inflicted ghost.
+- **A bare `.click()` on a Next.js Server Action form, immediately followed
+  by an assertion, can race the navigation and abort it.** Found investigating
+  a real (not flaky -- 100% reproducible with a clean DB) e2e failure in
+  `fleet.spec.ts`'s driver-profile-creation test: the redirect's own POST
+  request showed `net::ERR_ABORTED` in the Playwright trace's network log
+  (`unzip trace.zip` -- `*-trace.network` has one JSON object per request;
+  filter for `method":"POST"` and check `response.status`/`_failureText`),
+  and the driver profile was never actually created in the DB, confirmed via
+  a temporary `console.log(await prisma.driverProfile.findMany())` in the
+  test. Root cause: Playwright's own next assertion running against the
+  still-loading document can trigger Chromium to cancel the in-flight
+  navigation's fetch. Fixed by explicitly awaiting the navigation instead of
+  trusting default auto-wait to cover it:
+  `await Promise.all([page.waitForURL(/pattern/), button.click()])`. Any
+  e2e test that does `.click()` on a form whose action redirects, then
+  immediately asserts something that ISN'T itself a `toHaveURL`/heading-text
+  check tied to the destination page, is at risk of this same race -- prefer
+  the `Promise.all` pattern over a bare click whenever the next assertion
+  doesn't already retry-until-navigated on its own.

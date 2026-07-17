@@ -58,7 +58,11 @@ test.describe('guest checkout (DR-016)', () => {
     await page.getByRole('button', { name: 'Pay deposit' }).click();
 
     await expect(page.getByText('Your reference code:')).toBeVisible();
-    const code = await page.locator('span.font-mono').innerText();
+    // DR-027 added a second `span.font-mono` on this page for
+    // bookingReference ("Reference: POL-2026-######") -- only the
+    // confirmationCode span also carries font-semibold, so scope to that
+    // combination rather than the ambiguous bare class.
+    const code = await page.locator('span.font-mono.font-semibold').innerText();
     expect(code).toMatch(/^[A-Z0-9]{8}$/);
 
     // Simulate coming back later, on what the app must treat as a fresh visit.

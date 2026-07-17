@@ -55,6 +55,11 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
         currency: 'USD',
         confirmationCode: generateConfirmationCode(),
         bookingReference: generateConfirmationCode(),
+        // Raw fixture, not created via bookingService.createHold -- set this
+        // explicitly to match what a real hold produces (DR-027 renamed the
+        // old HELD status to AWAITING_DEPOSIT), rather than leave it at the
+        // schema's DRAFT default.
+        status: 'AWAITING_DEPOSIT',
       },
     });
     return booking.id;
