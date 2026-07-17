@@ -14,7 +14,8 @@ export type NotificationEvent =
   | 'PAYMENT_FAILED'
   | 'QUOTATION_SENT'
   | 'VISA_CONTACT_TRAVELER'
-  | 'VISA_MISSING_DOCUMENTS';
+  | 'VISA_MISSING_DOCUMENTS'
+  | 'RATING_CODE_ISSUED';
 
 export interface NotificationRecipient {
   phone: string | null;
@@ -33,6 +34,7 @@ export interface NotificationData {
   travelerName?: string; // VISA_CONTACT_TRAVELER / VISA_MISSING_DOCUMENTS
   message?: string; // VISA_CONTACT_TRAVELER: staff-authored free text
   country?: string; // VISA_MISSING_DOCUMENTS
+  ratingCode?: string; // RATING_CODE_ISSUED
 }
 
 const FALLBACK_ORDER: NotificationChannel[] = ['WHATSAPP', 'SMS', 'EMAIL'];
@@ -107,6 +109,16 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
     FR: (d) => ({
       subject: 'Un document manque pour votre demande de visa',
       body: `Merci de téléverser le document de visa manquant pour le prochain voyage de ${d.travelerName ?? 'votre voyageur'} vers ${d.country ?? 'votre destination'}.`,
+    }),
+  },
+  RATING_CODE_ISSUED: {
+    EN: (d) => ({
+      subject: 'Rate your trip',
+      body: `Thank you for traveling with us! Once your tour is complete, use booking ${d.bookingId} and Rating Code ${d.ratingCode ?? ''} at polcotours.com/rate to share your feedback.`,
+    }),
+    FR: (d) => ({
+      subject: 'Évaluez votre voyage',
+      body: `Merci d'avoir voyagé avec nous ! Une fois votre circuit terminé, utilisez la réservation ${d.bookingId} et le code d'évaluation ${d.ratingCode ?? ''} sur polcotours.com/rate pour partager votre avis.`,
     }),
   },
 };

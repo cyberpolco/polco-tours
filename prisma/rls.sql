@@ -271,3 +271,30 @@ DROP POLICY IF EXISTS tenant_isolation ON itinerary_restaurants;
 CREATE POLICY tenant_isolation ON itinerary_restaurants
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------------- rating_codes (DR-037)
+ALTER TABLE rating_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rating_codes FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON rating_codes;
+CREATE POLICY tenant_isolation ON rating_codes
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------------------ reviews (DR-037)
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON reviews;
+CREATE POLICY tenant_isolation ON reviews
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------ review_subject_ratings (DR-037)
+ALTER TABLE review_subject_ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE review_subject_ratings FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON review_subject_ratings;
+CREATE POLICY tenant_isolation ON review_subject_ratings
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

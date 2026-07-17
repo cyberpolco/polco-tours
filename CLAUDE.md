@@ -9,11 +9,13 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-16, against repo HEAD `b0d03ca` (DR-035, User
-> Management + a runtime permission-matrix editor, committed). DR-036 (staff
-> booking-for-client no-account-required) is in progress on top of it —
-> lint/typecheck/the new unit test are green, not yet committed as of this
-> revision. Also records the DR-034 Immigration Module/Country
+> Last updated: 2026-07-17, against repo HEAD `2b13173` (DR-036, staff
+> booking-for-client no-account-required, committed). DR-037 (Customer
+> Ratings & Feedback) is in progress on top of it — lint/typecheck and the
+> full new test suite (domain, DB-backed full-flow, API, security, 3 RLS
+> cross-tenant files) are all green, schema already pushed + RLS applied to
+> the shared Neon DB, not yet committed as of this revision. Also records
+> the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -165,6 +167,15 @@ src/
                                            #   platform-wide reference data,
                                            #   read by anyone processing
                                            #   visas, write is SUPERADMIN-only
+    api/v1/bookings/[bookingId]/rating-code, api/v1/ratings
+                                           # Customer Ratings & Feedback
+                                           #   (DR-037): rating.issue/
+                                           #   rating.read. The guest
+                                           #   lookup/submit flow itself is
+                                           #   NOT a REST route -- Server
+                                           #   Components call ratingsService
+                                           #   directly, same DR-016
+                                           #   convention as /find-booking
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -217,10 +228,18 @@ src/
         SUPERADMIN-only -- explicit redirect to /staff/forbidden for anyone
         else, beyond the route's own admin.all gate; 168 auto-submitting
         checkboxes (EDITABLE_ROLES x ALL_PERMISSIONS), no batch save step
+      ratings = Customer Ratings & Feedback (DR-037) moderation/aggregate
+        view, rating.read -- org-wide + per-driver/per-guide averages, plus
+        every individual review with comments; "Generate Rating Code" itself
+        lives on the booking-detail page instead (rating.issue, visible
+        once the invoice is PAID)
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
-      (same wizard as staff's, requireGuestContext instead), /find-booking(/result)
+      (same wizard as staff's, requireGuestContext instead), /find-booking(/result),
+      /rate(/result) = Customer Ratings & Feedback (DR-037): same no-session,
+      plain-GET-form pattern as /find-booking -- bookingReference + Rating
+      Code instead of confirmationCode + last name
   lib/                 # shared kernel: db, auth, auth-client, rbac, errors,
                        #   money, audit (+countRecentAuditEvents, DR-016),
                        #   logger, route-guard (withAuth: HTTP routes),
@@ -288,6 +307,21 @@ src/
                        #   PLATFORM_ADMIN in this app -- see rbac.ts's
                        #   country_regulation.write comment for why the
                        #   permission matrix alone can't express it
+    ratings/           # Customer Ratings & Feedback (DR-037) -- the first
+                       #   reviews system in this codebase (DR-029/030
+                       #   deliberately left DriverProfile/GuideProfile with
+                       #   no rating field pending exactly this). RatingCode
+                       #   (single-use, 30-day expiry) + Review +
+                       #   ReviewSubjectRating (per-driver/per-guide);
+                       #   averageRating/ratingCount live-recomputed onto
+                       #   DriverProfile/GuideProfile/Organization on every
+                       #   submission. Guest lookup/submit flow is no-ctx
+                       #   (mirrors bookingService.lookupByConfirmationCode);
+                       #   staff issue/read paths are rating.issue/
+                       #   rating.read. fleetService.recordDriverRatingAggregate/
+                       #   recordGuideRatingAggregateByUserId are this
+                       #   codebase's first no-ctx cross-module WRITE (every
+                       #   prior "caller already gates" method was a read)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -1192,10 +1226,45 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   untouched -- those are real login-capable accounts, where "must already
   exist" is still correct. New `tests/auth-find-or-create-tourist.test.ts`.
   No schema/permission/RLS change.
+- **Customer Ratings & Feedback done 2026-07-17 (DR-037):** the first
+  reviews system in this codebase -- closes what DR-029/030 deliberately
+  left open ("no rating field -- deferred until a real reviews system
+  exists"). Staff generate a single-use, 30-day-expiring **Rating Code**
+  once a booking's invoice reaches `PAID` (new `rating.issue`, checked via
+  `Invoice.status`, never `Booking.status` -- a booking can reach
+  `CONFIRMED`/`COMPLETED` off a deposit-only payment, DR-027); a client
+  later rates the departure's actual driver(s)/guide(s) and the agency
+  overall via a public, session-less `/rate` flow (`bookingReference` +
+  Rating Code, mirrors `confirmationCode` + last-name "find my booking,"
+  DR-016 -- no new public REST route). New standalone `src/modules/ratings/`
+  module: `RatingCode`/`Review`/`ReviewSubjectRating`, plus additive
+  `averageRating`/`ratingCount` on `DriverProfile`/`GuideProfile` (removing
+  DR-029/030's stale "no rating field" comments) and, new here, on
+  `Organization` itself (standing in for "the Tour Operator," DR-005).
+  Averages are recomputed live via `AVG()`/`COUNT()` on every submission,
+  not incrementally maintained. **Two deliberate new precedents**:
+  `fleetService.recordDriverRatingAggregate`/
+  `recordGuideRatingAggregateByUserId` are this codebase's first no-ctx
+  cross-module *writes* (every prior "caller already gates" method was a
+  read); `ratingsRepository.recomputeOrganizationAggregate` is the first
+  time application code (not `seed.ts`) writes to `Organization` (no owning
+  module, same precedent as `TaxRate` pre-DR-034). Per explicit user
+  choice, the assignment-recommendation change went beyond the minimal
+  hook: `assignmentService.recommendAssignment` (DR-029) now sorts drivers
+  by rating (unrated sorts last, never excluded) **and** ranks guides in
+  its output for the first time ever (`AssignmentRecommendation` gains
+  `guides`/`recommendedGuideId`). New `rating.issue`/`rating.read`
+  permissions (`PLATFORM_ADMIN`/`TOUR_OPERATOR`), new `/staff/ratings`
+  moderation page, a "Generate Rating Code" panel on the booking-detail
+  page, new `RATING_CODE_ISSUED` notification event, new RLS policies +
+  3 cross-tenant test files, and a DB-backed full-flow test
+  (`tests/ratings-lookup.test.ts`) mirroring `booking-lookup.test.ts`'s
+  anti-enumeration/rate-limiting posture. This is Module 14 of a larger
+  5-module spec (Insights/Finance/Tracking/Settings-CMS/Ratings) -- the
+  user chose to build Ratings first as the smallest, most self-contained
+  piece; the other four are separate future increments, not started.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
-  real Starlink API integration (OI-09), CRM, and reviews (which would also
-  unlock real driver/guide-rating fields, deliberately skipped in
-  DR-029/030).
+  real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
   (DR-029, explicit user choice) -- real ML/AI-driven assignment and
   analytics remain open.
@@ -1420,7 +1489,29 @@ deferred, inconsistent with DR-016's "tourists never sign up." New
 `authService.findOrCreateTouristByEmail` (lookup-then-create); the two
 staff booking actions use it instead of erroring on an unknown email; a
 client created this way is still findable via the existing
-`lookupByConfirmationCode`. No schema/permission/RLS change.
+`lookupByConfirmationCode`. No schema/permission/RLS change · DR-037
+Customer Ratings & Feedback: the first reviews system in this codebase,
+closing what DR-029/030 deliberately left open. New standalone `ratings`
+module (`RatingCode`/`Review`/`ReviewSubjectRating`) -- staff issue a
+single-use, 30-day Rating Code once a booking's invoice is `PAID` (new
+`rating.issue`, checked via `Invoice.status` not `Booking.status`); a
+client rates the departure's actual driver(s)/guide(s) + the agency
+overall via a public, session-less `/rate` flow mirroring `find-booking`'s
+two-factor pattern. Additive `averageRating`/`ratingCount` on
+`DriverProfile`/`GuideProfile`/`Organization`, recomputed live via
+`AVG()`/`COUNT()` on every submission. Two new precedents:
+`fleetService.recordDriverRatingAggregate`/
+`recordGuideRatingAggregateByUserId` are the first no-ctx cross-module
+*writes* in this codebase (every prior one was a read); writing
+`Organization`'s aggregate is the first time application code (not
+`seed.ts`) touches that table. Per explicit user choice,
+`assignmentService.recommendAssignment` now sorts drivers by rating and
+ranks guides for the first time ever. New `rating.issue`/`rating.read`
+permissions, `/staff/ratings` page, booking-detail "Generate Rating Code"
+panel, `RATING_CODE_ISSUED` notification. This is Module 14 of a
+larger 5-module spec (Insights/Finance/Tracking/Settings-CMS/Ratings) --
+built first as the smallest, most self-contained piece; the other four
+are separate future increments.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

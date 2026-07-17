@@ -140,6 +140,44 @@ export const fleetService = {
     return fleetRepository.findDriverProfilesByIds(requireOrg(ctx), ids);
   },
 
+  /** Ratings module (DR-037): resolves the driver(s) a guest is rating, by
+   * id, with no ctx -- the caller has already independently verified the
+   * guest's two-factor Rating Code before reaching here, same "caller
+   * already gates" convention as listVehiclesByIds/listDriverProfilesByIds
+   * (DR-021). Unlike those, organizationId is passed explicitly since there
+   * is no ctx to derive it from. */
+  async listDriverProfilesForRating(organizationId: string, ids: string[]): Promise<DriverProfileView[]> {
+    if (ids.length === 0) return [];
+    return fleetRepository.findDriverProfilesByIds(organizationId, ids);
+  },
+
+  /** Ratings module (DR-037) -- this codebase's first no-ctx cross-module
+   * WRITE (every prior "caller already gates" method, e.g. the read above,
+   * only ever reads). Deliberately narrow: it can only ever set
+   * averageRating/ratingCount, never a general update payload, and is still
+   * routed through withOrg/RLS so a cross-tenant id fails closed at the DB
+   * layer even if the app-layer trust assumption above is ever violated by
+   * a future caller. Do not widen this into a generic profile updater, and
+   * do not add a third no-ctx write without re-reading this comment. */
+  async recordDriverRatingAggregate(
+    organizationId: string,
+    driverProfileId: string,
+    aggregate: { averageRating: number; ratingCount: number },
+  ): Promise<void> {
+    return fleetRepository.updateDriverRatingAggregate(organizationId, driverProfileId, aggregate);
+  },
+
+  /** Same no-ctx write exception as recordDriverRatingAggregate, keyed by
+   * userId (see updateGuideRatingAggregateByUserId) -- no-ops if the guide
+   * has no GuideProfile row yet (profiles are optional, DR-030). */
+  async recordGuideRatingAggregateByUserId(
+    organizationId: string,
+    guideUserId: string,
+    aggregate: { averageRating: number; ratingCount: number },
+  ): Promise<void> {
+    return fleetRepository.updateGuideRatingAggregateByUserId(organizationId, guideUserId, aggregate);
+  },
+
   // ------------------------------------------------------------ guides (DR-030)
 
   async createGuideProfile(ctx: AuthContext, input: CreateGuideProfileInput): Promise<GuideProfileView> {

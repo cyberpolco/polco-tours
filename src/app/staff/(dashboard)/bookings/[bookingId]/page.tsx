@@ -3,6 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
+import { ratingsService } from '@modules/ratings';
 import { visaService } from '@modules/visa';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
@@ -12,11 +13,13 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
+import { can } from '@lib/rbac';
 import {
   confirmBookingAction,
   cancelBookingAction,
   convertToItineraryAction,
   createItineraryAction,
+  issueRatingCodeAction,
   initiatePaymentAction,
   refundBookingAction,
   resolvePaymentAction,
@@ -90,6 +93,11 @@ export default async function BookingDetailPage({ params }: Props) {
 
   const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
   const payments = await invoicingService.listPayments(ctx, invoice.id);
+
+  // Customer Ratings & Feedback (DR-037) -- only an actor who could issue a
+  // code needs to see this panel at all.
+  const canIssueRating = can(ctx, 'rating.issue');
+  const ratingCode = canIssueRating ? await ratingsService.getRatingCodeForBooking(ctx, bookingId) : null;
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
 
@@ -313,6 +321,33 @@ export default async function BookingDetailPage({ params }: Props) {
           </form>
         )}
       </div>
+
+      {canIssueRating && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <p className="eyebrow text-mist">Rating Code</p>
+          {ratingCode ? (
+            <p className="mt-2 text-sm">
+              <span className="font-mono">{ratingCode.code}</span>{' '}
+              {ratingCode.usedAt ? (
+                <Badge tone="neutral">Used</Badge>
+              ) : ratingCode.expiresAt < new Date() ? (
+                <Badge tone="warning">Expired</Badge>
+              ) : (
+                <Badge tone="success">Active until {ratingCode.expiresAt.toLocaleDateString()}</Badge>
+              )}
+            </p>
+          ) : invoice.status === 'PAID' ? (
+            <form action={issueRatingCodeAction.bind(null, booking.id)} className="mt-2">
+              <SubmitButton variant="secondary" pendingLabel="Generating…">
+                Generate Rating Code
+              </SubmitButton>
+            </form>
+          ) : (
+            <p className="mt-2 text-sm text-mist">Available once the invoice is fully paid.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

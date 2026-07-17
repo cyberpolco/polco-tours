@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/quiz', key: 'tailorTrip' },
   { href: '/tailor-made', key: 'tailorMade' },
   { href: '/find-booking', key: 'findBooking' },
+  { href: '/rate', key: 'rateMyTrip' },
   { href: '/about', key: 'about' },
   { href: '/faq', key: 'faq' },
   { href: '/contact', key: 'contact' },

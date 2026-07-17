@@ -12,6 +12,7 @@ import { assertCan } from '@lib/rbac';
 import {
   capacityFitScore,
   combineVehicleScore,
+  compareByRating,
   departuresOverlap,
   distanceScore,
   type AssignmentView,
@@ -49,9 +50,11 @@ export interface ScoredVehicle {
 
 export interface AssignmentRecommendation {
   vehicles: ScoredVehicle[]; // eligible only, sorted desc by score
-  drivers: DriverProfileView[]; // eligible only -- no ranking beyond eligibility (driver rating deferred, no reviews system exists)
+  drivers: DriverProfileView[]; // eligible, sorted desc by averageRating (DR-037; unrated sorts last, never excluded)
+  guides: GuideProfileView[]; // eligible, sorted the same way (DR-037) -- guides were never listed here before
   recommendedVehicleId: string | null;
   recommendedDriverId: string | null;
+  recommendedGuideId: string | null; // a GuideProfile's userId (Assignment.guideUserId references User directly)
 }
 
 export const assignmentService = {
@@ -135,19 +138,22 @@ export const assignmentService = {
    * real "AI assignment engine" this project's roadmap lists as Phase 3.
    * Vehicles are hard-filtered to ACTIVE + capacity-fits + not conflicting,
    * then scored (capacity fit, maintenance recency, distance from pickup
-   * when the data exists) and ranked. Drivers are filtered the same way
-   * (ACTIVE + not conflicting) but never ranked -- there's no rating data to
-   * rank them by (deliberately deferred, no reviews system exists yet).
-   * The caller (staff UI) pre-selects the top pick; the admin can still
-   * choose any other eligible candidate instead. */
+   * when the data exists) and ranked. Drivers and guides are filtered the
+   * same way (ACTIVE + not conflicting), then sorted by averageRating
+   * (DR-037 -- unrated candidates sort last but are never excluded, per the
+   * spec's "may be deprioritized," not "excluded"). Guides are ranked here
+   * for the first time -- previously not listed at all in this
+   * recommendation output. The caller (staff UI) pre-selects the top pick;
+   * the admin can still choose any other eligible candidate instead. */
   async recommendAssignment(ctx: AuthContext, departureId: string): Promise<AssignmentRecommendation> {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
 
-    const [allVehicles, allDrivers] = await Promise.all([
+    const [allVehicles, allDrivers, allGuides] = await Promise.all([
       fleetService.listVehicles(ctx),
       fleetService.listDriverProfiles(ctx),
+      fleetService.listGuideProfiles(ctx),
     ]);
 
     const vehicleCandidates: Array<{ vehicle: VehicleView; capacityFit: number }> = [];
@@ -171,6 +177,23 @@ export const assignmentService = {
       if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) continue;
       eligibleDrivers.push(driverProfile);
     }
+    eligibleDrivers.sort(compareByRating);
+
+    // Symmetric to the driver loop above -- candidates come from
+    // GuideProfile rows only (a guide with no profile yet is simply absent
+    // from ranking, same as how driver ranking only ever sees profiled
+    // drivers). Assignment.guideUserId references User directly, so
+    // otherDepartureIds is resolved by guideProfile.userId, not its own id.
+    const eligibleGuides: GuideProfileView[] = [];
+    for (const guideProfile of allGuides) {
+      if (guideProfile.status !== 'ACTIVE') continue;
+      const otherDepartureIds = (await assignmentRepository.listForGuide(organizationId, guideProfile.userId)).map(
+        (a) => a.departureId,
+      );
+      if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) continue;
+      eligibleGuides.push(guideProfile);
+    }
+    eligibleGuides.sort(compareByRating);
 
     const vehicleIds = vehicleCandidates.map((c) => c.vehicle.id);
     const [maintenanceByVehicle, locationByVehicle] = await Promise.all([
@@ -197,8 +220,10 @@ export const assignmentService = {
     return {
       vehicles: scoredVehicles,
       drivers: eligibleDrivers,
+      guides: eligibleGuides,
       recommendedVehicleId: scoredVehicles[0]?.vehicle.id ?? null,
       recommendedDriverId: eligibleDrivers[0]?.id ?? null,
+      recommendedGuideId: eligibleGuides[0]?.userId ?? null,
     };
   },
 
@@ -207,6 +232,17 @@ export const assignmentService = {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
+    return assignmentRepository.listForDeparture(organizationId, departureId);
+  },
+
+  /** Ratings module (DR-037): resolves which driver(s)/guide(s) served a
+   * departure so a client can rate the actual people, not an arbitrary
+   * picker. No ctx -- the caller (ratings service) has already
+   * independently verified the guest's two-factor Rating Code before
+   * reaching here, same "caller already gates" convention as
+   * bookingService.listTravelersForDeparture (DR-030), deliberately not a
+   * public REST route for the same reason. */
+  async listAssignmentsForRating(organizationId: string, departureId: string): Promise<AssignmentView[]> {
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 

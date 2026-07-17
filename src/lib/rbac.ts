@@ -59,7 +59,13 @@ export type Permission =
   // behavioral gap between the two admin roles in this app (DR-034), before
   // PLATFORM_ADMIN lost its own hardcoded wildcard entirely (DR-035).
   | 'country_regulation.write'
-  | 'admin.all';
+  | 'admin.all'
+  // Customer Ratings & Feedback (DR-037). Separate from `booking.confirm`
+  // because issuing a Rating Code / reading reviews creates and reads rows
+  // in the ratings module's own tables, not Booking itself -- matches the
+  // `itinerary.write`/`itinerary.read` precedent, not `booking.confirm`'s.
+  | 'rating.issue'
+  | 'rating.read';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -92,6 +98,8 @@ export const ALL_PERMISSIONS = [
   'country_regulation.read',
   'country_regulation.write',
   'admin.all',
+  'rating.issue',
+  'rating.read',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -153,6 +161,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'itinerary.approve',
     'country_regulation.read',
     'admin.all',
+    'rating.issue',
+    'rating.read',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -186,6 +196,10 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // that stays SUPERADMIN-only (see PLATFORM_ADMIN note below).
     'visa.process',
     'country_regulation.read',
+    // Customer Ratings & Feedback (DR-037): issues Rating Codes once a
+    // booking is fully paid, and views the aggregate/individual reviews.
+    'rating.issue',
+    'rating.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to

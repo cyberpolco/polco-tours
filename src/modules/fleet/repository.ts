@@ -45,6 +45,8 @@ function toDriverProfileView(d: DriverProfile): DriverProfileView {
     licenseExpiresAt: d.licenseExpiresAt,
     languages: d.languages,
     status: d.status,
+    averageRating: d.averageRating,
+    ratingCount: d.ratingCount,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   };
@@ -58,6 +60,8 @@ function toGuideProfileView(g: GuideProfile): GuideProfileView {
     languages: g.languages,
     specialties: g.specialties,
     status: g.status,
+    averageRating: g.averageRating,
+    ratingCount: g.ratingCount,
     createdAt: g.createdAt,
     updatedAt: g.updatedAt,
   };
@@ -178,6 +182,19 @@ export const fleetRepository = {
     });
   },
 
+  /** Ratings module (DR-037) -- the only write path for these two columns.
+   * No-op if the id doesn't resolve in this org (still routed through
+   * withOrg/RLS so a cross-tenant id fails closed at the DB layer). */
+  async updateDriverRatingAggregate(
+    organizationId: string,
+    driverProfileId: string,
+    aggregate: { averageRating: number; ratingCount: number },
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.driverProfile.updateMany({ where: { id: driverProfileId }, data: aggregate });
+    });
+  },
+
   // ------------------------------------------------------------ guides (DR-030)
 
   async createGuideProfile(organizationId: string, input: CreateGuideProfileInput): Promise<GuideProfileView> {
@@ -225,6 +242,19 @@ export const fleetRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.guideProfile.findMany({ where: { id: { in: ids } } });
       return rows.map(toGuideProfileView);
+    });
+  },
+
+  /** Ratings module (DR-037) -- keyed by userId (not this table's own id),
+   * since ReviewSubjectRating.guideUserId points at User. No-op if the guide
+   * has no GuideProfile row yet (profiles are optional, DR-030). */
+  async updateGuideRatingAggregateByUserId(
+    organizationId: string,
+    guideUserId: string,
+    aggregate: { averageRating: number; ratingCount: number },
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.guideProfile.updateMany({ where: { userId: guideUserId }, data: aggregate });
     });
   },
 

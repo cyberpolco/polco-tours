@@ -271,6 +271,21 @@ export const catalogService = {
     };
   },
 
+  /** Ratings module (DR-037): resolves "when did this tour end" for the
+   * guest-facing rating-eligibility check. Deliberately no visibility gate
+   * (unlike getPublicDepartureDetail) -- a COMPLETED booking's departure may
+   * no longer be `SCHEDULED` (isDepartureVisible would incorrectly 404 it
+   * for a non-operator caller), and the caller here has already
+   * independently verified the guest's two-factor Rating Code before
+   * reaching this, same "caller already gates" convention as
+   * bookingService.getBookingForTraveler. */
+  async getDepartureWindow(departureId: string): Promise<{ startDate: Date; endDate: Date | null } | null> {
+    const organizationId = await getPrimaryOrgId();
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    if (!departure) return null;
+    return { startDate: departure.startDate, endDate: departure.endDate };
+  },
+
   async getQuizResults(answers: QuizAnswers): Promise<TourPackageView[]> {
     const organizationId = await getPrimaryOrgId();
     const all = (await catalogRepository.listPackages(organizationId)).filter((p) =>

@@ -76,3 +76,14 @@ export function combineVehicleScore(factors: VehicleScoreFactors): number {
   const values = [factors.capacityFit, factors.maintenanceRecency, ...(factors.distance != null ? [factors.distance] : [])];
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
+
+/** Ratings module (DR-037): descending by averageRating -- missing data
+ * (never rated yet) sorts LAST, but is never excluded (spec: "may be
+ * deprioritized," never a hard filter). Used to order both drivers and
+ * guides in recommendAssignment now that rating data exists. */
+export function compareByRating(a: { averageRating: number | null }, b: { averageRating: number | null }): number {
+  if (a.averageRating == null && b.averageRating == null) return 0;
+  if (a.averageRating == null) return 1;
+  if (b.averageRating == null) return -1;
+  return b.averageRating - a.averageRating;
+}

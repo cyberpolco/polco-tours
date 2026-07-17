@@ -26,6 +26,10 @@ export interface DriverProfileView {
   licenseExpiresAt: Date | null;
   languages: string[];
   status: DriverStatus;
+  // Live-recomputed by the ratings module (DR-037) -- null until the first
+  // Review, never incremented here.
+  averageRating: number | null;
+  ratingCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +76,11 @@ export interface GuideProfileView {
   languages: string[];
   specialties: string[];
   status: GuideStatus;
+  // Live-recomputed by the ratings module (DR-037) -- null until the first
+  // Review, never incremented here. Written by userId, not this table's id
+  // (ReviewSubjectRating.guideUserId points at User).
+  averageRating: number | null;
+  ratingCount: number;
   createdAt: Date;
   updatedAt: Date;
 }

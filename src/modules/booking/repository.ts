@@ -226,6 +226,18 @@ export const bookingRepository = {
     });
   },
 
+  /** Ratings module (DR-037): the "Booking ID" half of the guest rating
+   * lookup's two factors (paired with RatingCode). Mirrors
+   * findByConfirmationCode's shape -- no org context exists for that caller
+   * either, so the ratings service resolves the primary org itself first. */
+  async findByBookingReference(organizationId: string, bookingReference: string): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      await sweepLifecycle(tx);
+      const b = await tx.booking.findUnique({ where: { bookingReference } });
+      return b ? toBookingView(b) : null;
+    });
+  },
+
   async listMine(organizationId: string, touristUserId: string): Promise<BookingView[]> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);

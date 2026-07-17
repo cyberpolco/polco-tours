@@ -210,4 +210,15 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('VISA_FACILITATOR', 'country_regulation.write')).toBe(false);
     expect(hasDefault('TOURIST', 'country_regulation.write')).toBe(false);
   });
+
+  it('PLATFORM_ADMIN and TOUR_OPERATOR gain rating.issue/rating.read (DR-037); no other role does', () => {
+    expect(hasDefault('PLATFORM_ADMIN', 'rating.issue')).toBe(true);
+    expect(hasDefault('PLATFORM_ADMIN', 'rating.read')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'rating.issue')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'rating.read')).toBe(true);
+    expect(hasDefault('TOUR_GUIDE', 'rating.issue')).toBe(false);
+    expect(hasDefault('DRIVER', 'rating.issue')).toBe(false);
+    expect(hasDefault('VISA_FACILITATOR', 'rating.issue')).toBe(false);
+    expect(hasDefault('TOURIST', 'rating.issue')).toBe(false);
+  });
 });

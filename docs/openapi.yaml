@@ -1,8 +1,22 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.12.0
+  version: 0.13.0
   description: >
+    DR-037 adds Customer Ratings & Feedback: a new ratings module
+    (RatingCode/Review/ReviewSubjectRating, none of which existed before).
+    Staff issue a single-use, expiring Rating Code once a booking's invoice
+    is PAID (POST /bookings/{bookingId}/rating-code, rating.issue); a client
+    later rates the assigned driver(s)/guide(s) and the agency overall via a
+    public, session-less flow (bookingReference + Rating Code, mirroring the
+    confirmationCode + last-name "find my booking" pattern) -- not exposed
+    as a REST route, only GET /ratings (rating.read, staff moderation/
+    aggregate view) is new here. Ratings recompute live average scores on
+    DriverProfile/GuideProfile/Organization, which now factor into
+    assignment recommend-assignment's ordering for both drivers and guides
+    (guides ranked there for the first time).
+
+
     DR-035 adds User Management: a full runtime permission-matrix editor.
     RolePermission (global, no organizationId/RLS, same precedent as
     TaxRate/CountryRegulation) is now the source of truth for what every
@@ -500,6 +514,35 @@ paths:
                   booking: { $ref: '#/components/schemas/Booking' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/rating-code:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+    post:
+      summary: Generate a single-use Rating Code for a fully-paid booking (DR-037)
+      description: >-
+        Gated on rating.issue, not booking.confirm (creates a row in the
+        ratings module's own table, mirroring itinerary.write's precedent).
+        Requires the booking's invoice to have reached PAID -- checked via
+        Invoice.status, not Booking.status, since a booking can reach
+        CONFIRMED/COMPLETED off a deposit-only payment (DR-027). One code
+        per booking; 409s if already issued or not yet fully paid.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ratingCode: { $ref: '#/components/schemas/RatingCode' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Already issued for this booking, or not yet fully paid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /bookings/tailor-made:
     post:
@@ -2190,6 +2233,30 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /ratings:
+    get:
+      summary: Staff moderation/insights view of every review (rating.read)
+      description: >-
+        Whole-org, no caller-supplied id -- same safe shape as /visa/queue.
+        Returns individual reviews (with comments) plus an aggregate
+        summary (org-wide + per-driver + per-guide averageRating/
+        ratingCount).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items: { $ref: '#/components/schemas/Review' }
+                  summary:
+                    type: object
+                    description: '{ organization, drivers, guides } -- each an averageRating/ratingCount aggregate'
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -2448,6 +2515,43 @@ components:
         customDescription: { type: string, nullable: true, maxLength: 2000, description: TAILOR_MADE only. }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    RatingCode:
+      description: Customer Ratings & Feedback (DR-037) -- one per Booking, single-use, expiring.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        code: { type: string, description: '8-char random code, paired with bookingReference for the guest rating lookup.' }
+        issuedByUserId: { type: string, format: uuid }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        usedAt: { type: string, format: date-time, nullable: true, description: 'Null = unused. Set the moment a Review is created for it.' }
+
+    Review:
+      description: Customer Ratings & Feedback (DR-037) -- one per Booking.
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        ratingCodeId: { type: string, format: uuid }
+        touristUserId: { type: string, format: uuid }
+        overallRating: { type: integer, minimum: 1, maximum: 5 }
+        overallComment: { type: string, nullable: true, maxLength: 1000 }
+        createdAt: { type: string, format: date-time }
+        subjectRatings:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              subjectType: { type: string, enum: [DRIVER, GUIDE] }
+              driverProfileId: { type: string, format: uuid, nullable: true }
+              guideUserId: { type: string, format: uuid, nullable: true }
+              rating: { type: integer, minimum: 1, maximum: 5 }
+              comment: { type: string, nullable: true, maxLength: 1000 }
 
     Traveler:
       type: object

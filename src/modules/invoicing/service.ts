@@ -1,6 +1,6 @@
 // invoicing module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { PaymentKind, PaymentStatus } from '@prisma/client';
+import type { InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -86,6 +86,17 @@ export const invoicingService = {
       organizationId,
     });
     return invoice;
+  },
+
+  /** Ratings module (DR-037): "payment received in full" for the
+   * guest-facing rating-eligibility check -- a booking can reach
+   * CONFIRMED/COMPLETED off a deposit-only payment (DR-027), so this must
+   * be checked via the invoice, not inferred from Booking.status. No ctx --
+   * no session exists for that caller either; the ratings service resolves
+   * the booking's ownership/org itself before calling this. */
+  async getInvoiceStatusForBooking(organizationId: string, bookingId: string): Promise<InvoiceStatus | null> {
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    return invoice?.status ?? null;
   },
 
   async listPayments(ctx: AuthContext, invoiceId: string): Promise<PaymentView[]> {

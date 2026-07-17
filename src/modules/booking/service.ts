@@ -566,4 +566,16 @@ export const bookingService = {
 
     return { booking, travelers };
   },
+
+  /** Ratings module (DR-037): resolves a booking by its (non-secret)
+   * bookingReference for the guest rating flow -- no ctx, since there is no
+   * session for this caller either. Deliberately named for its one caller,
+   * same convention as getBookingForTraveler (visa)/
+   * listTravelersForDeparture (guides): the ratings service pairs this with
+   * its own RatingCode check for the real two-factor secret, so this alone
+   * reveals nothing sensitive (a bookingReference is already shown to staff
+   * and guests throughout the app, unlike confirmationCode). */
+  async getBookingForRating(organizationId: string, bookingReference: string): Promise<BookingView | null> {
+    return bookingRepository.findByBookingReference(organizationId, bookingReference);
+  },
 };

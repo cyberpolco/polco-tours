@@ -66,6 +66,13 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
   const sortedDrivers = [...activeDriverProfiles].sort(
     (a, b) => Number(eligibleDriverIds.has(b.id)) - Number(eligibleDriverIds.has(a.id)),
   );
+  // DR-037: guides are now ranked in the recommendation too (by
+  // averageRating, unrated last) -- the guide field itself stays a plain
+  // email lookup (unlike vehicle/driver, it's never had a select/candidate
+  // list), so this just surfaces the top pick as a hint to copy from.
+  const recommendedGuide = recommendation.recommendedGuideId
+    ? await authService.getUser(recommendation.recommendedGuideId)
+    : null;
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -198,6 +205,11 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
           <FormField label="Guide email (optional -- existing TOUR_GUIDE account)" htmlFor="guideEmail" optional>
             <input name="guideEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
+          {recommendedGuide && (
+            <p className="text-xs text-mist">
+              ★ Recommended: {recommendedGuide.name ?? recommendedGuide.email} ({recommendedGuide.email})
+            </p>
+          )}
           <SubmitButton>Add assignment</SubmitButton>
         </form>
       </div>

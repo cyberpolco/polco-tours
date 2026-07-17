@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   capacityFitScore,
   combineVehicleScore,
+  compareByRating,
   departuresOverlap,
   distanceScore,
   CreateAssignmentInput,
@@ -117,6 +118,25 @@ describe('assignment domain', () => {
 
     it('excludes distance from the average (not penalizing) when there is no data', () => {
       expect(combineVehicleScore({ capacityFit: 1, maintenanceRecency: 0.5, distance: null })).toBeCloseTo(0.75, 5);
+    });
+  });
+
+  describe('compareByRating (DR-037)', () => {
+    it('sorts higher-rated candidates first', () => {
+      const list = [{ averageRating: 3 }, { averageRating: 5 }, { averageRating: 4 }];
+      expect([...list].sort(compareByRating)).toEqual([{ averageRating: 5 }, { averageRating: 4 }, { averageRating: 3 }]);
+    });
+
+    it('sorts unrated (null) candidates last, never excluding them', () => {
+      const list = [{ averageRating: null }, { averageRating: 4 }, { averageRating: null }, { averageRating: 2 }];
+      const sorted = [...list].sort(compareByRating);
+      expect(sorted).toHaveLength(4);
+      expect(sorted.slice(0, 2).map((c) => c.averageRating)).toEqual([4, 2]);
+      expect(sorted.slice(2).map((c) => c.averageRating)).toEqual([null, null]);
+    });
+
+    it('treats two unrated candidates as equal', () => {
+      expect(compareByRating({ averageRating: null }, { averageRating: null })).toBe(0);
     });
   });
 });

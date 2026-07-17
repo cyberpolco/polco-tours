@@ -7,6 +7,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
+import { ratingsService } from '@modules/ratings';
 
 export async function confirmBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
@@ -66,4 +67,14 @@ export async function createItineraryAction(bookingId: string) {
   const ctx = await requireStaffContext('itinerary.write');
   const itinerary = await itineraryService.createItinerary(ctx, bookingId, {});
   redirect(`/staff/itineraries/${itinerary.id}`);
+}
+
+// Customer Ratings & Feedback (DR-037) -- gated on rating.issue (creates a
+// row in the ratings module's own table), not booking.confirm, matching
+// createItineraryAction's precedent above rather than this file's other
+// Booking-mutating actions.
+export async function issueRatingCodeAction(bookingId: string) {
+  const ctx = await requireStaffContext('rating.issue');
+  await ratingsService.issueRatingCode(ctx, bookingId);
+  revalidatePath(`/staff/bookings/${bookingId}`);
 }

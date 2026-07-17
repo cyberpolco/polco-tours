@@ -149,14 +149,20 @@ enum GuideStatus {
 
 // ------------------------------------------------------------- identity
 model Organization {
-  id        String    @id @default(uuid()) @db.Uuid
-  name      String
-  countries String[] // ISO-3166 alpha-2, e.g. ["NA","CD"]
-  status    OrgStatus @default(PENDING)
-  isPrimary Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  countries     String[] // ISO-3166 alpha-2, e.g. ["NA","CD"]
+  status        OrgStatus @default(PENDING)
+  isPrimary     Boolean   @default(false)
+  // "The Tour Operator"'s own agency-wide score (DR-037), live-recomputed
+  // from Review.overallRating on every submission -- written directly by
+  // ratingsRepository, since no module otherwise owns Organization (same
+  // "shared, no owning module" precedent as TaxRate pre-DR-034).
+  averageRating Float?
+  ratingCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   members              Membership[]
   packages             TourPackage[]
@@ -181,6 +187,9 @@ model Organization {
   restaurants          Restaurant[]
   itineraryHotels      ItineraryHotel[]
   itineraryRestaurants ItineraryRestaurant[]
+  ratingCodes          RatingCode[]
+  reviews              Review[]
+  reviewSubjectRatings ReviewSubjectRating[]
 
   @@map("organizations")
 }
@@ -201,14 +210,15 @@ model User {
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  memberships      Membership[]
-  sessions         Session[]
-  accounts         Account[]
-  bookings         Booking[]
-  ownedVehicles    Vehicle[]
-  driverProfile    DriverProfile?
-  guideProfile     GuideProfile?
-  guideAssignments Assignment[]
+  memberships          Membership[]
+  sessions             Session[]
+  accounts             Account[]
+  bookings             Booking[]
+  ownedVehicles        Vehicle[]
+  driverProfile        DriverProfile?
+  guideProfile         GuideProfile?
+  guideAssignments     Assignment[]
+  reviewSubjectRatings ReviewSubjectRating[]
 
   @@index([organizationId])
   @@map("users")
@@ -510,6 +520,8 @@ model Booking {
   travelers    Traveler[]
   addons       BookingAddon[]
   itinerary    Itinerary?
+  ratingCode   RatingCode?
+  review       Review?
 
   @@index([organizationId])
   @@index([departureId])
@@ -677,18 +689,22 @@ model DriverProfile {
   userId           String       @unique @db.Uuid
   licenseNumber    String
   licenseExpiresAt DateTime?
-  // ISO-639-1 codes, e.g. ["en","fr"] (DR-029). No rating field -- deferred
-  // until a real reviews system exists (Phase 2 remaining item); a
-  // staff-typed number with nothing backing it would be actively misleading.
+  // ISO-639-1 codes, e.g. ["en","fr"] (DR-029).
   languages        String[]     @default([])
   status           DriverStatus @default(ACTIVE)
+  // Live-recomputed from ReviewSubjectRating on every new Review (DR-037) --
+  // null until the first rating, never incremented. Feeds
+  // assignmentService.recommendAssignment's ordering.
+  averageRating    Float?
+  ratingCount      Int          @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documents    Document[]
-  assignments  Assignment[]
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents     Document[]
+  assignments   Assignment[]
+  reviewRatings ReviewSubjectRating[]
 
   @@index([organizationId])
   @@map("driver_profiles")
@@ -698,10 +714,8 @@ model DriverProfile {
 // boundary reasoning as DriverProfile. Note: Assignment.guideUserId still
 // points directly at User (unchanged, pre-existing FK) rather than at this
 // table's id -- this profile is a satellite of compliance/skill data looked
-// up by userId, not the join target for assignments. No rating field, same
-// deferral as DriverProfile (no reviews system to back one); "availability"
-// is likewise not a stored field -- computed from existing Assignment
-// overlap data, same as drivers.
+// up by userId, not the join target for assignments. "Availability" is not
+// a stored field -- computed from existing Assignment overlap data.
 model GuideProfile {
   id             String      @id @default(uuid()) @db.Uuid
   organizationId String      @db.Uuid
@@ -713,6 +727,12 @@ model GuideProfile {
   // rather than inventing an unrequested enum.
   specialties    String[]    @default([])
   status         GuideStatus @default(ACTIVE)
+  // Live-recomputed from ReviewSubjectRating on every new Review (DR-037) --
+  // null until the first rating, never incremented. Written by userId (see
+  // fleetService.recordGuideRatingAggregateByUserId), since
+  // ReviewSubjectRating.guideUserId points at User, not this table's id.
+  averageRating  Float?
+  ratingCount    Int         @default(0)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -1024,6 +1044,89 @@ model Payment {
   @@index([organizationId])
   @@index([invoiceId])
   @@map("payments")
+}
+
+// ---------------------------------------------------------- ratings (DR-037)
+// Customer Ratings & Feedback -- closes the gap DR-029/030 deliberately left
+// open ("no rating field -- deferred until a real reviews system exists").
+// A client rates after their tour completes, using a single-use RatingCode
+// (issued by staff once the booking's invoice is PAID) + their
+// bookingReference as a two-factor, session-less lookup (same shape as
+// Booking.confirmationCode + last name, DR-016).
+enum RatingSubjectType {
+  DRIVER
+  GUIDE
+}
+
+// One per Booking (bookingId unique) -- no separate status column, state is
+// derived from usedAt/expiresAt (see ratingsService.isRatingCodeUsable),
+// same "lazy, derived state" precedent as Booking.holdExpiresAt.
+model RatingCode {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  bookingId      String    @unique @db.Uuid
+  code           String    @unique
+  issuedByUserId String    @db.Uuid
+  issuedAt       DateTime  @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  review       Review?
+
+  @@index([organizationId])
+  @@map("rating_codes")
+}
+
+// One per Booking -- a used, single-use RatingCode implies exactly one
+// Review. overallRating is the mandatory "overall agency experience" score;
+// per-driver/per-guide scores live in ReviewSubjectRating.
+model Review {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  bookingId      String   @unique @db.Uuid
+  ratingCodeId   String   @unique @db.Uuid
+  touristUserId  String   @db.Uuid
+  overallRating  Int
+  overallComment String?  @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking        Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ratingCode     RatingCode            @relation(fields: [ratingCodeId], references: [id], onDelete: Cascade)
+  subjectRatings ReviewSubjectRating[]
+
+  @@index([organizationId])
+  @@index([bookingId])
+  @@map("reviews")
+}
+
+// Zero-or-more per Review -- one row per rated driver/guide (a departure can
+// have several vehicles/drivers, DR-018). guideUserId points at User
+// directly, mirroring Assignment.guideUserId (not GuideProfile.id).
+model ReviewSubjectRating {
+  id              String            @id @default(uuid()) @db.Uuid
+  organizationId  String            @db.Uuid
+  reviewId        String            @db.Uuid
+  subjectType     RatingSubjectType
+  driverProfileId String?           @db.Uuid
+  guideUserId     String?           @db.Uuid
+  rating          Int
+  comment         String?           @db.VarChar(1000)
+  createdAt       DateTime          @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  review        Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  driverProfile DriverProfile? @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  guide         User?          @relation(fields: [guideUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([reviewId])
+  @@index([driverProfileId])
+  @@map("review_subject_ratings")
 }
 
 model Account {
