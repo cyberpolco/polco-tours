@@ -180,6 +180,11 @@ describe('GET /api/v1/bookings/:bookingId/invoice', () => {
     expect(body.invoice.depositMinor).toBe(4400);
     expect(body.invoice.balanceMinor).toBe(6600);
     expect(body.invoice.status).toBe('ISSUED');
+    // Settings module (DR-042): platformFeeMinor is an informational split
+    // of totalMinor (5% seeded default) -- depositMinor/balanceMinor/
+    // totalMinor above are completely unaffected by its existence.
+    expect(body.invoice.platformFeeRateBp).toBe(500);
+    expect(body.invoice.platformFeeMinor).toBe(550); // 5% of 11000
   });
 
   it('is idempotent -- returns the same invoice on a second call', async () => {

@@ -5,6 +5,8 @@ import { authService } from '@modules/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { PermissionCheckbox } from './permission-checkbox';
+import { SETTINGS_ITEMS } from '../../settings-items';
+import { SidebarShell } from '../../sidebar-shell';
 
 // SUPERADMIN-only (DR-035) -- "Super Admin can: ... Manage permissions."
 // PLATFORM_ADMIN passes the route's admin.all gate but is redirected here
@@ -21,6 +23,7 @@ export default async function PermissionsPage() {
   const matrix = await authService.getPermissionMatrix(ctx);
 
   return (
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-6">
       <PageHeader eyebrow="Admin" title="Permission matrix" />
       <p className="max-w-2xl text-sm text-mist">
@@ -52,5 +55,6 @@ export default async function PermissionsPage() {
         </Table>
       </div>
     </div>
+    </SidebarShell>
   );
 }

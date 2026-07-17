@@ -66,6 +66,15 @@ async function main() {
     }
   }
 
+  // --- Platform rate (Settings module, DR-042) -- the platform's own
+  // commission on every online payment, 5% by default ("the cost to
+  // maintain the platform," explicit user figure). A single global rate,
+  // not per-country.
+  const existingPlatformRate = await prisma.platformRate.findFirst({ where: { validTo: null } });
+  if (!existingPlatformRate) {
+    await prisma.platformRate.create({ data: { rateBp: 500 } });
+  }
+
   // --- Country regulations (Immigration Module, DR-034) -- initially
   // supported countries per the spec. Content below is general,
   // reasonably-current-as-of-writing knowledge, NOT verified against each
@@ -296,6 +305,7 @@ async function main() {
     operator: lam.name,
     superadmin: admin.email,
     taxRates: taxes.length,
+    platformRate: existingPlatformRate ? 'already configured' : '5% seeded',
     countryRegulations: countryRegulations.length,
     addonServices: addons.length,
     packages: packages.length,

@@ -5,6 +5,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
+import { SETTINGS_ITEMS } from '../../settings-items';
+import { SidebarShell } from '../../sidebar-shell';
 import {
   createActivityFeeAction,
   createFoodBeverageRateAction,
@@ -69,6 +71,7 @@ export default async function FinanceRatesPage() {
   ]);
 
   return (
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-10">
       <PageHeader eyebrow="Finance" title="Operational Rates" />
       <p className="text-xs text-mist">
@@ -422,5 +425,6 @@ export default async function FinanceRatesPage() {
         )}
       </section>
     </div>
+    </SidebarShell>
   );
 }

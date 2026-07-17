@@ -15,6 +15,11 @@ export interface InvoiceView {
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
+  // Settings module (DR-042): informational split of totalMinor -- the
+  // platform's own commission, never added to what the customer owes.
+  // Null for invoices created before this feature shipped (grandfathered).
+  platformFeeMinor: number | null;
+  platformFeeRateBp: number | null;
   status: InvoiceStatus;
   createdAt: Date;
   updatedAt: Date;

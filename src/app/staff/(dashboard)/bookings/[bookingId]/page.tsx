@@ -213,7 +213,7 @@ export default async function BookingDetailPage({ params }: Props) {
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">Invoice</p>
-        <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div>
             <p className="text-xs text-mist">Subtotal</p>
             <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
@@ -229,6 +229,16 @@ export default async function BookingDetailPage({ params }: Props) {
           <div>
             <p className="text-xs text-mist">Balance (60%)</p>
             <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
+          </div>
+          <div>
+            {/* Settings module (DR-042): an informational split of the total
+                above, not an extra charge -- staff-only, deliberately not
+                shown on the guest-facing booking page (a customer could
+                otherwise misread this as something they owe on top). */}
+            <p className="text-xs text-mist">Platform fee</p>
+            <p className="text-sm">
+              {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
+            </p>
           </div>
         </Card>
         <p className="mt-2 flex items-center gap-2 text-sm text-mist">

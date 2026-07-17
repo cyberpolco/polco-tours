@@ -9,13 +9,17 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `2942b27` (DR-040, CI/e2e fix,
-> committed and pushed — both the `quality` and `e2e` CI jobs confirmed green).
-> DR-041 (Tracking) is in progress on top of it as of this revision — the
-> module/route/pages/tests are written, `lint`/`typecheck` are green; the
-> local test run hit this sandbox's documented intermittent Prisma-to-Neon
-> connectivity gotcha mid-verification, being retried. Not yet committed. Also
-> records the DR-034 Immigration Module/Country
+> Last updated: 2026-07-17, against repo HEAD `eed3f2c` (DR-041, Tracking,
+> committed). DR-042 (Settings) is on top of it as of this revision —
+> module/routes/pages/tests written, `lint`/`typecheck`/`build` are green,
+> pure-domain tests are green; the DB-backed API/security tests
+> (`settings.api`/`settings.security`/`invoices.api`) hit this sandbox's
+> documented intermittent Prisma-to-Neon connectivity gotcha for 20+ minutes
+> straight and could not be run to completion this session (schema/data
+> state confirmed directly via `psql` instead — see Gotchas and the DR-042
+> entry below). About to be committed on that basis; re-run those three
+> files once connectivity clears or let CI confirm them. Also records the
+> DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -195,6 +199,14 @@ src/
                                            #   fleet last-known-location +
                                            #   departure-level trip
                                            #   progress, no new tables
+    api/v1/settings/tax-rates(/[id]),
+      api/v1/settings/platform-rates(/[id]) # Settings (DR-042):
+                                           #   platform_settings.read/write,
+                                           #   TaxRate + new PlatformRate
+                                           #   CRUD -- write is
+                                           #   SUPERADMIN-only (same
+                                           #   layering as
+                                           #   finance_config.write)
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -270,6 +282,13 @@ src/
         with driver/guide/vehicle + day-X-of-Y); /staff/schedule also
         gained a small same-function "Day X of Y" badge for TOUR_GUIDE/
         DRIVER's own assignments, no new permission there
+      settings/tax-rates, settings/platform-rate = Settings (DR-042),
+        platform_settings.read for viewing, platform_settings.write
+        (SUPERADMIN-only, enforced in the service) for adding/removing a
+        rate row; reached via a new SidebarShell-based "Settings" StaffNav
+        entry that also regroups country-regulations/finance/rates/
+        insights/admin/users/admin/permissions under the same left sub-nav
+        -- none of those five pages' own URLs/permissions changed
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -284,7 +303,10 @@ src/
                        #   guest-guard (requireGuestContext, DR-016),
                        #   primary-org (getPrimaryOrgId, DR-016),
                        #   country-codes (phone/flag + nationality picker
-                       #   data, no dependency, DR-015)
+                       #   data, no dependency, DR-015),
+                       #   platform-rate (getEffectivePlatformRate,
+                       #   DR-042 -- mirrors tax.ts's getEffectiveTaxRate,
+                       #   minus the per-country dimension)
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
     catalog/           # TourPackage (+tags/PackageTag, DR-016) + Departure +
@@ -405,6 +427,24 @@ src/
                        #   + catalog's getDepartureDetail, sequential await
                        #   throughout (Insights' DR-038 connection-pool
                        #   precedent, not /staff/schedule's Promise.all)
+    settings/          # Settings (DR-042) -- closes DR-035's parked
+                       #   "Configure system settings" item. Owns TaxRate
+                       #   (existed since Phase 0/DR-006, no CRUD/UI until
+                       #   now) and new PlatformRate (the platform's own
+                       #   commission on every online payment, seeded 5%).
+                       #   Both platform-wide, effective-dated, no
+                       #   organizationId/RLS, same precedent as
+                       #   CountryRegulation/RolePermission.
+                       #   platform_settings.write is never seeded to any
+                       #   role including PLATFORM_ADMIN --
+                       #   requireSettingsWriter blocks everyone but
+                       #   SUPERADMIN at the service layer, same layering
+                       #   as isFinanceConfigWriter/
+                       #   isCountryRegulationWriter. invoicingService
+                       #   snapshots the effective platform rate onto new
+                       #   nullable Invoice.platformFeeMinor/
+                       #   platformFeeRateBp -- an informational split of
+                       #   totalMinor, never added to it
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -1437,6 +1477,41 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `Promise.all`/`allSettled` and was incorrectly assumed to be the
   precedent early in planning). No RLS/schema change -- the second DR this
   session (after DR-038) that didn't touch `prisma/schema.prisma`.
+- **Settings done 2026-07-17 (DR-042):** the last of the original 5-module
+  spec (Ratings/Insights/Finance/Tracking already shipped) -- closes
+  DR-035's parked "Configure system settings" item. New standalone
+  `src/modules/settings/` gives `TaxRate` (Phase 0/DR-006, previously
+  read-only via `src/lib/tax.ts`, no UI) a real staff CRUD UI, and adds a
+  new platform-wide `PlatformRate` table -- the platform's own commission
+  on every online payment ("the cost to maintain the platform," seeded
+  5%). `invoicingService.getOrCreateInvoiceForBooking` now also snapshots
+  `getEffectivePlatformRate()` onto new nullable `Invoice.platformFeeMinor`/
+  `platformFeeRateBp` columns -- an informational split of the existing
+  `totalMinor`, never added on top of it; shown staff-only on the
+  booking-detail invoice card. New `platform_settings.read`/`.write`
+  permissions, `.write` never seeded to any role including
+  `PLATFORM_ADMIN` (same `isFinanceConfigWriter`/`isCountryRegulationWriter`
+  layering). Nav reorganized: a new `SidebarShell` groups the two new
+  Settings pages with five pre-existing tabs (Country Regulations,
+  Operational Rates, Insights, Users, Permissions) behind one "Settings"
+  entry in `StaffNav` -- none of those five pages' URLs/permissions changed.
+  **The same migration also added `SiteContent`/`FaqEntry` schema
+  scaffolding for a future Content module (replacing the hardcoded guest
+  About/FAQ pages) -- deliberately left unbuilt (no module/routes/UI/tests)
+  and undocumented as its own DR per explicit user instruction this
+  session; don't mistake their presence in `schema.prisma` for a shipped
+  feature.** `lint`/`typecheck`/`build` all green; pure-domain tests
+  (`tests/settings.domain.test.ts`, `tests/rbac.test.ts`) green. The
+  DB-backed suites (`tests/api/settings.api.test.ts`,
+  `tests/api/settings.security.test.ts`, `tests/api/invoices.api.test.ts`)
+  could **not** be verified to completion this session -- the documented
+  intermittent Prisma-to-Neon connectivity gotcha (see Gotchas) persisted
+  for 20+ minutes across ~20 retries, well past its previously-observed
+  range, while `psql` against the identical `DATABASE_URL` connected
+  instantly every single time. Schema/data state was instead confirmed
+  directly via `psql` (columns/tables exist, `platform_rates` has its
+  seeded row). Treat these three files as needing a real run (locally once
+  connectivity clears, or in CI) before fully trusting this increment.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1736,7 +1811,23 @@ caught two issues: "active trips" needed its own `IN_PROGRESS` filter
 rather than reusing Insights' utilization-window definition, and the
 sequential-composition precedent to follow was Insights' (not
 `/staff/schedule`'s, which still uses `Promise.all`). No schema/RLS
-change.
+change · DR-042 Settings (last of the 5-module spec): new standalone
+`src/modules/settings/` gives the Phase-0-era `TaxRate` a real CRUD UI and
+adds a new platform-wide `PlatformRate` (the platform's own commission,
+seeded 5%) -- new nullable `Invoice.platformFeeMinor`/`platformFeeRateBp`
+snapshot it as an informational split of `totalMinor`, never added to it.
+New `platform_settings.read`/`.write` (`.write` never seeded to any role,
+same `isFinanceConfigWriter` layering). New `SidebarShell` +
+`settings-items.ts` regroup the two new pages with five pre-existing tabs
+(Country Regulations/Operational Rates/Insights/Users/Permissions) behind
+one "Settings" `StaffNav` entry, no URL/permission changes to those five.
+Same migration also scaffolded `SiteContent`/`FaqEntry` for a future
+Content module -- deliberately left unbuilt and undocumented as its own
+DR per explicit user instruction. DB-backed API/security tests
+(`settings.api`/`settings.security`/`invoices.api`) could not be verified
+this session (20+ minutes of the Prisma-to-Neon connectivity gotcha,
+`psql` unaffected) -- confirmed schema/data state directly via `psql`
+instead; re-run those files before fully trusting this increment.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

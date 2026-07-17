@@ -14,6 +14,8 @@ export interface CreateInvoiceParams {
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
+  platformFeeMinor: number;
+  platformFeeRateBp: number;
 }
 
 export interface CreatePaymentParams {
@@ -42,6 +44,8 @@ function toInvoiceView(i: Invoice): InvoiceView {
     totalMinor: i.totalMinor,
     depositMinor: i.depositMinor,
     balanceMinor: i.balanceMinor,
+    platformFeeMinor: i.platformFeeMinor,
+    platformFeeRateBp: i.platformFeeRateBp,
     status: i.status,
     createdAt: i.createdAt,
     updatedAt: i.updatedAt,

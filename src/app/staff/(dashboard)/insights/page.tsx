@@ -4,6 +4,8 @@ import { insightsService, type MoneyByCurrency } from '@modules/insights';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { format, money } from '@lib/money';
+import { SETTINGS_ITEMS } from '../settings-items';
+import { SidebarShell } from '../sidebar-shell';
 
 function formatMoneyByCurrency(bucket: MoneyByCurrency): string {
   const entries = Object.entries(bucket) as [Currency, number][];
@@ -31,6 +33,7 @@ export default async function InsightsPage() {
   const summary = await insightsService.getDashboardSummary(ctx);
 
   return (
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-8">
       <PageHeader eyebrow="Insights" title="Executive Dashboard" />
       <p className="text-xs text-mist">
@@ -168,5 +171,6 @@ export default async function InsightsPage() {
         </Card>
       </div>
     </div>
+    </SidebarShell>
   );
 }

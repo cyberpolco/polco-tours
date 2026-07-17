@@ -88,7 +88,15 @@ export type Permission =
   // still re-checks its own underlying permission (fleet.read,
   // assignment.write, catalog.read) inside the module it calls through,
   // same additional-gate-not-a-bypass posture as insights.read.
-  | 'tracking.read';
+  | 'tracking.read'
+  // Settings (DR-042): TaxRate + PlatformRate CRUD, closing DR-035's
+  // parked "Configure system settings" item. platform_settings.write is
+  // never seeded to any role including PLATFORM_ADMIN -- settingsService's
+  // requireSettingsWriter check (roles.includes('SUPERADMIN')) blocks
+  // every non-SUPERADMIN role unconditionally, same layering as
+  // isFinanceConfigWriter/isCountryRegulationWriter.
+  | 'platform_settings.read'
+  | 'platform_settings.write';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -127,6 +135,8 @@ export const ALL_PERMISSIONS = [
   'finance_config.read',
   'finance_config.write',
   'tracking.read',
+  'platform_settings.read',
+  'platform_settings.write',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -198,6 +208,10 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'finance_config.read',
     // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
     'tracking.read',
+    // Settings (DR-042): read-only here even for PLATFORM_ADMIN --
+    // platform_settings.write is deliberately never seeded to any role,
+    // same layering as finance_config.write.
+    'platform_settings.read',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -244,6 +258,9 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'finance_config.read',
     // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
     'tracking.read',
+    // Settings (DR-042): read-only visibility into tax/platform rates that
+    // affect their own invoicing -- not platform_settings.write.
+    'platform_settings.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to

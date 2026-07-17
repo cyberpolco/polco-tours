@@ -2811,6 +2811,8 @@ components:
         totalMinor: { type: integer }
         depositMinor: { type: integer, description: 40% of totalMinor, half-up (DR-012) }
         balanceMinor: { type: integer, description: totalMinor - depositMinor }
+        platformFeeMinor: { type: integer, nullable: true, description: 'Informational split of totalMinor (DR-042) -- never added to what the customer owes. Null for invoices predating this feature.' }
+        platformFeeRateBp: { type: integer, nullable: true, description: Snapshotted PlatformRate.rateBp at invoice-issue time (DR-042) }
         status: { type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

@@ -276,6 +276,56 @@ model TaxRate {
   @@map("tax_rates")
 }
 
+// Settings module (DR-042): the platform's own commission on every online
+// payment processed ("the cost to maintain the platform") -- a single
+// global rate, not per-country (unlike TaxRate). Platform-wide reference
+// data, no organizationId/RLS, same precedent as TaxRate. Informational
+// only: Invoice.platformFeeMinor is a computed split of the existing total,
+// never added on top of what the customer pays (see Invoice below).
+model PlatformRate {
+  id        String    @id @default(uuid()) @db.Uuid
+  rateBp    Int // 500 = 5.00%
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([validFrom])
+  @@map("platform_rates")
+}
+
+// Content module (DR-043): staff-editable guest-site content, replacing what
+// used to be hardcoded JSX/TS literals in src/app/(guest)/{about,faq}. No
+// organizationId/RLS -- same precedent as TaxRate/CountryRegulation, and
+// consistent with the guest site's existing single-primary-org convention
+// (getPrimaryOrgId() already resolves one global org for every guest page,
+// so there's no per-tenant guest-content story to preserve). Write is
+// SUPERADMIN-only (content.write, enforced in content/service.ts).
+model SiteContent {
+  id              String   @id @default(uuid()) @db.Uuid
+  key             String   @unique // e.g. "about"
+  title           String
+  body            String   @db.Text
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
+
+  @@map("site_content")
+}
+
+// Same precedent as SiteContent, but repeated rows (one per Q&A) instead of
+// a single-row-per-key blob.
+model FaqEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  question  String
+  answer    String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("faq_entries")
+}
+
 // Platform-wide reference data, one row per country (Immigration Module,
 // DR-034) -- NOT tenant-scoped (no organizationId), same "objective fact
 // about a country, not operator-owned data" reasoning as TaxRate above; no
@@ -1005,19 +1055,26 @@ model BookingAddon {
 // change never mutates an already-issued invoice. DPO payments are stubbed
 // this increment (OI-01 commercial terms still open) -- see Payment/gateway.ts.
 model Invoice {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  bookingId      String        @unique @db.Uuid
-  currency       Currency
-  subtotalMinor  Int // = Booking.priceMinor at invoice-creation time
-  taxRateBp      Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
-  taxMinor       Int
-  totalMinor     Int // subtotalMinor + taxMinor
-  depositMinor   Int // 40% of totalMinor, half-up (DR-012)
-  balanceMinor   Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
-  status         InvoiceStatus @default(DRAFT)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                String        @id @default(uuid()) @db.Uuid
+  organizationId    String        @db.Uuid
+  bookingId         String        @unique @db.Uuid
+  currency          Currency
+  subtotalMinor     Int // = Booking.priceMinor at invoice-creation time
+  taxRateBp         Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
+  taxMinor          Int
+  totalMinor        Int // subtotalMinor + taxMinor
+  depositMinor      Int // 40% of totalMinor, half-up (DR-012)
+  balanceMinor      Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
+  // Settings module (DR-042): the platform's commission, computed as an
+  // informational split of totalMinor -- NEVER added to it. depositMinor/
+  // balanceMinor/totalMinor are the customer's real amounts, unaffected by
+  // this. Nullable: existing (pre-DR-042) invoices predate the feature and
+  // are grandfathered, same precedent as TourPackage.priceMinor (DR-039).
+  platformFeeMinor  Int?
+  platformFeeRateBp Int? // snapshotted PlatformRate.rateBp at invoice-creation time
+  status            InvoiceStatus @default(DRAFT)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)

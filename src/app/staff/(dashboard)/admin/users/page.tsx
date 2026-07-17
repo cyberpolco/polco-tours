@@ -7,6 +7,8 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { CreateUserForm } from './create-user-form';
 import { deactivateUserAction } from './actions';
+import { SETTINGS_ITEMS } from '../../settings-items';
+import { SidebarShell } from '../../sidebar-shell';
 
 // Admin-only (admin.all): general user management (DR-026) -- replaces
 // CLI-only staff account creation (scripts/create-staff-user.ts) with a
@@ -16,6 +18,7 @@ export default async function UsersPage() {
   const users = await authService.listUsers(ctx);
 
   return (
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-8">
       <PageHeader eyebrow="Admin" title="Users" />
 
@@ -74,5 +77,6 @@ export default async function UsersPage() {
         <CreateUserForm assignableRoles={ASSIGNABLE_ROLES} />
       </div>
     </div>
+    </SidebarShell>
   );
 }

@@ -9,6 +9,7 @@ import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { money, taxOf } from '@lib/money';
 import { assertCan } from '@lib/rbac';
+import { getEffectivePlatformRate } from '@lib/platform-rate';
 import { getEffectiveTaxRate } from '@lib/tax';
 import { amountForPaymentKind, canInitiatePayment, splitDeposit, type InvoiceView, type PaymentView } from './domain';
 import { paymentGateway } from './gateway';
@@ -57,6 +58,16 @@ export const invoicingService = {
       throw Errors.conflict('No tax rate configured for this country');
     }
 
+    // Settings module (DR-042): the platform's own commission, computed as
+    // an informational split of the total -- never added to it. Same
+    // "missing config is an operator gap" treatment as tax.
+    let platformFeeRateBp: number;
+    try {
+      ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
+    } catch {
+      throw Errors.conflict('No platform rate configured');
+    }
+
     // Base seat price + finalized add-ons (DR-015) -- throws until the
     // traveler manifest/passport/add-ons wizard steps are all complete, so an
     // invoice's subtotal can never be created before add-ons are decided.
@@ -65,6 +76,10 @@ export const invoicingService = {
     const tax = taxOf(subtotal, rateBp);
     const totalMinor = subtotal.minor + tax.minor;
     const { depositMinor, balanceMinor } = splitDeposit(totalMinor);
+    // Platform fee is a computed split of totalMinor, deliberately NOT
+    // added to it -- depositMinor/balanceMinor/totalMinor above are the
+    // customer's real amounts, unaffected by this.
+    const platformFeeMinor = taxOf(money(totalMinor, billable.currency), platformFeeRateBp).minor;
 
     const invoice = await invoicingRepository.create(organizationId, {
       bookingId,
@@ -75,6 +90,8 @@ export const invoicingService = {
       totalMinor,
       depositMinor,
       balanceMinor,
+      platformFeeMinor,
+      platformFeeRateBp,
     });
 
     await audit({

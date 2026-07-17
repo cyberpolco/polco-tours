@@ -4,6 +4,8 @@ import { immigrationService } from '@modules/immigration';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
+import { SETTINGS_ITEMS } from '../settings-items';
+import { SidebarShell } from '../sidebar-shell';
 
 // Immigration Module (DR-034). Read is available to whoever processes
 // visas (TOUR_OPERATOR/VISA_FACILITATOR/SUPERADMIN/PLATFORM_ADMIN); the "Add
@@ -17,6 +19,7 @@ export default async function CountryRegulationsPage() {
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
   return (
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <PageHeader eyebrow="Immigration" title="Country regulations" />
@@ -51,5 +54,6 @@ export default async function CountryRegulationsPage() {
         </Table>
       )}
     </div>
+    </SidebarShell>
   );
 }
