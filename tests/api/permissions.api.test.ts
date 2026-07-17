@@ -118,7 +118,13 @@ describe('PATCH /api/v1/permissions', () => {
     expect(revokeBody.matrix[FICTITIOUS_ROLE]).not.toContain(FICTITIOUS_PERMISSION);
   });
 
-  it('SUPERADMIN cannot be targeted -- it is a fixed role, not a DB row (409)', async () => {
+  it('SUPERADMIN cannot be targeted -- excluded from EDITABLE_ROLES, rejected at validation (422)', async () => {
+    // SetRolePermissionInput's role field is z.enum(EDITABLE_ROLES), which
+    // deliberately excludes SUPERADMIN -- so this never reaches
+    // authService.setRolePermission's own `role === 'SUPERADMIN'` conflict
+    // check (that branch is unreachable from this route; validation is the
+    // real gate here). Stale test previously expected 409 from that
+    // now-unreachable service-layer check.
     const headers = await loginAs(superadminId);
     const res = await patchPermissions(
       jsonRequest('http://localhost/api/v1/permissions', headers, 'PATCH', {
@@ -128,7 +134,7 @@ describe('PATCH /api/v1/permissions', () => {
       }),
       { params: Promise.resolve({}) },
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(422);
   });
 
   it(

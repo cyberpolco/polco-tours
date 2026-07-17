@@ -100,6 +100,11 @@ beforeAll(async () => {
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
+        // Raw fixture, not created via bookingService.createHold -- must set
+        // this explicitly to match what a real hold produces, since payment
+        // resolution (recordPaymentReceived) requires transitioning FROM
+        // AWAITING_DEPOSIT, not the schema default of DRAFT.
+        status: 'AWAITING_DEPOSIT',
       },
     });
     bookingId = booking.id;

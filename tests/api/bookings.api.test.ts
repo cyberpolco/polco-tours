@@ -122,7 +122,8 @@ describe('POST /api/v1/bookings', () => {
     const res = await createBooking(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.booking.status).toBe('HELD');
+    // AWAITING_DEPOSIT is the DR-027 replacement for the old HELD status.
+    expect(body.booking.status).toBe('AWAITING_DEPOSIT');
     expect(body.booking.touristUserId).toBe(touristAId);
     bookingId = body.booking.id;
   });
@@ -146,6 +147,12 @@ describe('POST /api/v1/bookings', () => {
 
 describe('POST /api/v1/bookings/:bookingId/confirm', () => {
   it('an operator confirms the held booking (200), notifying without slowing/failing the response', async () => {
+    // DR-027 made confirm require DEPOSIT_PAID/FULLY_PAID (previously
+    // payment-agnostic) -- this file predates that change and isn't about
+    // invoicing, so set the precondition directly rather than drive a full
+    // invoice/payment flow (already covered by invoices.api.test.ts).
+    await withOrg(orgId, (tx) => tx.booking.update({ where: { id: bookingId }, data: { status: 'DEPOSIT_PAID' } }));
+
     const headers = await loginAs(operatorId);
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/confirm`, {
       method: 'POST',
