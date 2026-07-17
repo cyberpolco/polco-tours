@@ -11,6 +11,12 @@
 // login is indistinguishable from one created through signUpEmail.
 //
 // Usage: npx tsx scripts/set-staff-password.ts <email> <password>
+//
+// Always forces mustChangePassword -- same precedent as authService
+// .resetPassword (DR-035): a password set this way (operator-generated,
+// shell/DB access, no in-app audit trail) is never left as the account's
+// long-term one. The account holder changes it themselves via the
+// self-service /staff/change-password flow on next sign-in.
 import { hashPassword } from 'better-auth/crypto';
 import { prisma } from '@lib/db';
 
@@ -34,12 +40,13 @@ async function main() {
     });
   }
 
-  if (!user.emailVerified) {
-    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
-  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailVerified: true, mustChangePassword: true },
+  });
 
   console.log(`Password set for ${user.role} account: ${user.email}`);
-  console.log('Sign in at /staff/login with the email/password you provided.');
+  console.log('This is a temporary password -- signing in will require choosing a new one.');
 }
 
 main()

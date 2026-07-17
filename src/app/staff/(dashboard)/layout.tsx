@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { StaffNav } from './nav';
 import { SignOutButton } from './sign-out-button';
@@ -15,6 +16,14 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
         <span className="eyebrow">Polco Tours · Staff</span>
         <div className="flex items-center gap-6 text-sm">
           <StaffNav roles={ctx.roles} permissions={[...ctx.permissions]} />
+          {/* Voluntary entry point into the self-service flow every role
+              already gets forced into once (DR-026) -- previously reachable
+              only via that forced redirect, never by choice (e.g. to change
+              a password you picked yourself, including SUPERADMIN, who
+              can't use the admin reset-password panel on their own account). */}
+          <Link href="/staff/change-password" className="text-mist hover:text-bone">
+            Change password
+          </Link>
           <SignOutButton />
         </div>
       </nav>

@@ -10,8 +10,10 @@ restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
 > Last updated: 2026-07-17, against repo HEAD `9578d14` (DR-042, Settings,
-> committed — not yet pushed). `lint`/`typecheck`/`build` and all
-> pure-domain tests are green; the DB-backed API/security tests
+> committed — not yet pushed) **plus DR-043 (password-management
+> hardening) uncommitted in the working tree**. `lint`/`typecheck`/`build`
+> and all pure-domain/unit tests (`staff-guard.test.ts`, `rbac.test.ts`)
+> are green for DR-043; the DB-backed API/security tests
 > (`settings.api`/`settings.security`/`invoices.api`) hit this sandbox's
 > documented intermittent Prisma-to-Neon connectivity gotcha for 20+ minutes
 > straight and could not be run to completion this session (schema/data
@@ -1511,6 +1513,30 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   directly via `psql` (columns/tables exist, `platform_rates` has its
   seeded row). Treat these three files as needing a real run (locally once
   connectivity clears, or in CI) before fully trusting this increment.
+- **Password-management hardening done 2026-07-17 (DR-043, uncommitted):**
+  closes two small gaps left in DR-026/DR-035's password work.
+  `scripts/set-staff-password.ts` now unconditionally forces
+  `mustChangePassword: true` (previously only conditionally touched
+  `emailVerified`) -- matches `authService.createUser`/`resetPassword`'s
+  existing precedent, so **every** path that sets a password on someone
+  else's behalf forces a change on next sign-in; `scripts/
+  create-staff-user.ts` stays the one deliberate exception (the
+  operator-chosen, permanent bootstrap-account password, DR-026).
+  New voluntary self-service password change: `/staff/change-password`
+  (DR-026, previously reachable only via the forced `mustChangePassword`
+  redirect) now also accepts a voluntary visit from any signed-in staff
+  session, via the same no-permission-gate `requireAnyStaffSession` escape
+  hatch, closing the real gap that `SUPERADMIN`'s own row is unreachable
+  through `/staff/admin/users/{userId}` (self-edit/self-reset both
+  blocked) -- a `SUPERADMIN` had no in-app way to change an already-real
+  password at all. New `forced` flag on the extracted
+  `ChangePasswordForm` component only changes copy/Cancel-button
+  visibility; the underlying `authClient.changePassword` call is
+  identical either way. New "Change password" link in the dashboard top
+  nav (`(dashboard)/layout.tsx`). No schema/permission/RLS change --
+  `mustChangePassword`/`requireAnyStaffSession` both already existed.
+  `lint`/`typecheck`/`build` green; `tests/staff-guard.test.ts`/
+  `tests/rbac.test.ts` green (both pure, no DB). Not yet committed.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1826,7 +1852,16 @@ DR per explicit user instruction. DB-backed API/security tests
 (`settings.api`/`settings.security`/`invoices.api`) could not be verified
 this session (20+ minutes of the Prisma-to-Neon connectivity gotcha,
 `psql` unaffected) -- confirmed schema/data state directly via `psql`
-instead; re-run those files before fully trusting this increment.
+instead; re-run those files before fully trusting this increment · DR-043
+password-management hardening: `scripts/set-staff-password.ts` now
+unconditionally forces `mustChangePassword`, matching
+`authService.createUser`/`resetPassword`'s existing DR-026/DR-035
+precedent (`scripts/create-staff-user.ts`'s operator-chosen bootstrap
+password stays the one deliberate exception); new voluntary self-service
+visit to `/staff/change-password` (previously forced-only) closes the gap
+where `SUPERADMIN` had no in-app way to change their own already-real
+password, since the admin edit/reset-password panel blocks self-service.
+No schema/permission/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
