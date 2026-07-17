@@ -64,6 +64,10 @@ test.describe('guest checkout (DR-016)', () => {
     // combination rather than the ambiguous bare class.
     const code = await page.locator('span.font-mono.font-semibold').innerText();
     expect(code).toMatch(/^[A-Z0-9]{8}$/);
+    // The lookup form still takes confirmationCode (`code`, above), but the
+    // result page's heading displays the business-facing bookingReference
+    // instead (DR-027) -- capture it too rather than assume they match.
+    const bookingReference = await page.locator('span.font-mono').first().innerText();
 
     // Simulate coming back later, on what the app must treat as a fresh visit.
     await page.context().clearCookies();
@@ -74,7 +78,7 @@ test.describe('guest checkout (DR-016)', () => {
     await page.getByRole('button', { name: 'Find my booking' }).click();
 
     await expect(page).toHaveURL(/\/find-booking\/result/);
-    await expect(page.getByRole('heading', { name: code })).toBeVisible();
+    await expect(page.getByRole('heading', { name: bookingReference })).toBeVisible();
     await expect(page.getByText('Guest Traveler')).toBeVisible();
   });
 });
