@@ -3,9 +3,11 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
+import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { formatOrPending } from '@lib/money';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import { archivePackageAction, deletePackageAction, duplicatePackageAction, updatePackageAction } from './actions';
 
@@ -25,8 +27,6 @@ export default async function PackageDetailPage({ params }: Props) {
   } catch {
     notFound();
   }
-
-  const amountDefault = (pkg.priceMinor / 100).toFixed(2);
 
   return (
     <div className="max-w-md">
@@ -55,6 +55,17 @@ export default async function PackageDetailPage({ params }: Props) {
         </form>
       </div>
 
+      <div className="mt-6 rounded-survey border border-rule p-4">
+        <p className="text-xs text-mist">Price per seat</p>
+        <p className="text-lg font-semibold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency, 'Not yet priced')}</p>
+        <p className="mt-1 text-xs text-mist">
+          Computed by the finance module&rsquo;s cost breakdown (DR-039) -- no longer typed directly here.
+        </p>
+        <LinkButton href={`/staff/packages/${packageId}/cost-breakdown`} variant="secondary" size="compact" className="mt-2">
+          Manage cost breakdown
+        </LinkButton>
+      </div>
+
       <form action={updatePackageAction.bind(null, packageId)} className="mt-6 space-y-4">
         <FormField label="Title" htmlFor="title">
           <input name="title" defaultValue={pkg.title} required className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -76,27 +87,14 @@ export default async function PackageDetailPage({ params }: Props) {
             <option value="ZW">🇿🇼 Zimbabwe</option>
           </select>
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Price per seat" htmlFor="amount">
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={amountDefault}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label="Currency" htmlFor="currency">
-            <select name="currency" defaultValue={pkg.currency} required className="w-full rounded-survey border border-rule px-3 py-2">
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="NAD">NAD</option>
-              <option value="CDF">CDF</option>
-            </select>
-          </FormField>
-        </div>
+        <FormField label="Currency" htmlFor="currency">
+          <select name="currency" defaultValue={pkg.currency} required className="w-full rounded-survey border border-rule px-3 py-2">
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="NAD">NAD</option>
+            <option value="CDF">CDF</option>
+          </select>
+        </FormField>
         <FormField label="Duration (days)" htmlFor="durationDays" optional>
           <input
             name="durationDays"

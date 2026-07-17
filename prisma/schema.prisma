@@ -164,32 +164,34 @@ model Organization {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  members              Membership[]
-  packages             TourPackage[]
-  departures           Departure[]
-  bookings             Booking[]
-  invoices             Invoice[]
-  payments             Payment[]
-  travelers            Traveler[]
-  documents            Document[]
-  addonServices        AddonService[]
-  bookingAddons        BookingAddon[]
-  vehicles             Vehicle[]
-  driverProfiles       DriverProfile[]
-  guideProfiles        GuideProfile[]
-  assignments          Assignment[]
-  visaApplications     VisaApplication[]
-  maintenanceRecords   MaintenanceRecord[]
-  starlinkKits         StarlinkKit[]
-  itineraries          Itinerary[]
-  itineraryDays        ItineraryDay[]
-  hotels               Hotel[]
-  restaurants          Restaurant[]
-  itineraryHotels      ItineraryHotel[]
-  itineraryRestaurants ItineraryRestaurant[]
-  ratingCodes          RatingCode[]
-  reviews              Review[]
-  reviewSubjectRatings ReviewSubjectRating[]
+  members               Membership[]
+  packages              TourPackage[]
+  departures            Departure[]
+  bookings              Booking[]
+  invoices              Invoice[]
+  payments              Payment[]
+  travelers             Traveler[]
+  documents             Document[]
+  addonServices         AddonService[]
+  bookingAddons         BookingAddon[]
+  vehicles              Vehicle[]
+  driverProfiles        DriverProfile[]
+  guideProfiles         GuideProfile[]
+  assignments           Assignment[]
+  visaApplications      VisaApplication[]
+  maintenanceRecords    MaintenanceRecord[]
+  starlinkKits          StarlinkKit[]
+  itineraries           Itinerary[]
+  itineraryDays         ItineraryDay[]
+  hotels                Hotel[]
+  restaurants           Restaurant[]
+  itineraryHotels       ItineraryHotel[]
+  itineraryRestaurants  ItineraryRestaurant[]
+  ratingCodes           RatingCode[]
+  reviews               Review[]
+  reviewSubjectRatings  ReviewSubjectRating[]
+  packageCostBreakdowns PackageCostBreakdown[]
+  packageCostLineItems  PackageCostLineItem[]
 
   @@map("organizations")
 }
@@ -373,7 +375,12 @@ model TourPackage {
   title            String
   description      String
   country          String // ISO-3166 alpha-2; matches TaxRate.country for invoicing
-  priceMinor       Int // per-seat unit price, integer minor units (BR-02)
+  // Per-seat unit price, integer minor units (BR-02). Nullable since DR-039:
+  // a brand-new package starts unpriced until the finance module's cost
+  // breakdown computes it (or an admin override sets it) -- isBookable
+  // treats null as not-bookable. Existing packages keep their pre-DR-039
+  // value (grandfathered, no cost breakdown required retroactively).
+  priceMinor       Int?
   currency         Currency
   durationDays     Int?
   tags             PackageTag[] // interest-matching for the public quiz (DR-016)
@@ -384,8 +391,9 @@ model TourPackage {
   // reads across this module already filter deletedAt: null.
   deletedAt        DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departures   Departure[]
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departures    Departure[]
+  costBreakdown PackageCostBreakdown?
 
   @@index([organizationId])
   @@map("tour_packages")
@@ -1127,6 +1135,213 @@ model ReviewSubjectRating {
   @@index([reviewId])
   @@index([driverProfileId])
   @@map("review_subject_ratings")
+}
+
+// ---------------------------------------------------------- finance (DR-039)
+// Cost-plus pricing engine -- replaces TourPackage.priceMinor as a plain
+// staff-typed number. The six rate tables below are platform-wide config
+// (no organizationId, no RLS), same precedent as TaxRate/CountryRegulation,
+// effective-dated (validFrom/validTo) exactly like TaxRate -- "seasonal
+// pricing" is expressed as overlapping date-ranged rows, no separate season
+// concept needed. PackageCostBreakdown/PackageCostLineItem ARE org-scoped
+// (they're real operational data, not shared config) and get standard RLS.
+
+enum StaffRateRole {
+  DRIVER
+  GUIDE
+  PHOTOGRAPHER
+  VIDEOGRAPHER
+}
+
+model StaffRate {
+  id             String        @id @default(uuid()) @db.Uuid
+  country        String // ISO-3166 alpha-2
+  role           StaffRateRole
+  dailyRateMinor Int
+  currency       Currency
+  validFrom      DateTime      @default(now())
+  validTo        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([country, role, validFrom])
+  @@map("staff_rates")
+}
+
+// roomCategory is freeform (e.g. "Standard", "Deluxe", "Suite") -- mirrors
+// Vehicle.vehicleType's open-ended-string precedent rather than an enum,
+// since categories vary too much across properties/countries.
+model HotelRate {
+  id               String    @id @default(uuid()) @db.Uuid
+  country          String
+  roomCategory     String
+  nightlyRateMinor Int
+  currency         Currency
+  validFrom        DateTime  @default(now())
+  validTo          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([country, validFrom])
+  @@map("hotel_rates")
+}
+
+// All four figures are per-day estimates, summed then multiplied by a
+// package's transportDays.
+model TransportRate {
+  id                        String    @id @default(uuid()) @db.Uuid
+  country                   String
+  fuelEstimateMinor         Int
+  tollFeesMinor             Int
+  parkingFeesMinor          Int
+  vehicleOperatingCostMinor Int
+  currency                  Currency
+  validFrom                 DateTime  @default(now())
+  validTo                   DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@index([country, validFrom])
+  @@map("transport_rates")
+}
+
+// Merges "Restaurant estimates" (breakfast/lunch/dinner) and "Drinks"
+// (water/soft drinks/juice/local/alcoholic) into one table -- both are
+// per-person/per-unit consumable rates, just different category values.
+enum FoodBeverageCategory {
+  BREAKFAST
+  LUNCH
+  DINNER
+  WATER
+  SOFT_DRINK
+  JUICE
+  LOCAL_BEVERAGE
+  ALCOHOLIC
+}
+
+model FoodBeverageRate {
+  id           String               @id @default(uuid()) @db.Uuid
+  country      String
+  category     FoodBeverageCategory
+  perUnitMinor Int
+  currency     Currency
+  validFrom    DateTime             @default(now())
+  validTo      DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([country, category, validFrom])
+  @@map("food_beverage_rates")
+}
+
+// Open-ended per the spec's "other attraction fees" -- name is freeform,
+// same reasoning as HotelRate.roomCategory.
+model ActivityFee {
+  id        String    @id @default(uuid()) @db.Uuid
+  country   String
+  name      String
+  feeMinor  Int
+  currency  Currency
+  validFrom DateTime  @default(now())
+  validTo   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([country, validFrom])
+  @@map("activity_fees")
+}
+
+// Deliberately its own table, NOT extending CountryRegulation (immigration
+// module's own table, which already has an unrelated flat
+// immigrationFeeMinor used for guest-facing info display) -- keeps module
+// boundaries clean; finance owns its own pricing-specific fee data.
+model ImmigrationCostRate {
+  id                       String    @id @default(uuid()) @db.Uuid
+  country                  String
+  visaFeeMinor             Int
+  processingFeeMinor       Int
+  invitationLetterFeeMinor Int
+  borderPermitFeeMinor     Int
+  currency                 Currency
+  validFrom                DateTime  @default(now())
+  validTo                  DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([country, validFrom])
+  @@map("immigration_cost_rates")
+}
+
+// One per TourPackage. referenceGroupSize is the divisor for the per-seat
+// price -- deliberately decoupled from any specific Departure.capacity,
+// since a package can have several departures with different capacities
+// but price stays package-level. Rate FKs are nullable (a package might
+// have no accommodation, no visa requirement, etc.).
+model PackageCostBreakdown {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @db.Uuid
+  tourPackageId             String    @unique @db.Uuid
+  currency                  Currency // must match TourPackage.currency -- no FX conversion anywhere in this app
+  referenceGroupSize        Int
+  nights                    Int
+  driverDays                Int
+  guideDays                 Int
+  // Base-inclusion only (e.g. a premium package that bundles a
+  // photographer) -- distinct from the existing per-booking optional
+  // AddonService PHOTOGRAPHY/VIDEOGRAPHY purchase (DR-011/015), which stays
+  // unchanged and is added on top at booking time, not here.
+  photographerDays          Int       @default(0)
+  videographerDays          Int       @default(0)
+  hotelRateId               String?   @db.Uuid
+  roomsNeeded               Int       @default(1)
+  breakfastCount            Int       @default(0)
+  lunchCount                Int       @default(0)
+  dinnerCount               Int       @default(0)
+  transportRateId           String?   @db.Uuid
+  transportDays             Int       @default(0)
+  requiresVisa              Boolean   @default(false)
+  immigrationCostRateId     String?   @db.Uuid
+  agencyMarginBp            Int // basis points, e.g. 2000 = 20%
+  computedBaseCostMinor     Int?
+  computedSellingPriceMinor Int?
+  // Override + audit trail (spec: "Administrators may override calculated
+  // prices when necessary while maintaining an audit trail"). The audit
+  // trail itself lives in the append-only audit_logs table (via audit()),
+  // not duplicated here -- these columns are just "is an override
+  // currently in effect," not history.
+  overridePriceMinor        Int?
+  overrideReason            String?   @db.VarChar(500)
+  overriddenByUserId        String?   @db.Uuid
+  overriddenAt              DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tourPackage  TourPackage           @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
+  lineItems    PackageCostLineItem[]
+
+  @@index([organizationId])
+  @@map("package_cost_breakdowns")
+}
+
+// Zero-or-more per breakdown -- one row per selected drink/meal-beyond-base
+// or activity, with a per-person quantity. Exactly one of
+// foodBeverageRateId/activityFeeId is set per row (mirrors
+// ReviewSubjectRating's nullable-pair precedent, DR-037).
+model PackageCostLineItem {
+  id                     String  @id @default(uuid()) @db.Uuid
+  organizationId         String  @db.Uuid
+  packageCostBreakdownId String  @db.Uuid
+  foodBeverageRateId     String? @db.Uuid
+  activityFeeId          String? @db.Uuid
+  quantityPerPerson      Int
+
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  packageCostBreakdown PackageCostBreakdown @relation(fields: [packageCostBreakdownId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([packageCostBreakdownId])
+  @@map("package_cost_line_items")
 }
 
 model Account {

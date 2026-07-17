@@ -19,6 +19,7 @@ const LINKS: { href: string; label: string; permission: Permission; superadminOn
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
   { href: '/staff/country-regulations', label: 'Country regulations', permission: 'country_regulation.read' },
   { href: '/staff/ratings', label: 'Ratings', permission: 'rating.read' },
+  { href: '/staff/finance/rates', label: 'Operational Rates', permission: 'finance_config.read' },
   { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
   // DR-035: SUPERADMIN-only regardless of who else holds admin.all --
   // PLATFORM_ADMIN is seeded with admin.all by default but must NOT see

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { format, money } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 
 // First-ever staff package-management UI (DR-028) -- creation/editing was
@@ -40,7 +40,7 @@ export default async function PackagesPage() {
                 <Td className="font-mono text-xs">{p.packageReference}</Td>
                 <Td>{p.title}</Td>
                 <Td>{p.country}</Td>
-                <Td>{format(money(p.priceMinor, p.currency))}</Td>
+                <Td>{formatOrPending(p.priceMinor, p.currency, 'Not yet priced')}</Td>
                 <Td>
                   <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{p.status}</Badge>
                 </Td>

@@ -9,11 +9,12 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `6aea05b` (DR-037, Customer
-> Ratings & Feedback, committed). DR-038 (Insights & Decision Making) is in
-> progress on top of it — lint/typecheck, `npm run build`, and the full new
-> test suite (domain, API, security) are all green; no schema/RLS change was
-> needed this time. Not yet committed as of this revision. Also records
+> Last updated: 2026-07-17, against repo HEAD `5964ee4` (DR-038, Insights &
+> Decision Making, committed). DR-039 (Financial Management) is in progress on
+> top of it — schema pushed + RLS applied to the shared dev/production Neon DB,
+> lint/typecheck/`npm run build` all green, and the full new finance test suite
+> (31 tests across 6 files: domain, API, security, RLS cross-tenant) verified
+> green post-migration. Not yet committed as of this revision. Also records
 > the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -179,6 +180,17 @@ src/
                                            #   (DR-038): insights.read,
                                            #   read-only executive
                                            #   dashboard, no new tables
+    api/v1/finance/rates/{staff,hotel,transport,food-beverage,activity,
+      immigration-cost}(/[id]), api/v1/catalog/packages/[packageId]/
+      cost-breakdown                      # Financial Management (DR-039):
+                                           #   finance_config.read/write,
+                                           #   cost-plus pricing engine --
+                                           #   write is SUPERADMIN-only
+                                           #   (isFinanceConfigWriter,
+                                           #   PLATFORM_ADMIN passes the
+                                           #   route but 403s in the
+                                           #   service, same layering as
+                                           #   country_regulation.write)
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -240,6 +252,14 @@ src/
         read-only executive dashboard (Bookings/Revenue/Operations/Customer
         Experience/Immigration), composed live from other modules' data, no
         Prisma table of its own
+      finance/rates = Financial Management (DR-039), finance_config.read
+        for viewing the six rate tables, finance_config.write (SUPERADMIN-
+        only, enforced in the service) for editing them
+      packages/[packageId]/cost-breakdown = per-package cost-plus pricing
+        form (DR-039) -- composes the six rate tables into
+        computedBaseCostMinor/computedSellingPriceMinor, writes the
+        per-seat result back onto TourPackage.priceMinor; override panel
+        also SUPERADMIN-only
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -342,6 +362,24 @@ src/
                        #   transactions choked this sandbox's Neon pool even
                        #   against an empty org, so this trades latency for
                        #   robustness on what's a low-traffic admin page
+    finance/           # Financial Management (DR-039) -- cost-plus pricing
+                       #   engine. Six platform-wide, effective-dated rate
+                       #   tables (StaffRate/HotelRate/TransportRate/
+                       #   FoodBeverageRate/ActivityFee/ImmigrationCostRate,
+                       #   no organizationId/RLS, same precedent as
+                       #   TaxRate/CountryRegulation/RolePermission) feed a
+                       #   per-package PackageCostBreakdown + zero-or-more
+                       #   PackageCostLineItem rows (these two ARE org-
+                       #   scoped, real RLS) that compute
+                       #   computedBaseCostMinor/computedSellingPriceMinor
+                       #   and write the per-seat result back onto
+                       #   TourPackage.priceMinor (now nullable -- a new
+                       #   package starts unpriced until costed or
+                       #   overridden). finance_config.write is never
+                       #   seeded to any role including PLATFORM_ADMIN --
+                       #   isFinanceConfigWriter blocks everyone but
+                       #   SUPERADMIN at the service layer, same layering
+                       #   as isCountryRegulationWriter (DR-034)
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -1314,6 +1352,39 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   sandbox. New `GET /insights` + `/staff/insights` (five sections matching
   the spec's own grouping). No RLS/schema change -- the first DR this
   session that didn't touch `prisma/schema.prisma`.
+- **Financial Management done 2026-07-17 (DR-039):** Module 6 of the same
+  5-module spec (after Ratings/DR-037 and Insights/DR-038). Replaces
+  `TourPackage.priceMinor` as a plain staff-typed number with a cost-plus
+  pricing engine: six new platform-wide, effective-dated rate tables
+  (`StaffRate`, `HotelRate`, `TransportRate`, `FoodBeverageRate`,
+  `ActivityFee`, `ImmigrationCostRate` -- no `organizationId`/RLS, same
+  precedent as `TaxRate`/`CountryRegulation`) feed a per-package
+  `PackageCostBreakdown` (+ zero-or-more `PackageCostLineItem` rows for
+  extra drinks/meals/activities -- these two ARE org-scoped, real RLS) that
+  computes `computedBaseCostMinor`/`computedSellingPriceMinor` and writes
+  the per-seat result back onto `TourPackage.priceMinor`, now nullable (a
+  brand-new package starts unpriced until costed or overridden;
+  `isBookable` treats `null` as not-bookable; `bookingService.createHold`
+  gained a defensive re-check since TS can't correlate that invariant
+  across the isBookable/effectivePrice boundary). Admin price overrides
+  carry `overridePriceMinor`/`overrideReason`/`overriddenByUserId`/
+  `overriddenAt` (current-state only -- the durable audit trail is the
+  existing append-only `audit_logs`, same precedent as DR-025). New
+  `finance_config.read`/`finance_config.write` permissions (deliberately
+  not the pre-existing `finance.read`, which is invoice/payment data held
+  by `VEHICLE_OWNER` too); `finance_config.write` is never seeded to any
+  role including `PLATFORM_ADMIN` -- a new `isFinanceConfigWriter` check
+  blocks everyone but `SUPERADMIN` at the service layer, same "route
+  passes via `'*'`, service still rejects" layering as
+  `isCountryRegulationWriter` (DR-034). New standalone `src/modules/
+  finance/` module, 12 new routes (`/api/v1/finance/rates/*` x 6 +
+  `/api/v1/catalog/packages/{packageId}/cost-breakdown`), and
+  `/staff/finance/rates` + `/staff/packages/{packageId}/cost-breakdown`
+  pages. Schema pushed + RLS applied to the shared dev/production Neon DB
+  via `neondb_owner` (ephemeral, never written to `.env`, explicit user
+  confirmation), same precedent as every prior schema change this session.
+  Full finance test suite (31 tests, 6 files) verified green post-migration,
+  both standalone and inside the full `npm test` run.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1575,7 +1646,25 @@ real concurrency issue during testing: composing via one big `Promise.all`
 burst exhausted this sandbox's Neon connection pool even against an empty
 org; rewritten to serialize every composed call, trading latency for
 robustness (also protects the real production pool). New `GET /insights`
-+ `/staff/insights`. First DR this session with no schema/RLS change.
++ `/staff/insights`. First DR this session with no schema/RLS change ·
+DR-039 Financial Management (Module 6 of the same spec): replaces
+`TourPackage.priceMinor`'s plain staff-typed number with a cost-plus
+pricing engine -- six new platform-wide effective-dated rate tables
+(`StaffRate`/`HotelRate`/`TransportRate`/`FoodBeverageRate`/`ActivityFee`/
+`ImmigrationCostRate`, no RLS, same precedent as `TaxRate`) feed a new
+org-scoped `PackageCostBreakdown`/`PackageCostLineItem` (real RLS) that
+computes and writes back a per-seat price; `priceMinor` is now nullable
+(unpriced until costed or overridden), `isBookable`/`createHold` updated
+accordingly. Admin overrides carry current-state columns only, durable
+history stays in `audit_logs` (DR-025 precedent). New
+`finance_config.read`/`finance_config.write` permissions -- write is
+never seeded to any role including `PLATFORM_ADMIN`, blocked at the
+service layer by a new `isFinanceConfigWriter` (`SUPERADMIN`-only), same
+layering as `isCountryRegulationWriter` (DR-034). New standalone
+`finance` module, 12 routes, 2 staff pages. Schema pushed + RLS applied
+to the shared Neon DB via `neondb_owner` (ephemeral, explicit user
+confirmation); full new finance test suite (31 tests, 6 files) verified
+green both standalone and inside the full suite.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

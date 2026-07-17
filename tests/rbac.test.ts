@@ -231,4 +231,16 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('VISA_FACILITATOR', 'insights.read')).toBe(false);
     expect(hasDefault('TOURIST', 'insights.read')).toBe(false);
   });
+
+  it('PLATFORM_ADMIN and TOUR_OPERATOR gain finance_config.read (DR-039); no role is seeded with finance_config.write', () => {
+    expect(hasDefault('PLATFORM_ADMIN', 'finance_config.read')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'finance_config.read')).toBe(true);
+    expect(hasDefault('TOUR_GUIDE', 'finance_config.read')).toBe(false);
+    expect(hasDefault('VEHICLE_OWNER', 'finance_config.read')).toBe(false);
+    // finance_config.write is never seeded to any role -- SUPERADMIN's
+    // hardcoded wildcard is the only way to reach it (same as
+    // country_regulation.write, DR-034/035).
+    expect(hasDefault('PLATFORM_ADMIN', 'finance_config.write')).toBe(false);
+    expect(hasDefault('TOUR_OPERATOR', 'finance_config.write')).toBe(false);
+  });
 });

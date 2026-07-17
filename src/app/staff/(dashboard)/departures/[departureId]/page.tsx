@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { format } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
 import { createAssignmentAction, removeAssignmentAction, setPickupLocationAction } from './actions';
 
@@ -80,7 +80,7 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
         <PageHeader eyebrow="Departure" title={`${departure.startDate.toLocaleDateString()} · ${packageCountry}`} />
         <p className="mt-1 flex items-center gap-2 text-mist">
           Capacity {departure.capacity} · <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{departure.status}</Badge> ·{' '}
-          {format(effectiveUnitPrice)}/seat
+          {formatOrPending(effectiveUnitPrice?.minor ?? null, effectiveUnitPrice?.currency ?? null)}/seat
         </p>
         <p className="mt-1 text-sm text-mist">
           Seats covered by assigned vehicles: {seatsCovered}/{departure.capacity}

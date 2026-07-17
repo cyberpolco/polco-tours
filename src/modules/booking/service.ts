@@ -89,6 +89,10 @@ export const bookingService = {
 
     const detail = await catalogService.getDepartureDetail(ctx, input.departureId);
     if (!detail.bookable) throw Errors.conflict('This departure is not open for booking');
+    // isBookable already requires a real price to exist (DR-039) -- this is
+    // a defensive re-check, not a routine path (TS can't correlate the two
+    // fields' nullability across the isBookable/effectivePrice boundary).
+    if (!detail.effectiveUnitPrice) throw Errors.conflict('This package is not yet priced');
 
     const price = scale(detail.effectiveUnitPrice, input.seats);
 

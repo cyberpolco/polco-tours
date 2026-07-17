@@ -10,7 +10,10 @@ export interface TourPackageView {
   title: string;
   description: string;
   country: string;
-  priceMinor: number;
+  // Nullable since DR-039 -- a brand-new package starts unpriced until the
+  // finance module's cost breakdown computes it (or an admin override sets
+  // it). Existing packages keep their pre-DR-039 value (grandfathered).
+  priceMinor: number | null;
   currency: Currency;
   durationDays: number | null;
   tags: PackageTag[];
@@ -46,7 +49,10 @@ export const CreatePackageInput = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1),
   country: z.string().length(2), // ISO-3166 alpha-2
-  priceMinor: z.number().int().nonnegative(),
+  // Optional since DR-039 -- a brand-new package starts unpriced until the
+  // finance module's cost breakdown computes it (or this is set directly,
+  // the pre-DR-039 manual-entry path, which still works as an override).
+  priceMinor: z.number().int().nonnegative().optional(),
   currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
   durationDays: z.number().int().positive().optional(),
   tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
@@ -98,15 +104,21 @@ export interface CreateBespokeDepartureParams {
   currency: Currency;
 }
 
-/** Departure's own price wins; otherwise inherit the package's. */
-export function effectivePrice(pkg: TourPackageView, dep: DepartureView): Money {
+/** Departure's own price wins; otherwise inherit the package's. Null when
+ * neither is set (DR-039: an unpriced package with no departure override) --
+ * updatePackage's publish gate keeps this defensive rather than routine for
+ * any PUBLISHED package a tourist could actually reach. */
+export function effectivePrice(pkg: TourPackageView, dep: DepartureView): Money | null {
   const minor = dep.priceOverrideMinor ?? pkg.priceMinor;
+  if (minor == null) return null;
   return money(minor, pkg.currency);
 }
 
-/** A tourist can only act on a live package + a still-running departure. */
+/** A tourist can only act on a live package + a still-running departure +
+ * an actual price to charge (DR-039 -- defensive; updatePackage already
+ * refuses to PUBLISH a package with no price at all). */
 export function isBookable(pkg: TourPackageView, dep: DepartureView): boolean {
-  return pkg.status === 'PUBLISHED' && dep.status === 'SCHEDULED';
+  return pkg.status === 'PUBLISHED' && dep.status === 'SCHEDULED' && (dep.priceOverrideMinor != null || pkg.priceMinor != null);
 }
 
 function isOperatorRole(roles: Role[]): boolean {

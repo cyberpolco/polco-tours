@@ -72,7 +72,17 @@ export type Permission =
   // rating.read, visa.process, catalog.read, booking.read) inside the
   // module it calls through -- this is an additional top-level gate, not a
   // bypass.
-  | 'insights.read';
+  | 'insights.read'
+  // Finance Module (DR-039), the operational-rates/cost-breakdown config
+  // side -- deliberately NOT the pre-existing `finance.read` (that's about
+  // invoice/payment financial data, held by VEHICLE_OWNER too, unrelated to
+  // rate configuration a vehicle owner has no business seeing).
+  // finance_config.write is never seeded to PLATFORM_ADMIN in
+  // DEFAULT_PERMISSIONS -- financeService's isFinanceConfigWriter check
+  // (`roles.includes('SUPERADMIN')`) blocks every non-SUPERADMIN role
+  // unconditionally, same layering as isCountryRegulationWriter (DR-034).
+  | 'finance_config.read'
+  | 'finance_config.write';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -108,6 +118,8 @@ export const ALL_PERMISSIONS = [
   'rating.issue',
   'rating.read',
   'insights.read',
+  'finance_config.read',
+  'finance_config.write',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -172,6 +184,11 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'rating.issue',
     'rating.read',
     'insights.read',
+    // Finance Module (DR-039): read-only here even for PLATFORM_ADMIN --
+    // finance_config.write is deliberately never seeded to any role (see
+    // the Permission union's comment); only SUPERADMIN's hardcoded wildcard
+    // reaches it, mirroring country_regulation.write's precedent.
+    'finance_config.read',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -211,6 +228,11 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'rating.read',
     // Insights & Decision Making (DR-038): the executive dashboard.
     'insights.read',
+    // Finance Module (DR-039): needs to view rates to build a package's
+    // cost breakdown (financeService.saveCostBreakdown is gated
+    // catalog.write, already held above) -- not finance_config.write,
+    // which stays SUPERADMIN-only.
+    'finance_config.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to

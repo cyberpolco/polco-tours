@@ -41,7 +41,11 @@ export interface DepartureDetail {
   // Null for a bespoke departure (DR-028) -- there's no TourPackage to have a status.
   packageStatus: PackageStatus | null;
   packageCountry: string;
-  effectiveUnitPrice: Money;
+  // Null when the package has no cost breakdown yet and no departure
+  // override (DR-039) -- isBookable already independently guards this via
+  // the PUBLISHED-requires-a-price rule in updatePackage below, so this is
+  // a defensive null, not a routine one.
+  effectiveUnitPrice: Money | null;
   bookable: boolean;
 }
 
@@ -58,7 +62,19 @@ export const catalogService = {
 
   async updatePackage(ctx: AuthContext, packageId: string, input: UpdatePackageInput): Promise<TourPackageView> {
     assertCan(ctx, 'catalog.write');
-    const updated = await catalogRepository.updatePackage(requireOrg(ctx), packageId, input);
+    const organizationId = requireOrg(ctx);
+    // DR-039: a package with no price at all (no cost breakdown yet, never
+    // manually priced) must not be publishable -- keeps isBookable's
+    // PUBLISHED gate a real guarantee rather than something every
+    // downstream consumer has to re-check defensively.
+    if (input.status === 'PUBLISHED') {
+      const existing = await catalogRepository.findPackageById(organizationId, packageId);
+      const priceMinor = input.priceMinor ?? existing?.priceMinor;
+      if (priceMinor == null) {
+        throw Errors.conflict('This package has no price yet -- set one via a cost breakdown before publishing');
+      }
+    }
+    const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
   },

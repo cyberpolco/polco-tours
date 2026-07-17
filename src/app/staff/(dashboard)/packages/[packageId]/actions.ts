@@ -9,12 +9,16 @@ const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE'
 export async function updatePackageAction(packageId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');
 
+  // DR-039: price is no longer typed here -- it's computed by the finance
+  // module's cost breakdown (or set there via an audited override). This
+  // form still edits every other package attribute, including currency
+  // (the cost breakdown's own currency must match, checked in
+  // financeService.saveCostBreakdown).
   const durationDaysRaw = formData.get('durationDays');
   const input = UpdatePackageInput.parse({
     title: String(formData.get('title') ?? '').trim(),
     description: String(formData.get('description') ?? '').trim(),
     country: String(formData.get('country') ?? ''),
-    priceMinor: Math.round(Number(formData.get('amount')) * 100),
     currency: String(formData.get('currency') ?? ''),
     durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
     tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),

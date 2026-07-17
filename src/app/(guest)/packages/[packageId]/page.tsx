@@ -4,7 +4,7 @@ import { catalogService, effectivePrice, isBookable } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
-import { format } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 
 interface Props {
   params: Promise<{ packageId: string }>;
@@ -46,7 +46,7 @@ export default async function PackageDetailPage({ params }: Props) {
                   <div>
                     <p className="font-semibold text-navy">{d.startDate.toLocaleDateString()}</p>
                     <p className="text-sm text-mist">
-                      {format(price)}/seat · capacity {d.capacity}
+                      {formatOrPending(price?.minor ?? null, price?.currency ?? null)}/seat · capacity {d.capacity}
                     </p>
                   </div>
                   {bookable ? (

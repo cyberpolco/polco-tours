@@ -298,3 +298,21 @@ DROP POLICY IF EXISTS tenant_isolation ON review_subject_ratings;
 CREATE POLICY tenant_isolation ON review_subject_ratings
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------ package_cost_breakdowns (DR-039)
+ALTER TABLE package_cost_breakdowns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_cost_breakdowns FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON package_cost_breakdowns;
+CREATE POLICY tenant_isolation ON package_cost_breakdowns
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------ package_cost_line_items (DR-039)
+ALTER TABLE package_cost_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_cost_line_items FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON package_cost_line_items;
+CREATE POLICY tenant_isolation ON package_cost_line_items
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

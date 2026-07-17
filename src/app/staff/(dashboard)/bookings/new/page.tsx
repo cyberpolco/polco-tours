@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { format, money } from '@lib/money';
+import { formatOrPending } from '@lib/money';
 import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
 import { createBookingForClientAction, createTailorMadeBookingAction } from './actions';
 
@@ -74,7 +74,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
       <div className="max-w-md">
         <PageHeader
           eyebrow="New booking"
-          title={`${detail.departure.startDate.toLocaleDateString()} · ${format(detail.effectiveUnitPrice)}/seat`}
+          title={`${detail.departure.startDate.toLocaleDateString()} · ${formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null, 'Not yet priced')}/seat`}
         />
         <form action={createBookingForClientAction} className="mt-6 space-y-4">
           <input type="hidden" name="departureId" value={departureId} />
@@ -155,7 +155,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
           {packages.map((p) => (
             <Card as="li" key={p.id}>
               <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
-                {p.title} · {p.country} · {format(money(p.priceMinor, p.currency))}
+                {p.title} · {p.country} · {formatOrPending(p.priceMinor, p.currency)}
               </Link>
             </Card>
           ))}
