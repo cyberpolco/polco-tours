@@ -3,8 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ALL_PERMISSIONS, EDITABLE_ROLES } from '@lib/rbac';
 import { authService } from '@modules/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { PermissionCheckbox } from './permission-checkbox';
+import { PermissionMatrixForm } from './permission-matrix-form';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 
@@ -27,33 +26,11 @@ export default async function PermissionsPage() {
     <div className="space-y-6">
       <PageHeader eyebrow="Admin" title="Permission matrix" />
       <p className="max-w-2xl text-sm text-mist">
-        Toggles take effect immediately. SUPERADMIN itself never appears here -- it&apos;s a fixed, permanent role
-        that can never be edited or locked out of the system.
+        Toggle checkboxes below, then press &quot;Save changes&quot; to apply them -- nothing is written until you
+        save. SUPERADMIN itself never appears here -- it&apos;s a fixed, permanent role that can never be edited or
+        locked out of the system.
       </p>
-      <div className="overflow-x-auto">
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>Permission</Th>
-              {EDITABLE_ROLES.map((role) => (
-                <Th key={role}>{role}</Th>
-              ))}
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {ALL_PERMISSIONS.map((permission) => (
-              <Tr key={permission}>
-                <Td className="whitespace-nowrap font-mono text-xs">{permission}</Td>
-                {EDITABLE_ROLES.map((role) => (
-                  <Td key={role}>
-                    <PermissionCheckbox role={role} permission={permission} checked={matrix[role].includes(permission)} />
-                  </Td>
-                ))}
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      </div>
+      <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
     </div>
     </SidebarShell>
   );

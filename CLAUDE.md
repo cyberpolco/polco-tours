@@ -9,17 +9,17 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `9578d14` (DR-042, Settings,
-> committed — not yet pushed) **plus DR-043 (password-management
-> hardening) uncommitted in the working tree**. `lint`/`typecheck`/`build`
-> and all pure-domain/unit tests (`staff-guard.test.ts`, `rbac.test.ts`)
-> are green for DR-043; the DB-backed API/security tests
-> (`settings.api`/`settings.security`/`invoices.api`) hit this sandbox's
-> documented intermittent Prisma-to-Neon connectivity gotcha for 20+ minutes
-> straight and could not be run to completion this session (schema/data
-> state confirmed directly via `psql` instead — see Gotchas and the DR-042
-> entry below). Re-run those three files once connectivity clears, or let
-> CI confirm them on push. Also records the
+> Last updated: 2026-07-17, against repo HEAD `0498891` (DR-043,
+> password-management hardening, pushed — CI green, which also confirms
+> DR-042's three previously-unverified DB-backed test files:
+> `settings.api`/`settings.security`/`invoices.api` all passed in CI).
+> Uncommitted on top of that: a small DR-043 UI follow-up (the "Change
+> password" entry moved from the dashboard's top nav into the Settings
+> sidebar; the "Polco Tours · Staff" brand text is now a link back to
+> `/staff/bookings`) plus **DR-044** (permission-matrix editor: real
+> column-header spacing, and batching all 168 checkboxes behind an
+> explicit "Save changes" button instead of auto-submitting per click).
+> `lint`/`typecheck`/`build` all green for both. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -258,8 +258,10 @@ src/
         once reset-password panel added to the detail page in DR-035
       admin/permissions = runtime permission-matrix editor (DR-035),
         SUPERADMIN-only -- explicit redirect to /staff/forbidden for anyone
-        else, beyond the route's own admin.all gate; 168 auto-submitting
-        checkboxes (EDITABLE_ROLES x ALL_PERMISSIONS), no batch save step
+        else, beyond the route's own admin.all gate; 168 checkboxes
+        (EDITABLE_ROLES x ALL_PERMISSIONS) buffered client-side behind an
+        explicit "Save changes" button (DR-044, reversing DR-035's original
+        no-batch-step, auto-submit-per-click design)
       ratings = Customer Ratings & Feedback (DR-037) moderation/aggregate
         view, rating.read -- org-wide + per-driver/per-guide averages, plus
         every individual review with comments; "Generate Rating Code" itself
@@ -1505,23 +1507,22 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   (`tests/settings.domain.test.ts`, `tests/rbac.test.ts`) green. The
   DB-backed suites (`tests/api/settings.api.test.ts`,
   `tests/api/settings.security.test.ts`, `tests/api/invoices.api.test.ts`)
-  could **not** be verified to completion this session -- the documented
-  intermittent Prisma-to-Neon connectivity gotcha (see Gotchas) persisted
-  for 20+ minutes across ~20 retries, well past its previously-observed
-  range, while `psql` against the identical `DATABASE_URL` connected
-  instantly every single time. Schema/data state was instead confirmed
-  directly via `psql` (columns/tables exist, `platform_rates` has its
-  seeded row). Treat these three files as needing a real run (locally once
-  connectivity clears, or in CI) before fully trusting this increment.
-- **Password-management hardening done 2026-07-17 (DR-043, uncommitted):**
-  closes two small gaps left in DR-026/DR-035's password work.
-  `scripts/set-staff-password.ts` now unconditionally forces
-  `mustChangePassword: true` (previously only conditionally touched
-  `emailVerified`) -- matches `authService.createUser`/`resetPassword`'s
-  existing precedent, so **every** path that sets a password on someone
-  else's behalf forces a change on next sign-in; `scripts/
-  create-staff-user.ts` stays the one deliberate exception (the
-  operator-chosen, permanent bootstrap-account password, DR-026).
+  could not be verified to completion in-session (the documented
+  intermittent Prisma-to-Neon connectivity gotcha, see Gotchas) but all
+  passed cleanly once CI ran them on the DR-043 push below (10/6/2 tests
+  respectively) -- this increment is now fully verified.
+- **Password-management hardening done 2026-07-17 (DR-043, pushed —
+  commit `0498891`, CI green):** closes two small gaps left in
+  DR-026/DR-035's password work. `scripts/set-staff-password.ts` now
+  unconditionally forces `mustChangePassword: true` (previously only
+  conditionally touched `emailVerified`) -- matches
+  `authService.createUser`/`resetPassword`'s existing precedent, so
+  **every** path that sets a password on someone else's behalf forces a
+  change on next sign-in; `scripts/create-staff-user.ts` stays the one
+  deliberate exception (the operator-chosen, permanent bootstrap-account
+  password, DR-026). Exercised for real this session: regenerated
+  `cyberpolco@gmail.com`'s (the bootstrap SUPERADMIN) password via this
+  script, confirming `mustChangePassword` is now set on that account.
   New voluntary self-service password change: `/staff/change-password`
   (DR-026, previously reachable only via the forced `mustChangePassword`
   redirect) now also accepts a voluntary visit from any signed-in staff
@@ -1532,11 +1533,42 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   password at all. New `forced` flag on the extracted
   `ChangePasswordForm` component only changes copy/Cancel-button
   visibility; the underlying `authClient.changePassword` call is
-  identical either way. New "Change password" link in the dashboard top
-  nav (`(dashboard)/layout.tsx`). No schema/permission/RLS change --
+  identical either way. No schema/permission/RLS change --
   `mustChangePassword`/`requireAnyStaffSession` both already existed.
   `lint`/`typecheck`/`build` green; `tests/staff-guard.test.ts`/
-  `tests/rbac.test.ts` green (both pure, no DB). Not yet committed.
+  `tests/rbac.test.ts` green (both pure, no DB); CI confirmed the full
+  suite (including the DR-042 DB-backed tests above) green on push.
+  **Small same-day follow-up (uncommitted), per explicit user
+  direction:** the "Change password" entry point moved from a standalone
+  dashboard top-nav link into the Settings sidebar instead
+  (`settings-items.ts`'s `SETTINGS_ITEMS`, no `permission` field -- new
+  convention on `SidebarItem`/`SidebarShell` where an omitted permission
+  means "visible to any staff role," since this is the one Settings entry
+  every role needs regardless of what else they can configure); and the
+  "Polco Tours · Staff" brand text in the dashboard top bar is now a link
+  back to `/staff/bookings` (the same page `/staff/login` redirects to on
+  sign-in, and every staff-side role holds `booking.read`). No DR needed
+  for either -- pure UI relocation, no schema/permission/business-rule
+  change.
+- **Permission-matrix editor UX fixes done 2026-07-17 (DR-044):** two
+  explicit user-requested fixes to `/staff/admin/permissions`. Column
+  headers (`EDITABLE_ROLES`, some long) get real horizontal spacing now
+  (`whitespace-nowrap px-3`, scoped to this page only -- the shared
+  `Table`/`Th` components stay untouched since every other table relies on
+  their current tight spacing). More substantively, **reverses DR-035's
+  original "168 auto-submitting checkboxes, no batch save step" design**:
+  all matrix state now lives in one new client component
+  (`permission-matrix-form.tsx`, replacing the old
+  `permission-checkbox.tsx`) buffered locally until an explicit "Save
+  changes" button is pressed, with a dirty-count label and a "Discard
+  changes" escape back to the last-saved state. `actions.ts`'s
+  single-cell `toggleRolePermissionAction` replaced with
+  `saveRolePermissionChangesAction(changes[])`, which loops the exact same
+  per-cell `authService.setRolePermission` call as before (every changed
+  cell still gets its own audit row) -- only the commit point moved from
+  onChange to a deliberate click. UI-layer only: no `authService`/
+  `rbac.ts`/API route change, existing `GET/PATCH /permissions` tests
+  untouched. `lint`/`typecheck`/`build` all green.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1861,7 +1893,16 @@ password stays the one deliberate exception); new voluntary self-service
 visit to `/staff/change-password` (previously forced-only) closes the gap
 where `SUPERADMIN` had no in-app way to change their own already-real
 password, since the admin edit/reset-password panel blocks self-service.
-No schema/permission/RLS change.
+No schema/permission/RLS change · DR-044 permission-matrix editor UX
+fixes: real column-header spacing on `/staff/admin/permissions`
+(`whitespace-nowrap px-3`, scoped to this page, not the shared `Table`
+component), and reverses DR-035's original "auto-submit per checkbox, no
+batch step" design -- all 168 checkboxes now buffer locally in one new
+`permission-matrix-form.tsx` client component and only commit via an
+explicit "Save changes" button (with a "Discard changes" escape),
+looping the same existing per-cell `authService.setRolePermission` call
+so every changed cell still gets its own audit row. UI-layer only, no
+`authService`/`rbac.ts`/API-route change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

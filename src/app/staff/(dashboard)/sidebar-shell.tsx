@@ -9,11 +9,14 @@ import type { Permission } from '@lib/rbac';
 export interface SidebarItem {
   href: string;
   label: string;
-  permission: Permission;
+  // Omit for an item every staff role should see regardless of permission
+  // (e.g. Change Password, DR-043) -- same "no permission arg = any staff
+  // role" convention as staff-guard.ts's requireStaffContext.
+  permission?: Permission;
   superadminOnly?: boolean;
 }
 
-// Settings (DR-042) / Content (DR-043): a left-vertical sub-nav for a
+// Settings (DR-042): a left-vertical sub-nav for a
 // subset of staff pages, without moving their URLs. Next.js layouts are
 // strictly path-hierarchy-based and these 5+2 pages keep their existing
 // routes (e.g. /staff/country-regulations, /staff/admin/users), so a
@@ -39,6 +42,7 @@ export function SidebarShell({
   const permissionSet = new Set(permissions);
   const visibleItems = items.filter((item) => {
     if (item.superadminOnly) return isSuperadmin;
+    if (!item.permission) return true;
     return isSuperadmin || permissionSet.has(item.permission);
   });
   const activeHref = visibleItems

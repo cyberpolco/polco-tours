@@ -16,4 +16,9 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // PLATFORM_ADMIN is seeded with admin.all by default but must NOT see
   // this link, matching the page's own explicit SUPERADMIN-only gate.
   { href: '/staff/admin/permissions', label: 'Permissions', permission: 'admin.all', superadminOnly: true },
+  // DR-043: no `permission` -- visible to any staff role, since every
+  // account (including SUPERADMIN, who can't reach it via the admin
+  // reset-password panel on their own row) needs a way to change their own
+  // password.
+  { href: '/staff/change-password', label: 'Change Password' },
 ];
