@@ -9,12 +9,14 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `5964ee4` (DR-038, Insights &
-> Decision Making, committed). DR-039 (Financial Management) is in progress on
-> top of it — schema pushed + RLS applied to the shared dev/production Neon DB,
-> lint/typecheck/`npm run build` all green, and the full new finance test suite
-> (31 tests across 6 files: domain, API, security, RLS cross-tenant) verified
-> green post-migration. Not yet committed as of this revision. Also records
+> Last updated: 2026-07-17, against repo HEAD `d820b12` (DR-039, Financial
+> Management, committed and pushed). Checking CI status right after that push
+> surfaced DR-040: `main`'s CI had actually been red for three consecutive
+> pushes (DR-037/038/039) due to a pre-existing gap — `booking_reference_seq`/
+> `package_reference_seq` were hand-created against the shared Neon DB and
+> never scripted, so every fresh Postgres (CI, or a future `db:setup`) was
+> missing them. Fixed the same session, in progress on top of DR-039 as of
+> this revision — see Gotchas and DR-040. Also records
 > the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2104,3 +2106,23 @@ human rather than fabricating volume content.
   perfectly well-typed, just factually wrong) -- after any `rbac.ts` edit,
   run `tests/rbac.test.ts` specifically (it's fast, no DB needed), not just
   the DB-backed tests for whatever module prompted the change.
+- **CI-only failures don't show up in local runs when local dev always talks
+  to the same already-provisioned Neon DB.** `booking_reference_seq` (DR-027)
+  and `package_reference_seq` (DR-028) were created by hand directly against
+  the shared dev/production database when those DRs shipped, but never
+  captured in any script (`prisma db push` can't express a custom formatted
+  sequence default). Every fresh Postgres -- CI's ephemeral service on every
+  run, or a new environment via `npm run db:setup` -- was silently missing
+  them, so `packages-v2`/`invoices`/`bookings`/`bookings-v2` API tests 500'd
+  in CI with `relation "booking_reference_seq" does not exist` for at least
+  three consecutive pushes (DR-037, DR-038, DR-039) before anyone ran
+  `gh run list` to notice `main`'s CI was red. **Check CI status after every
+  push, not just local `npm test`** -- a passing local run only proves the
+  code works against whatever DB you happen to be pointed at, which for this
+  project's daily workflow is always the one Neon database that's had every
+  historical fix applied to it by hand at least once. Fixed (DR-040) with
+  `prisma/sequences.sql` + `scripts/apply-sequences.mjs` (mirrors
+  `apply-rls.mjs`) + a new `db:sequences` step wired into `db:setup` and both
+  CI jobs, between `db:push` and `db:rls`. This was also a live production
+  disaster-recovery gap, not just a CI annoyance -- rebuilding the production
+  database from schema alone would have hit the same failure.

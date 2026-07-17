@@ -65,9 +65,10 @@ jobs:
             GRANT ALL ON SCHEMA public TO polco_app;
           "
 
-      - name: Prepare database (schema + RLS + seed)
+      - name: Prepare database (schema + sequences + RLS + seed)
         run: |
           npm run db:push
+          npm run db:sequences
           npm run db:rls
           npm run db:seed
 
@@ -131,9 +132,10 @@ jobs:
             GRANT ALL ON SCHEMA public TO polco_app;
           "
 
-      - name: Prepare database (schema + RLS + seed)
+      - name: Prepare database (schema + sequences + RLS + seed)
         run: |
           npm run db:push
+          npm run db:sequences
           npm run db:rls
           npm run db:seed
 
