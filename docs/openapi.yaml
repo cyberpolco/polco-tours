@@ -1,8 +1,22 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.13.0
+  version: 0.14.0
   description: >
+    DR-038 adds Insights & Decision Making: a new, read-only `insights`
+    module (no new Prisma tables) composing existing booking/invoicing/
+    assignment/fleet/ratings/visa data into one executive dashboard
+    (GET /insights, new `insights.read` permission). Deliberately not a real
+    BI/analytics engine -- utilization is a simple ratio (assigned-and-
+    currently-scheduled ÷ total ACTIVE fleet), revenue is reported per
+    currency and never combined across them. Two small additive methods
+    elsewhere: `invoicingService.listAllForOrg` (staff-only, since
+    invoice.read is also held by TOURIST for their own single invoice) and
+    `assignmentService.listAllAssignments` (gated on assignment.write, the
+    existing manager-only permission, since assignment.read is also held by
+    self-service roles).
+
+
     DR-037 adds Customer Ratings & Feedback: a new ratings module
     (RatingCode/Review/ReviewSubjectRating, none of which existed before).
     Staff issue a single-use, expiring Rating Code once a booking's invoice
@@ -2257,6 +2271,27 @@ paths:
                     description: '{ organization, drivers, guides } -- each an averageRating/ratingCount aggregate'
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /insights:
+    get:
+      summary: Read-only executive dashboard (insights.read)
+      description: >-
+        Whole-org, no caller-supplied id -- same safe shape as /visa/queue
+        and /ratings. Composed entirely from existing booking/invoicing/
+        assignment/fleet/ratings/visa data; no new tables. Deliberately not
+        a real BI/analytics engine -- utilization figures are a simple
+        ratio, revenue is reported per currency (USD/EUR/NAD/CDF) and never
+        summed across currencies (no FX conversion anywhere in this app).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { $ref: '#/components/schemas/DashboardSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -2552,6 +2587,74 @@ components:
               guideUserId: { type: string, format: uuid, nullable: true }
               rating: { type: integer, minimum: 1, maximum: 5 }
               comment: { type: string, nullable: true, maxLength: 1000 }
+
+    MoneyByCurrency:
+      description: 'One bucket per currency (minor units) -- never summed across currencies.'
+      type: object
+      additionalProperties: { type: integer }
+      example: { USD: 150000, EUR: 20000 }
+
+    DashboardSummary:
+      description: Insights & Decision Making (DR-038) executive dashboard.
+      type: object
+      properties:
+        bookings:
+          type: object
+          properties:
+            totalBookings: { type: integer }
+            activeTours: { type: integer, description: Bookings currently IN_PROGRESS. }
+            pendingQuotations: { type: integer, description: AWAITING_QUOTATION + QUOTATION_SENT. }
+            conversionRate: { type: number, minimum: 0, maximum: 1 }
+        revenue:
+          type: object
+          properties:
+            revenue: { $ref: '#/components/schemas/MoneyByCurrency' }
+            revenueByCountry:
+              type: object
+              additionalProperties: { $ref: '#/components/schemas/MoneyByCurrency' }
+            revenueByPackage:
+              type: object
+              additionalProperties: { $ref: '#/components/schemas/MoneyByCurrency' }
+            outstanding: { $ref: '#/components/schemas/MoneyByCurrency' }
+        operations:
+          type: object
+          properties:
+            fleetUtilization: { type: number, minimum: 0, maximum: 1 }
+            driverUtilization: { type: number, minimum: 0, maximum: 1 }
+            guideUtilization: { type: number, minimum: 0, maximum: 1 }
+            mostBookedDestinations:
+              type: array
+              items:
+                type: object
+                properties:
+                  country: { type: string }
+                  count: { type: integer }
+        customerExperience:
+          type: object
+          properties:
+            averageRating: { type: number, nullable: true, minimum: 1, maximum: 5 }
+            ratingCount: { type: integer }
+            repeatCustomers: { type: integer }
+            topGuides:
+              type: array
+              items: { $ref: '#/components/schemas/TopPerformer' }
+            topDrivers:
+              type: array
+              items: { $ref: '#/components/schemas/TopPerformer' }
+        immigration:
+          type: object
+          properties:
+            pendingVisas: { type: integer }
+            approvedVisas: { type: integer }
+            rejectedVisas: { type: integer }
+            missingDocuments: { type: integer }
+
+    TopPerformer:
+      type: object
+      properties:
+        name: { type: string }
+        averageRating: { type: number, minimum: 1, maximum: 5 }
+        ratingCount: { type: integer }
 
     Traveler:
       type: object

@@ -235,6 +235,16 @@ export const assignmentService = {
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 
+  /** Insights & Decision Making (DR-038): every assignment in the org, for
+   * utilization reporting. Gated on `assignment.write` (manager-only),
+   * matching `listForDeparture` above -- `assignment.read` is also held by
+   * TOUR_GUIDE/DRIVER/VEHICLE_OWNER for their own self-scoped view
+   * (`listMyAssignments`), who must not see the whole org's assignments. */
+  async listAllAssignments(ctx: AuthContext): Promise<AssignmentView[]> {
+    assertCan(ctx, 'assignment.write');
+    return assignmentRepository.listAllForOrg(requireOrg(ctx));
+  },
+
   /** Ratings module (DR-037): resolves which driver(s)/guide(s) served a
    * departure so a client can rate the actual people, not an arbitrary
    * picker. No ctx -- the caller (ratings service) has already

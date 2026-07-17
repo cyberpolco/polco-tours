@@ -31,6 +31,15 @@ export const assignmentRepository = {
     });
   },
 
+  /** Insights & Decision Making (DR-038): every assignment in the org --
+   * source data for fleet/driver/guide utilization reporting. */
+  async listAllForOrg(organizationId: string): Promise<AssignmentView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.assignment.findMany();
+      return rows.map(toView);
+    });
+  },
+
   async listForVehicle(organizationId: string, vehicleId: string): Promise<AssignmentView[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.assignment.findMany({ where: { vehicleId } });

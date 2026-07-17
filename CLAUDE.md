@@ -9,12 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `2b13173` (DR-036, staff
-> booking-for-client no-account-required, committed). DR-037 (Customer
-> Ratings & Feedback) is in progress on top of it — lint/typecheck and the
-> full new test suite (domain, DB-backed full-flow, API, security, 3 RLS
-> cross-tenant files) are all green, schema already pushed + RLS applied to
-> the shared Neon DB, not yet committed as of this revision. Also records
+> Last updated: 2026-07-17, against repo HEAD `6aea05b` (DR-037, Customer
+> Ratings & Feedback, committed). DR-038 (Insights & Decision Making) is in
+> progress on top of it — lint/typecheck, `npm run build`, and the full new
+> test suite (domain, API, security) are all green; no schema/RLS change was
+> needed this time. Not yet committed as of this revision. Also records
 > the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -176,6 +175,10 @@ src/
                                            #   Components call ratingsService
                                            #   directly, same DR-016
                                            #   convention as /find-booking
+    api/v1/insights                       # Insights & Decision Making
+                                           #   (DR-038): insights.read,
+                                           #   read-only executive
+                                           #   dashboard, no new tables
     api/v1/bookings/[bookingId]/itinerary, api/v1/itineraries(/mine|
       /[itineraryId](/review|/send-back|/approve|/days(/[dayId])|
       /hotels(/[hotelId])|/restaurants(/[restaurantId]))),
@@ -233,6 +236,10 @@ src/
         every individual review with comments; "Generate Rating Code" itself
         lives on the booking-detail page instead (rating.issue, visible
         once the invoice is PAID)
+      insights = Insights & Decision Making (DR-038), insights.read -- a
+        read-only executive dashboard (Bookings/Revenue/Operations/Customer
+        Experience/Immigration), composed live from other modules' data, no
+        Prisma table of its own
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
       (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
@@ -322,6 +329,19 @@ src/
                        #   recordGuideRatingAggregateByUserId are this
                        #   codebase's first no-ctx cross-module WRITE (every
                        #   prior "caller already gates" method was a read)
+    insights/          # Insights & Decision Making (DR-038) -- read-only
+                       #   executive dashboard, NO repository.ts (owns no
+                       #   table, same shape as notifications) -- composes
+                       #   booking/invoicing/assignment/fleet/ratings/visa
+                       #   through their public interfaces only.
+                       #   getDashboardSummary deliberately serializes every
+                       #   composed call + enrichment loop (sequential
+                       #   await, not Promise.all) after a real
+                       #   connection-pool-exhaustion finding during
+                       #   testing -- bursting many concurrent withOrg
+                       #   transactions choked this sandbox's Neon pool even
+                       #   against an empty org, so this trades latency for
+                       #   robustness on what's a low-traffic admin page
   middleware.ts        # trace id + locale (rate limit hook in a later increment)
 prisma/
   schema.prisma        # data model
@@ -1263,6 +1283,37 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   5-module spec (Insights/Finance/Tracking/Settings-CMS/Ratings) -- the
   user chose to build Ratings first as the smallest, most self-contained
   piece; the other four are separate future increments, not started.
+- **Insights & Decision Making done 2026-07-17 (DR-038):** Module 10 of the
+  same 5-module spec, picked next as "the easiest" -- confirmed by research
+  before writing code: **no new Prisma tables at all**, every metric is
+  composed live from `booking`/`invoicing`/`assignment`/`fleet`/`ratings`/
+  `visa` data that already exists. New `src/modules/insights/` (no
+  `repository.ts`, same shape as `notifications`) with a new `insights.read`
+  permission (`PLATFORM_ADMIN`/`TOUR_OPERATOR`) gating the page/route --
+  every composed call keeps its own existing permission check underneath,
+  confirmed both roles already hold all of them. Two small additive methods
+  elsewhere: `invoicingService.listAllForOrg` (staff-only check, since
+  `invoice.read` is also held by `TOURIST`) and
+  `assignmentService.listAllAssignments` (gated `assignment.write`, the
+  existing manager-only permission). Metric definitions are explicit,
+  flagged design calls, not spec-literal: "active tours" =
+  `Booking.status === 'IN_PROGRESS'` (the only "currently running" concept
+  in this schema); revenue/outstanding are reported **per currency, never
+  combined** (BR-02, no FX conversion anywhere in this app); "utilization"
+  is an honest plain ratio, explicitly not a real BI/scheduling-
+  optimization engine, same posture as `recommendAssignment`'s DR-029
+  disclaimer. **A real robustness finding, not just a test issue**: the
+  first draft composed its ~9 data sources via one big `Promise.all` (plus
+  nested per-package/per-assignment `Promise.all`/`allSettled` loops) --
+  this sandbox's Neon connection pool measurably choked on the resulting
+  burst of concurrent `withOrg` transactions, reproducing even against an
+  *empty* org (pointing at concurrency itself, not query cost). Rewritten
+  to serialize every composed call (sequential `await`) -- a deliberate
+  latency-for-robustness tradeoff appropriate for a low-traffic admin page,
+  and one that protects the real production Neon pool too, not just this
+  sandbox. New `GET /insights` + `/staff/insights` (five sections matching
+  the spec's own grouping). No RLS/schema change -- the first DR this
+  session that didn't touch `prisma/schema.prisma`.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1511,7 +1562,20 @@ permissions, `/staff/ratings` page, booking-detail "Generate Rating Code"
 panel, `RATING_CODE_ISSUED` notification. This is Module 14 of a
 larger 5-module spec (Insights/Finance/Tracking/Settings-CMS/Ratings) --
 built first as the smallest, most self-contained piece; the other four
-are separate future increments.
+are separate future increments · DR-038 Insights & Decision Making
+(Module 10 of the same spec, picked next as "the easiest"): new
+`src/modules/insights/` (no `repository.ts`, owns no table) composing
+`booking`/`invoicing`/`assignment`/`fleet`/`ratings`/`visa` data live --
+**no new Prisma tables at all**. New `insights.read` permission plus two
+small additive methods (`invoicingService.listAllForOrg`,
+`assignmentService.listAllAssignments`). Metric definitions (active
+tours = `IN_PROGRESS`, per-currency revenue never combined, utilization =
+a plain honest ratio) are explicit flagged design calls. Found and fixed a
+real concurrency issue during testing: composing via one big `Promise.all`
+burst exhausted this sandbox's Neon connection pool even against an empty
+org; rewritten to serialize every composed call, trading latency for
+robustness (also protects the real production pool). New `GET /insights`
++ `/staff/insights`. First DR this session with no schema/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

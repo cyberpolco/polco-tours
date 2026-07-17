@@ -99,6 +99,20 @@ export const invoicingService = {
     return invoice?.status ?? null;
   },
 
+  /** Insights & Decision Making (DR-038): every invoice+payments in the org,
+   * for revenue/outstanding-balance reporting. `invoice.read` is also held
+   * by TOURIST (their own single invoice, enforced in
+   * getOrCreateInvoiceForBooking/listPayments) -- this whole-org listing is
+   * staff-only, checked explicitly since the permission alone doesn't
+   * exclude a tourist caller. */
+  async listAllForOrg(
+    ctx: AuthContext,
+  ): Promise<Array<{ invoice: InvoiceView; bookingId: string; payments: PaymentView[] }>> {
+    assertCan(ctx, 'invoice.read');
+    if (!isStaff(ctx)) throw Errors.forbidden('Only staff may list every invoice in the organization');
+    return invoicingRepository.listAllForOrg(requireOrg(ctx));
+  },
+
   async listPayments(ctx: AuthContext, invoiceId: string): Promise<PaymentView[]> {
     assertCan(ctx, 'invoice.read');
     const organizationId = requireOrg(ctx);

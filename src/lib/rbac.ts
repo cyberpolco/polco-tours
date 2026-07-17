@@ -65,7 +65,14 @@ export type Permission =
   // in the ratings module's own tables, not Booking itself -- matches the
   // `itinerary.write`/`itinerary.read` precedent, not `booking.confirm`'s.
   | 'rating.issue'
-  | 'rating.read';
+  | 'rating.read'
+  // Insights & Decision Making (DR-038). Gates the executive-dashboard
+  // page/route itself; every metric it composes still re-checks its own
+  // underlying permission (assignment.write, invoice.read, fleet.read,
+  // rating.read, visa.process, catalog.read, booking.read) inside the
+  // module it calls through -- this is an additional top-level gate, not a
+  // bypass.
+  | 'insights.read';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -100,6 +107,7 @@ export const ALL_PERMISSIONS = [
   'admin.all',
   'rating.issue',
   'rating.read',
+  'insights.read',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -163,6 +171,7 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'admin.all',
     'rating.issue',
     'rating.read',
+    'insights.read',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -200,6 +209,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // booking is fully paid, and views the aggregate/individual reviews.
     'rating.issue',
     'rating.read',
+    // Insights & Decision Making (DR-038): the executive dashboard.
+    'insights.read',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to

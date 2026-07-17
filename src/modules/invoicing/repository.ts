@@ -72,6 +72,19 @@ export const invoicingRepository = {
     });
   },
 
+  /** Insights & Decision Making (DR-038): every invoice in the org, with its
+   * payments -- the source data for revenue/outstanding-balance reporting.
+   * No single-invoice/single-booking scoping (unlike every other method
+   * here); the service layer restricts this to staff callers. */
+  async listAllForOrg(
+    organizationId: string,
+  ): Promise<Array<{ invoice: InvoiceView; bookingId: string; payments: PaymentView[] }>> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.invoice.findMany({ include: { payments: true } });
+      return rows.map((i) => ({ invoice: toInvoiceView(i), bookingId: i.bookingId, payments: i.payments.map(toPaymentView) }));
+    });
+  },
+
   async create(organizationId: string, params: CreateInvoiceParams): Promise<InvoiceView> {
     return withOrg(organizationId, async (tx) => {
       const i = await tx.invoice.create({

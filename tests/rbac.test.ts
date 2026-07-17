@@ -221,4 +221,14 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('VISA_FACILITATOR', 'rating.issue')).toBe(false);
     expect(hasDefault('TOURIST', 'rating.issue')).toBe(false);
   });
+
+  it('PLATFORM_ADMIN and TOUR_OPERATOR gain insights.read (DR-038); no other role does', () => {
+    expect(hasDefault('PLATFORM_ADMIN', 'insights.read')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'insights.read')).toBe(true);
+    expect(hasDefault('TOUR_GUIDE', 'insights.read')).toBe(false);
+    expect(hasDefault('DRIVER', 'insights.read')).toBe(false);
+    expect(hasDefault('VEHICLE_OWNER', 'insights.read')).toBe(false);
+    expect(hasDefault('VISA_FACILITATOR', 'insights.read')).toBe(false);
+    expect(hasDefault('TOURIST', 'insights.read')).toBe(false);
+  });
 });
