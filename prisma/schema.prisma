@@ -532,23 +532,23 @@ model Assignment {
 // Deliberately no deletedAt: booking history must survive cancellation for
 // audit/reconciliation — status already encodes the lifecycle.
 model Booking {
-  id                String        @id @default(uuid()) @db.Uuid
-  organizationId    String        @db.Uuid
-  origin            BookingOrigin @default(PREDEFINED_PACKAGE)
+  id                 String        @id @default(uuid()) @db.Uuid
+  organizationId     String        @db.Uuid
+  origin             BookingOrigin @default(PREDEFINED_PACKAGE)
   // Null only for a TAILOR_MADE booking -- no fixed departure exists yet.
-  departureId       String?       @db.Uuid
-  touristUserId     String        @db.Uuid
-  seats             Int
-  status            BookingStatus @default(DRAFT)
-  holdExpiresAt     DateTime? // set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking
+  departureId        String?       @db.Uuid
+  touristUserId      String        @db.Uuid
+  seats              Int
+  status             BookingStatus @default(DRAFT)
+  holdExpiresAt      DateTime? // set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking
   // Seats * effective unit price for PREDEFINED_PACKAGE, snapshotted at hold
   // time. Null for TAILOR_MADE until staff sends a quotation (sendQuotation).
-  priceMinor        Int?
-  currency          Currency?
+  priceMinor         Int?
+  currency           Currency?
   // Set when the add-ons wizard step is submitted, even choosing none --
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
-  addonsFinalizedAt DateTime?
+  addonsFinalizedAt  DateTime?
   // Short, human-typeable lookup code -- generated for every booking (staff
   // or guest) at creation time, but only ever revealed to a guest once
   // setup + payment-initiation are complete. Not a security boundary on its
@@ -556,25 +556,32 @@ model Booking {
   // name (see bookingService.lookupByConfirmationCode). Pattern (DR-045):
   // 6 chars, 2-3 non-adjacent unique uppercase letters + unique digits --
   // see src/modules/booking/domain.ts's generateConfirmationCode.
-  confirmationCode  String        @unique
+  confirmationCode   String        @unique
   // Business-facing reference, e.g. shown on invoices/receipts -- coexists
   // with confirmationCode (which stays the non-guessable guest-lookup
   // secret). Same generateConfirmationCode() pattern as confirmationCode
   // (DR-045) -- no longer POL-{year}-{seq}; booking_reference_seq is dead.
-  bookingReference  String        @unique
-  specialRequests   String?       @db.VarChar(1000)
+  bookingReference   String        @unique
+  specialRequests    String?       @db.VarChar(1000)
   // TAILOR_MADE-only fields (all null/empty for a PREDEFINED_PACKAGE booking).
-  customCountry     String?       @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
-  customTravelStart DateTime?
-  customTravelEnd   DateTime?
-  customDescription String?       @db.VarChar(2000)
+  customCountry      String?       @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
+  customTravelStart  DateTime?
+  customTravelEnd    DateTime?
+  customDescription  String?       @db.VarChar(2000)
   // Guest preference context for staff pricing a bespoke request (DR-046) --
   // NOT a matching/scoring input (the old quiz's package-ranking role is
   // gone entirely). Same PackageTag enum TourPackage.tags already uses.
-  preferredTags     PackageTag[]  @default([])
-  preferredSites    String[]      @default([])
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  preferredTags      PackageTag[]  @default([])
+  preferredSites     String[]      @default([])
+  // DR-047: the full set of countries a guest ticked on /plan-my-trip
+  // (customCountry above is just the first pick -- still the sole driver
+  // of tax/visa lookups, unchanged). Contact email is booking-scoped, not
+  // written onto User.email (which is better-auth-managed and @unique --
+  // two different guests submitting the same real email would collide).
+  preferredCountries String[]      @default([])
+  contactEmail       String?       @db.VarChar(320)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departure    Departure?     @relation(fields: [departureId], references: [id], onDelete: Cascade)

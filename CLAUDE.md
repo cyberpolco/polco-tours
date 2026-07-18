@@ -9,21 +9,32 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-18, against repo HEAD `f5e7e05`. **DR-046**
-> (pushed, `0f9e284`) merges the guest site's "Tailor my trip" quiz and
-> "Custom trip" tailor-made form into one always-bespoke entry point,
-> `/plan-my-trip` (planned collaboratively with the user before
-> implementing — see `docs/decisions/DECISION_LOG.md`'s DR-046 entry for
-> the full spec); package-matching/scoring is gone entirely, and the
-> quiz's preference questions are kept as staff context on the resulting
-> booking (`Booking.preferredTags`/`preferredSites`, new columns, pushed
-> to the shared Neon DB with explicit user confirmation). **`f5e7e05`
-> fixes a real CI regression from DR-045** (two pushes earlier) that went
-> unnoticed until `gh run list` was checked after DR-046's own push:
-> `e2e/guest-checkout.spec.ts` still asserted the pre-DR-045 8-character
-> confirmation-code format — see the new Gotchas entry on checking `e2e/`
-> whenever a generated field's format changes, not just `tests/`. CI on
-> `f5e7e05` not yet re-checked as of this note. Also records the
+> Last updated: 2026-07-18, against repo HEAD `55de1ef` (docs-only, CI not
+> yet re-checked). **Not yet committed on top of that**: **DR-047**,
+> refining `/plan-my-trip` (DR-046, still the guest's merged "help me plan
+> something" entry point) per explicit user feedback on the shipped flow
+> -- see `docs/decisions/DECISION_LOG.md`'s DR-047 entry for the full
+> spec. Four requested changes: multi-country selection (checkboxes, new
+> `Booking.preferredCountries`, first pick still drives tax/visa via
+> `customCountry` unchanged); sites/activities now filter by the selected
+> countries; a new required contact email (`Booking.contactEmail`,
+> deliberately not `User.email`); and the single-page form became a
+> gradual 8-step wizard (own local progress indicator, not the shared
+> `BOOKING_WIZARD_STEPS`). A fifth, larger change from the same feedback:
+> "this is just a request a quotation part... not pay" -- fixed
+> `booking/[bookingId]/page.tsx` so a fresh `TAILOR_MADE` booking stops at
+> a reference-only confirmation screen instead of being forced into the
+> Travelers/Passport/Add-ons/Confirm-&-Pay setup wizard; this also fixed a
+> real pre-existing dead-code bug (the page's own `AWAITING_QUOTATION`/
+> `QUOTATION_SENT` alerts were unreachable for a zero-traveler booking).
+> Schema pushed to the shared Neon DB with explicit user confirmation.
+> Verified end-to-end via raw HTTP against a live dev server (not just
+> `curl` on the static first render) -- the multi-step wizard's own
+> click-through interaction could not be driven in a real browser in this
+> sandbox (no browser-automation tool available), flagged for a human to
+> click through. `tests/api/bookings-v2.api.test.ts` hit the documented
+> Prisma-to-Neon connectivity gotcha persistently this session -- treat it
+> as needing a real CI run. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -299,7 +310,13 @@ src/
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
       (DR-016) -- /, /packages(/[packageId]), /plan-my-trip (DR-046 merge of
       the old /quiz(/results) + /tailor-made, both now redirect here --
-      always creates a TAILOR_MADE booking, no more package-matching),
+      always creates a TAILOR_MADE booking, no more package-matching; a
+      gradual 8-step wizard since DR-047, own local progress indicator,
+      NOT BOOKING_WIZARD_STEPS -- multi-country selection, country-filtered
+      sites, required email; ends at a generated reference only, no
+      Travelers/Passport/Add-ons/Pay at this stage -- booking/[bookingId]
+      shows a confirmation-only screen for a TAILOR_MADE booking still
+      AWAITING_QUOTATION/QUOTATION_SENT instead of the setup wizard below),
       /book/[departureId] (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
       (same wizard as staff's, requireGuestContext instead), /find-booking(/result),
       /rate(/result) = Customer Ratings & Feedback (DR-037): same no-session,
@@ -332,10 +349,15 @@ src/
                        #   letters + unique digits) -- NOT the original
                        #   8-char alphabet code / POL-{year}-{seq} formats
                        #   DR-016/027 shipped with, both superseded;
-                       #   preferredTags/preferredSites (DR-046) -- guest
-                       #   preference context on a TAILOR_MADE booking for
-                       #   staff pricing, never a matching/scoring input;
-                       #   Traveler (+ emergency contact fields, DR-030) +
+                       #   preferredTags/preferredSites (DR-046) +
+                       #   preferredCountries/contactEmail (DR-047) -- guest
+                       #   preference/contact context on a TAILOR_MADE
+                       #   booking for staff pricing, never a matching/
+                       #   scoring input; customCountry is always
+                       #   preferredCountries[0] (still the sole tax/visa
+                       #   driver); contactEmail is booking-scoped, never
+                       #   written onto User.email; Traveler (+ emergency
+                       #   contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
                        #   listTravelersForDeparture = data-minimized guide/
                        #   driver client-list, internal only, no REST route
@@ -1691,6 +1713,47 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   dev-server walkthrough (redirects, form render, step-indicator
   position) plus `lint`/`typecheck`/`build` and the affected test files
   all green.
+- **`/plan-my-trip` refined per explicit user feedback (DR-047,
+  2026-07-18):** four requested changes to the DR-046 flow, plus a fifth
+  larger one from the same feedback session. **Multi-country selection**:
+  destination is now checkboxes, 1+ required; `customCountry` (still the
+  sole tax/visa driver, unchanged downstream) is derived as the first
+  pick, the full ordered list kept as new `Booking.preferredCountries`.
+  **Sites/activities filter by the selected countries** (client-side,
+  reactive). **New required `email` field** -> new
+  `Booking.contactEmail` -- deliberately not `User.email` (better-auth-
+  managed, `@unique`; two guests sharing a real email would collide).
+  **Single page -> gradual 8-step wizard** (own local progress indicator,
+  Back/Next, `plan-my-trip-form.tsx` rewritten as a client-managed state
+  machine; `actions.ts` now takes a plain payload object, not `FormData`).
+  **Fifth change**: "this is just a request a quotation part... not
+  pay" -- `booking/[bookingId]/page.tsx` gained a new top-level branch
+  (origin `TAILOR_MADE`, status `AWAITING_QUOTATION`/`QUOTATION_SENT`)
+  showing only the reference + status message + cancel, entirely
+  bypassing the Continue-setup wizard and skipping invoice creation
+  (which would 409 on an incomplete manifest). This also fixed a real
+  pre-existing bug: the page's own `AWAITING_QUOTATION`/`QUOTATION_SENT`
+  alerts, further down, were dead code -- unreachable for a fresh
+  zero-traveler booking because the `!setupComplete` gate ran first and
+  unconditionally forced the setup wizard regardless of origin/status.
+  Deliberately origin-scoped: a `PREDEFINED_PACKAGE` booking reaching
+  these statuses (via "Request a quotation") always already has
+  `setupComplete` true and a real invoice, so that path is completely
+  unchanged. Verified end-to-end via raw HTTP against a live dev server
+  (anonymous sign-in -> create booking with 2 countries -> confirmed
+  `customCountry`/`preferredCountries`/`contactEmail` all correct ->
+  fetched the booking page and confirmed zero "Continue setup"/
+  "Travelers" content) -- the wizard's own click-through interaction
+  (Next/Back, per-step validation, country-filtered sites re-rendering)
+  could not be driven in a real browser in this sandbox (no
+  browser-automation tool available); flagged for a human to click
+  through before fully trusting the interactive polish. New tests for
+  multi-country/email validation and persistence;
+  `tests/api/bookings-v2.api.test.ts` hit the documented Prisma-to-Neon
+  connectivity gotcha persistently (confirmed transient via a bare `tsx`
+  script) -- treat it as needing a real CI run. Schema pushed to the
+  shared Neon DB via a user-pasted `neondb_owner` credential, never
+  written to any file. `lint`/`typecheck`/`build` all green throughout.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2046,7 +2109,19 @@ flows' duplicate "which country" question collapsed into one required
 field. `BOOKING_WIZARD_STEPS` shrunk 7→5, every `currentIndex`
 re-indexed. New `next.config.mjs` `redirects()` for the three old URLs.
 Schema pushed to the shared Neon DB via a user-pasted `neondb_owner`
-credential, never written to any file.
+credential, never written to any file · DR-047 refines DR-046 per
+explicit user feedback: multi-country checkboxes (`preferredCountries`,
+`customCountry` = first pick, tax/visa unchanged); sites filtered by
+selected countries; new required `email` -> `Booking.contactEmail` (not
+`User.email`); single page -> gradual 8-step wizard with its own local
+progress indicator; and `booking/[bookingId]/page.tsx` now stops a fresh
+`TAILOR_MADE` booking at a reference-only confirmation instead of
+forcing the Travelers/Passport/Add-ons/Pay setup wizard -- fixed a real
+pre-existing dead-code bug in the process (the page's own
+`AWAITING_QUOTATION`/`QUOTATION_SENT` alerts were unreachable for a
+zero-traveler booking). Origin-scoped so `PREDEFINED_PACKAGE` bookings
+requesting a quote (always already `setupComplete` by the time they can)
+are completely unaffected.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

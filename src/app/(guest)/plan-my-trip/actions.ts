@@ -9,6 +9,21 @@ import { logger, newTraceId } from '@lib/logger';
 
 export type CreatePlanMyTripResult = { bookingId: string } | { error: string };
 
+export interface CreatePlanMyTripPayload {
+  countries: string[];
+  customTravelStart: string;
+  customTravelEnd: string;
+  seats: number;
+  preferredTags: string[];
+  preferredSites: string[];
+  customDescription: string;
+  specialRequests?: string;
+  name: string;
+  email: string;
+  dialCode: string;
+  localNumber: string;
+}
+
 // Mirrors (guest)/book/[departureId]/actions.ts's createGuestBookingAction --
 // same reasoning applies here: called right after the client establishes the
 // anonymous session, returns a result instead of calling redirect() since
@@ -17,31 +32,31 @@ export type CreatePlanMyTripResult = { bookingId: string } | { error: string };
 // did (DR-046 merged the entry point, not the underlying operation) --
 // tags/sites are the old quiz's preference questions, carried over as
 // Booking.preferredTags/preferredSites (staff context only, no scoring).
-export async function createPlanMyTripRequestAction(formData: FormData): Promise<CreatePlanMyTripResult> {
+// Takes a plain object, not FormData (DR-047) -- the form is now a
+// client-managed multi-step wizard, not a single native <form> submit.
+export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPayload): Promise<CreatePlanMyTripResult> {
   const traceId = newTraceId();
   try {
     const ctx = await authService.resolveSession(await headers());
 
-    const name = String(formData.get('name') ?? '').trim();
-    const dialCode = String(formData.get('dialCode') ?? '');
-    const localNumber = String(formData.get('localNumber') ?? '').trim();
+    const name = payload.name.trim();
     if (name) {
       await authService.updateProfile(ctx, {
         name,
-        phone: localNumber ? toE164(dialCode, localNumber) : undefined,
+        phone: payload.localNumber ? toE164(payload.dialCode, payload.localNumber) : undefined,
       });
     }
 
-    const specialRequests = String(formData.get('specialRequests') ?? '').trim();
     const input = CreateTailorMadeInput.parse({
-      customCountry: String(formData.get('customCountry')).trim().toUpperCase(),
-      customTravelStart: String(formData.get('customTravelStart')),
-      customTravelEnd: String(formData.get('customTravelEnd')),
-      seats: Number(formData.get('seats')),
-      customDescription: String(formData.get('customDescription')),
-      specialRequests: specialRequests || undefined,
-      preferredTags: formData.getAll('tags').map(String),
-      preferredSites: formData.getAll('sites').map(String),
+      countries: payload.countries.map((c) => c.trim().toUpperCase()),
+      customTravelStart: payload.customTravelStart,
+      customTravelEnd: payload.customTravelEnd,
+      seats: payload.seats,
+      customDescription: payload.customDescription,
+      specialRequests: payload.specialRequests?.trim() || undefined,
+      preferredTags: payload.preferredTags,
+      preferredSites: payload.preferredSites,
+      email: payload.email.trim(),
     });
     const booking = await bookingService.createTailorMadeRequest(ctx, input);
     return { bookingId: booking.id };

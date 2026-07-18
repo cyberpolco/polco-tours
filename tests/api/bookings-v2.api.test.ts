@@ -74,7 +74,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
   it('a tourist can create a bespoke trip request with no departure (201, AWAITING_QUOTATION)', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
-      customCountry: 'NA',
+      countries: ['NA'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
       customTravelStart: '2027-01-10',
       customTravelEnd: '2027-01-15',
       seats: 2,
@@ -93,6 +94,10 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     // Defaults to empty, not null/undefined, when the guest picks none (DR-046).
     expect(body.booking.preferredTags).toEqual([]);
     expect(body.booking.preferredSites).toEqual([]);
+    // Single country: customCountry (tax/visa driver) and preferredCountries
+    // (staff context, full list) both resolve to it (DR-047).
+    expect(body.booking.customCountry).toBe('NA');
+    expect(body.booking.preferredCountries).toEqual(['NA']);
   }, 30_000);
 
   // DR-046: the merged "plan my trip" form's preference questions (old
@@ -101,7 +106,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
   it('persists preferredTags/preferredSites when the guest picks some', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
-      customCountry: 'NA',
+      countries: ['NA'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
       customTravelStart: '2027-02-10',
       customTravelEnd: '2027-02-15',
       seats: 2,
@@ -115,6 +121,44 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(body.booking.preferredTags).toEqual(['WILDLIFE', 'ADVENTURE']);
     expect(body.booking.preferredSites).toEqual(['Etosha National Park', 'Sossusvlei']);
   }, 30_000);
+
+  // DR-047: multi-country selection -- the first pick drives tax/visa
+  // (customCountry), the full list is kept as preferredCountries context.
+  it('persists all selected countries, first one as the tax/visa-driving customCountry', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['NA', 'ZM', 'ZW'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
+      customTravelStart: '2027-03-01',
+      customTravelEnd: '2027-03-10',
+      seats: 2,
+      customDescription: 'A multi-country Southern Africa combo.',
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.booking.customCountry).toBe('NA');
+    expect(body.booking.preferredCountries).toEqual(['NA', 'ZM', 'ZW']);
+  }, 30_000);
+
+  // DR-047: contact email is stored on the booking itself, not User.email
+  // (which is better-auth-managed and @unique -- see domain.ts's comment).
+  it('persists the contact email onto the booking', async () => {
+    const headers = await loginAs(touristAId);
+    const email = `plan-my-trip-${Date.now()}@example.test`;
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['CD'],
+      email,
+      customTravelStart: '2027-04-01',
+      customTravelEnd: '2027-04-05',
+      seats: 1,
+      customDescription: 'A Congo River trip.',
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.booking.contactEmail).toBe(email);
+  }, 30_000);
 });
 
 describe('quotation send -> accept -> refund lifecycle', () => {
@@ -123,7 +167,8 @@ describe('quotation send -> accept -> refund lifecycle', () => {
   beforeAll(async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
-      customCountry: 'NA',
+      countries: ['NA'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
       customTravelStart: '2027-02-01',
       customTravelEnd: '2027-02-05',
       seats: 1,

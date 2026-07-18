@@ -19,13 +19,17 @@ export interface CreateHoldParams {
 export interface CreateTailorMadeParams {
   touristUserId: string;
   seats: number;
-  customCountry: string;
+  // DR-047: one or more, selection order preserved -- countries[0] is the
+  // sole driver of tax/visa lookups (stored as customCountry), the full
+  // list is kept as preferredCountries for staff context.
+  countries: string[];
   customTravelStart: Date;
   customTravelEnd: Date;
   customDescription: string;
   specialRequests?: string;
   preferredTags?: PackageTag[];
   preferredSites?: string[];
+  email: string;
 }
 
 export interface SendQuotationParams {
@@ -55,6 +59,8 @@ function toBookingView(b: Booking): BookingView {
     customDescription: b.customDescription,
     preferredTags: b.preferredTags,
     preferredSites: b.preferredSites,
+    preferredCountries: b.preferredCountries,
+    contactEmail: b.contactEmail,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -207,6 +213,11 @@ export const bookingRepository = {
 
   /** TAILOR_MADE origin -- no departure/capacity to check, no hold timer. */
   async createTailorMadeRequest(organizationId: string, params: CreateTailorMadeParams): Promise<BookingView> {
+    // z.array(...).min(1) at the domain layer already guarantees this, but
+    // TS's noUncheckedIndexedAccess can't see across that boundary.
+    const [primaryCountry] = params.countries;
+    if (!primaryCountry) throw new Error('CreateTailorMadeParams.countries must have at least one entry');
+
     return withOrg(organizationId, async (tx) => {
       const b = await createBookingWithUniqueCodes((codes) =>
         tx.booking.create({
@@ -216,12 +227,14 @@ export const bookingRepository = {
             touristUserId: params.touristUserId,
             seats: params.seats,
             status: 'AWAITING_QUOTATION',
-            customCountry: params.customCountry,
+            customCountry: primaryCountry,
             customTravelStart: params.customTravelStart,
             customTravelEnd: params.customTravelEnd,
             customDescription: params.customDescription,
             preferredTags: params.preferredTags ?? [],
             preferredSites: params.preferredSites ?? [],
+            preferredCountries: params.countries,
+            contactEmail: params.email,
             ...codes,
             specialRequests: params.specialRequests,
           },

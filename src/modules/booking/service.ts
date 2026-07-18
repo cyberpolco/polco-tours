@@ -134,13 +134,14 @@ export const bookingService = {
     const booking = await bookingRepository.createTailorMadeRequest(organizationId, {
       touristUserId,
       seats: input.seats,
-      customCountry: input.customCountry,
+      countries: input.countries,
       customTravelStart: input.customTravelStart,
       customTravelEnd: input.customTravelEnd,
       customDescription: input.customDescription,
       specialRequests: input.specialRequests,
       preferredTags: input.preferredTags,
       preferredSites: input.preferredSites,
+      email: input.email,
     });
 
     await audit({

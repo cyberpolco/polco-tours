@@ -34,6 +34,11 @@ export interface BookingView {
   // customCountry etc. being null for one.
   preferredTags: PackageTag[];
   preferredSites: string[];
+  // DR-047: the full set of countries the guest ticked on /plan-my-trip --
+  // customCountry above is just the first pick (still the sole driver of
+  // tax/visa lookups). contactEmail is booking-scoped, not User.email.
+  preferredCountries: string[];
+  contactEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,14 +54,19 @@ export const CreateBookingInput = z.object({
 export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
 
 // A bespoke trip request with no pre-existing Departure -- staff price it
-// manually afterward via sendQuotation. customCountry is ISO-3166 alpha-2,
-// same convention as Traveler.nationality; it drives tax-rate lookup in
-// lieu of a Departure's package (see invoicingService.getOrCreateInvoiceForBooking).
-// preferredTags/preferredSites (DR-046) are the merged "plan my trip" form's
-// carried-over preference questions -- staff-facing context only, never a
-// matching/scoring input (the old quiz's package-ranking role is gone).
+// manually afterward via sendQuotation. `countries` is ISO-3166 alpha-2
+// (same convention as Traveler.nationality), one or more, in the guest's
+// selection order -- countries[0] is the sole driver of tax-rate/visa-
+// country lookups (DR-047, unchanged from the original single-country
+// customCountry design), while the full array is kept as
+// Booking.preferredCountries for staff context, same tier as
+// preferredTags/preferredSites (the merged "plan my trip" form's
+// carried-over quiz preference questions, DR-046) -- never a matching/
+// scoring input. `email` is booking-scoped contact info (Booking
+// .contactEmail), not a User.email change -- see that field's own comment
+// for why.
 export const CreateTailorMadeInput = z.object({
-  customCountry: z.string().length(2),
+  countries: z.array(z.string().length(2)).min(1),
   customTravelStart: z.coerce.date(),
   customTravelEnd: z.coerce.date(),
   seats: z.number().int().positive(),
@@ -65,6 +75,7 @@ export const CreateTailorMadeInput = z.object({
   specialRequests: z.string().max(1000).optional(),
   preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
   preferredSites: z.array(z.string()).optional(),
+  email: z.string().email(),
 });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 

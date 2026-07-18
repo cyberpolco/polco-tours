@@ -38,13 +38,19 @@ export async function createTailorMadeBookingAction(formData: FormData): Promise
   const client = await authService.findOrCreateTouristByEmail(ctx, email);
 
   const input = CreateTailorMadeInput.parse({
-    customCountry: String(formData.get('customCountry')).trim().toUpperCase(),
+    // DR-047 widened this to countries[] for the guest-facing multi-select
+    // form -- this staff form stays a single free-text country code, just
+    // wrapped as a one-element array. `email` is the same address already
+    // used above to resolve/create the client's account -- no separate
+    // "contact email" field needed for a staff-entered booking.
+    countries: [String(formData.get('customCountry')).trim().toUpperCase()],
     customTravelStart: String(formData.get('customTravelStart')),
     customTravelEnd: String(formData.get('customTravelEnd')),
     seats: Number(formData.get('seats')),
     customDescription: String(formData.get('customDescription')),
     touristUserId: client.id,
     specialRequests: optionalString(formData, 'specialRequests'),
+    email,
   });
   const booking = await bookingService.createTailorMadeRequest(ctx, input);
   redirect(`/staff/bookings/${booking.id}`);

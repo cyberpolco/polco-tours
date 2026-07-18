@@ -249,11 +249,12 @@ describe('booking domain', () => {
   // of a catalog QuizAnswers/scorePackagesForQuiz test that no longer exists).
   describe('CreateTailorMadeInput', () => {
     const base = {
-      customCountry: 'NA',
+      countries: ['NA'],
       customTravelStart: '2027-01-10',
       customTravelEnd: '2027-01-15',
       seats: 2,
       customDescription: 'A private Etosha + Sossusvlei combo, 6 days.',
+      email: 'guest@example.test',
     };
 
     it('accepts preferredTags/preferredSites as optional arrays', () => {
@@ -271,6 +272,28 @@ describe('booking domain', () => {
 
     it('rejects a preferredTags value outside the known PackageTag vocabulary', () => {
       const result = CreateTailorMadeInput.safeParse({ ...base, preferredTags: ['NOT_A_REAL_TAG'] });
+      expect(result.success).toBe(false);
+    });
+
+    // DR-047: multi-country selection + required contact email.
+    it('accepts more than one country', () => {
+      const result = CreateTailorMadeInput.safeParse({ ...base, countries: ['NA', 'ZM', 'ZW'] });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects an empty countries array', () => {
+      const result = CreateTailorMadeInput.safeParse({ ...base, countries: [] });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a missing email', () => {
+      const { email: _email, ...withoutEmail } = base;
+      const result = CreateTailorMadeInput.safeParse(withoutEmail);
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a malformed email', () => {
+      const result = CreateTailorMadeInput.safeParse({ ...base, email: 'not-an-email' });
       expect(result.success).toBe(false);
     });
   });

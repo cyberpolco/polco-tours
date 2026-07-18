@@ -135,7 +135,8 @@ describe('tailor-made booking -> operational itinerary -> resource assignment (D
   it('converts a priced TAILOR_MADE booking into a real Departure that Assignment can attach to', async () => {
     const touristHeaders = await loginAs(touristId);
     const createReq = jsonRequest('http://localhost/api/v1/bookings/tailor-made', touristHeaders, {
-      customCountry: 'NA',
+      countries: ['NA'],
+      email: `itinerary-bridge-${Date.now()}@example.test`,
       customTravelStart: '2027-04-01',
       customTravelEnd: '2027-04-05',
       seats: 2,

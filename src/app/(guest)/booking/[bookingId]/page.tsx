@@ -35,6 +35,55 @@ export default async function BookingHomePage({ params }: Props) {
     notFound();
   }
 
+  // DR-047: a TAILOR_MADE request is "just an inquiry" until a quotation
+  // exists and is accepted -- explicit user direction to remove the
+  // Travelers/Passport/Add-ons/Confirm-&-Pay steps from this stage
+  // entirely, not just defer them. Deliberately origin-scoped: a
+  // PREDEFINED_PACKAGE booking can also reach AWAITING_QUOTATION/
+  // QUOTATION_SENT (via "Request a quotation" below), but only ever after
+  // its own setup was already completed and a real invoice already exists,
+  // so it keeps seeing the full invoice/payment view unchanged -- no
+  // Continue-setup wizard, no invoice creation attempt (which would 409,
+  // since getBillableTotal requires a finished traveler/passport/add-ons
+  // manifest this booking doesn't have yet).
+  if (booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT')) {
+    return (
+      <div className="max-w-md space-y-6">
+        <div>
+          <p className="eyebrow mt-4 text-mist">Your trip request</p>
+          <p className="mt-1 text-xs text-mist">
+            Reference: <span className="font-mono font-semibold">{booking.bookingReference}</span> -- keep this, we&apos;ll ask for it
+            if you contact us.
+          </p>
+          <p className="mt-1 flex items-center gap-2 text-mist">
+            {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge>
+          </p>
+        </div>
+        {booking.status === 'AWAITING_QUOTATION' && (
+          <Alert tone="success">We&apos;ve received your trip request -- our team will be in touch soon with a quotation.</Alert>
+        )}
+        {booking.status === 'QUOTATION_SENT' && (
+          <div className="space-y-3">
+            <Alert tone="success">
+              Your quotation is ready: {formatOrPending(booking.priceMinor, booking.currency)}. Accept it to continue with booking
+              setup and payment.
+            </Alert>
+            <form action={acceptQuotationAction.bind(null, booking.id)}>
+              <SubmitButton pendingLabel="Accepting…">Accept quotation</SubmitButton>
+            </form>
+          </div>
+        )}
+        {CANCELLABLE_STATUSES.includes(booking.status) && (
+          <form action={cancelBookingAction.bind(null, booking.id)}>
+            <SubmitButton variant="secondary" pendingLabel="Cancelling…">
+              Cancel request
+            </SubmitButton>
+          </form>
+        )}
+      </div>
+    );
+  }
+
   const travelers = await bookingService.listTravelers(ctx, bookingId);
   const lead = travelers.find((t) => t.isTourLead);
   const travelersDone = travelers.length >= booking.seats;

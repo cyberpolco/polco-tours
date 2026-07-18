@@ -146,6 +146,15 @@ export default async function BookingDetailPage({ params }: Props) {
             {booking.customDescription && <> · {booking.customDescription}</>}
           </p>
         )}
+        {/* preferredCountries[0] === customCountry always (that's how it's
+            derived, DR-047) -- only show this line when the guest picked
+            more than one, so it doesn't just repeat the line above. */}
+        {booking.origin === 'TAILOR_MADE' && booking.preferredCountries.length > 1 && (
+          <p className="mt-1 text-sm text-mist">Also considering: {booking.preferredCountries.slice(1).join(', ')}</p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.contactEmail && (
+          <p className="mt-1 text-sm text-mist">Contact email: {booking.contactEmail}</p>
+        )}
         {booking.origin === 'TAILOR_MADE' && booking.preferredTags.length > 0 && (
           <p className="mt-1 text-sm text-mist">Interested in: {booking.preferredTags.map(titleCase).join(', ')}</p>
         )}
