@@ -92,12 +92,24 @@ export function PermissionMatrixForm({
         {error && <p className="text-sm text-amber">{error}</p>}
       </div>
       <div className="overflow-x-auto">
-        <Table>
+        {/* table-fixed + an explicit colgroup, not the shared component's
+            default auto layout, so every role column gets the exact same
+            width regardless of how long its name is ("DRIVER" vs.
+            "VISA_FACILITATOR") -- with auto layout each column only ever
+            sizes to its own content, so spacing looks uneven column to
+            column even with identical padding on every cell. */}
+        <Table className="table-fixed">
+          <colgroup>
+            <col className="w-56" />
+            {roles.map((role) => (
+              <col key={role} className="w-28" />
+            ))}
+          </colgroup>
           <thead>
             <TableHeaderRow>
               <Th>Permission</Th>
               {roles.map((role) => (
-                <Th key={role} className="whitespace-nowrap px-3 text-center">
+                <Th key={role} className="px-2 text-center text-xs leading-tight">
                   {role}
                 </Th>
               ))}
@@ -108,13 +120,15 @@ export function PermissionMatrixForm({
               <Tr key={permission}>
                 <Td className="whitespace-nowrap font-mono text-xs">{permission}</Td>
                 {roles.map((role) => (
-                  <Td key={role} className="px-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={cells[cellKey(role, permission)]}
-                      disabled={isPending}
-                      onChange={() => toggle(role, permission)}
-                    />
+                  <Td key={role}>
+                    <div className="flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={cells[cellKey(role, permission)]}
+                        disabled={isPending}
+                        onChange={() => toggle(role, permission)}
+                      />
+                    </div>
                   </Td>
                 ))}
               </Tr>

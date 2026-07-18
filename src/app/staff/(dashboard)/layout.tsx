@@ -13,10 +13,11 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
   return (
     <div className="min-h-screen bg-bone text-ink">
       <nav className="flex items-center justify-between border-b border-rule bg-navy px-8 py-4 text-bone">
-        {/* /staff/bookings is the dashboard's de facto home -- also where
-            /staff/login lands on a successful sign-in, and every staff
-            role that can reach this layout at all holds booking.read. */}
-        <Link href="/staff/bookings" className="eyebrow hover:text-amber">
+        {/* The public homepage, same target as /staff/login's own
+            back-arrow-to-/ link -- a plain client-side navigation, so it
+            never touches the session cookie/sign-out flow; the staff
+            session stays live if they come back to /staff/* afterward. */}
+        <Link href="/" className="eyebrow hover:text-amber">
           Polco Tours · Staff
         </Link>
         <div className="flex items-center gap-6 text-sm">

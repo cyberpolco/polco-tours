@@ -9,18 +9,23 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `0498891` (DR-043,
-> password-management hardening, pushed — CI green, which also confirms
-> DR-042's three previously-unverified DB-backed test files:
-> `settings.api`/`settings.security`/`invoices.api` all passed in CI).
-> Uncommitted on top of that: a small DR-043 UI follow-up (the "Change
-> password" entry moved from the dashboard's top nav into the Settings
-> sidebar; the "Polco Tours · Staff" brand text is now a link back to
-> `/staff/bookings`) plus **DR-044** (permission-matrix editor: real
-> column-header spacing, and batching all 168 checkboxes behind an
-> explicit "Save changes" button instead of auto-submitting per click).
-> `lint`/`typecheck`/`build` all green for both. Also records the
-> DR-034 Immigration Module/Country
+> Last updated: 2026-07-17, against repo HEAD `390f147` (DR-044,
+> permission-matrix editor UX fixes, pushed — bundled the "Change
+> password" Settings-sidebar move and the brand-link-to-home-page tweak
+> from the DR-043 follow-up too). CI green on `0498891` (DR-043) already
+> confirmed DR-042's three previously-unverified DB-backed test files:
+> `settings.api`/`settings.security`/`invoices.api` all passed. **Not yet
+> committed on top of `390f147`**: two more explicit-user-requested
+> tweaks -- the permission matrix now uses a fixed-width `<colgroup>` (all
+> 7 role columns the same width) with the checkbox centered via flex
+> under each header, since the first pass's per-cell padding alone still
+> left columns unevenly sized against auto table layout; and the brand
+> link (previously pointed at `/staff/bookings`) now points at the public
+> homepage `/` instead, same target as `/staff/login`'s own back-arrow --
+> confirmed this is a plain client-side nav that never touches the
+> session, so a staff member is still signed in on returning to
+> `/staff/*`. `lint`/`typecheck`/`build` all green for both. Also records
+> the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -1546,9 +1551,11 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   means "visible to any staff role," since this is the one Settings entry
   every role needs regardless of what else they can configure); and the
   "Polco Tours · Staff" brand text in the dashboard top bar is now a link
-  back to `/staff/bookings` (the same page `/staff/login` redirects to on
-  sign-in, and every staff-side role holds `booking.read`). No DR needed
-  for either -- pure UI relocation, no schema/permission/business-rule
+  back to the public homepage (`/`, same target as `/staff/login`'s own
+  back-arrow) -- a plain client-side navigation, doesn't touch the
+  session, so a staff member returning to `/staff/*` afterward is still
+  signed in. No DR needed for either -- pure UI relocation, no
+  schema/permission/business-rule
   change.
 - **Permission-matrix editor UX fixes done 2026-07-17 (DR-044):** two
   explicit user-requested fixes to `/staff/admin/permissions`. Column
@@ -1569,6 +1576,18 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   onChange to a deliberate click. UI-layer only: no `authService`/
   `rbac.ts`/API route change, existing `GET/PATCH /permissions` tests
   untouched. `lint`/`typecheck`/`build` all green.
+  **Uncommitted follow-up, same day, per further user feedback**: the
+  first pass's per-cell `px-3` padding still left columns unevenly sized
+  (auto table layout sizes each column to its own longest content, so
+  `DRIVER` and `VISA_FACILITATOR` ended up different widths despite
+  identical padding) -- switched to `table-fixed` with an explicit
+  `<colgroup>` (permission column `w-56`, every role column the same
+  `w-28`) and centers each checkbox with a `flex justify-center` wrapper
+  `div` rather than relying on `text-align` alone, so it sits dead-center
+  under the header text regardless of role-name length. Role headers no
+  longer force `whitespace-nowrap` -- a long name like
+  `VISA_FACILITATOR` wraps onto two lines within its fixed-width column
+  instead of overflowing into the neighboring one.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
