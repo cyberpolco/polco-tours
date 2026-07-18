@@ -9,20 +9,21 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-18, against repo HEAD `0db806c` (DR-045
-> booking-code generation rewrite + permission-matrix stretch fix +
-> staff-login session preservation, pushed — CI status not yet re-checked
-> after this push). **Not yet committed on top of `0db806c`**: **DR-046**,
-> merging the guest site's "Tailor my trip" quiz and "Custom trip"
-> tailor-made form into one always-bespoke entry point, `/plan-my-trip`
-> (planned collaboratively with the user before implementing — see
-> `docs/decisions/DECISION_LOG.md`'s DR-046 entry for the full spec).
-> Package-matching/scoring is gone entirely; the quiz's preference
-> questions are kept as staff context on the resulting booking
-> (`Booking.preferredTags`/`preferredSites`, new columns, pushed to the
-> shared Neon DB with explicit user confirmation). `lint`/`typecheck`/
-> `build` green, affected test files green, full manual dev-server
-> walkthrough done. Also records the
+> Last updated: 2026-07-18, against repo HEAD `f5e7e05`. **DR-046**
+> (pushed, `0f9e284`) merges the guest site's "Tailor my trip" quiz and
+> "Custom trip" tailor-made form into one always-bespoke entry point,
+> `/plan-my-trip` (planned collaboratively with the user before
+> implementing — see `docs/decisions/DECISION_LOG.md`'s DR-046 entry for
+> the full spec); package-matching/scoring is gone entirely, and the
+> quiz's preference questions are kept as staff context on the resulting
+> booking (`Booking.preferredTags`/`preferredSites`, new columns, pushed
+> to the shared Neon DB with explicit user confirmation). **`f5e7e05`
+> fixes a real CI regression from DR-045** (two pushes earlier) that went
+> unnoticed until `gh run list` was checked after DR-046's own push:
+> `e2e/guest-checkout.spec.ts` still asserted the pre-DR-045 8-character
+> confirmation-code format — see the new Gotchas entry on checking `e2e/`
+> whenever a generated field's format changes, not just `tests/`. CI on
+> `f5e7e05` not yet re-checked as of this note. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -1650,7 +1651,10 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   the deleted `formatBookingReference`'s tests) and one stale regex in
   `tests/api/bookings-v2.api.test.ts`. `lint`/`typecheck`/`build` all
   green; `tests/booking.domain.test.ts` (42 tests) green. No schema/RLS
-  change.
+  change. **Missed at the time, caught two pushes later via `gh run
+  list`**: `e2e/guest-checkout.spec.ts` still asserted the old 8-char
+  format, failing CI's `E2E (Playwright)` job on this push and the next
+  one -- fixed in `f5e7e05`, see Gotchas.
 - **Merged "Tailor my trip" quiz + "Custom trip" tailor-made form into
   one always-bespoke flow, `/plan-my-trip` (DR-046, 2026-07-18):** per
   explicit user direction, planned collaboratively (see the approved
@@ -2556,3 +2560,20 @@ human rather than fabricating volume content.
   check tied to the destination page, is at risk of this same race -- prefer
   the `Promise.all` pattern over a bare click whenever the next assertion
   doesn't already retry-until-navigated on its own.
+- **Changing a generated code's format needs an e2e sweep, not just a
+  `tests/`-directory grep -- same class of bug as the `tests/rbac.test.ts`
+  and `visa-facilitator-queue.api.test.ts` gotchas above (a stale
+  assertion that compiles fine and just sits wrong until something
+  actually runs it).** DR-045 changed `confirmationCode`/`bookingReference`
+  from an 8-char alphabet draw to a 6-char pattern code and updated every
+  `tests/` assertion of the old format -- but never checked `e2e/` for
+  the same thing. `e2e/guest-checkout.spec.ts` still asserted
+  `/^[A-Z0-9]{8}$/`, so both DR-045's own push and the next one (DR-046,
+  unrelated) showed CI red on the `E2E (Playwright)` job -- caught only
+  by running `gh run list` after the fact, not proactively. Fixed
+  (`f5e7e05`) by updating the regex to `{6}` and the stale
+  `POL-2026-######` comment nearby. Grep `e2e/` explicitly (not just
+  `tests/`) for any hardcoded format/length assumption whenever a
+  generated field's shape changes -- the two directories are checked by
+  separate CI jobs and a green `Lint · Typecheck · Test · Build` job
+  tells you nothing about whether `E2E (Playwright)` is also green.
