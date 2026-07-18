@@ -1,94 +1,17 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { getOptionalStaffSession } from '@lib/staff-guard';
+import { isStaffRole } from '@lib/rbac';
+import { StaffLoginForm } from './staff-login-form';
 
-import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { authClient } from '@lib/auth-client';
-import { BrandMark } from '@/components/BrandMark';
-
-// First Client Component in the repo (DR-014). Deliberately outside the
-// (dashboard) route group so it never inherits its auth-gating layout --
-// see src/lib/staff-guard.ts's redirect-loop warning.
-export default function StaffLoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-    const { error: signInError } = await authClient.signIn.email({ email, password });
-    setPending(false);
-    if (signInError) {
-      setError(signInError.message ?? 'Sign in failed');
-      return;
-    }
-    router.push('/staff/bookings');
-  }
-
-  return (
-    <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
-      <Link
-        href="/"
-        aria-label="Back to homepage"
-        className="absolute left-8 top-8 flex items-center gap-1 text-sm text-mist hover:text-amber"
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Back
-      </Link>
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <BrandMark className="h-8 w-8 text-amber" />
-          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">POLCO TOURS · STAFF</p>
-          <h1 className="mt-4 text-2xl font-bold">Sign in</h1>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm text-mist">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-survey border border-navy-line bg-navy-soft px-3 py-2 text-bone"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm text-mist">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-survey border border-navy-line bg-navy-soft px-3 py-2 text-bone"
-            />
-          </div>
-          {error && <p className="text-sm text-amber">{error}</p>}
-          <button
-            type="submit"
-            disabled={pending}
-            className="w-full rounded-survey bg-amber px-4 py-2 font-semibold text-navy disabled:opacity-50"
-          >
-            {pending ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-        <p className="mt-6 text-center text-xs text-mist">
-          Forgot your password? Contact your admin to reset it.
-        </p>
-      </div>
-    </main>
-  );
+// Outside the (dashboard) route group on purpose, same as /staff/change-
+// password -- see staff-guard.ts's redirect-loop warning. Checks for an
+// already-live staff session first: without this, leaving the dashboard
+// (e.g. the "Polco Tours · Staff" brand link back to the homepage) and
+// returning via "Admin Access" always re-showed the sign-in form, even
+// though the session cookie was never touched -- indistinguishable from
+// being signed out, from the visitor's side.
+export default async function StaffLoginPage() {
+  const ctx = await getOptionalStaffSession();
+  if (ctx && isStaffRole(ctx.roles)) redirect('/staff/bookings');
+  return <StaffLoginForm />;
 }

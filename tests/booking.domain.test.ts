@@ -10,7 +10,6 @@ import {
   hasExactlyOneTourLead,
   isTravelerManifestComplete,
   generateConfirmationCode,
-  formatBookingReference,
   lastNameMatches,
   toTravelerDutyView,
   type TravelerView,
@@ -202,29 +201,44 @@ describe('booking domain', () => {
   });
 
   describe('generateConfirmationCode', () => {
-    it('is 8 characters from the unambiguous alphabet (no 0/O/1/I)', () => {
+    const LETTER = /[A-Z]/;
+    const DIGIT = /[0-9]/;
+    const SAMPLE_SIZE = 200;
+
+    it('is 6 characters of only uppercase letters and digits', () => {
       const code = generateConfirmationCode();
-      expect(code).toHaveLength(8);
-      expect(code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+      expect(code).toHaveLength(6);
+      expect(code).toMatch(/^[A-Z0-9]{6}$/);
+    });
+
+    it('never repeats a character within a single code', () => {
+      for (let i = 0; i < SAMPLE_SIZE; i++) {
+        const code = generateConfirmationCode();
+        expect(new Set(code.split('')).size).toBe(code.length);
+      }
+    });
+
+    it('has exactly 2 or 3 letters, the rest digits', () => {
+      for (let i = 0; i < SAMPLE_SIZE; i++) {
+        const chars = generateConfirmationCode().split('');
+        const letterCount = chars.filter((c) => LETTER.test(c)).length;
+        expect([2, 3]).toContain(letterCount);
+        expect(chars.filter((c) => DIGIT.test(c)).length).toBe(6 - letterCount);
+      }
+    });
+
+    it('never places two letters adjacent to each other', () => {
+      for (let i = 0; i < SAMPLE_SIZE; i++) {
+        const chars = generateConfirmationCode().split('');
+        for (let pos = 0; pos < chars.length - 1; pos++) {
+          if (LETTER.test(chars[pos] ?? '')) expect(LETTER.test(chars[pos + 1] ?? '')).toBe(false);
+        }
+      }
     });
 
     it('is not the same every call', () => {
       const codes = new Set(Array.from({ length: 20 }, () => generateConfirmationCode()));
       expect(codes.size).toBeGreaterThan(1);
-    });
-  });
-
-  describe('formatBookingReference', () => {
-    it('formats as POL-{year}-{6-digit zero-padded sequence}', () => {
-      expect(formatBookingReference(2026, 154)).toBe('POL-2026-000154');
-    });
-
-    it('does not truncate a sequence longer than 6 digits', () => {
-      expect(formatBookingReference(2026, 1234567)).toBe('POL-2026-1234567');
-    });
-
-    it('accepts a bigint sequence (Postgres nextval())', () => {
-      expect(formatBookingReference(2026, 42n)).toBe('POL-2026-000042');
     });
   });
 

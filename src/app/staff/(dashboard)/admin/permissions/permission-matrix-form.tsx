@@ -92,24 +92,27 @@ export function PermissionMatrixForm({
         {error && <p className="text-sm text-amber">{error}</p>}
       </div>
       <div className="overflow-x-auto">
-        {/* table-fixed + an explicit colgroup, not the shared component's
+        {/* table-fixed + a percentage colgroup, not the shared component's
             default auto layout, so every role column gets the exact same
-            width regardless of how long its name is ("DRIVER" vs.
-            "VISA_FACILITATOR") -- with auto layout each column only ever
-            sizes to its own content, so spacing looks uneven column to
-            column even with identical padding on every cell. */}
-        <Table className="table-fixed">
+            share of the table's width regardless of how long its name is
+            ("DRIVER" vs. "VISA_FACILITATOR") -- with auto layout each
+            column only ever sizes to its own content. Percentages (rather
+            than a fixed rem width per column) also mean the table actually
+            stretches to fill however wide its container is -- this page
+            wraps the whole thing in a full-bleed container specifically so
+            there's real width for these percentages to expand into. */}
+        <Table className="w-full table-fixed">
           <colgroup>
-            <col className="w-56" />
+            <col className="w-[30%]" />
             {roles.map((role) => (
-              <col key={role} className="w-28" />
+              <col key={role} className="w-[10%]" />
             ))}
           </colgroup>
           <thead>
             <TableHeaderRow>
               <Th>Permission</Th>
               {roles.map((role) => (
-                <Th key={role} className="px-2 text-center text-xs leading-tight">
+                <Th key={role} className="px-2 text-center text-sm leading-tight">
                   {role}
                 </Th>
               ))}

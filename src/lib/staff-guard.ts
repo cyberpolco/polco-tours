@@ -38,6 +38,19 @@ export async function requireAnyStaffSession(): Promise<AuthContext> {
 }
 
 /**
+ * Non-redirecting peek at whether a session already exists -- used by
+ * `/staff/login` to skip the sign-in form and go straight back into the
+ * dashboard when the visitor already has a live staff session. Without
+ * this, leaving the dashboard (e.g. via the "Polco Tours · Staff" brand
+ * link back to the homepage) and returning via "Admin Access" re-prompts
+ * for credentials even though the underlying session was never touched --
+ * indistinguishable from being signed out, from the visitor's side.
+ */
+export async function getOptionalStaffSession(): Promise<AuthContext | null> {
+  return getStaffSession();
+}
+
+/**
  * `permission` is optional: the `(dashboard)` layout calls this with none,
  * meaning "any staff-side role" (isStaffRole) -- every nested page still
  * passes its own specific permission, unchanged.

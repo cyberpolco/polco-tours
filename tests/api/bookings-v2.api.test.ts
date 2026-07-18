@@ -87,7 +87,9 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(body.booking.departureId).toBeNull();
     expect(body.booking.status).toBe('AWAITING_QUOTATION');
     expect(body.booking.priceMinor).toBeNull();
-    expect(body.booking.bookingReference).toMatch(/^POL-\d{4}-\d+$/);
+    // 6-char pattern code (2-3 non-adjacent unique letters + unique digits) --
+    // no longer POL-{year}-{seq}, see domain.ts's generateConfirmationCode.
+    expect(body.booking.bookingReference).toMatch(/^[A-Z0-9]{6}$/);
   }, 30_000);
 });
 

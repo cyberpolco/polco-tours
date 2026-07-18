@@ -1,7 +1,7 @@
 // booking module — repository. The only place that touches the DB for this module.
-import type { Booking, BookingAddon, BookingStatus, Currency, Traveler } from '@prisma/client';
+import { Prisma, type Booking, type BookingAddon, type BookingStatus, type Currency, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
-import { canTransition, formatBookingReference, generateConfirmationCode, holdExpiryFrom } from './domain';
+import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
@@ -93,11 +93,27 @@ function toBookingAddonView(a: BookingAddon): BookingAddonView {
   };
 }
 
-async function nextBookingReference(tx: TenantTx): Promise<string> {
-  const rows = await tx.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('booking_reference_seq') AS nextval`;
-  const row = rows[0];
-  if (!row) throw new Error('booking_reference_seq returned no row');
-  return formatBookingReference(new Date().getFullYear(), row.nextval);
+const MAX_CODE_GENERATION_ATTEMPTS = 5;
+
+/** `confirmationCode`/`bookingReference` are both freshly random per booking
+ * (see domain.ts's generateConfirmationCode) -- the DB's `@unique`
+ * constraint is what actually guarantees no two bookings ever share a code
+ * (never silently duplicated), and this retry is what turns a rare
+ * collision into an invisible regenerate-and-retry instead of a failed
+ * request. At the 77,688,000-combination keyspace this pattern spec
+ * produces, a same-attempt collision on 2 independently drawn codes is
+ * astronomically unlikely; this exists for correctness, not because
+ * collisions are expected in practice. */
+async function createBookingWithUniqueCodes(create: (codes: { confirmationCode: string; bookingReference: string }) => Promise<Booking>): Promise<Booking> {
+  for (let attempt = 1; attempt <= MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
+    try {
+      return await create({ confirmationCode: generateConfirmationCode(), bookingReference: generateConfirmationCode() });
+    } catch (err) {
+      const isLastAttempt = attempt === MAX_CODE_GENERATION_ATTEMPTS;
+      if (isLastAttempt || !(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') throw err;
+    }
+  }
+  throw new Error('unreachable');
 }
 
 // Lazy lifecycle sweep -- no queue/cron, same pattern as the old HELD/EXPIRED
@@ -164,22 +180,23 @@ export const bookingRepository = {
       if (seatsTaken + params.seats > params.capacity) {
         throw new SoldOutError('Not enough seats available on this departure');
       }
-      const b = await tx.booking.create({
-        data: {
-          organizationId,
-          origin: 'PREDEFINED_PACKAGE',
-          departureId: params.departureId,
-          touristUserId: params.touristUserId,
-          seats: params.seats,
-          status: 'AWAITING_DEPOSIT',
-          holdExpiresAt: holdExpiryFrom(new Date()),
-          priceMinor: params.priceMinor,
-          currency: params.currency,
-          confirmationCode: generateConfirmationCode(),
-          bookingReference: await nextBookingReference(tx),
-          specialRequests: params.specialRequests,
-        },
-      });
+      const b = await createBookingWithUniqueCodes((codes) =>
+        tx.booking.create({
+          data: {
+            organizationId,
+            origin: 'PREDEFINED_PACKAGE',
+            departureId: params.departureId,
+            touristUserId: params.touristUserId,
+            seats: params.seats,
+            status: 'AWAITING_DEPOSIT',
+            holdExpiresAt: holdExpiryFrom(new Date()),
+            priceMinor: params.priceMinor,
+            currency: params.currency,
+            ...codes,
+            specialRequests: params.specialRequests,
+          },
+        }),
+      );
       return toBookingView(b);
     });
   },
@@ -187,22 +204,23 @@ export const bookingRepository = {
   /** TAILOR_MADE origin -- no departure/capacity to check, no hold timer. */
   async createTailorMadeRequest(organizationId: string, params: CreateTailorMadeParams): Promise<BookingView> {
     return withOrg(organizationId, async (tx) => {
-      const b = await tx.booking.create({
-        data: {
-          organizationId,
-          origin: 'TAILOR_MADE',
-          touristUserId: params.touristUserId,
-          seats: params.seats,
-          status: 'AWAITING_QUOTATION',
-          customCountry: params.customCountry,
-          customTravelStart: params.customTravelStart,
-          customTravelEnd: params.customTravelEnd,
-          customDescription: params.customDescription,
-          confirmationCode: generateConfirmationCode(),
-          bookingReference: await nextBookingReference(tx),
-          specialRequests: params.specialRequests,
-        },
-      });
+      const b = await createBookingWithUniqueCodes((codes) =>
+        tx.booking.create({
+          data: {
+            organizationId,
+            origin: 'TAILOR_MADE',
+            touristUserId: params.touristUserId,
+            seats: params.seats,
+            status: 'AWAITING_QUOTATION',
+            customCountry: params.customCountry,
+            customTravelStart: params.customTravelStart,
+            customTravelEnd: params.customTravelEnd,
+            customDescription: params.customDescription,
+            ...codes,
+            specialRequests: params.specialRequests,
+          },
+        }),
+      );
       return toBookingView(b);
     });
   },
