@@ -90,6 +90,30 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     // 6-char pattern code (2-3 non-adjacent unique letters + unique digits) --
     // no longer POL-{year}-{seq}, see domain.ts's generateConfirmationCode.
     expect(body.booking.bookingReference).toMatch(/^[A-Z0-9]{6}$/);
+    // Defaults to empty, not null/undefined, when the guest picks none (DR-046).
+    expect(body.booking.preferredTags).toEqual([]);
+    expect(body.booking.preferredSites).toEqual([]);
+  }, 30_000);
+
+  // DR-046: the merged "plan my trip" form's preference questions (old
+  // quiz tags/sites) are carried onto the booking as staff context, not
+  // used for any package matching/scoring anymore.
+  it('persists preferredTags/preferredSites when the guest picks some', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      customCountry: 'NA',
+      customTravelStart: '2027-02-10',
+      customTravelEnd: '2027-02-15',
+      seats: 2,
+      customDescription: 'A wildlife-focused trip.',
+      preferredTags: ['WILDLIFE', 'ADVENTURE'],
+      preferredSites: ['Etosha National Park', 'Sossusvlei'],
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.booking.preferredTags).toEqual(['WILDLIFE', 'ADVENTURE']);
+    expect(body.booking.preferredSites).toEqual(['Etosha National Park', 'Sossusvlei']);
   }, 30_000);
 });
 

@@ -48,7 +48,7 @@ export default async function BookingHomePage({ params }: Props) {
       : !passportDone
         ? `/booking/${bookingId}/passport`
         : `/booking/${bookingId}/addons`;
-    const currentStepIndex = !travelersDone ? 3 : !passportDone ? 4 : 5;
+    const currentStepIndex = !travelersDone ? 1 : !passportDone ? 2 : 3;
 
     return (
       <div className="max-w-md space-y-6">
@@ -80,7 +80,7 @@ export default async function BookingHomePage({ params }: Props) {
 
   return (
     <div className="space-y-8">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={6} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={4} />
       <div>
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>

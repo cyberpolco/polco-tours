@@ -1,11 +1,12 @@
 /**
- * Static curated list of named destinations for the "tailor my trip" quiz's
- * sites-to-visit question (DR-024; Zambia/Zimbabwe added DR-034). No Site/
- * Destination entity exists in this app's schema -- picking one just scores
- * a substring match against a package's title/description
- * (scorePackagesForQuiz), the same lightweight approach as the tags
- * question, rather than needing a new relational model for a handful of
- * well-known place names.
+ * Static curated list of named destinations for the merged "plan my trip"
+ * form's sites-to-visit question (DR-024; Zambia/Zimbabwe added DR-034).
+ * Originally scored against existing packages (the pre-DR-046 quiz); now
+ * (DR-046) a picked site is just stored as guest-preference context on the
+ * resulting Booking (Booking.preferredSites) for staff to read when pricing
+ * the request -- no Site/Destination entity exists in this app's schema,
+ * so this stays a handful of well-known place-name strings rather than a
+ * new relational model.
  */
 export interface DestinationSite {
   name: string;

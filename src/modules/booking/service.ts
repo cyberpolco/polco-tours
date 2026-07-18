@@ -139,6 +139,8 @@ export const bookingService = {
       customTravelEnd: input.customTravelEnd,
       customDescription: input.customDescription,
       specialRequests: input.specialRequests,
+      preferredTags: input.preferredTags,
+      preferredSites: input.preferredSites,
     });
 
     await audit({

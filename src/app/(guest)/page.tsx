@@ -44,8 +44,8 @@ export default async function HomePage() {
         <p className="mt-6 max-w-xl text-mist">{t('heroSubhead')}</p>
         <div className="mt-8 flex gap-4">
           <LinkButton href="/packages">{t('browsePackages')}</LinkButton>
-          <LinkButton href="/quiz" variant="secondary">
-            {t('tailorTrip')}
+          <LinkButton href="/plan-my-trip" variant="secondary">
+            {t('planMyTrip')}
           </LinkButton>
         </div>
       </div>
@@ -101,10 +101,10 @@ export default async function HomePage() {
         <div className="mt-6 flex flex-wrap gap-4">
           <LinkButton href="/packages">{t('browsePackages')}</LinkButton>
           <Link
-            href="/quiz"
+            href="/plan-my-trip"
             className="inline-flex items-center justify-center rounded-survey border border-bone px-5 py-3 text-sm font-semibold text-bone"
           >
-            {t('tailorTrip')}
+            {t('planMyTrip')}
           </Link>
         </div>
       </div>

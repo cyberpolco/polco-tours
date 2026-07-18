@@ -34,6 +34,12 @@ function visaTone(status: string): BadgeTone {
   return (VISA_STATUS_TONE as Record<string, BadgeTone>)[status] ?? 'neutral';
 }
 
+// Matches (guest)/plan-my-trip/plan-my-trip-form.tsx's own titleCase --
+// PackageTag values are SCREAMING_CASE at the DB layer (e.g. "WILDLIFE").
+function titleCase(tag: string): string {
+  return tag.charAt(0) + tag.slice(1).toLowerCase();
+}
+
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
 // CANCELLED/REFUNDED, plus unreachable DRAFT) can still be cancelled -- see
 // canTransition's TRANSITIONS table in modules/booking/domain.ts (kept
@@ -139,6 +145,12 @@ export default async function BookingDetailPage({ params }: Props) {
             {booking.customTravelEnd?.toLocaleDateString()}
             {booking.customDescription && <> · {booking.customDescription}</>}
           </p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.preferredTags.length > 0 && (
+          <p className="mt-1 text-sm text-mist">Interested in: {booking.preferredTags.map(titleCase).join(', ')}</p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.preferredSites.length > 0 && (
+          <p className="mt-1 text-sm text-mist">Sites of interest: {booking.preferredSites.join(', ')}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
           <form action={convertToItineraryAction.bind(null, booking.id)} className="mt-3">

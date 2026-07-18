@@ -30,7 +30,7 @@ export default async function NewTravelerPage({ params }: Props) {
 
   return (
     <div className="max-w-lg">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={3} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={1} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">
         Traveler {travelerNumber} of {booking.seats}

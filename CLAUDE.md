@@ -9,29 +9,20 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-17, against repo HEAD `697c0a6` (permission-matrix
-> column-spacing/brand-link fixes, pushed). CI green on `0498891` (DR-043)
-> already confirmed DR-042's three previously-unverified DB-backed test
-> files: `settings.api`/`settings.security`/`invoices.api` all passed.
-> **Not yet committed on top of `697c0a6`**, three more items: (1) the
-> permission matrix now breaks out of the dashboard's centered `max-w-5xl`
-> column (a full-bleed wrapper) and uses percentage-based column widths
-> instead of fixed rem values, so it actually stretches into the
-> previously-unused screen margin while keeping every role column exactly
-> equal; (2) `/staff/login` now checks for an already-live staff session
-> and redirects straight to `/staff/bookings` instead of always re-showing
-> the sign-in form -- previously, leaving the dashboard via the brand link
-> and returning via the homepage's "Admin Access" link re-prompted for
-> credentials even though the session cookie was never touched, which read
-> as an unwanted sign-out; (3) **DR-045**, a full rewrite of booking-code
-> generation -- both `confirmationCode` and `bookingReference` now come
-> from the same new 6-character letter/digit pattern generator (explicit
-> user spec: 2-3 non-adjacent unique letters, unique digits, 77,688,000
-> valid combinations), replacing the old 8-char alphabet code and the
-> `POL-{year}-{seq}` sequence format respectively -- see the DR-045 log
-> entry for the full spec, the weighted-layout-selection bug caught and
-> fixed via empirical sampling, and the new collision-retry wrapper.
-> `lint`/`typecheck`/`build` all green for all three. Also records the
+> Last updated: 2026-07-18, against repo HEAD `0db806c` (DR-045
+> booking-code generation rewrite + permission-matrix stretch fix +
+> staff-login session preservation, pushed — CI status not yet re-checked
+> after this push). **Not yet committed on top of `0db806c`**: **DR-046**,
+> merging the guest site's "Tailor my trip" quiz and "Custom trip"
+> tailor-made form into one always-bespoke entry point, `/plan-my-trip`
+> (planned collaboratively with the user before implementing — see
+> `docs/decisions/DECISION_LOG.md`'s DR-046 entry for the full spec).
+> Package-matching/scoring is gone entirely; the quiz's preference
+> questions are kept as staff context on the resulting booking
+> (`Booking.preferredTags`/`preferredSites`, new columns, pushed to the
+> shared Neon DB with explicit user confirmation). `lint`/`typecheck`/
+> `build` green, affected test files green, full manual dev-server
+> walkthrough done. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -305,8 +296,10 @@ src/
         insights/admin/users/admin/permissions under the same left sub-nav
         -- none of those five pages' own URLs/permissions changed
     (guest)/...                          # tourist self-serve site, NO ACCOUNTS
-      (DR-016) -- /, /packages(/[packageId]), /quiz(/results), /book/[departureId]
-      (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
+      (DR-016) -- /, /packages(/[packageId]), /plan-my-trip (DR-046 merge of
+      the old /quiz(/results) + /tailor-made, both now redirect here --
+      always creates a TAILOR_MADE booking, no more package-matching),
+      /book/[departureId] (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
       (same wizard as staff's, requireGuestContext instead), /find-booking(/result),
       /rate(/result) = Customer Ratings & Feedback (DR-037): same no-session,
       plain-GET-form pattern as /find-booking -- bookingReference + Rating
@@ -325,8 +318,12 @@ src/
   modules/             # feature modules — independent, reusable (Vol. 5 §5.2)
     auth/              # REFERENCE module: domain · repository · service · index
     catalog/           # TourPackage (+tags/PackageTag, DR-016) + Departure +
-                       #   AddonService (DR-011, DR-015); public/quiz methods
-                       #   need no ctx (DR-016)
+                       #   AddonService (DR-011, DR-015); public methods need
+                       #   no ctx (DR-016); PACKAGE_TAGS exported (DR-046) so
+                       #   booking/domain.ts can validate Booking
+                       #   .preferredTags against the same vocabulary --
+                       #   scorePackagesForQuiz/getQuizResults/QuizAnswers
+                       #   (the old quiz's package-matching) are gone, DR-046
     booking/           # Booking (11-value lifecycle, DRAFT->..., DR-027) +
                        #   confirmationCode/bookingReference, both generated
                        #   by the same generateConfirmationCode() (DR-045
@@ -334,6 +331,9 @@ src/
                        #   letters + unique digits) -- NOT the original
                        #   8-char alphabet code / POL-{year}-{seq} formats
                        #   DR-016/027 shipped with, both superseded;
+                       #   preferredTags/preferredSites (DR-046) -- guest
+                       #   preference context on a TAILOR_MADE booking for
+                       #   staff pricing, never a matching/scoring input;
                        #   Traveler (+ emergency contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
                        #   listTravelersForDeparture = data-minimized guide/
@@ -1624,7 +1624,7 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   session already exists; the actual credential form moved unchanged
   into a new `staff-login-form.tsx` Client Component.
 - **Booking-code generation rewritten to an explicit spec (DR-045,
-  uncommitted):** replaces two previously ad-hoc schemes -- both
+  pushed — commit `0db806c`):** replaces two previously ad-hoc schemes -- both
   `confirmationCode` (was an 8-char draw from a 32-char unambiguous
   alphabet, DR-016) and `bookingReference` (was `POL-{year}-{seq}`,
   sequence-backed, DR-027) now come from the same new
@@ -1651,6 +1651,42 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `tests/api/bookings-v2.api.test.ts`. `lint`/`typecheck`/`build` all
   green; `tests/booking.domain.test.ts` (42 tests) green. No schema/RLS
   change.
+- **Merged "Tailor my trip" quiz + "Custom trip" tailor-made form into
+  one always-bespoke flow, `/plan-my-trip` (DR-046, 2026-07-18):** per
+  explicit user direction, planned collaboratively (see the approved
+  plan this session, `/home/lamlg00/.claude/plans/gentle-wiggling-key.md`)
+  before implementing. Package-matching/scoring is gone entirely --
+  `scorePackagesForQuiz`/`QuizAnswers`/`getQuizResults` all removed;
+  every submission now creates a `TAILOR_MADE` booking, same
+  `bookingService.createTailorMadeRequest` the old tailor-made form
+  already used. The quiz's country/trip-length/tag/site preference
+  questions are kept, but repurposed as **structured staff context**
+  (explicit user choice over dropping them or folding into free text) --
+  new `Booking.preferredTags`/`preferredSites`. "Trip length" (a coarse
+  bucket) is dropped as redundant now that exact dates are always
+  collected; the quiz's and tailor-made's separate "which country"
+  questions collapse into one required field. New
+  `src/app/(guest)/plan-my-trip/*` (modeled on the deleted `tailor-made/`
+  files + the deleted quiz's tag/site markup), deliberately no
+  `StepIndicator` (same precedent tailor-made already set).
+  `BOOKING_WIZARD_STEPS` shrunk 7→5 steps (dropped the quiz-only
+  `'Tailor my trip'`/`'Matches'`); every remaining `currentIndex`
+  re-indexed -2 across 5 files, confirmed by reading
+  `booking/[bookingId]/page.tsx` directly that both booking origins
+  already converge on the same Travelers/Passport/Add-ons sequence. New
+  `next.config.mjs` `redirects()` (its first): `/quiz`, `/quiz/results`,
+  `/tailor-made` → `/plan-my-trip`, permanent. Nav/footer/homepage's two
+  links collapsed into one; `en.json`/`fr.json` updated (including
+  homepage copy that described the now-gone quiz-matching behavior).
+  Staff booking-detail page's `TAILOR_MADE` block now also shows the new
+  preference fields. Schema (`Booking.preferredTags`/`preferredSites`,
+  no RLS change) pushed to the shared Neon DB via `neondb_owner` --
+  pasted directly by the user for this one command, never written to
+  any file, explicit confirmation beforehand, same precedent as every
+  prior schema change this session; verified via `psql`. Full manual
+  dev-server walkthrough (redirects, form render, step-indicator
+  position) plus `lint`/`typecheck`/`build` and the affected test files
+  all green.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -1993,7 +2029,20 @@ space) replacing the old 8-char-alphabet and `POL-{year}-{seq}` formats
 respectively; new `createBookingWithUniqueCodes()` retry-on-`P2002`
 wrapper is what actually makes "never generate the same code twice" a
 guarantee rather than an assumption; `booking_reference_seq` is now dead
-(left in place, not dropped from the shared DB). No schema/RLS change.
+(left in place, not dropped from the shared DB). No schema/RLS change ·
+DR-046 merges the guest "Tailor my trip" quiz and "Custom trip"
+tailor-made form into one always-bespoke entry point (`/plan-my-trip`),
+planned collaboratively with the user first. Package-matching/scoring
+removed entirely (`scorePackagesForQuiz`/`QuizAnswers`/`getQuizResults`);
+every submission creates a `TAILOR_MADE` booking via the same
+`createTailorMadeRequest` the old form used. Quiz preferences kept as
+staff context (new `Booking.preferredTags`/`preferredSites`, no RLS
+change); "trip length" dropped as redundant with exact dates; the two
+flows' duplicate "which country" question collapsed into one required
+field. `BOOKING_WIZARD_STEPS` shrunk 7→5, every `currentIndex`
+re-indexed. New `next.config.mjs` `redirects()` for the three old URLs.
+Schema pushed to the shared Neon DB via a user-pasted `neondb_owner`
+credential, never written to any file.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

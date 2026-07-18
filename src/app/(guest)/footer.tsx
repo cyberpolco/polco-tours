@@ -59,8 +59,8 @@ export async function GuestFooter() {
             <Link href="/packages" className="hover:text-amber">
               {t('browse')}
             </Link>
-            <Link href="/quiz" className="hover:text-amber">
-              {t('tailorTrip')}
+            <Link href="/plan-my-trip" className="hover:text-amber">
+              {t('planMyTrip')}
             </Link>
             <Link href="/find-booking" className="hover:text-amber">
               {t('findBooking')}

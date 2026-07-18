@@ -21,5 +21,18 @@ const nextConfig = {
       },
     ];
   },
+  // DR-046: /quiz (the old package-matching quiz) and /tailor-made (the old
+  // bespoke-request form) were merged into one always-bespoke entry point,
+  // /plan-my-trip. Permanent redirects so any bookmarked/shared old links
+  // still work; /quiz/results (the old scored-matches page) has nothing to
+  // redirect to structurally (query params don't map to anything in the
+  // merged flow) so it just lands on the new form too.
+  async redirects() {
+    return [
+      { source: '/quiz', destination: '/plan-my-trip', permanent: true },
+      { source: '/quiz/results', destination: '/plan-my-trip', permanent: true },
+      { source: '/tailor-made', destination: '/plan-my-trip', permanent: true },
+    ];
+  },
 };
 export default withNextIntl(nextConfig);

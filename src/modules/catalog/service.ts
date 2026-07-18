@@ -12,13 +12,11 @@ import {
   isBookable,
   isDepartureVisible,
   isPackageVisible,
-  scorePackagesForQuiz,
   type AddonServiceView,
   type CreateBespokeDepartureParams,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
-  type QuizAnswers,
   type SetDeparturePickupLocationInput,
   type TourPackageView,
   type UpdatePackageInput,
@@ -300,13 +298,5 @@ export const catalogService = {
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure) return null;
     return { startDate: departure.startDate, endDate: departure.endDate };
-  },
-
-  async getQuizResults(answers: QuizAnswers): Promise<TourPackageView[]> {
-    const organizationId = await getPrimaryOrgId();
-    const all = (await catalogRepository.listPackages(organizationId)).filter((p) =>
-      isPackageVisible(p, PUBLIC_VIEW_ROLE),
-    );
-    return scorePackagesForQuiz(all, answers);
   },
 };

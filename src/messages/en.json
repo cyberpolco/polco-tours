@@ -1,8 +1,7 @@
 {
   "Nav": {
     "browse": "Browse",
-    "tailorTrip": "Tailor my trip",
-    "tailorMade": "Custom trip",
+    "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
     "rateMyTrip": "Rate my trip",
     "about": "About",
@@ -12,7 +11,7 @@
   "Footer": {
     "tagline": "Tourism Operating System for Visit Kasai & Mufasa Safaris and Tours",
     "browse": "Browse",
-    "tailorTrip": "Tailor my trip",
+    "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
     "about": "About",
     "faq": "FAQ",
@@ -26,7 +25,7 @@
     "heroTitle": "Tours worth crossing a border for.",
     "heroSubhead": "Browse safaris, treks, and cultural trips across Namibia and the Democratic Republic of Congo -- no account needed. Book as a guest and you'll get a reference code to check on your trip any time.",
     "browsePackages": "Browse packages",
-    "tailorTrip": "Tailor my trip",
+    "planMyTrip": "Plan my trip",
     "featuredEyebrow": "Featured",
     "featuredTitle": "A few places to start",
     "viewAllPackages": "View all packages →",
@@ -35,8 +34,8 @@
     "mapSubhead": "Hover Namibia or DR Congo once you've zoomed in for a quick snapshot of each country.",
     "howItWorksEyebrow": "How it works",
     "howItWorksTitle": "From browsing to booked",
-    "step1Title": "Browse or take the quiz",
-    "step1Body": "Look through every package across Namibia and the DRC, or answer a few questions and let us narrow it down for you.",
+    "step1Title": "Browse or plan something custom",
+    "step1Body": "Look through every package across Namibia and the DRC, or tell us about the trip you have in mind and we'll price something bespoke for you.",
     "step2Title": "Book as a guest",
     "step2Body": "No account, no password. Pick a departure, add travelers, and pay a deposit -- all in one sitting.",
     "step3Title": "Keep your reference code",

@@ -1,6 +1,12 @@
 // booking module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingOrigin, BookingStatus, Currency, Sex } from '@prisma/client';
+// One deliberate exception (DR-046): PACKAGE_TAGS is imported from
+// @modules/catalog's public index.ts (not reaching into catalog/domain.ts
+// directly) to validate Booking.preferredTags against the same tag
+// vocabulary TourPackage.tags uses, rather than hand-duplicating that
+// 7-value tuple in a second module where it could silently drift.
+import type { BookingOrigin, BookingStatus, Currency, PackageTag, Sex } from '@prisma/client';
 import { z } from 'zod';
+import { PACKAGE_TAGS } from '@modules/catalog';
 
 export const HOLD_DURATION_MINUTES = 30;
 
@@ -23,6 +29,11 @@ export interface BookingView {
   customTravelStart: Date | null;
   customTravelEnd: Date | null;
   customDescription: string | null;
+  // Guest preference context for staff pricing a TAILOR_MADE request
+  // (DR-046) -- empty arrays for a PREDEFINED_PACKAGE booking, same as
+  // customCountry etc. being null for one.
+  preferredTags: PackageTag[];
+  preferredSites: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +52,9 @@ export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
 // manually afterward via sendQuotation. customCountry is ISO-3166 alpha-2,
 // same convention as Traveler.nationality; it drives tax-rate lookup in
 // lieu of a Departure's package (see invoicingService.getOrCreateInvoiceForBooking).
+// preferredTags/preferredSites (DR-046) are the merged "plan my trip" form's
+// carried-over preference questions -- staff-facing context only, never a
+// matching/scoring input (the old quiz's package-ranking role is gone).
 export const CreateTailorMadeInput = z.object({
   customCountry: z.string().length(2),
   customTravelStart: z.coerce.date(),
@@ -49,6 +63,8 @@ export const CreateTailorMadeInput = z.object({
   customDescription: z.string().min(1).max(2000),
   touristUserId: z.string().uuid().optional(),
   specialRequests: z.string().max(1000).optional(),
+  preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+  preferredSites: z.array(z.string()).optional(),
 });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 

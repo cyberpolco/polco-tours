@@ -1,5 +1,5 @@
 // booking module — repository. The only place that touches the DB for this module.
-import { Prisma, type Booking, type BookingAddon, type BookingStatus, type Currency, type Traveler } from '@prisma/client';
+import { Prisma, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
 import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
@@ -24,6 +24,8 @@ export interface CreateTailorMadeParams {
   customTravelEnd: Date;
   customDescription: string;
   specialRequests?: string;
+  preferredTags?: PackageTag[];
+  preferredSites?: string[];
 }
 
 export interface SendQuotationParams {
@@ -51,6 +53,8 @@ function toBookingView(b: Booking): BookingView {
     customTravelStart: b.customTravelStart,
     customTravelEnd: b.customTravelEnd,
     customDescription: b.customDescription,
+    preferredTags: b.preferredTags,
+    preferredSites: b.preferredSites,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -216,6 +220,8 @@ export const bookingRepository = {
             customTravelStart: params.customTravelStart,
             customTravelEnd: params.customTravelEnd,
             customDescription: params.customDescription,
+            preferredTags: params.preferredTags ?? [],
+            preferredSites: params.preferredSites ?? [],
             ...codes,
             specialRequests: params.specialRequests,
           },

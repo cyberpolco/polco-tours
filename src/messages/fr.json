@@ -1,8 +1,7 @@
 {
   "Nav": {
     "browse": "Découvrir",
-    "tailorTrip": "Personnaliser mon voyage",
-    "tailorMade": "Voyage sur mesure",
+    "planMyTrip": "Planifier mon voyage",
     "findBooking": "Retrouver ma réservation",
     "rateMyTrip": "Évaluer mon voyage",
     "about": "À propos",
@@ -12,7 +11,7 @@
   "Footer": {
     "tagline": "Système de gestion touristique pour Visit Kasai & Mufasa Safaris and Tours",
     "browse": "Découvrir",
-    "tailorTrip": "Personnaliser mon voyage",
+    "planMyTrip": "Planifier mon voyage",
     "findBooking": "Retrouver ma réservation",
     "about": "À propos",
     "faq": "FAQ",
@@ -26,7 +25,7 @@
     "heroTitle": "Des voyages qui valent la peine de traverser une frontière.",
     "heroSubhead": "Découvrez safaris, randonnées et voyages culturels en Namibie et en République démocratique du Congo -- sans compte. Réservez en tant qu'invité et recevez un code de référence pour suivre votre voyage à tout moment.",
     "browsePackages": "Découvrir les circuits",
-    "tailorTrip": "Personnaliser mon voyage",
+    "planMyTrip": "Planifier mon voyage",
     "featuredEyebrow": "À la une",
     "featuredTitle": "Quelques idées pour commencer",
     "viewAllPackages": "Voir tous les circuits →",
@@ -35,8 +34,8 @@
     "mapSubhead": "Survolez la Namibie ou la RD Congo après avoir zoomé pour un aperçu rapide de chaque pays.",
     "howItWorksEyebrow": "Comment ça marche",
     "howItWorksTitle": "De la recherche à la réservation",
-    "step1Title": "Parcourez ou faites le questionnaire",
-    "step1Body": "Parcourez tous les circuits en Namibie et en RDC, ou répondez à quelques questions pour que nous les sélectionnions pour vous.",
+    "step1Title": "Parcourez ou planifiez un voyage sur mesure",
+    "step1Body": "Parcourez tous les circuits en Namibie et en RDC, ou décrivez-nous le voyage que vous imaginez et nous vous proposerons un tarif sur mesure.",
     "step2Title": "Réservez en tant qu'invité",
     "step2Body": "Sans compte, sans mot de passe. Choisissez un départ, ajoutez les voyageurs et payez un acompte -- en une seule fois.",
     "step3Title": "Conservez votre code de référence",

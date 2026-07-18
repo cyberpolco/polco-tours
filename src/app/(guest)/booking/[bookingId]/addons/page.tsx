@@ -35,7 +35,7 @@ export default async function AddonsPage({ params }: Props) {
   if (!booking.currency) {
     return (
       <div className="max-w-md">
-        <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={5} />
+        <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={3} />
         <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">Waiting on your quotation</h1>
         <p className="mt-1 text-sm text-mist">
@@ -49,7 +49,7 @@ export default async function AddonsPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={5} />
+      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={3} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>

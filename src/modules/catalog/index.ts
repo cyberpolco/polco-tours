@@ -4,7 +4,7 @@ export type { DepartureDetail, PublicPackageFilter } from './service';
 export {
   CreateDepartureInput,
   CreatePackageInput,
-  QuizAnswers,
+  PACKAGE_TAGS,
   SetDeparturePickupLocationInput,
   UpdatePackageInput,
   effectivePrice,

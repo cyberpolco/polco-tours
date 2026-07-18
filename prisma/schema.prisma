@@ -549,25 +549,30 @@ model Booking {
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
   addonsFinalizedAt DateTime?
-  // Short, human-typeable lookup code (DR-016) -- generated for every
-  // booking (staff or guest) at creation time, but only ever revealed to a
-  // guest once setup + payment-initiation are complete. Not a security
-  // boundary on its own -- the "find my booking" flow also requires the
-  // tour lead's last name (see bookingService.lookupByConfirmationCode).
+  // Short, human-typeable lookup code -- generated for every booking (staff
+  // or guest) at creation time, but only ever revealed to a guest once
+  // setup + payment-initiation are complete. Not a security boundary on its
+  // own -- the "find my booking" flow also requires the tour lead's last
+  // name (see bookingService.lookupByConfirmationCode). Pattern (DR-045):
+  // 6 chars, 2-3 non-adjacent unique uppercase letters + unique digits --
+  // see src/modules/booking/domain.ts's generateConfirmationCode.
   confirmationCode  String        @unique
-  // Business-facing reference, e.g. POL-2026-000154 -- coexists with
-  // confirmationCode (which stays the non-guessable guest-lookup secret).
-  // Numeric part comes from a plain Postgres sequence (booking_reference_seq,
-  // created out-of-band since Prisma's schema DSL can't express a custom
-  // formatted default -- see src/modules/booking/repository.ts), formatted
-  // in application code.
+  // Business-facing reference, e.g. shown on invoices/receipts -- coexists
+  // with confirmationCode (which stays the non-guessable guest-lookup
+  // secret). Same generateConfirmationCode() pattern as confirmationCode
+  // (DR-045) -- no longer POL-{year}-{seq}; booking_reference_seq is dead.
   bookingReference  String        @unique
   specialRequests   String?       @db.VarChar(1000)
-  // TAILOR_MADE-only fields (all null for a PREDEFINED_PACKAGE booking).
+  // TAILOR_MADE-only fields (all null/empty for a PREDEFINED_PACKAGE booking).
   customCountry     String?       @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
   customTravelStart DateTime?
   customTravelEnd   DateTime?
   customDescription String?       @db.VarChar(2000)
+  // Guest preference context for staff pricing a bespoke request (DR-046) --
+  // NOT a matching/scoring input (the old quiz's package-ranking role is
+  // gone entirely). Same PackageTag enum TourPackage.tags already uses.
+  preferredTags     PackageTag[]  @default([])
+  preferredSites    String[]      @default([])
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

@@ -12,6 +12,7 @@ import {
   generateConfirmationCode,
   lastNameMatches,
   toTravelerDutyView,
+  CreateTailorMadeInput,
   type TravelerView,
 } from '../src/modules/booking/domain';
 
@@ -239,6 +240,38 @@ describe('booking domain', () => {
     it('is not the same every call', () => {
       const codes = new Set(Array.from({ length: 20 }, () => generateConfirmationCode()));
       expect(codes.size).toBeGreaterThan(1);
+    });
+  });
+
+  // DR-046: preferredTags/preferredSites are the merged "plan my trip"
+  // form's carried-over preference questions, staff context only (no more
+  // package-matching/scoring, which is why this test lives here now instead
+  // of a catalog QuizAnswers/scorePackagesForQuiz test that no longer exists).
+  describe('CreateTailorMadeInput', () => {
+    const base = {
+      customCountry: 'NA',
+      customTravelStart: '2027-01-10',
+      customTravelEnd: '2027-01-15',
+      seats: 2,
+      customDescription: 'A private Etosha + Sossusvlei combo, 6 days.',
+    };
+
+    it('accepts preferredTags/preferredSites as optional arrays', () => {
+      const result = CreateTailorMadeInput.safeParse({
+        ...base,
+        preferredTags: ['WILDLIFE', 'ADVENTURE'],
+        preferredSites: ['Etosha National Park', 'Sossusvlei'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts the input with neither preference field set', () => {
+      expect(CreateTailorMadeInput.safeParse(base).success).toBe(true);
+    });
+
+    it('rejects a preferredTags value outside the known PackageTag vocabulary', () => {
+      const result = CreateTailorMadeInput.safeParse({ ...base, preferredTags: ['NOT_A_REAL_TAG'] });
+      expect(result.success).toBe(false);
     });
   });
 

@@ -43,7 +43,10 @@ export interface DepartureView {
   updatedAt: Date;
 }
 
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+// Exported (DR-046) so booking/domain.ts can validate Booking.preferredTags
+// against the same vocabulary without hand-duplicating it -- modules only
+// share data through index.ts, never by reaching into each other's domain.ts.
+export const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
 export const CreatePackageInput = z.object({
   title: z.string().min(1).max(200),
@@ -146,47 +149,3 @@ export interface AddonServiceView {
   active: boolean;
 }
 
-// -------------------------------------------------------------- public quiz (DR-016)
-
-export const QuizAnswers = z.object({
-  country: z.string().length(2).optional(),
-  tripLength: z.enum(['SHORT', 'MEDIUM', 'LONG']).optional(),
-  tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
-  // Free-text destination names (src/lib/destination-sites.ts) -- there's no
-  // Site/Destination entity in this app, so this scores a substring match
-  // against title/description the same way tags score against the tags
-  // array, rather than needing a real relational model (DR-024).
-  sites: z.array(z.string()).optional(),
-});
-export type QuizAnswers = z.infer<typeof QuizAnswers>;
-
-// Inclusive day-count bounds per trip-length bucket -- packages with no
-// durationDays set are excluded once a bucket is chosen (nothing to match).
-const TRIP_LENGTH_RANGES: Record<NonNullable<QuizAnswers['tripLength']>, { min: number; max: number }> = {
-  SHORT: { min: 0, max: 5 },
-  MEDIUM: { min: 6, max: 10 },
-  LONG: { min: 11, max: Infinity },
-};
-
-/** Sorts by tag-overlap count desc, ties broken alphabetically by title.
- * Deliberately no budget/price-based filtering OR tiebreak: packages can be
- * priced in 4 different currencies with no FX conversion anywhere in this
- * app, so comparing raw priceMinor across packages would silently compare
- * apples to oranges. */
-export function scorePackagesForQuiz(packages: TourPackageView[], answers: QuizAnswers): TourPackageView[] {
-  const range = answers.tripLength ? TRIP_LENGTH_RANGES[answers.tripLength] : null;
-  const wantedTags = answers.tags ?? [];
-  const wantedSites = answers.sites ?? [];
-
-  return packages
-    .filter((p) => !answers.country || p.country === answers.country)
-    .filter((p) => !range || (p.durationDays != null && p.durationDays >= range.min && p.durationDays <= range.max))
-    .map((p) => {
-      const tagScore = p.tags.filter((t) => wantedTags.includes(t)).length;
-      const haystack = `${p.title} ${p.description}`.toLowerCase();
-      const siteScore = wantedSites.filter((site) => haystack.includes(site.toLowerCase())).length;
-      return { pkg: p, score: tagScore + siteScore };
-    })
-    .sort((a, b) => b.score - a.score || a.pkg.title.localeCompare(b.pkg.title))
-    .map(({ pkg }) => pkg);
-}

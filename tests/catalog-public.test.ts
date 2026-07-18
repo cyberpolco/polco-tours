@@ -137,15 +137,4 @@ describe('catalogService public methods (DR-016)', () => {
     await expect(catalogService.getPublicDepartureDetail(cancelledDepartureId)).rejects.toThrow();
   });
 
-  it('getQuizResults ranks a tag-matching package above non-matches', async () => {
-    const results = await catalogService.getQuizResults({ tags: ['WILDLIFE', 'ADVENTURE'] });
-    const index = results.findIndex((p) => p.id === publishedPackageId);
-    expect(index).toBeGreaterThanOrEqual(0);
-    // Every package before it in the ranking must score >= its own match count.
-    const ownScore = 2;
-    for (const p of results.slice(0, index)) {
-      const score = p.tags.filter((t) => (['WILDLIFE', 'ADVENTURE'] as string[]).includes(t)).length;
-      expect(score).toBeGreaterThanOrEqual(ownScore);
-    }
-  });
 });
