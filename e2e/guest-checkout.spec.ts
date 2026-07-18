@@ -59,11 +59,12 @@ test.describe('guest checkout (DR-016)', () => {
 
     await expect(page.getByText('Your reference code:')).toBeVisible();
     // DR-027 added a second `span.font-mono` on this page for
-    // bookingReference ("Reference: POL-2026-######") -- only the
-    // confirmationCode span also carries font-semibold, so scope to that
-    // combination rather than the ambiguous bare class.
+    // bookingReference -- only the confirmationCode span also carries
+    // font-semibold, so scope to that combination rather than the
+    // ambiguous bare class. Both codes are the same 6-char pattern (2-3
+    // non-adjacent unique letters + unique digits) since DR-045.
     const code = await page.locator('span.font-mono.font-semibold').innerText();
-    expect(code).toMatch(/^[A-Z0-9]{8}$/);
+    expect(code).toMatch(/^[A-Z0-9]{6}$/);
     // The lookup form still takes confirmationCode (`code`, above), but the
     // result page's heading displays the business-facing bookingReference
     // instead (DR-027) -- capture it too rather than assume they match.
