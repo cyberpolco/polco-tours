@@ -142,6 +142,9 @@ export const bookingService = {
       preferredTags: input.preferredTags,
       preferredSites: input.preferredSites,
       email: input.email,
+      preferredAddons: input.preferredAddons,
+      countryOfResidence: input.countryOfResidence,
+      citizenship: input.citizenship,
     });
 
     await audit({

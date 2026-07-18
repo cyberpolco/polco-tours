@@ -1,5 +1,5 @@
 // booking module — repository. The only place that touches the DB for this module.
-import { Prisma, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
+import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
 import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
@@ -25,11 +25,14 @@ export interface CreateTailorMadeParams {
   countries: string[];
   customTravelStart: Date;
   customTravelEnd: Date;
-  customDescription: string;
+  customDescription?: string; // optional (DR-048)
   specialRequests?: string;
   preferredTags?: PackageTag[];
   preferredSites?: string[];
   email: string;
+  preferredAddons?: AddonCode[];
+  countryOfResidence?: string;
+  citizenship?: string;
 }
 
 export interface SendQuotationParams {
@@ -61,6 +64,9 @@ function toBookingView(b: Booking): BookingView {
     preferredSites: b.preferredSites,
     preferredCountries: b.preferredCountries,
     contactEmail: b.contactEmail,
+    preferredAddons: b.preferredAddons,
+    countryOfResidence: b.countryOfResidence,
+    citizenship: b.citizenship,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -235,6 +241,9 @@ export const bookingRepository = {
             preferredSites: params.preferredSites ?? [],
             preferredCountries: params.countries,
             contactEmail: params.email,
+            preferredAddons: params.preferredAddons ?? [],
+            countryOfResidence: params.countryOfResidence,
+            citizenship: params.citizenship,
             ...codes,
             specialRequests: params.specialRequests,
           },

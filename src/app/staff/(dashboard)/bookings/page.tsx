@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
-import { bookingService } from '@modules/booking';
+import { bookingService, isPendingInquiry } from '@modules/booking';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -9,7 +9,11 @@ import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 export default async function BookingsPage() {
   const ctx = await requireStaffContext('booking.read');
-  const bookings = await bookingService.list(ctx); // staff -> full org manifest
+  // A fresh TAILOR_MADE request is still just an inquiry until its
+  // quotation is accepted (DR-048) -- it stays visible via
+  // /staff/quote-requests instead, same convention as that page's own
+  // status filter.
+  const bookings = (await bookingService.list(ctx)).filter((b) => !isPendingInquiry(b)); // staff -> full org manifest
 
   return (
     <div>

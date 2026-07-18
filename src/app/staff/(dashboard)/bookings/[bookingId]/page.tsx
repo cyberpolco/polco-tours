@@ -12,6 +12,7 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
+import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { can } from '@lib/rbac';
 import {
@@ -38,6 +39,20 @@ function visaTone(status: string): BadgeTone {
 // PackageTag values are SCREAMING_CASE at the DB layer (e.g. "WILDLIFE").
 function titleCase(tag: string): string {
   return tag.charAt(0) + tag.slice(1).toLowerCase();
+}
+
+// Matches plan-my-trip-form.tsx's own addonLabel -- AddonCode values are
+// two-word SCREAMING_CASE (e.g. "VISA_ASSISTANCE"), titleCase alone
+// wouldn't split the underscore.
+function addonLabel(code: string): string {
+  return code
+    .split('_')
+    .map(titleCase)
+    .join(' ');
+}
+
+function countryName(alpha2: string): string {
+  return COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
 }
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
@@ -160,6 +175,16 @@ export default async function BookingDetailPage({ params }: Props) {
         )}
         {booking.origin === 'TAILOR_MADE' && booking.preferredSites.length > 0 && (
           <p className="mt-1 text-sm text-mist">Sites of interest: {booking.preferredSites.join(', ')}</p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && booking.preferredAddons.length > 0 && (
+          <p className="mt-1 text-sm text-mist">Add-ons of interest: {booking.preferredAddons.map(addonLabel).join(', ')}</p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && (booking.countryOfResidence || booking.citizenship) && (
+          <p className="mt-1 text-sm text-mist">
+            {booking.countryOfResidence && <>Residence: {countryName(booking.countryOfResidence)}</>}
+            {booking.countryOfResidence && booking.citizenship && ' · '}
+            {booking.citizenship && <>Citizenship: {countryName(booking.citizenship)}</>}
+          </p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
           <form action={convertToItineraryAction.bind(null, booking.id)} className="mt-3">

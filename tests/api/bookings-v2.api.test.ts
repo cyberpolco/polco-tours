@@ -159,6 +159,45 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const body = await res.json();
     expect(body.booking.contactEmail).toBe(email);
   }, 30_000);
+
+  // DR-048: description is now optional -- omitting it entirely (not just
+  // sending an empty string) must still succeed.
+  it('creates a request with no customDescription at all', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['ZW'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
+      customTravelStart: '2027-05-01',
+      customTravelEnd: '2027-05-05',
+      seats: 1,
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.booking.customDescription).toBeNull();
+  }, 30_000);
+
+  // DR-048: add-ons + residence/citizenship are new optional staff context,
+  // same tier as preferredTags/preferredSites/preferredCountries.
+  it('persists preferredAddons/countryOfResidence/citizenship when the guest picks some', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['NA'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
+      customTravelStart: '2027-06-01',
+      customTravelEnd: '2027-06-10',
+      seats: 1,
+      preferredAddons: ['PHOTOGRAPHY', 'VISA_ASSISTANCE'],
+      countryOfResidence: 'US',
+      citizenship: 'GB',
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.booking.preferredAddons).toEqual(['PHOTOGRAPHY', 'VISA_ASSISTANCE']);
+    expect(body.booking.countryOfResidence).toBe('US');
+    expect(body.booking.citizenship).toBe('GB');
+  }, 30_000);
 });
 
 describe('quotation send -> accept -> refund lifecycle', () => {

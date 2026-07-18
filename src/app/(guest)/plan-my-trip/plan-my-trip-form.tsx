@@ -14,6 +14,11 @@ import { createPlanMyTripRequestAction } from './actions';
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
+// Mirrors booking/domain.ts's local ADDON_CODES -- kept in sync by hand,
+// same as that constant's own comment explains (catalog doesn't export a
+// validating vocabulary for AddonCode yet, only PACKAGE_TAGS).
+const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
+
 const DESTINATIONS = [
   { code: 'NA', label: '🇳🇦 Namibia' },
   { code: 'CD', label: '🇨🇩 DR Congo' },
@@ -25,10 +30,17 @@ const DESTINATIONS = [
 // replaces the old single-page layout. State lives here (not native form
 // fields) since later steps (sites) depend on an earlier answer (countries)
 // and the final submit needs everything assembled into one payload.
-const STEPS = ['Destination', 'Dates', 'Travelers', 'Preferences', 'Sites', 'Your trip', 'Special requests', 'Contact'];
+const STEPS = ['Destination', 'Dates', 'Travelers', 'Preferences', 'Sites', 'Your trip', 'Add-ons', 'Special requests', 'Contact'];
 
 function titleCase(tag: string): string {
   return tag.charAt(0) + tag.slice(1).toLowerCase();
+}
+
+function addonLabel(code: string): string {
+  return code
+    .split('_')
+    .map(titleCase)
+    .join(' ');
 }
 
 function toggle(list: string[], value: string): string[] {
@@ -48,6 +60,9 @@ export default function PlanMyTripForm() {
   const [tags, setTags] = useState<string[]>([]);
   const [sites, setSites] = useState<string[]>([]);
   const [customDescription, setCustomDescription] = useState('');
+  const [preferredAddons, setPreferredAddons] = useState<string[]>([]);
+  const [countryOfResidence, setCountryOfResidence] = useState('');
+  const [citizenship, setCitizenship] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -65,7 +80,8 @@ export default function PlanMyTripForm() {
     seats >= 1,
     true, // preferences (tags) -- optional
     true, // sites -- optional
-    customDescription.trim().length > 0,
+    true, // your trip (description) -- optional (DR-048)
+    true, // add-ons + residence/citizenship -- optional
     true, // special requests -- optional
     name.trim() !== '' && email.trim() !== '' && localNumber.trim() !== '',
   ][step];
@@ -101,7 +117,10 @@ export default function PlanMyTripForm() {
         seats,
         preferredTags: tags,
         preferredSites: sites,
-        customDescription,
+        customDescription: customDescription || undefined,
+        preferredAddons,
+        countryOfResidence: countryOfResidence || undefined,
+        citizenship: citizenship || undefined,
         specialRequests: specialRequests || undefined,
         name,
         email,
@@ -211,7 +230,7 @@ export default function PlanMyTripForm() {
       )}
 
       {step === 5 && (
-        <FormField label="Tell us about the trip you have in mind" htmlFor="customDescription">
+        <FormField label="Tell us about the trip you have in mind" htmlFor="customDescription" optional>
           <textarea
             value={customDescription}
             onChange={(e) => setCustomDescription(e.target.value)}
@@ -222,6 +241,59 @@ export default function PlanMyTripForm() {
       )}
 
       {step === 6 && (
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm text-mist">Add-ons you might want (pick any)</p>
+            <div className="grid grid-cols-2 gap-2">
+              {ADDONS.map((code) => (
+                <SelectableCard
+                  key={code}
+                  type="checkbox"
+                  checked={preferredAddons.includes(code)}
+                  onChange={() => setPreferredAddons((a) => toggle(a, code))}
+                >
+                  {addonLabel(code)}
+                </SelectableCard>
+              ))}
+            </div>
+          </div>
+          <FormField label="Country of residence" htmlFor="countryOfResidence" optional>
+            <select
+              value={countryOfResidence}
+              onChange={(e) => setCountryOfResidence(e.target.value)}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            >
+              <option value="">Prefer not to say</option>
+              {COUNTRY_CODES.map((c) => (
+                <option key={c.alpha2} value={c.alpha2}>
+                  {flagEmoji(c.alpha2)} {c.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Citizenship" htmlFor="citizenship" optional>
+            <select
+              value={citizenship}
+              onChange={(e) => setCitizenship(e.target.value)}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            >
+              <option value="">Prefer not to say</option>
+              {COUNTRY_CODES.map((c) => (
+                <option key={c.alpha2} value={c.alpha2}>
+                  {flagEmoji(c.alpha2)} {c.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          {preferredAddons.includes('VISA_ASSISTANCE') && (
+            <p className="text-xs text-mist">
+              Sharing your residence/citizenship helps our team scope visa assistance accurately.
+            </p>
+          )}
+        </div>
+      )}
+
+      {step === 7 && (
         <FormField label="Special requests" htmlFor="specialRequests" optional>
           <textarea
             value={specialRequests}
@@ -232,7 +304,7 @@ export default function PlanMyTripForm() {
         </FormField>
       )}
 
-      {step === 7 && (
+      {step === 8 && (
         <div className="space-y-4">
           <FormField label="Your name" htmlFor="name">
             <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-survey border border-rule px-3 py-2" />

@@ -4,11 +4,17 @@
 // directly) to validate Booking.preferredTags against the same tag
 // vocabulary TourPackage.tags uses, rather than hand-duplicating that
 // 7-value tuple in a second module where it could silently drift.
-import type { BookingOrigin, BookingStatus, Currency, PackageTag, Sex } from '@prisma/client';
+import type { AddonCode, BookingOrigin, BookingStatus, Currency, PackageTag, Sex } from '@prisma/client';
 import { z } from 'zod';
 import { PACKAGE_TAGS } from '@modules/catalog';
 
 export const HOLD_DURATION_MINUTES = 30;
+
+// Mirrors the Prisma AddonCode enum -- defined locally rather than imported
+// (unlike PACKAGE_TAGS) since catalog/domain.ts doesn't itself export a
+// zod-validating constant for AddonCode yet (AddonService.code is only ever
+// staff-authored, never guest-submitted, so it never needed one before).
+const ADDON_CODES = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
 
 export interface BookingView {
   id: string;
@@ -39,6 +45,14 @@ export interface BookingView {
   // tax/visa lookups). contactEmail is booking-scoped, not User.email.
   preferredCountries: string[];
   contactEmail: string | null;
+  // DR-048: guest-expressed add-on interest (staff context, no priced
+  // AddonService/BookingAddon row -- there's no package to attach one to
+  // yet) + the guest's own residence/citizenship (relevant to the
+  // visa-assistance interest above; distinct from Traveler.nationality,
+  // which is collected per-traveler later, once a manifest exists).
+  preferredAddons: AddonCode[];
+  countryOfResidence: string | null;
+  citizenship: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,12 +84,18 @@ export const CreateTailorMadeInput = z.object({
   customTravelStart: z.coerce.date(),
   customTravelEnd: z.coerce.date(),
   seats: z.number().int().positive(),
-  customDescription: z.string().min(1).max(2000),
+  // Optional (DR-048, explicit user direction) -- staff already see
+  // country/dates/tags/sites/add-ons context; a free-text description is
+  // a nice-to-have, not required to submit an inquiry.
+  customDescription: z.string().max(2000).optional(),
   touristUserId: z.string().uuid().optional(),
   specialRequests: z.string().max(1000).optional(),
   preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
   preferredSites: z.array(z.string()).optional(),
   email: z.string().email(),
+  preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
+  countryOfResidence: z.string().length(2).optional(),
+  citizenship: z.string().length(2).optional(),
 });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 
@@ -215,6 +235,19 @@ export function generateConfirmationCode(): string {
 
 export function isHoldExpired(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, now: Date): boolean {
   return b.status === 'AWAITING_DEPOSIT' && b.holdExpiresAt !== null && b.holdExpiresAt <= now;
+}
+
+const INQUIRY_ONLY_STATUSES: BookingStatus[] = ['AWAITING_QUOTATION', 'QUOTATION_SENT'];
+
+/** Whether a booking should stay hidden from the main staff Bookings and
+ * Itineraries lists (DR-048, explicit user direction) -- a fresh
+ * TAILOR_MADE request is "just an inquiry" until its quotation is
+ * accepted (AWAITING_DEPOSIT+); it's still reachable via
+ * /staff/quote-requests in the meantime, same convention as that page's
+ * own QUOTE_PIPELINE_STATUSES filter. A PREDEFINED_PACKAGE booking is
+ * always a real booking from the moment it's created, never hidden. */
+export function isPendingInquiry(b: Pick<BookingView, 'origin' | 'status'>): boolean {
+  return b.origin === 'TAILOR_MADE' && INQUIRY_ONLY_STATUSES.includes(b.status);
 }
 
 /** Whether a booking currently occupies a seat on its departure. Only

@@ -9,6 +9,7 @@ export {
   SendQuotationInput,
   SetAddonsInput,
   generateConfirmationCode,
+  isPendingInquiry,
 } from './domain';
 export type {
   BookingAddonView,

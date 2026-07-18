@@ -9,32 +9,33 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-18, against repo HEAD `55de1ef` (docs-only, CI not
-> yet re-checked). **Not yet committed on top of that**: **DR-047**,
-> refining `/plan-my-trip` (DR-046, still the guest's merged "help me plan
-> something" entry point) per explicit user feedback on the shipped flow
-> -- see `docs/decisions/DECISION_LOG.md`'s DR-047 entry for the full
-> spec. Four requested changes: multi-country selection (checkboxes, new
-> `Booking.preferredCountries`, first pick still drives tax/visa via
-> `customCountry` unchanged); sites/activities now filter by the selected
-> countries; a new required contact email (`Booking.contactEmail`,
-> deliberately not `User.email`); and the single-page form became a
-> gradual 8-step wizard (own local progress indicator, not the shared
-> `BOOKING_WIZARD_STEPS`). A fifth, larger change from the same feedback:
-> "this is just a request a quotation part... not pay" -- fixed
-> `booking/[bookingId]/page.tsx` so a fresh `TAILOR_MADE` booking stops at
-> a reference-only confirmation screen instead of being forced into the
-> Travelers/Passport/Add-ons/Confirm-&-Pay setup wizard; this also fixed a
-> real pre-existing dead-code bug (the page's own `AWAITING_QUOTATION`/
-> `QUOTATION_SENT` alerts were unreachable for a zero-traveler booking).
-> Schema pushed to the shared Neon DB with explicit user confirmation.
-> Verified end-to-end via raw HTTP against a live dev server (not just
-> `curl` on the static first render) -- the multi-step wizard's own
-> click-through interaction could not be driven in a real browser in this
-> sandbox (no browser-automation tool available), flagged for a human to
-> click through. `tests/api/bookings-v2.api.test.ts` hit the documented
-> Prisma-to-Neon connectivity gotcha persistently this session -- treat it
-> as needing a real CI run. Also records the
+> Last updated: 2026-07-18, against repo HEAD `07fd167` (DR-047, pushed --
+> CI confirmed green: both the Lint/Typecheck/Test/Build and E2E jobs
+> passed). **Not yet committed on top of that**: **DR-048**, a third
+> `/plan-my-trip` refinement round per further explicit user feedback --
+> see `docs/decisions/DECISION_LOG.md`'s DR-048 entry for the full spec.
+> Trip description is now optional; a new "Add-ons" wizard step collects
+> photography/videography/translator/visa-assistance interest
+> (`Booking.preferredAddons`, reuses the existing `AddonCode` enum) plus
+> the guest's own country of residence/citizenship
+> (`Booking.countryOfResidence`/`citizenship`) -- all staff context only,
+> same tier as the DR-046/047 preference fields. Confirmed (no code
+> change needed) that the staff "send quotation" form already only asks
+> for amount/currency, never client info. New, larger change: a fresh
+> `TAILOR_MADE` inquiry now stays hidden from the main `/staff/bookings`
+> and `/staff/itineraries` lists until its quotation is accepted
+> (`AWAITING_DEPOSIT`+) -- new exported `isPendingInquiry()` predicate,
+> applied as a filter on both pages; still reachable via the existing
+> `/staff/quote-requests` pipeline view in the meantime.
+> `PREDEFINED_PACKAGE` bookings are completely unaffected (always real
+> bookings from creation). Schema pushed to the shared Neon DB with
+> explicit user confirmation; verified end-to-end via raw HTTP against a
+> live dev server (one request transiently hit the same documented
+> Prisma-to-Neon connectivity gotcha mid-request, confirmed via server
+> logs not a code defect, succeeded on retry).
+> `tests/api/bookings-v2.api.test.ts` hit the same gotcha persistently
+> in-session across many retries -- treat it as needing a real CI run.
+> Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -251,7 +252,11 @@ src/
         restaurants(/[restaurantId](/new)) = Itinerary Management (DR-033):
         day-by-day schedule, hotel/restaurant assignment, DRAFT/IN_REVIEW/
         APPROVED workflow; the same itinerary detail page renders read-only
-        for TOUR_GUIDE/DRIVER (itinerary.write/approve both false for them)
+        for TOUR_GUIDE/DRIVER (itinerary.write/approve both false for them);
+        the itineraries LIST page hides one whose booking is still a
+        pending TAILOR_MADE inquiry (DR-048, isPendingInquiry) -- an
+        Itinerary can exist pre-acceptance since convertToItinerary only
+        needs a sent quotation, not an accepted one
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
         read-only (DR-021; closes the gap DR-018/019/020 each deferred);
         TOUR_GUIDE and (since DR-031) DRIVER viewers additionally get a
@@ -350,14 +355,20 @@ src/
                        #   8-char alphabet code / POL-{year}-{seq} formats
                        #   DR-016/027 shipped with, both superseded;
                        #   preferredTags/preferredSites (DR-046) +
-                       #   preferredCountries/contactEmail (DR-047) -- guest
-                       #   preference/contact context on a TAILOR_MADE
-                       #   booking for staff pricing, never a matching/
-                       #   scoring input; customCountry is always
+                       #   preferredCountries/contactEmail (DR-047) +
+                       #   preferredAddons/countryOfResidence/citizenship
+                       #   (DR-048) -- guest preference/contact context on a
+                       #   TAILOR_MADE booking for staff pricing, never a
+                       #   matching/scoring input; customCountry is always
                        #   preferredCountries[0] (still the sole tax/visa
                        #   driver); contactEmail is booking-scoped, never
-                       #   written onto User.email; Traveler (+ emergency
-                       #   contact fields, DR-030) +
+                       #   written onto User.email; isPendingInquiry (DR-048)
+                       #   gates /staff/bookings + /staff/itineraries
+                       #   visibility -- a TAILOR_MADE booking still
+                       #   AWAITING_QUOTATION/QUOTATION_SENT stays hidden
+                       #   there (reachable via /staff/quote-requests
+                       #   instead) until its quotation is accepted; Traveler
+                       #   (+ emergency contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
                        #   listTravelersForDeparture = data-minimized guide/
                        #   driver client-list, internal only, no REST route
@@ -1754,6 +1765,56 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   script) -- treat it as needing a real CI run. Schema pushed to the
   shared Neon DB via a user-pasted `neondb_owner` credential, never
   written to any file. `lint`/`typecheck`/`build` all green throughout.
+- **`/plan-my-trip` refined a third time (DR-048, 2026-07-18):** four
+  more explicit user requests on top of DR-046/047. **Trip description
+  is now optional** (`CreateTailorMadeInput.customDescription` dropped
+  its `.min(1)`). **New "Add-ons" wizard step**: photography/
+  videography/translator/visa-assistance checkboxes -> new
+  `Booking.preferredAddons AddonCode[]` (reuses the existing enum
+  `BookingAddon`/`AddonService` already use, but staff context only --
+  there's no priced `AddonService` catalog entry to attach a real
+  `BookingAddon` to for a bespoke inquiry with no package yet) plus
+  **country of residence and citizenship** -> new
+  `Booking.countryOfResidence`/`citizenship String?` (ISO-2, same
+  convention as `Traveler.nationality` but collected from the guest at
+  inquiry time). Wizard grew 8 -> 9 steps, all new fields optional.
+  **Confirmed already correct, no change needed**: the staff "send
+  quotation" form only ever asked for amount/currency, and the
+  customer's Plan My Trip details were already shown above it since
+  DR-046/047 -- verified by reading the actual code. **New visibility
+  gate**: a fresh `TAILOR_MADE` inquiry is "just an inquiry" and now
+  stays hidden from the main `/staff/bookings` and `/staff/itineraries`
+  lists until its quotation is accepted (`AWAITING_DEPOSIT`+) --
+  reachable via the existing `/staff/quote-requests` pipeline view in
+  the meantime (which already filtered *to* exactly
+  `AWAITING_QUOTATION`/`QUOTATION_SENT`). New exported pure predicate
+  `isPendingInquiry(booking)` in `booking/domain.ts`, applied as a
+  `.filter()` in both list pages -- `/staff/itineraries` zips itinerary
+  + booking first, since `convertToItinerary` only needs a *sent*
+  quotation (not accepted), so an `Itinerary` row can exist for a still-
+  pending inquiry. Deliberately `TAILOR_MADE`-only and
+  `AWAITING_DEPOSIT`+-only (both explicit user choices among several
+  options) -- `PREDEFINED_PACKAGE` bookings are real bookings from
+  creation and completely unaffected. New domain tests (description
+  omittable, add-ons/residence/citizenship accepted, bad add-on code
+  rejected, `isPendingInquiry` across both origins and the status
+  boundary) + DB-backed API tests for the new fields' persistence.
+  Verified end-to-end via raw HTTP against a live dev server (created a
+  booking with add-ons/residence/citizenship and no description ->
+  confirmed exact persistence including `customDescription: null` ->
+  confirmed the DR-047 confirmation screen still renders correctly) --
+  one request transiently 404'd from the same documented Prisma-to-Neon
+  gotcha hitting the dev server's own Prisma client mid-request
+  (confirmed via server logs, not a code defect; succeeded on retry).
+  Staff-side visibility-gate/detail-page display verified by code review
+  + the data-persistence check above, not a live staff-session
+  click-through (same no-browser-tool limitation as DR-047). Schema
+  pushed to the shared Neon DB via a user-pasted `neondb_owner`
+  credential, never written to any file, verified via `psql`.
+  `tests/api/bookings-v2.api.test.ts` hit the same persistent
+  connectivity gotcha in-session (confirmed transient via a bare `tsx`
+  script each time) and could not be run to a clean pass -- treat it as
+  needing a real CI run. `lint`/`typecheck`/`build` all green throughout.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2121,7 +2182,17 @@ pre-existing dead-code bug in the process (the page's own
 `AWAITING_QUOTATION`/`QUOTATION_SENT` alerts were unreachable for a
 zero-traveler booking). Origin-scoped so `PREDEFINED_PACKAGE` bookings
 requesting a quote (always already `setupComplete` by the time they can)
-are completely unaffected.
+are completely unaffected · DR-048 refines DR-046/047 further: trip
+description now optional; new "Add-ons" wizard step (photography/
+videography/translator/visa-assistance -> `Booking.preferredAddons
+AddonCode[]`, reuses the existing enum) plus country of residence/
+citizenship (-> `Booking.countryOfResidence`/`citizenship`), both
+staff-context-only, wizard grew to 9 steps; confirmed (no change needed)
+that "send quotation" never asked for client info; new
+`isPendingInquiry()` predicate hides a `TAILOR_MADE` booking from
+`/staff/bookings`/`/staff/itineraries` until its quotation is accepted
+(`AWAITING_DEPOSIT`+), still reachable via `/staff/quote-requests`
+meanwhile -- `PREDEFINED_PACKAGE` unaffected.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

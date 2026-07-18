@@ -580,6 +580,16 @@ model Booking {
   // two different guests submitting the same real email would collide).
   preferredCountries String[]      @default([])
   contactEmail       String?       @db.VarChar(320)
+  // DR-048: guest-expressed add-on interest (same AddonCode enum
+  // BookingAddon/AddonService use for a real priced predefined-package
+  // add-on) -- staff context only here, no priced AddonService/BookingAddon
+  // row exists yet for a bespoke inquiry with no package to attach one to.
+  preferredAddons    AddonCode[]   @default([])
+  // ISO-3166 alpha-2 -- same convention as Traveler.nationality, but this
+  // is the *guest's* own residence/citizenship (relevant to visa-assistance
+  // interest), collected at inquiry time rather than per-traveler later.
+  countryOfResidence String?       @db.VarChar(2)
+  citizenship        String?       @db.VarChar(2)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 

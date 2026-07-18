@@ -13,6 +13,7 @@ import {
   lastNameMatches,
   toTravelerDutyView,
   CreateTailorMadeInput,
+  isPendingInquiry,
   type TravelerView,
 } from '../src/modules/booking/domain';
 
@@ -295,6 +296,50 @@ describe('booking domain', () => {
     it('rejects a malformed email', () => {
       const result = CreateTailorMadeInput.safeParse({ ...base, email: 'not-an-email' });
       expect(result.success).toBe(false);
+    });
+
+    // DR-048: description is now optional; add-ons + residence/citizenship
+    // are new optional staff-context fields.
+    it('accepts the input with no customDescription at all', () => {
+      const { customDescription: _customDescription, ...withoutDescription } = base;
+      expect(CreateTailorMadeInput.safeParse(withoutDescription).success).toBe(true);
+    });
+
+    it('accepts preferredAddons/countryOfResidence/citizenship as optional', () => {
+      const result = CreateTailorMadeInput.safeParse({
+        ...base,
+        preferredAddons: ['PHOTOGRAPHY', 'VISA_ASSISTANCE'],
+        countryOfResidence: 'US',
+        citizenship: 'GB',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a preferredAddons value outside the known AddonCode vocabulary', () => {
+      const result = CreateTailorMadeInput.safeParse({ ...base, preferredAddons: ['NOT_A_REAL_ADDON'] });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // DR-048: gates /staff/bookings and /staff/itineraries visibility --
+  // a fresh TAILOR_MADE inquiry stays hidden there until its quotation
+  // is accepted.
+  describe('isPendingInquiry', () => {
+    it('is true for a TAILOR_MADE booking still awaiting a quotation', () => {
+      expect(isPendingInquiry({ origin: 'TAILOR_MADE', status: 'AWAITING_QUOTATION' })).toBe(true);
+    });
+
+    it('is true for a TAILOR_MADE booking with a sent-but-not-yet-accepted quotation', () => {
+      expect(isPendingInquiry({ origin: 'TAILOR_MADE', status: 'QUOTATION_SENT' })).toBe(true);
+    });
+
+    it('is false once a TAILOR_MADE booking reaches AWAITING_DEPOSIT (quotation accepted)', () => {
+      expect(isPendingInquiry({ origin: 'TAILOR_MADE', status: 'AWAITING_DEPOSIT' })).toBe(false);
+    });
+
+    it('is always false for a PREDEFINED_PACKAGE booking, any status', () => {
+      expect(isPendingInquiry({ origin: 'PREDEFINED_PACKAGE', status: 'AWAITING_QUOTATION' })).toBe(false);
+      expect(isPendingInquiry({ origin: 'PREDEFINED_PACKAGE', status: 'QUOTATION_SENT' })).toBe(false);
     });
   });
 

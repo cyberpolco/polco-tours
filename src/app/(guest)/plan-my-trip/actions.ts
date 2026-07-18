@@ -16,7 +16,10 @@ export interface CreatePlanMyTripPayload {
   seats: number;
   preferredTags: string[];
   preferredSites: string[];
-  customDescription: string;
+  customDescription?: string; // optional (DR-048)
+  preferredAddons?: string[];
+  countryOfResidence?: string;
+  citizenship?: string;
   specialRequests?: string;
   name: string;
   email: string;
@@ -52,11 +55,14 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       customTravelStart: payload.customTravelStart,
       customTravelEnd: payload.customTravelEnd,
       seats: payload.seats,
-      customDescription: payload.customDescription,
+      customDescription: payload.customDescription?.trim() || undefined,
       specialRequests: payload.specialRequests?.trim() || undefined,
       preferredTags: payload.preferredTags,
       preferredSites: payload.preferredSites,
       email: payload.email.trim(),
+      preferredAddons: payload.preferredAddons,
+      countryOfResidence: payload.countryOfResidence?.trim().toUpperCase() || undefined,
+      citizenship: payload.citizenship?.trim().toUpperCase() || undefined,
     });
     const booking = await bookingService.createTailorMadeRequest(ctx, input);
     return { bookingId: booking.id };
