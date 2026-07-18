@@ -283,4 +283,60 @@ describe('quotation send -> accept -> refund lifecycle', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).booking.status).toBe('REFUNDED');
   });
+
+  // DR-049: a bad transition attempt (double-submit, stale page) must read
+  // as a clean 409, not an unhandled 500 -- this booking is REFUNDED
+  // (terminal), so refunding it again is invalid from any status.
+  it('refunding an already-REFUNDED booking returns 409, not a 500', async () => {
+    const opHeaders = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/refund`, opHeaders, undefined);
+    const res = await refundBooking(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.detail).toMatch(/Cannot transition booking/);
+  });
+});
+
+// DR-049: previously only the guest could accept a sent quotation
+// (QUOTATION_SENT -> AWAITING_DEPOSIT) -- staff now have their own button
+// on the booking detail page for a phone/in-person acceptance, backed by
+// the exact same service method and permission this route already used.
+describe('staff can accept a quotation on the client\'s behalf', () => {
+  let bookingId: string;
+
+  beforeAll(async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['NA'],
+      email: `plan-my-trip-${Date.now()}@example.test`,
+      customTravelStart: '2027-07-01',
+      customTravelEnd: '2027-07-05',
+      seats: 1,
+      customDescription: 'Staff-accept fixture.',
+    });
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    bookingId = (await res.json()).booking.id;
+
+    const opHeaders = await loginAs(operatorId);
+    const quoteReq = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/quotation`, opHeaders, {
+      priceMinor: 120000,
+      currency: 'USD',
+    });
+    await sendQuotation(quoteReq, { params: Promise.resolve({ bookingId }) });
+  }, 30_000);
+
+  it('staff (TOUR_OPERATOR) can accept it directly (200, AWAITING_DEPOSIT)', async () => {
+    const opHeaders = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/quotation/accept`, opHeaders, undefined);
+    const res = await acceptQuotation(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    expect((await res.json()).booking.status).toBe('AWAITING_DEPOSIT');
+  });
+
+  it('accepting it a second time returns 409, not a 500', async () => {
+    const opHeaders = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/quotation/accept`, opHeaders, undefined);
+    const res = await acceptQuotation(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(409);
+  });
 });

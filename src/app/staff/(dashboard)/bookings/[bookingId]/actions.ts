@@ -33,6 +33,20 @@ export async function resolvePaymentAction(paymentId: string, outcome: 'SUCCEEDE
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
+// Lets staff accept a quotation on the client's behalf (e.g. a phone
+// acceptance) -- previously QUOTATION_SENT -> AWAITING_DEPOSIT was only
+// reachable from the guest booking page. Reuses the same
+// bookingService.acceptQuotation the guest action calls; staff bypass the
+// ownership check inside it (getOwnedBooking), so no service change needed.
+export async function acceptQuotationAction(bookingId: string) {
+  // booking.create, matching bookingService.acceptQuotation's own assertCan
+  // (same permission covers "create a booking for a client" and "accept a
+  // quotation for a client" -- both are acting on the tourist's behalf).
+  const ctx = await requireStaffContext('booking.create');
+  await bookingService.acceptQuotation(ctx, bookingId);
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
 export async function sendQuotationAction(bookingId: string, formData: FormData) {
   const ctx = await requireStaffContext('booking.confirm');
   const amount = Number(formData.get('amount'));

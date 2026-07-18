@@ -6,6 +6,14 @@ import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } fr
 
 export class SoldOutError extends Error {}
 
+/** Thrown by updateStatus/sendQuotation when the requested transition isn't
+ * in domain.ts's TRANSITIONS table -- e.g. a stale page double-submitting
+ * Confirm, or Cancel on a booking someone else just refunded. service.ts
+ * catches this and rethrows as Errors.conflict (409), same SoldOutError ->
+ * Errors.conflict pattern createHold already uses, so a bad transition
+ * attempt reads as a clean client error instead of an unhandled 500. */
+export class InvalidTransitionError extends Error {}
+
 export interface CreateHoldParams {
   departureId: string;
   touristUserId: string;
@@ -327,7 +335,7 @@ export const bookingRepository = {
       const existing = await tx.booking.findUnique({ where: { id } });
       if (!existing) return null;
       if (!canTransition(existing.status, to)) {
-        throw new Error(`Cannot transition booking from ${existing.status} to ${to}`);
+        throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to ${to}`);
       }
       const b = await tx.booking.update({
         where: { id },
@@ -359,7 +367,7 @@ export const bookingRepository = {
       const existing = await tx.booking.findUnique({ where: { id } });
       if (!existing) return null;
       if (!canTransition(existing.status, 'QUOTATION_SENT')) {
-        throw new Error(`Cannot transition booking from ${existing.status} to QUOTATION_SENT`);
+        throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to QUOTATION_SENT`);
       }
       const b = await tx.booking.update({
         where: { id },

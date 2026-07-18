@@ -27,11 +27,14 @@ const nextConfig = {
   // still work; /quiz/results (the old scored-matches page) has nothing to
   // redirect to structurally (query params don't map to anything in the
   // merged flow) so it just lands on the new form too.
+  // DR-049: /staff/quote-requests was removed (folded into /staff/bookings'
+  // own status filter) -- redirect any bookmarked link there too.
   async redirects() {
     return [
       { source: '/quiz', destination: '/plan-my-trip', permanent: true },
       { source: '/quiz/results', destination: '/plan-my-trip', permanent: true },
       { source: '/tailor-made', destination: '/plan-my-trip', permanent: true },
+      { source: '/staff/quote-requests', destination: '/staff/bookings', permanent: true },
     ];
   },
 };

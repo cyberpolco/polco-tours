@@ -11,28 +11,42 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 
 > Last updated: 2026-07-18, against repo HEAD `07fd167` (DR-047, pushed --
 > CI confirmed green: both the Lint/Typecheck/Test/Build and E2E jobs
-> passed). **Not yet committed on top of that**: **DR-048**, a third
-> `/plan-my-trip` refinement round per further explicit user feedback --
-> see `docs/decisions/DECISION_LOG.md`'s DR-048 entry for the full spec.
-> Trip description is now optional; a new "Add-ons" wizard step collects
-> photography/videography/translator/visa-assistance interest
-> (`Booking.preferredAddons`, reuses the existing `AddonCode` enum) plus
-> the guest's own country of residence/citizenship
+> passed). **Not yet committed on top of that**: **DR-048** (a third
+> `/plan-my-trip` refinement round) and **DR-049** (a booking-lifecycle
+> staff-workflow simplification, reversing DR-048's own visibility gate) --
+> see `docs/decisions/DECISION_LOG.md`'s DR-048/DR-049 entries for the full
+> spec of each. DR-048: trip description is now optional; a new "Add-ons"
+> wizard step collects photography/videography/translator/visa-assistance
+> interest (`Booking.preferredAddons`, reuses the existing `AddonCode`
+> enum) plus the guest's own country of residence/citizenship
 > (`Booking.countryOfResidence`/`citizenship`) -- all staff context only,
 > same tier as the DR-046/047 preference fields. Confirmed (no code
 > change needed) that the staff "send quotation" form already only asks
-> for amount/currency, never client info. New, larger change: a fresh
-> `TAILOR_MADE` inquiry now stays hidden from the main `/staff/bookings`
-> and `/staff/itineraries` lists until its quotation is accepted
-> (`AWAITING_DEPOSIT`+) -- new exported `isPendingInquiry()` predicate,
-> applied as a filter on both pages; still reachable via the existing
-> `/staff/quote-requests` pipeline view in the meantime.
-> `PREDEFINED_PACKAGE` bookings are completely unaffected (always real
-> bookings from creation). Schema pushed to the shared Neon DB with
-> explicit user confirmation; verified end-to-end via raw HTTP against a
-> live dev server (one request transiently hit the same documented
-> Prisma-to-Neon connectivity gotcha mid-request, confirmed via server
-> logs not a code defect, succeeded on retry).
+> for amount/currency, never client info. DR-049 then reverses DR-048's
+> own new visibility gate the same session, per explicit user feedback
+> that the accumulated staff surfaces (Bookings/Quote requests/
+> Itineraries each filtering differently) had become overengineered:
+> `isPendingInquiry`/`INQUIRY_ONLY_STATUSES` removed entirely from
+> `booking/domain.ts`; `/staff/quote-requests` removed outright (redirects
+> to `/staff/bookings`, `next.config.mjs`); `/staff/bookings` now shows
+> every booking from all 3 entry points (guest browsing packages, guest
+> `/plan-my-trip`, staff's own manual "new booking" form) with a Source
+> column + status-filter pills instead of hiding any of them;
+> `/staff/itineraries` shows a Booking-status column instead of hiding a
+> row. Also bundled in while touching this area: `bookingRepository
+> .updateStatus`/`sendQuotation`'s raw `Error` on an invalid transition
+> now surfaces as a clean `Errors.conflict` (409) via a new
+> `InvalidTransitionError` + `service.ts`'s `transition()` helper, and
+> staff can now accept a sent quotation on a client's behalf
+> (`acceptQuotationAction`, reuses the existing `bookingService
+> .acceptQuotation` unchanged). `PREDEFINED_PACKAGE` bookings are
+> completely unaffected by any of DR-048/049 (always real bookings from
+> creation). DR-048's schema (`preferredAddons`/`countryOfResidence`/
+> `citizenship`) was pushed to the shared Neon DB with explicit user
+> confirmation; verified end-to-end via raw HTTP against a live dev
+> server (one request transiently hit the same documented Prisma-to-Neon
+> connectivity gotcha mid-request, confirmed via server logs not a code
+> defect, succeeded on retry). DR-049 needed no schema change.
 > `tests/api/bookings-v2.api.test.ts` hit the same gotcha persistently
 > in-session across many retries -- treat it as needing a real CI run.
 > Also records the
@@ -253,10 +267,12 @@ src/
         day-by-day schedule, hotel/restaurant assignment, DRAFT/IN_REVIEW/
         APPROVED workflow; the same itinerary detail page renders read-only
         for TOUR_GUIDE/DRIVER (itinerary.write/approve both false for them);
-        the itineraries LIST page hides one whose booking is still a
-        pending TAILOR_MADE inquiry (DR-048, isPendingInquiry) -- an
-        Itinerary can exist pre-acceptance since convertToItinerary only
-        needs a sent quotation, not an accepted one
+        the itineraries LIST page shows every row including one whose
+        booking is still a pending TAILOR_MADE inquiry (DR-049 reverses
+        DR-048's own hide-it-until-accepted gate) -- a Booking-status
+        column makes that visible instead; an Itinerary can exist
+        pre-acceptance since convertToItinerary only needs a sent
+        quotation, not an accepted one
       schedule = TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own assignment queue,
         read-only (DR-021; closes the gap DR-018/019/020 each deferred);
         TOUR_GUIDE and (since DR-031) DRIVER viewers additionally get a
@@ -362,12 +378,15 @@ src/
                        #   matching/scoring input; customCountry is always
                        #   preferredCountries[0] (still the sole tax/visa
                        #   driver); contactEmail is booking-scoped, never
-                       #   written onto User.email; isPendingInquiry (DR-048)
-                       #   gates /staff/bookings + /staff/itineraries
-                       #   visibility -- a TAILOR_MADE booking still
-                       #   AWAITING_QUOTATION/QUOTATION_SENT stays hidden
-                       #   there (reachable via /staff/quote-requests
-                       #   instead) until its quotation is accepted; Traveler
+                       #   written onto User.email; DR-048's isPendingInquiry
+                       #   visibility gate (hide until AWAITING_DEPOSIT+) was
+                       #   removed again the same session by DR-049 -- every
+                       #   booking from all 3 entry points (guest package
+                       #   browse, guest /plan-my-trip, staff manual "new
+                       #   booking") shows on /staff/bookings, status-
+                       #   filterable, no separate /staff/quote-requests
+                       #   page anymore (redirects to /staff/bookings);
+                       #   Traveler
                        #   (+ emergency contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
                        #   listTravelersForDeparture = data-minimized guide/
@@ -1815,6 +1834,67 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   connectivity gotcha in-session (confirmed transient via a bare `tsx`
   script each time) and could not be run to a clean pass -- treat it as
   needing a real CI run. `lint`/`typecheck`/`build` all green throughout.
+- **Booking-lifecycle staff workflow simplified, reversing DR-048's own
+  visibility gate (DR-049, 2026-07-18, same session):** per explicit user
+  feedback that the accumulated staff surfaces for a booking's lifecycle
+  (Bookings hiding pending inquiries one way, Quote Requests filtering a
+  different way, Itineraries hiding a third way) had become
+  overengineered. The reframe: there are exactly 3 booking-creation entry
+  points (guest browsing packages, guest `/plan-my-trip`, staff's own
+  manual "new booking" form -- which itself produces either origin,
+  identically to the two guest flows via the same `createHold`/
+  `createTailorMadeRequest` calls) and all of them now show up in exactly
+  one place, `/staff/bookings`, with status as the sole differentiator.
+  **Removed entirely**: `isPendingInquiry`/`INQUIRY_ONLY_STATUSES` from
+  `booking/domain.ts` (confirmed unreferenced anywhere else first) and
+  `/staff/quote-requests` (its own `QUOTE_PIPELINE_STATUSES` filter was
+  already origin-inconsistent with `isPendingInquiry` -- a
+  `PREDEFINED_PACKAGE` booking awaiting a quote showed on both pages at
+  once, a `TAILOR_MADE` one in the same status only on that one) -- its
+  `StaffNav` link removed, a permanent redirect to `/staff/bookings`
+  added (`next.config.mjs`). `/staff/bookings` gained a Source (origin)
+  column and status-filter pills (only statuses with ≥1 matching booking
+  render a pill, so the row never gets cluttered with zero-count options)
+  instead of hiding anything. `/staff/itineraries` gained a Booking-status
+  column instead of hiding a row for a not-yet-accepted inquiry (an
+  Itinerary can exist pre-acceptance since `convertToItinerary` only needs
+  a *sent* quotation, not an accepted one -- now visible instead of
+  hidden). Two adjacent fixes bundled in while touching this area, per
+  explicit user choice to fold them into the same pass: (1)
+  `bookingRepository.updateStatus`/`sendQuotation` threw a raw `Error` on
+  an invalid transition (e.g. double-submitting Confirm, or Cancel on an
+  already-refunded booking) -- new `InvalidTransitionError` class +
+  `service.ts`'s new `transition()` helper catch it and rethrow
+  `Errors.conflict` (409), the same pattern `createHold`'s `SoldOutError`
+  already established, now applied to all 7 status-changing service
+  methods (`sendQuotation`/`acceptQuotation`/`confirm`/`cancel`/`refund`/
+  `requestQuotation`/`recordPaymentReceived`); (2) staff previously had no
+  way to accept a sent quotation on a client's behalf (e.g. a phone
+  acceptance) -- new `acceptQuotationAction` on the staff booking-detail
+  page calls the *existing* `bookingService.acceptQuotation` unchanged
+  (staff already bypass `getOwnedBooking`'s ownership check, so no
+  service-layer change was needed, just a new Server Action + button).
+  Deliberately **not** done this pass (explicit user choice, kept
+  focused): deduplicating the 3 hand-copied `CANCELLABLE_STATUSES` arrays
+  across the staff/guest booking-detail pages, and removing the dead
+  unreachable `DRAFT` enum value -- both flagged as separate future
+  cleanup, not forgotten. New/updated tests: `tests/api/bookings-v2.api
+  .test.ts` gained a staff-accepts-a-quotation-directly case and an
+  invalid-transition-returns-409-not-500 case; `tests/booking.domain
+  .test.ts`'s now-dead `isPendingInquiry` describe block removed. No
+  schema/RLS change -- purely a service-layer error-handling fix + a
+  page-level UI consolidation. `lint`/`typecheck` both clean (also
+  cleared a stale `.next/types` reference to the deleted quote-requests
+  route). `tests/booking.domain.test.ts` (52 tests, pure) green.
+  `npm run build` could not be verified this session -- this sandbox has
+  no network access to fonts.googleapis.com at all (`next/font` fails to
+  fetch Fraunces/IBM Plex Mono/IBM Plex Sans), a pre-existing environment
+  limitation unrelated to this change (`src/app/layout.tsx` untouched).
+  `tests/api/bookings-v2.api.test.ts` (including the two new tests added
+  this DR) could not be run either -- the documented intermittent
+  Prisma-to-Neon connectivity gotcha was down persistently this session
+  (confirmed via a bare `tsx` `$queryRaw` script, retried 3x). Both need a
+  real CI run before fully trusting this increment.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2192,7 +2272,21 @@ that "send quotation" never asked for client info; new
 `isPendingInquiry()` predicate hides a `TAILOR_MADE` booking from
 `/staff/bookings`/`/staff/itineraries` until its quotation is accepted
 (`AWAITING_DEPOSIT`+), still reachable via `/staff/quote-requests`
-meanwhile -- `PREDEFINED_PACKAGE` unaffected.
+meanwhile -- `PREDEFINED_PACKAGE` unaffected · DR-049 reverses DR-048's
+visibility gate the same session, per explicit user feedback that the
+accumulated staff surfaces had become overengineered:
+`isPendingInquiry`/`INQUIRY_ONLY_STATUSES` removed entirely;
+`/staff/quote-requests` removed outright (permanent redirect to
+`/staff/bookings`); every booking from all 3 entry points (guest package
+browse, guest `/plan-my-trip`, staff manual "new booking") now shows on
+one `/staff/bookings` list with a Source column + status-filter pills;
+`/staff/itineraries` shows a Booking-status column instead of hiding a
+row. Bundled in: `bookingRepository.updateStatus`/`sendQuotation`'s raw
+`Error` on an invalid transition now surfaces as `Errors.conflict` (409)
+via new `InvalidTransitionError` + `service.ts`'s `transition()` helper;
+new staff-side `acceptQuotationAction` lets staff accept a quotation on a
+client's behalf (reuses the existing `bookingService.acceptQuotation`
+unchanged). No schema/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

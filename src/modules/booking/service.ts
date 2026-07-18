@@ -27,7 +27,7 @@ import {
   type TravelerDutyGroup,
   type TravelerView,
 } from './domain';
-import { bookingRepository, SoldOutError } from './repository';
+import { bookingRepository, InvalidTransitionError, SoldOutError } from './repository';
 
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
@@ -67,6 +67,20 @@ async function getOwnedBooking(ctx: AuthContext, organizationId: string, booking
     throw Errors.notFound('Booking not found');
   }
   return booking;
+}
+
+/** Every status-transitioning repository call (updateStatus/sendQuotation)
+ * throws InvalidTransitionError when the FROM status can't reach the
+ * requested TO status (domain.ts's canTransition) -- turns that into a
+ * clean 409 instead of an unhandled 500, same SoldOutError -> Errors.conflict
+ * pattern createHold already uses. */
+async function transition<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof InvalidTransitionError) throw Errors.conflict(err.message);
+    throw err;
+  }
 }
 
 export const bookingService = {
@@ -166,7 +180,7 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
-    const updated = await bookingRepository.sendQuotation(organizationId, bookingId, input);
+    const updated = await transition(() => bookingRepository.sendQuotation(organizationId, bookingId, input));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -194,7 +208,7 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_DEPOSIT');
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_DEPOSIT'));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -210,7 +224,7 @@ export const bookingService = {
   async confirm(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'CONFIRMED');
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'CONFIRMED'));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -231,7 +245,7 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'CANCELLED');
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'CANCELLED'));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -257,7 +271,7 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
     await getOwnedBooking(ctx, organizationId, bookingId);
 
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'REFUNDED');
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'REFUNDED'));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -325,14 +339,14 @@ export const bookingService = {
    * status transition, not a new creation path. Reuses booking.cancel's
    * permission/ownership shape rather than adding a new permission --
    * TOURIST already holds it and the semantics ("give up this hold") are
-   * close enough. No notification fired; staff see these via the
-   * quote-requests dashboard queue instead. */
+   * close enough. No notification fired; staff see these via the main
+   * Bookings list (filterable by status) instead. */
   async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_QUOTATION');
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_QUOTATION'));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,
@@ -354,7 +368,7 @@ export const bookingService = {
     assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const to = kind === 'DEPOSIT' ? 'DEPOSIT_PAID' : 'FULLY_PAID';
-    const updated = await bookingRepository.updateStatus(organizationId, bookingId, to);
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, to));
     if (!updated) throw Errors.notFound('Booking not found');
     await audit({
       actorUserId: ctx.userId,

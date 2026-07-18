@@ -237,19 +237,6 @@ export function isHoldExpired(b: Pick<BookingView, 'status' | 'holdExpiresAt'>, 
   return b.status === 'AWAITING_DEPOSIT' && b.holdExpiresAt !== null && b.holdExpiresAt <= now;
 }
 
-const INQUIRY_ONLY_STATUSES: BookingStatus[] = ['AWAITING_QUOTATION', 'QUOTATION_SENT'];
-
-/** Whether a booking should stay hidden from the main staff Bookings and
- * Itineraries lists (DR-048, explicit user direction) -- a fresh
- * TAILOR_MADE request is "just an inquiry" until its quotation is
- * accepted (AWAITING_DEPOSIT+); it's still reachable via
- * /staff/quote-requests in the meantime, same convention as that page's
- * own QUOTE_PIPELINE_STATUSES filter. A PREDEFINED_PACKAGE booking is
- * always a real booking from the moment it's created, never hidden. */
-export function isPendingInquiry(b: Pick<BookingView, 'origin' | 'status'>): boolean {
-  return b.origin === 'TAILOR_MADE' && INQUIRY_ONLY_STATUSES.includes(b.status);
-}
-
 /** Whether a booking currently occupies a seat on its departure. Only
  * meaningful for a PREDEFINED_PACKAGE booking -- a TAILOR_MADE booking has
  * no fixed departure/capacity to occupy in the first place. */

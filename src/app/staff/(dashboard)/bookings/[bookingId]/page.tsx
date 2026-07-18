@@ -16,6 +16,7 @@ import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { can } from '@lib/rbac';
 import {
+  acceptQuotationAction,
   confirmBookingAction,
   cancelBookingAction,
   convertToItineraryAction,
@@ -220,6 +221,11 @@ export default async function BookingDetailPage({ params }: Props) {
               </select>
             </FormField>
             <SubmitButton pendingLabel="Sending…">Send quotation</SubmitButton>
+          </form>
+        )}
+        {booking.status === 'QUOTATION_SENT' && (
+          <form action={acceptQuotationAction.bind(null, booking.id)} className="mt-4">
+            <SubmitButton pendingLabel="Accepting…">Accept quotation on client&apos;s behalf</SubmitButton>
           </form>
         )}
         {booking.origin === 'PREDEFINED_PACKAGE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT') && (

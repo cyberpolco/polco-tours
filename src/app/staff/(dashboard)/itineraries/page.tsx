@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
-import { bookingService, isPendingInquiry } from '@modules/booking';
+import { bookingService } from '@modules/booking';
 import { itineraryService } from '@modules/itinerary';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
+import { BOOKING_STATUS_TONE, ITINERARY_STATUS_TONE } from '@lib/status-tones';
 
 // Manager-only (itinerary.write) -- the entry point for reaching a specific
 // itinerary is normally a booking's detail page ("Create itinerary"); this
@@ -16,14 +16,11 @@ export default async function ItinerariesPage() {
   const allItineraries = await itineraryService.listAll(ctx);
   const allBookings = await Promise.all(allItineraries.map((i) => bookingService.getById(ctx, i.bookingId)));
 
-  // convertToItinerary only requires a sent quotation (priced), not an
-  // accepted one -- an Itinerary can technically exist for a booking still
-  // awaiting the guest's acceptance. Same DR-048 rule as /staff/bookings:
-  // stays hidden here too until the quotation is accepted, reachable via
-  // /staff/quote-requests in the meantime.
-  const rows = allItineraries
-    .map((itinerary, i) => ({ itinerary, booking: allBookings[i] }))
-    .filter(({ booking }) => !booking || !isPendingInquiry(booking));
+  // DR-049: no longer hidden -- convertToItinerary only requires a sent
+  // quotation (priced), not an accepted one, so an Itinerary can exist for a
+  // booking still awaiting the guest's acceptance; the booking's own status
+  // badge makes that visible instead of hiding the row.
+  const rows = allItineraries.map((itinerary, i) => ({ itinerary, booking: allBookings[i] }));
 
   return (
     <div className="space-y-6">
@@ -35,7 +32,8 @@ export default async function ItinerariesPage() {
           <thead>
             <TableHeaderRow>
               <Th>Booking</Th>
-              <Th>Status</Th>
+              <Th>Booking status</Th>
+              <Th>Itinerary status</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -43,6 +41,9 @@ export default async function ItinerariesPage() {
             {rows.map(({ itinerary, booking }) => (
               <Tr key={itinerary.id}>
                 <Td>{booking?.bookingReference ?? itinerary.bookingId}</Td>
+                <Td>
+                  {booking ? <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> : '—'}
+                </Td>
                 <Td>
                   <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>
                 </Td>
