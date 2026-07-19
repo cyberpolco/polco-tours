@@ -9,7 +9,9 @@ import { prisma, withOrg } from '../../src/lib/db';
  * `quality` CI job), so a raw unscoped create would be invisible to the
  * dashboard and fail the test confusingly.
  */
-export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ staffUserId: string; bookingId: string }> {
+export async function seedStaffAndBooking(
+  opts?: { seats?: number; withVisaAddon?: boolean },
+): Promise<{ staffUserId: string; bookingId: string; visaAddonServiceId?: string }> {
   const seats = opts?.seats ?? 1;
   const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -23,7 +25,7 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
     }),
   ]);
 
-  const bookingId = await withOrg(org.id, async (tx) => {
+  const { bookingId, visaAddonServiceId } = await withOrg(org.id, async (tx) => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
@@ -62,23 +64,32 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
         status: 'AWAITING_DEPOSIT',
       },
     });
-    // Selecting this at the Add-ons step (now the setup wizard's first step)
-    // is what makes the Passport step appear at all -- seeded here so e2e
-    // specs walking the full wizard can still exercise it.
-    await tx.addonService.create({
-      data: {
-        organizationId: org.id,
-        code: 'VISA_ASSISTANCE',
-        name: `E2E Visa Assistance ${suffix}`,
-        description: 'Fixture add-on for staff dashboard e2e tests.',
-        priceMinor: 5000,
-        currency: 'USD',
-      },
-    });
-    return booking.id;
+    // Opt-in only -- selecting this at the Add-ons step (now the setup
+    // wizard's first step) is what makes the Passport step appear at all,
+    // but most callers of this fixture don't walk that far into the
+    // wizard. Every call shares the same primary org (no per-test org), so
+    // seeding one unconditionally would leave same-named "Visa Assistance"
+    // rows accumulating across every test in the file (and every retry) --
+    // ambiguous for a spec that locates it by label text rather than this
+    // returned id.
+    let visaAddonServiceId: string | undefined;
+    if (opts?.withVisaAddon) {
+      const addon = await tx.addonService.create({
+        data: {
+          organizationId: org.id,
+          code: 'VISA_ASSISTANCE',
+          name: `E2E Visa Assistance ${suffix}`,
+          description: 'Fixture add-on for staff dashboard e2e tests.',
+          priceMinor: 5000,
+          currency: 'USD',
+        },
+      });
+      visaAddonServiceId = addon.id;
+    }
+    return { bookingId: booking.id, visaAddonServiceId };
   });
 
-  return { staffUserId: staff.id, bookingId };
+  return { staffUserId: staff.id, bookingId, visaAddonServiceId };
 }
 
 /**

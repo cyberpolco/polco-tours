@@ -53,7 +53,7 @@ test.describe('staff dashboard (DR-014)', () => {
   // for notification providers. Full upload+download coverage (with the Blob
   // gateway boundary mocked) lives in tests/api/booking-setup.api.test.ts.
   test('booking detail routes into the setup wizard and walks the traveler loop', async ({ page }) => {
-    const { staffUserId, bookingId } = await seedStaffAndBooking({ seats: 2 });
+    const { staffUserId, bookingId, visaAddonServiceId } = await seedStaffAndBooking({ seats: 2, withVisaAddon: true });
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto(`/staff/bookings/${bookingId}`);
@@ -61,10 +61,14 @@ test.describe('staff dashboard (DR-014)', () => {
     await expect(page.getByText('Travelers (0/2)')).toBeVisible();
 
     // Add-ons is now the first setup step -- selecting Visa Assistance here
-    // is what makes the Passport step (below) appear at all.
+    // is what makes the Passport step (below) appear at all. Targeted by
+    // the fixture's returned id, not a label match -- every call to
+    // seedStaffAndBooking shares the same primary org, so a broad
+    // "Visa Assistance" text match would ambiguously hit every other
+    // test's own same-named fixture row too.
     await page.getByRole('link', { name: 'Continue setup' }).click();
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/addons`));
-    await page.getByLabel(/Visa Assistance/).check();
+    await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
     await page.getByRole('button', { name: 'Finish setup' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/travelers/new`));

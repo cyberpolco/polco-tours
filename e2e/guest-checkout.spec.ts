@@ -9,7 +9,7 @@ import { seedPublicDeparture } from './helpers/catalog-fixture';
 // later on a different visit.
 test.describe('guest checkout (DR-016)', () => {
   test('browse -> book -> setup wizard -> pay -> find my booking later', async ({ page }) => {
-    const { departureId } = await seedPublicDeparture({ capacity: 1 });
+    const { departureId, visaAddonServiceId } = await seedPublicDeparture({ capacity: 1 });
 
     await page.goto('/packages');
     await expect(page.getByRole('heading', { name: 'Tour packages' })).toBeVisible();
@@ -35,9 +35,14 @@ test.describe('guest checkout (DR-016)', () => {
     await page.getByRole('link', { name: 'Continue setup' }).click();
 
     // Add-ons is now the first setup step -- selecting Visa Assistance here
-    // is what makes the Passport step (below) appear at all.
+    // is what makes the Passport step (below) appear at all. Targeted by
+    // the fixture's returned id, not a label match -- every call to
+    // seedPublicDeparture shares the same primary org, so a broad
+    // "Visa Assistance" text match would ambiguously hit other runs'/
+    // retries' same-named fixture rows too (see the staff-dashboard.spec.ts
+    // CI failure this exact ambiguity caused).
     await expect(page).toHaveURL(/\/addons$/);
-    await page.getByLabel(/Visa Assistance/).check();
+    await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
     await page.getByRole('button', { name: 'Finish setup' }).click();
 
     await expect(page).toHaveURL(/\/travelers\/new$/);
