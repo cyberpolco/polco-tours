@@ -269,6 +269,13 @@ describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/passport', 
   });
 
   it('uploads the tour lead passport without leaking the blob pathname (201)', async () => {
+    // The route uploads to Blob storage BEFORE checking
+    // Booking.requiresPassportUpload (see the passport route), so the
+    // preceding "rejects before Visa Assistance" test above already
+    // triggered one real (mocked) upload call despite its 409 -- clear it
+    // here so this test's own toHaveBeenCalledOnce() reflects only this
+    // upload, not a cumulative count across the describe block.
+    uploadMock.mockClear();
     const headers = await loginAs(touristAId);
     const formData = new FormData();
     formData.append('passport', new File([new TextEncoder().encode('%PDF-fixture')], 'passport.pdf', { type: 'application/pdf' }));
