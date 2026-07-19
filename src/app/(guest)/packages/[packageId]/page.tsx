@@ -44,16 +44,12 @@ export default async function PackageDetailPage({ params }: Props) {
               return (
                 <Card as="li" key={d.id} className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-navy">{d.startDate.toLocaleDateString()}</p>
-                    <p className="text-sm text-mist">
+                    <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
+                    <p className="mt-1 text-sm text-mist">
                       {formatOrPending(price?.minor ?? null, price?.currency ?? null)}/seat · capacity {d.capacity}
                     </p>
                   </div>
-                  {bookable ? (
-                    <LinkButton href={`/book/${d.id}`}>Book this departure</LinkButton>
-                  ) : (
-                    <Badge tone="neutral">Not open for booking</Badge>
-                  )}
+                  {bookable && <LinkButton href={`/book/${d.id}`}>Book this departure</LinkButton>}
                 </Card>
               );
             })}
