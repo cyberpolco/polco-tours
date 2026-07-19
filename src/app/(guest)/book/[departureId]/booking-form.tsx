@@ -78,9 +78,14 @@ export default function BookingForm({ departureId, capacity }: Props) {
         />
       </FormField>
 
-      <FormField label="Your name" htmlFor="name">
-        <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
-      </FormField>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="First name" htmlFor="firstName">
+          <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
+        <FormField label="Last name" htmlFor="lastName">
+          <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
+      </div>
 
       <div>
         <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your booking)</p>

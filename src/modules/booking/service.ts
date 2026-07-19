@@ -172,9 +172,10 @@ export const bookingService = {
     return booking;
   },
 
-  /** Staff-only: prices a booking currently AWAITING_QUOTATION (applies to
-   * both a TAILOR_MADE request and a PREDEFINED_PACKAGE booking that asked
-   * for a quote instead of paying immediately -- see requestQuotation). */
+  /** Staff-only: prices a booking currently AWAITING_QUOTATION -- in
+   * practice always a TAILOR_MADE request (the only origin that ever
+   * reaches that status; a PREDEFINED_PACKAGE booking's old "request a
+   * quotation instead of paying" escape hatch was removed). */
   async sendQuotation(ctx: AuthContext, bookingId: string, input: SendQuotationInput): Promise<BookingView> {
     assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
@@ -333,32 +334,6 @@ export const bookingService = {
     return updated;
   },
 
-  /** Guest chooses "request a quotation" instead of paying (DR-024) -- the
-   * booking already exists (and, for a PREDEFINED_PACKAGE booking, already
-   * passed its capacity check when the hold was created), so this is just a
-   * status transition, not a new creation path. Reuses booking.cancel's
-   * permission/ownership shape rather than adding a new permission --
-   * TOURIST already holds it and the semantics ("give up this hold") are
-   * close enough. No notification fired; staff see these via the main
-   * Bookings list (filterable by status) instead. */
-  async requestQuotation(ctx: AuthContext, bookingId: string): Promise<BookingView> {
-    assertCan(ctx, 'booking.cancel');
-    const organizationId = requireOrg(ctx);
-
-    await getOwnedBooking(ctx, organizationId, bookingId);
-    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_QUOTATION'));
-    if (!updated) throw Errors.notFound('Booking not found');
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'booking.quotation_requested',
-      resourceType: 'Booking',
-      resourceId: updated.id,
-      organizationId,
-    });
-    return updated;
-  },
-
   /** The cross-module entry point invoicing calls once a payment succeeds --
    * keeps the module boundary intact (invoicing never writes Booking.status
    * directly). DEPOSIT stays AWAITING_DEPOSIT -> DEPOSIT_PAID; BALANCE/FULL
@@ -504,6 +479,16 @@ export const bookingService = {
       resourceId: bookingId,
       organizationId,
     });
+    return bookingRepository.listAddonsForBooking(organizationId, bookingId);
+  },
+
+  /** Read-only -- lets the Add-ons wizard step show what's already selected
+   * when revisited after being finalized once (so "back" from Travelers can
+   * re-open it for editing instead of just bouncing forward again). */
+  async listAddons(ctx: AuthContext, bookingId: string): Promise<BookingAddonView[]> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    await getOwnedBooking(ctx, organizationId, bookingId);
     return bookingRepository.listAddonsForBooking(organizationId, bookingId);
   },
 

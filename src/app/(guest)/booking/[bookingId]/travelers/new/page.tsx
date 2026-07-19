@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
+import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { FormField } from '@/components/ui/FormField';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -40,8 +42,36 @@ export default async function NewTravelerPage({ params }: Props) {
   const isAddingTourLead = !hasTourLead;
   const travelerNumber = travelers.length + 1;
 
+  // Prefill the tour lead's name/phone from what they already typed on
+  // "Your details" (book/[departureId]) -- User.name/phone, set there via
+  // authService.updateProfile -- so they don't retype it. User.name is one
+  // combined string (no firstName/lastName columns), split heuristically:
+  // first word is the first name, everything else is the last name.
+  let prefillFirstName = '';
+  let prefillLastName = '';
+  let prefillDialCode = '264';
+  let prefillLocalNumber = '';
+  if (isAddingTourLead) {
+    const me = await authService.getUser(ctx.userId);
+    if (me?.name) {
+      const [first, ...rest] = me.name.trim().split(/\s+/);
+      prefillFirstName = first ?? '';
+      prefillLastName = rest.join(' ');
+    }
+    if (me?.phone) {
+      const parsed = parseE164(me.phone);
+      if (parsed) {
+        prefillDialCode = parsed.dialCode;
+        prefillLocalNumber = parsed.localNumber;
+      }
+    }
+  }
+
   return (
     <div className="max-w-lg">
+      <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+        ← back to add-ons
+      </Link>
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">
@@ -54,10 +84,20 @@ export default async function NewTravelerPage({ params }: Props) {
       <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="First name" htmlFor="firstName">
-            <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            <input
+              name="firstName"
+              required
+              defaultValue={prefillFirstName}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
           <FormField label="Last name" htmlFor="lastName">
-            <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            <input
+              name="lastName"
+              required
+              defaultValue={prefillLastName}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
         </div>
 
@@ -94,7 +134,7 @@ export default async function NewTravelerPage({ params }: Props) {
             <div>
               <p className="mb-1 block text-sm text-mist">Phone</p>
               <div className="flex gap-2">
-                <select name="dialCode" defaultValue="264" className="rounded-survey border border-rule px-2 py-2">
+                <select name="dialCode" defaultValue={prefillDialCode} className="rounded-survey border border-rule px-2 py-2">
                   {COUNTRY_CODES.map((c) => (
                     <option key={c.alpha2} value={c.dialCode}>
                       {flagEmoji(c.alpha2)} +{c.dialCode}
@@ -105,6 +145,7 @@ export default async function NewTravelerPage({ params }: Props) {
                   name="localNumber"
                   type="tel"
                   required
+                  defaultValue={prefillLocalNumber}
                   placeholder="81 234 5678"
                   className="flex-1 rounded-survey border border-rule px-3 py-2"
                 />

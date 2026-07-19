@@ -239,3 +239,19 @@ export function toE164(dialCode: string, localNumber: string): string {
   const digits = localNumber.trim().replace(/[^\d]/g, '').replace(/^0+/, '');
   return `+${dialCode}${digits}`;
 }
+
+/** Reverses toE164 -- splits a stored E.164 number back into a
+ * {dialCode, localNumber} pair for prefilling a dialCode-select +
+ * localNumber-input pair (e.g. the tour lead's phone, carried over from an
+ * earlier step). Tries the longest matching dial code first (several
+ * countries share a 1-digit code like '1', so the longest-prefix match is
+ * the only way to avoid guessing wrong on the 2-3 digit ones). Returns null
+ * if the number doesn't start with '+' or matches no known dial code. */
+export function parseE164(phone: string): { dialCode: string; localNumber: string } | null {
+  if (!phone.startsWith('+')) return null;
+  const digits = phone.slice(1);
+  const dialCodes = [...new Set(COUNTRY_CODES.map((c) => c.dialCode))].sort((a, b) => b.length - a.length);
+  const dialCode = dialCodes.find((code) => digits.startsWith(code));
+  if (!dialCode) return null;
+  return { dialCode, localNumber: digits.slice(dialCode.length) };
+}

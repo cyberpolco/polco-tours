@@ -33,27 +33,32 @@ export default async function PackageDetailPage({ params }: Props) {
 
       <div className="survey-rule mt-8" />
       <div className="pt-6">
-        <p className="eyebrow text-mist">Departures</p>
+        <p className="eyebrow text-mist">Availability</p>
         {departures.length === 0 ? (
           <p className="mt-2 text-mist">No departures scheduled right now.</p>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {departures.map((d) => {
-              const price = effectivePrice(pkg, d);
-              const bookable = isBookable(pkg, d);
-              return (
-                <Card as="li" key={d.id} className="flex items-center justify-between">
-                  <div>
-                    <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
-                    <p className="mt-1 text-sm text-mist">
-                      {formatOrPending(price?.minor ?? null, price?.currency ?? null)}/seat · capacity {d.capacity}
-                    </p>
-                  </div>
-                  {bookable && <LinkButton href={`/book/${d.id}`}>Book this departure</LinkButton>}
-                </Card>
-              );
-            })}
-          </ul>
+          (() => {
+            // Guests only ever see one bookable slot per package, never a
+            // per-departure date -- departure dates are staff-only
+            // information (visible in the staff dashboard). Prefer the
+            // first departure that's actually open for booking; if none
+            // are, fall back to the first one just to report "Unavailable".
+            const featured = departures.find((d) => isBookable(pkg, d)) ?? departures[0];
+            if (!featured) return null;
+            const price = effectivePrice(pkg, featured);
+            const bookable = isBookable(pkg, featured);
+            return (
+              <Card className="flex items-center justify-between">
+                <div>
+                  <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
+                  <p className="mt-1 text-sm text-mist">
+                    {formatOrPending(price?.minor ?? null, price?.currency ?? null)}/seat · capacity {featured.capacity}
+                  </p>
+                </div>
+                {bookable && <LinkButton href={`/book/${featured.id}`}>Book this departure</LinkButton>}
+              </Card>
+            );
+          })()
         )}
       </div>
     </div>

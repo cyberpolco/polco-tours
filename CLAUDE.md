@@ -9,42 +9,35 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-19, against repo HEAD `7075f6e`, pushed -- **DR-050**,
-> a restructuring of the package booking-setup wizard (both the guest and
-> staff versions) per explicit user direction. See
+> Last updated: 2026-07-19, against repo HEAD `a3aba4b`, pushed -- **DR-050**
+> (package booking-setup wizard restructured, both guest and staff
+> versions: Add-ons now first, a new conditional Passport step gated on
+> Visa Assistance requiring every traveler's passport not just the lead,
+> new tour-lead-only `Traveler.email`/`countryOfResidence`) is fully
+> shipped and its schema is live on the shared Neon DB -- see
 > `docs/decisions/DECISION_LOG.md`'s DR-050 entry for the full spec.
-> Add-ons is now the wizard's first step; a new conditional Passport step
-> only appears if the finalized add-ons included Visa Assistance (new
-> `Booking.requiresPassportUpload`), and when it does, every traveler needs
-> a passport, not just the tour lead (a reversal of the original DR-015
-> rule). Two new tour-lead-only `Traveler` columns, `email`/
-> `countryOfResidence`; `phone` also became tour-lead-only (was
-> optional-for-everyone); `disabilities`/`drinkPreference` dropped from the
-> wizard's UI entirely (kept as unused schema columns, not removed).
-> `domain.isTravelerManifestComplete` gained a `requiresPassports`
-> parameter. Schema applied to the shared Neon DB via a user-pasted
-> `neondb_owner` credential (never written to any file) -- Prisma's own
-> query engine could not reach Neon from this sandbox this session (the
-> documented intermittent gotcha, confirmed against both the pooled and
-> direct endpoints, `db push` itself included), while a plain `psql`
-> connection to the direct endpoint worked immediately; applied the three
-> additive `ALTER TABLE` statements by hand and verified via `psql \d`
-> that all three columns exist with the right type/default. No RLS change
-> needed (new columns on already-protected tables). `lint`/`typecheck`
-> clean; `tests/booking.domain.test.ts` (54 tests) green;
-> `tests/api/booking-setup.api.test.ts` and both e2e specs were updated
-> (new Visa-Assistance-coded `AddonService` fixtures so the passport step,
-> including the real Vercel Blob upload, stays exercised) but could not be
-> run to completion in this sandbox (Prisma's engine couldn't reach the DB
-> at all this session, not just for the push) -- needs a real CI run.
-> Also pushed this session before DR-050: DR-049, a small undocumented
-> Plan My Trip polish pass (first/last name split instead of one name
-> field, a bigger booking-reference display + a last-name/reference
-> reminder, `src/lib/country-codes.ts` expanded 68 -> 195 countries), and a
-> guest-facing change making package departures show an Available/
-> Unavailable status badge instead of their raw date -- all three of those
-> pushes were CI-confirmed green; the two polish items needed no DR (no
-> schema/permission/business-rule change).
+> **Not yet committed on top of that**: **DR-051**, a guest package-booking
+> flow polish batch, same session -- see DR-051's own entry for the full
+> spec. Departure dates are now staff-only (the package detail page shows
+> one Available/Unavailable slot for the whole package, not a row per
+> departure; `/book/[departureId]`'s heading dropped its raw date too).
+> "Request a quotation" removed entirely (button/action/service method) --
+> removing it surfaced a real pre-existing bug: `domain.ts`'s `TRANSITIONS`
+> table never actually allowed `AWAITING_DEPOSIT -> AWAITING_QUOTATION`, so
+> since DR-049 started enforcing that table strictly, this feature had
+> already been silently 409ing for anyone who tried it. "Your details"
+> (`/book/[departureId]`) now asks First/Last name like `/plan-my-trip`
+> does; those values (name + phone) now prefill the tour lead's fields on
+> the Travelers step via a new `authService.getUser` read + a new
+> `parseE164` helper in `src/lib/country-codes.ts`. Back navigation added:
+> a `←` arrow on Plan My Trip's existing button, new back links on "Your
+> details" and Travelers, and Add-ons is now re-editable if revisited
+> instead of auto-bouncing forward (new `bookingService.listAddons`).
+> No schema/RLS change. `lint`/`typecheck` clean; `tests/booking.domain
+> .test.ts` (54) + new `tests/lib/country-codes.test.ts` (7) green.
+> `tests/api/bookings.security.test.ts` and both e2e specs were updated
+> but couldn't run to completion in this sandbox (the documented
+> persistent Neon connectivity gotcha) -- needs a real CI run.
 > Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
@@ -1941,6 +1934,28 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `tests/booking.domain.test.ts` green; DB-backed tests/e2e updated but
   still unverified this session (Prisma's engine, not just the push,
   couldn't reach the DB) -- needs a real CI run.
+- **Guest package-booking flow polish batch (DR-051, 2026-07-19, same
+  session as DR-050):** see the "Last updated" note above and
+  `docs/decisions/DECISION_LOG.md`'s DR-051 entry for the full spec.
+  Departure dates are now staff-only -- the package detail page shows one
+  Available/Unavailable slot per package instead of a row per departure,
+  and `/book/[departureId]`'s heading dropped its raw date too. Removed
+  "Request a quotation" entirely, which surfaced a real pre-existing bug:
+  `domain.ts`'s `TRANSITIONS` table never actually permitted
+  `AWAITING_DEPOSIT -> AWAITING_QUOTATION`, so this feature had already
+  been silently 409ing since DR-049 started strictly enforcing that table
+  -- nobody had noticed because the one test exercising it couldn't run
+  all session. "Your details" now asks First/Last name (matching
+  `/plan-my-trip`); those values prefill the tour lead's Travelers-step
+  fields via a new `authService.getUser` read + new `parseE164` helper.
+  Back navigation added throughout both wizards; Add-ons is now
+  re-editable if revisited instead of auto-bouncing forward (new
+  `bookingService.listAddons`). No schema/RLS change. `lint`/`typecheck`
+  clean, `tests/booking.domain.test.ts` (54) + new
+  `tests/lib/country-codes.test.ts` (7) green; `tests/api/bookings
+  .security.test.ts` and both e2e specs updated but unverified this
+  session (same persistent Neon connectivity gotcha) -- needs a real CI
+  run.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2346,7 +2361,19 @@ explicit user choice; `disabilities`/`drinkPreference` dropped from the
 wizard's UI (columns kept, unused). `domain.isTravelerManifestComplete`
 gained a `requiresPassports` parameter. Schema applied to the shared
 Neon DB by hand via `psql` (user-pasted `neondb_owner` credential) since
-Prisma's engine couldn't reach Neon this session.
+Prisma's engine couldn't reach Neon this session · DR-051 guest
+package-booking polish batch (same session): departure dates now
+staff-only (package detail page shows one Available/Unavailable slot
+per package, not one row per departure; `/book/[departureId]` dropped
+its raw date too); "Request a quotation" removed entirely, surfacing a
+real pre-existing bug where `domain.ts`'s `TRANSITIONS` table never
+actually allowed that transition, so the feature had been silently
+broken since DR-049 started enforcing it strictly; "Your details" now
+asks First/Last name and prefills the tour lead's Travelers-step fields
+from it (new `authService.getUser` read + `parseE164` helper); back
+navigation added to both wizards, with Add-ons now re-editable instead
+of auto-redirecting forward when revisited (new
+`bookingService.listAddons`). No schema/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

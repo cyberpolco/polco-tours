@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
@@ -38,6 +39,9 @@ export default async function NewTravelerPage({ params }: Props) {
 
   return (
     <div className="max-w-lg">
+      <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+        ← back to add-ons
+      </Link>
       <PageHeader eyebrow="Booking setup · Travelers" title={`Traveler ${travelerNumber} of ${booking.seats}`} />
       <p className="mt-1 text-sm text-mist">
         {travelers.length} of {booking.seats} entered

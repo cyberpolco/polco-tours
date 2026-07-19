@@ -18,12 +18,6 @@ export async function initiatePaymentAction(invoiceId: string, kind: PaymentKind
   revalidatePath(`/booking/${bookingId}`);
 }
 
-export async function requestQuotationAction(bookingId: string) {
-  const ctx = await requireGuestContext();
-  await bookingService.requestQuotation(ctx, bookingId);
-  revalidatePath(`/booking/${bookingId}`);
-}
-
 export async function acceptQuotationAction(bookingId: string) {
   const ctx = await requireGuestContext();
   await bookingService.acceptQuotation(ctx, bookingId);

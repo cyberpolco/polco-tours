@@ -11,7 +11,7 @@ import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
-import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction, requestQuotationAction } from './actions';
+import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction } from './actions';
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
 // CANCELLED/REFUNDED, plus unreachable DRAFT) can still be cancelled by the
@@ -38,14 +38,11 @@ export default async function BookingHomePage({ params }: Props) {
   // DR-047: a TAILOR_MADE request is "just an inquiry" until a quotation
   // exists and is accepted -- explicit user direction to remove the
   // Travelers/Passport/Add-ons/Confirm-&-Pay steps from this stage
-  // entirely, not just defer them. Deliberately origin-scoped: a
-  // PREDEFINED_PACKAGE booking can also reach AWAITING_QUOTATION/
-  // QUOTATION_SENT (via "Request a quotation" below), but only ever after
-  // its own setup was already completed and a real invoice already exists,
-  // so it keeps seeing the full invoice/payment view unchanged -- no
-  // Continue-setup wizard, no invoice creation attempt (which would 409,
-  // since getBillableTotal requires a finished traveler/passport/add-ons
-  // manifest this booking doesn't have yet).
+  // entirely, not just defer them. `AWAITING_QUOTATION`/`QUOTATION_SENT`
+  // are TAILOR_MADE-only statuses -- a PREDEFINED_PACKAGE booking never
+  // reaches either (its old "Request a quotation" escape hatch was
+  // removed; this branch is origin-scoped defensively, not because either
+  // origin can currently land here in both ways).
   if (booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT')) {
     return (
       <div className="max-w-md space-y-6">
@@ -231,11 +228,6 @@ export default async function BookingHomePage({ params }: Props) {
               <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
                 <SubmitButton pendingLabel="Starting…" variant="secondary">
                   Pay in full
-                </SubmitButton>
-              </form>
-              <form action={requestQuotationAction.bind(null, booking.id)}>
-                <SubmitButton pendingLabel="Requesting…" variant="secondary">
-                  Request a quotation
                 </SubmitButton>
               </form>
             </>

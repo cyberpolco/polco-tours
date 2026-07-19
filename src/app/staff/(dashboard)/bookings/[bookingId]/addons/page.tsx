@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -15,15 +14,14 @@ interface Props {
 // Add-ons is now the FIRST setup step (right after the booking exists) --
 // whether Visa Assistance is picked here decides if a later Passport step
 // appears at all, and for how many travelers (see bookingService.setAddons
-// / Booking.requiresPassportUpload).
+// / Booking.requiresPassportUpload). Revisiting after it's already been
+// finalized once (e.g. via the Travelers step's "back" link) re-opens it
+// for editing instead of bouncing forward again -- setAddons is a
+// replace-all, so resubmitting is always safe.
 export default async function AddonsPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireStaffContext('booking.create');
   const booking = await bookingService.getById(ctx, bookingId);
-
-  if (booking.addonsFinalizedAt) {
-    redirect(`/staff/bookings/${bookingId}/travelers/new`);
-  }
 
   // A TAILOR_MADE booking has no price until a quotation is sent -- add-ons
   // can't be currency-matched against it yet (setAddons enforces this
@@ -37,7 +35,11 @@ export default async function AddonsPage({ params }: Props) {
     );
   }
 
-  const addons = await catalogService.listActiveAddonServices(ctx);
+  const [addons, selected] = await Promise.all([
+    catalogService.listActiveAddonServices(ctx),
+    booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
+  ]);
+  const selectedIds = new Set(selected.map((a) => a.addonServiceId));
 
   return (
     <div className="max-w-md">
@@ -49,7 +51,13 @@ export default async function AddonsPage({ params }: Props) {
           <p className="text-sm text-mist">No add-on services configured.</p>
         ) : (
           addons.map((a) => (
-            <SelectableCard key={a.id} type="checkbox" name="addonServiceId" value={a.id}>
+            <SelectableCard
+              key={a.id}
+              type="checkbox"
+              name="addonServiceId"
+              value={a.id}
+              defaultChecked={selectedIds.has(a.id)}
+            >
               <span className="flex flex-1 items-center justify-between">
                 <span>{a.name}</span>
                 <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
@@ -57,7 +65,7 @@ export default async function AddonsPage({ params }: Props) {
             </SelectableCard>
           ))
         )}
-        <SubmitButton>Finish setup</SubmitButton>
+        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Finish setup'}</SubmitButton>
       </form>
     </div>
   );

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
 import { StepIndicator } from '@/components/ui/StepIndicator';
@@ -22,10 +23,16 @@ export default async function BookDeparturePage({ params }: Props) {
 
   return (
     <div className="max-w-md">
+      {detail.departure.tourPackageId && (
+        <Link href={`/packages/${detail.departure.tourPackageId}`} className="text-sm text-forest hover:underline">
+          ← back to package
+        </Link>
+      )}
       <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
       <p className="eyebrow mt-4 text-mist">New booking</p>
+      {/* Departure dates are staff-only information (visible in the staff
+          dashboard) -- only the price is shown here. */}
       <h1 className="mt-1 text-2xl font-bold text-navy">
-        {detail.departure.startDate.toLocaleDateString()} ·{' '}
         {formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null)}/seat
       </h1>
 

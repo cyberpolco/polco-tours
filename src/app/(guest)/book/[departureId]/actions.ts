@@ -35,7 +35,15 @@ export async function createGuestBookingAction(
   try {
     const ctx = await authService.resolveSession(await headers());
 
-    const name = String(formData.get('name') ?? '').trim();
+    // User.name is a single better-auth-managed string (no firstName/
+    // lastName split at the schema level) -- collected separately here so
+    // the Travelers step can prefill the tour lead's own two fields (see
+    // travelers/new/page.tsx), but combined for storage since there's
+    // nowhere else on User to put lastName individually (same convention
+    // as /plan-my-trip's contact step).
+    const firstName = String(formData.get('firstName') ?? '').trim();
+    const lastName = String(formData.get('lastName') ?? '').trim();
+    const name = `${firstName} ${lastName}`.trim();
     const dialCode = String(formData.get('dialCode') ?? '');
     const localNumber = String(formData.get('localNumber') ?? '').trim();
     if (name) {

@@ -16,7 +16,8 @@ test.describe('guest checkout (DR-016)', () => {
 
     await page.goto(`/book/${departureId}`);
     await page.getByLabel('Seats').fill('1');
-    await page.getByLabel('Your name').fill('Guest Traveler');
+    await page.getByLabel('First name').fill('Guest');
+    await page.getByLabel('Last name').fill('Traveler');
     await page.locator('select[name="dialCode"]').selectOption('264');
     await page.locator('input[name="localNumber"]').fill('811234567');
     await page.getByRole('button', { name: 'Start my booking' }).click();
@@ -41,14 +42,15 @@ test.describe('guest checkout (DR-016)', () => {
 
     await expect(page).toHaveURL(/\/travelers\/new$/);
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();
-    await page.getByLabel('First name').fill('Guest');
-    await page.getByLabel('Last name').fill('Traveler');
+    // Prefilled from "Your details" (book/[departureId]) -- same name/phone
+    // typed there, so the tour lead doesn't retype it.
+    await expect(page.getByLabel('First name')).toHaveValue('Guest');
+    await expect(page.getByLabel('Last name')).toHaveValue('Traveler');
+    await expect(page.locator('input[name="localNumber"]')).toHaveValue('811234567');
     await page.getByLabel('Age').fill('34');
     await page.getByLabel('ID / passport number').fill('GUESTE2E1');
     // The only (first) traveler is always the tour lead -- gets the extra
     // contact fields the wizard only ever asks the lead for.
-    await page.locator('select[name="dialCode"]').selectOption('264');
-    await page.locator('input[name="localNumber"]').fill('811234567');
     await page.getByLabel('Email').fill('guest-traveler@example.test');
     await page.getByLabel('Country of residence').selectOption('NA');
     await expect(page.getByLabel(/Tour lead/)).toBeChecked();

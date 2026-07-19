@@ -367,7 +367,7 @@ export default function PlanMyTripForm() {
       <div className="flex items-center gap-3">
         {step > 0 && (
           <Button type="button" variant="secondary" onClick={back} disabled={pending}>
-            Back
+            ← Back
           </Button>
         )}
         {step < STEPS.length - 1 ? (

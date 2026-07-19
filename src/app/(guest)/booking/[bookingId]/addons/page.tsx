@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -16,15 +15,14 @@ interface Props {
 // Add-ons is now the FIRST setup step (right after the booking/hold itself
 // exists) -- whether Visa Assistance is picked here decides if a later
 // Passport step appears at all, and for how many travelers (see
-// bookingService.setAddons / Booking.requiresPassportUpload).
+// bookingService.setAddons / Booking.requiresPassportUpload). Revisiting
+// after it's already been finalized once (e.g. via the Travelers step's
+// "back" link) re-opens it for editing instead of bouncing forward again --
+// setAddons is a replace-all, so resubmitting is always safe.
 export default async function AddonsPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireGuestContext();
   const booking = await bookingService.getById(ctx, bookingId);
-
-  if (booking.addonsFinalizedAt) {
-    redirect(`/booking/${bookingId}/travelers/new`);
-  }
 
   // A TAILOR_MADE booking has no price until staff sends a quotation --
   // add-ons can't be currency-matched against it yet (setAddons enforces
@@ -44,11 +42,15 @@ export default async function AddonsPage({ params }: Props) {
     );
   }
 
-  const addons = await catalogService.listActiveAddonServices(ctx);
+  const [addons, selected] = await Promise.all([
+    catalogService.listActiveAddonServices(ctx),
+    booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
+  ]);
+  const selectedIds = new Set(selected.map((a) => a.addonServiceId));
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
+      <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>
@@ -58,7 +60,13 @@ export default async function AddonsPage({ params }: Props) {
           <p className="text-sm text-mist">No add-on services configured.</p>
         ) : (
           addons.map((a) => (
-            <SelectableCard key={a.id} type="checkbox" name="addonServiceId" value={a.id}>
+            <SelectableCard
+              key={a.id}
+              type="checkbox"
+              name="addonServiceId"
+              value={a.id}
+              defaultChecked={selectedIds.has(a.id)}
+            >
               <span className="flex flex-1 items-center justify-between">
                 <span>{a.name}</span>
                 <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
@@ -66,7 +74,7 @@ export default async function AddonsPage({ params }: Props) {
             </SelectableCard>
           ))
         )}
-        <SubmitButton>Finish setup</SubmitButton>
+        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Finish setup'}</SubmitButton>
       </form>
     </div>
   );
