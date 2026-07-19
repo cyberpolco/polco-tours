@@ -9,37 +9,42 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-19, against repo HEAD `e23b706`, pushed -- CI
-> confirmed green on all of the last three pushes (DR-049; a small
-> undocumented Plan My Trip polish pass -- first/last name split instead of
-> one name field, a bigger booking-reference display + a last-name/
-> reference reminder, and `src/lib/country-codes.ts` expanded 68 -> 195
-> countries; and a guest-facing change making package departures show an
-> Available/Unavailable status badge instead of their raw date). DR-049's
-> full spec is in `docs/decisions/DECISION_LOG.md`; the two polish items
-> needed no DR (no schema/permission/business-rule change).
-> **Not yet committed on top of that**: **DR-050**, a restructuring of the
-> package booking-setup wizard (both the guest and staff versions) per
-> explicit user direction -- see `docs/decisions/DECISION_LOG.md`'s DR-050
-> entry for the full spec. Add-ons is now the wizard's first step; a new
-> conditional Passport step only appears if the finalized add-ons included
-> Visa Assistance (new `Booking.requiresPassportUpload`), and when it does,
-> every traveler needs a passport, not just the tour lead (a reversal of
-> the original DR-015 rule). Two new tour-lead-only `Traveler` columns,
-> `email`/`countryOfResidence`; `phone` also became tour-lead-only (was
+> Last updated: 2026-07-19, against repo HEAD `7075f6e`, pushed -- **DR-050**,
+> a restructuring of the package booking-setup wizard (both the guest and
+> staff versions) per explicit user direction. See
+> `docs/decisions/DECISION_LOG.md`'s DR-050 entry for the full spec.
+> Add-ons is now the wizard's first step; a new conditional Passport step
+> only appears if the finalized add-ons included Visa Assistance (new
+> `Booking.requiresPassportUpload`), and when it does, every traveler needs
+> a passport, not just the tour lead (a reversal of the original DR-015
+> rule). Two new tour-lead-only `Traveler` columns, `email`/
+> `countryOfResidence`; `phone` also became tour-lead-only (was
 > optional-for-everyone); `disabilities`/`drinkPreference` dropped from the
 > wizard's UI entirely (kept as unused schema columns, not removed).
 > `domain.isTravelerManifestComplete` gained a `requiresPassports`
-> parameter. **Schema not yet pushed to the shared Neon DB this session**
-> (`prisma generate` was run locally so the app typechecks against the new
-> columns, but `db:push`/`db:rls` against the real database still need to
-> happen) -- treat this DR as code-complete but not yet live. `lint`/
-> `typecheck` clean; `tests/booking.domain.test.ts` (54 tests) green;
+> parameter. Schema applied to the shared Neon DB via a user-pasted
+> `neondb_owner` credential (never written to any file) -- Prisma's own
+> query engine could not reach Neon from this sandbox this session (the
+> documented intermittent gotcha, confirmed against both the pooled and
+> direct endpoints, `db push` itself included), while a plain `psql`
+> connection to the direct endpoint worked immediately; applied the three
+> additive `ALTER TABLE` statements by hand and verified via `psql \d`
+> that all three columns exist with the right type/default. No RLS change
+> needed (new columns on already-protected tables). `lint`/`typecheck`
+> clean; `tests/booking.domain.test.ts` (54 tests) green;
 > `tests/api/booking-setup.api.test.ts` and both e2e specs were updated
 > (new Visa-Assistance-coded `AddonService` fixtures so the passport step,
 > including the real Vercel Blob upload, stays exercised) but could not be
-> run to completion in this sandbox (no reachable Postgres this session) --
-> needs a real CI run.
+> run to completion in this sandbox (Prisma's engine couldn't reach the DB
+> at all this session, not just for the push) -- needs a real CI run.
+> Also pushed this session before DR-050: DR-049, a small undocumented
+> Plan My Trip polish pass (first/last name split instead of one name
+> field, a bigger booking-reference display + a last-name/reference
+> reminder, `src/lib/country-codes.ts` expanded 68 -> 195 countries), and a
+> guest-facing change making package departures show an Available/
+> Unavailable status badge instead of their raw date -- all three of those
+> pushes were CI-confirmed green; the two polish items needed no DR (no
+> schema/permission/business-rule change).
 > Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
@@ -1928,10 +1933,14 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   every traveler not just the lead), new tour-lead-only `Traveler.email`/
   `countryOfResidence` (+ `phone` moved to tour-lead-only),
   `disabilities`/`drinkPreference` dropped from the wizard UI. Applied
-  identically to the guest and staff wizards. Schema not yet pushed to
-  the shared Neon DB -- code-complete, not yet live; `lint`/`typecheck`
-  clean, `tests/booking.domain.test.ts` green, DB-backed tests/e2e
-  updated but unverified this session (no reachable Postgres).
+  identically to the guest and staff wizards. Schema applied to the
+  shared Neon DB by hand via `psql` (a user-pasted `neondb_owner`
+  credential, never written to any file) after Prisma's own query engine
+  couldn't reach Neon at all this session (`db push` included) --
+  verified live via `psql \d`. `lint`/`typecheck` clean,
+  `tests/booking.domain.test.ts` green; DB-backed tests/e2e updated but
+  still unverified this session (Prisma's engine, not just the push,
+  couldn't reach the DB) -- needs a real CI run.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2335,8 +2344,9 @@ when it does, every traveler needs a passport, not just the tour lead
 to required-tour-lead-only); `sex`/`nationality` stay universal per
 explicit user choice; `disabilities`/`drinkPreference` dropped from the
 wizard's UI (columns kept, unused). `domain.isTravelerManifestComplete`
-gained a `requiresPassports` parameter. Schema not yet pushed to the
-shared Neon DB this session.
+gained a `requiresPassports` parameter. Schema applied to the shared
+Neon DB by hand via `psql` (user-pasted `neondb_owner` credential) since
+Prisma's engine couldn't reach Neon this session.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
