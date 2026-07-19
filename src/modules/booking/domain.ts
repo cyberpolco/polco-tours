@@ -28,6 +28,11 @@ export interface BookingView {
   priceMinor: number | null;
   currency: Currency | null;
   addonsFinalizedAt: Date | null;
+  // Snapshotted when add-ons are finalized (setAddons) -- true only if the
+  // selection included Visa Assistance. Drives whether the Passport wizard
+  // step appears at all, and for how many travelers (see
+  // isTravelerManifestComplete).
+  requiresPassportUpload: boolean;
   confirmationCode: string;
   bookingReference: string;
   specialRequests: string | null;
@@ -297,6 +302,10 @@ export interface TravelerView {
   nationality: string;
   idOrPassportNumber: string;
   phone: string | null;
+  // Tour-lead-only contact fields -- null for every other traveler on the
+  // booking (the wizard only ever asks for these on the isTourLead row).
+  countryOfResidence: string | null;
+  email: string | null;
   disabilities: string | null;
   allergies: string | null;
   drinkPreference: string | null;
@@ -370,7 +379,13 @@ export const AddTravelerInput = z.object({
   sex: z.enum(['M', 'F', 'X']),
   nationality: z.string().length(2), // ISO-3166 alpha-2
   idOrPassportNumber: z.string().min(1).max(50),
+  // Tour-lead-only in practice (the wizard only ever asks for these on the
+  // isTourLead row) -- optional here rather than conditionally required,
+  // since this schema validates one traveler at a time with no visibility
+  // into whether it's the lead.
   phone: z.string().regex(E164).optional(),
+  countryOfResidence: z.string().length(2).optional(),
+  email: z.string().email().optional(),
   disabilities: z.string().max(500).optional(),
   allergies: z.string().max(500).optional(),
   drinkPreference: z.string().max(200).optional(),
@@ -395,16 +410,21 @@ export function hasExactlyOneTourLead(travelers: Pick<TravelerView, 'isTourLead'
 }
 
 /** Gate for invoicing (see bookingService.getBillableTotal): the manifest is
- * only complete once every seat has a traveler, exactly one is the tour
- * lead, and that tour lead has a passport on file. */
+ * only complete once every seat has a traveler and exactly one is the tour
+ * lead. Passports are only required at all if `requiresPassports` is true
+ * (the booking's finalized add-ons included Visa Assistance -- see
+ * Booking.requiresPassportUpload) -- and when they are, EVERY traveler needs
+ * one on file, not just the tour lead (a change from the original
+ * tour-lead-only rule). */
 export function isTravelerManifestComplete(
   travelers: Pick<TravelerView, 'isTourLead' | 'passportDocumentId'>[],
   seats: number,
+  requiresPassports: boolean,
 ): boolean {
   if (travelers.length !== seats) return false;
   if (!hasExactlyOneTourLead(travelers)) return false;
-  const lead = travelers.find((t) => t.isTourLead);
-  return lead?.passportDocumentId != null;
+  if (!requiresPassports) return true;
+  return travelers.every((t) => t.passportDocumentId != null);
 }
 
 // -------------------------------------------------------------- add-ons

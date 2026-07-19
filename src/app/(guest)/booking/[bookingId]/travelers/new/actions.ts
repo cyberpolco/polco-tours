@@ -23,10 +23,13 @@ export async function addTravelerAction(bookingId: string, formData: FormData): 
     sex: String(formData.get('sex') ?? ''),
     nationality: String(formData.get('nationality') ?? ''),
     idOrPassportNumber: String(formData.get('idOrPassportNumber') ?? ''),
+    // Tour-lead-only fields -- absent from the submitted FormData entirely
+    // for any other traveler (the form doesn't render those inputs), so
+    // these all naturally resolve to undefined for them.
     phone: localNumber ? toE164(dialCode, localNumber) : undefined,
-    disabilities: emptyToUndefined(formData.get('disabilities')),
+    email: emptyToUndefined(formData.get('email')),
+    countryOfResidence: emptyToUndefined(formData.get('countryOfResidence')),
     allergies: emptyToUndefined(formData.get('allergies')),
-    drinkPreference: emptyToUndefined(formData.get('drinkPreference')),
     emergencyContactName: emptyToUndefined(formData.get('emergencyContactName')),
     emergencyContactPhone: emptyToUndefined(formData.get('emergencyContactPhone')),
     emergencyContactRelation: emptyToUndefined(formData.get('emergencyContactRelation')),
@@ -39,9 +42,8 @@ export async function addTravelerAction(bookingId: string, formData: FormData): 
     bookingService.listTravelers(ctx, bookingId),
     bookingService.getById(ctx, bookingId),
   ]);
-  redirect(
-    travelers.length >= booking.seats
-      ? `/booking/${bookingId}/passport`
-      : `/booking/${bookingId}/travelers/new`,
-  );
+  if (travelers.length < booking.seats) {
+    redirect(`/booking/${bookingId}/travelers/new`);
+  }
+  redirect(booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`);
 }

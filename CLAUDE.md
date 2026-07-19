@@ -9,46 +9,37 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-18, against repo HEAD `07fd167` (DR-047, pushed --
-> CI confirmed green: both the Lint/Typecheck/Test/Build and E2E jobs
-> passed). **Not yet committed on top of that**: **DR-048** (a third
-> `/plan-my-trip` refinement round) and **DR-049** (a booking-lifecycle
-> staff-workflow simplification, reversing DR-048's own visibility gate) --
-> see `docs/decisions/DECISION_LOG.md`'s DR-048/DR-049 entries for the full
-> spec of each. DR-048: trip description is now optional; a new "Add-ons"
-> wizard step collects photography/videography/translator/visa-assistance
-> interest (`Booking.preferredAddons`, reuses the existing `AddonCode`
-> enum) plus the guest's own country of residence/citizenship
-> (`Booking.countryOfResidence`/`citizenship`) -- all staff context only,
-> same tier as the DR-046/047 preference fields. Confirmed (no code
-> change needed) that the staff "send quotation" form already only asks
-> for amount/currency, never client info. DR-049 then reverses DR-048's
-> own new visibility gate the same session, per explicit user feedback
-> that the accumulated staff surfaces (Bookings/Quote requests/
-> Itineraries each filtering differently) had become overengineered:
-> `isPendingInquiry`/`INQUIRY_ONLY_STATUSES` removed entirely from
-> `booking/domain.ts`; `/staff/quote-requests` removed outright (redirects
-> to `/staff/bookings`, `next.config.mjs`); `/staff/bookings` now shows
-> every booking from all 3 entry points (guest browsing packages, guest
-> `/plan-my-trip`, staff's own manual "new booking" form) with a Source
-> column + status-filter pills instead of hiding any of them;
-> `/staff/itineraries` shows a Booking-status column instead of hiding a
-> row. Also bundled in while touching this area: `bookingRepository
-> .updateStatus`/`sendQuotation`'s raw `Error` on an invalid transition
-> now surfaces as a clean `Errors.conflict` (409) via a new
-> `InvalidTransitionError` + `service.ts`'s `transition()` helper, and
-> staff can now accept a sent quotation on a client's behalf
-> (`acceptQuotationAction`, reuses the existing `bookingService
-> .acceptQuotation` unchanged). `PREDEFINED_PACKAGE` bookings are
-> completely unaffected by any of DR-048/049 (always real bookings from
-> creation). DR-048's schema (`preferredAddons`/`countryOfResidence`/
-> `citizenship`) was pushed to the shared Neon DB with explicit user
-> confirmation; verified end-to-end via raw HTTP against a live dev
-> server (one request transiently hit the same documented Prisma-to-Neon
-> connectivity gotcha mid-request, confirmed via server logs not a code
-> defect, succeeded on retry). DR-049 needed no schema change.
-> `tests/api/bookings-v2.api.test.ts` hit the same gotcha persistently
-> in-session across many retries -- treat it as needing a real CI run.
+> Last updated: 2026-07-19, against repo HEAD `e23b706`, pushed -- CI
+> confirmed green on all of the last three pushes (DR-049; a small
+> undocumented Plan My Trip polish pass -- first/last name split instead of
+> one name field, a bigger booking-reference display + a last-name/
+> reference reminder, and `src/lib/country-codes.ts` expanded 68 -> 195
+> countries; and a guest-facing change making package departures show an
+> Available/Unavailable status badge instead of their raw date). DR-049's
+> full spec is in `docs/decisions/DECISION_LOG.md`; the two polish items
+> needed no DR (no schema/permission/business-rule change).
+> **Not yet committed on top of that**: **DR-050**, a restructuring of the
+> package booking-setup wizard (both the guest and staff versions) per
+> explicit user direction -- see `docs/decisions/DECISION_LOG.md`'s DR-050
+> entry for the full spec. Add-ons is now the wizard's first step; a new
+> conditional Passport step only appears if the finalized add-ons included
+> Visa Assistance (new `Booking.requiresPassportUpload`), and when it does,
+> every traveler needs a passport, not just the tour lead (a reversal of
+> the original DR-015 rule). Two new tour-lead-only `Traveler` columns,
+> `email`/`countryOfResidence`; `phone` also became tour-lead-only (was
+> optional-for-everyone); `disabilities`/`drinkPreference` dropped from the
+> wizard's UI entirely (kept as unused schema columns, not removed).
+> `domain.isTravelerManifestComplete` gained a `requiresPassports`
+> parameter. **Schema not yet pushed to the shared Neon DB this session**
+> (`prisma generate` was run locally so the app typechecks against the new
+> columns, but `db:push`/`db:rls` against the real database still need to
+> happen) -- treat this DR as code-complete but not yet live. `lint`/
+> `typecheck` clean; `tests/booking.domain.test.ts` (54 tests) green;
+> `tests/api/booking-setup.api.test.ts` and both e2e specs were updated
+> (new Visa-Assistance-coded `AddonService` fixtures so the passport step,
+> including the real Vercel Blob upload, stays exercised) but could not be
+> run to completion in this sandbox (no reachable Postgres this session) --
+> needs a real CI run.
 > Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
@@ -254,7 +245,9 @@ src/
     staff/(dashboard)/...                 # staff pilot dashboard (DR-014);
       baseline gate is "any staff role" (isStaffRole), not one hardcoded
       permission, since DR-020 -- StaffNav filters links per-role
-      bookings/[bookingId]/{travelers/new,passport,addons} = setup wizard (DR-015)
+      bookings/[bookingId]/{addons,travelers/new,passport} = setup wizard
+        (DR-015; reordered + passport made conditional in DR-050 -- see
+        that DR for the order and per-traveler field details)
       fleet(/vehicles(/new|/[vehicleId]),/drivers(/new|/[driverProfileId]),
         /guides(/new|/[guideProfileId]))
         = fleet + compliance (DR-017); guides folded in (DR-030)
@@ -338,8 +331,9 @@ src/
       Travelers/Passport/Add-ons/Pay at this stage -- booking/[bookingId]
       shows a confirmation-only screen for a TAILOR_MADE booking still
       AWAITING_QUOTATION/QUOTATION_SENT instead of the setup wizard below),
-      /book/[departureId] (anonymous sign-in), /booking/[bookingId]/{travelers/new,passport,addons}
-      (same wizard as staff's, requireGuestContext instead), /find-booking(/result),
+      /book/[departureId] (anonymous sign-in), /booking/[bookingId]/{addons,travelers/new,passport}
+      (same wizard as staff's, requireGuestContext instead -- DR-050
+      reordered/made passport conditional), /find-booking(/result),
       /rate(/result) = Customer Ratings & Feedback (DR-037): same no-session,
       plain-GET-form pattern as /find-booking -- bookingReference + Rating
       Code instead of confirmationCode + last name
@@ -389,6 +383,20 @@ src/
                        #   Traveler
                        #   (+ emergency contact fields, DR-030) +
                        #   BookingAddon folded in (DR-011, DR-015);
+                       #   Traveler.email/countryOfResidence (DR-050) are
+                       #   tour-lead-only in practice (the wizard only ever
+                       #   asks for them on the isTourLead row) -- sex/
+                       #   nationality stay universal for every traveler,
+                       #   disabilities/drinkPreference dropped from the
+                       #   wizard's UI entirely (unused but not removed from
+                       #   the schema); Booking.requiresPassportUpload
+                       #   (DR-050) snapshots whether the finalized add-ons
+                       #   included Visa Assistance -- gates whether the
+                       #   Passport wizard step appears at all, and whether
+                       #   it's required for every traveler (not just the
+                       #   lead, a reversal of the original DR-015 rule)
+                       #   via isTravelerManifestComplete's new
+                       #   requiresPassports parameter;
                        #   listTravelersForDeparture = data-minimized guide/
                        #   driver client-list, internal only, no REST route
                        #   (DR-030/031); getBookingForTraveler = reverse
@@ -1895,6 +1903,35 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   Prisma-to-Neon connectivity gotcha was down persistently this session
   (confirmed via a bare `tsx` `$queryRaw` script, retried 3x). Both need a
   real CI run before fully trusting this increment.
+- **Plan My Trip polish + country-codes expansion (2026-07-19, no DR --
+  pure UI/copy/reference-data, no schema/permission/business-rule
+  change):** the contact step now asks First name + Last name separately
+  instead of one "Your name" field (still combined into `User.name` via
+  `authService.updateProfile`, the only place it's stored). New reminder
+  text on both the contact step and the post-submit confirmation screen
+  that the last name + booking reference are what staff will ask for on
+  any future contact about the trip; the booking reference on that
+  confirmation screen is now a large, prominent font instead of small
+  inline text. `src/lib/country-codes.ts` expanded from 68 to 195
+  countries/dial codes (used by every phone dial-code picker and the
+  residence/citizenship selects app-wide) -- still static reference data,
+  no external dependency added (charter rule 4). Separately, a package's
+  detail page (`/packages/[packageId]`) now shows each departure's
+  Available/Unavailable status (from the existing `isBookable` check)
+  instead of its raw start date, per explicit user direction -- the "Book
+  this departure" button still only appears for an available one, same
+  underlying rule, just without exposing the date while browsing.
+- **Package booking-setup wizard restructured (DR-050, 2026-07-19):** see
+  the "Last updated" note above and `docs/decisions/DECISION_LOG.md`'s
+  DR-050 entry for the full spec -- Add-ons now first, a new conditional
+  Passport step (only if Visa Assistance was picked, then required for
+  every traveler not just the lead), new tour-lead-only `Traveler.email`/
+  `countryOfResidence` (+ `phone` moved to tour-lead-only),
+  `disabilities`/`drinkPreference` dropped from the wizard UI. Applied
+  identically to the guest and staff wizards. Schema not yet pushed to
+  the shared Neon DB -- code-complete, not yet live; `lint`/`typecheck`
+  clean, `tests/booking.domain.test.ts` green, DB-backed tests/e2e
+  updated but unverified this session (no reachable Postgres).
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2286,7 +2323,20 @@ row. Bundled in: `bookingRepository.updateStatus`/`sendQuotation`'s raw
 via new `InvalidTransitionError` + `service.ts`'s `transition()` helper;
 new staff-side `acceptQuotationAction` lets staff accept a quotation on a
 client's behalf (reuses the existing `bookingService.acceptQuotation`
-unchanged). No schema/RLS change.
+unchanged). No schema/RLS change · DR-050 restructures the package
+booking-setup wizard (guest and staff versions alike): Add-ons moves to
+the first step; a new conditional Passport step appears only if the
+finalized add-ons included Visa Assistance (`Booking
+.requiresPassportUpload`, computed in `bookingService.setAddons`), and
+when it does, every traveler needs a passport, not just the tour lead
+(reverses the DR-015 tour-lead-only rule, including a hardcoded check in
+`setTravelerPassport`). New tour-lead-only `Traveler.email`/
+`countryOfResidence` columns (+ `phone` moved from optional-for-everyone
+to required-tour-lead-only); `sex`/`nationality` stay universal per
+explicit user choice; `disabilities`/`drinkPreference` dropped from the
+wizard's UI (columns kept, unused). `domain.isTravelerManifestComplete`
+gained a `requiresPassports` parameter. Schema not yet pushed to the
+shared Neon DB this session.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

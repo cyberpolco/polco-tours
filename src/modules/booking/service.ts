@@ -450,11 +450,17 @@ export const bookingService = {
   async setTravelerPassport(ctx: AuthContext, bookingId: string, travelerId: string, documentId: string): Promise<void> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
-    await getOwnedBooking(ctx, organizationId, bookingId);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
     const traveler = travelers.find((t) => t.id === travelerId);
     if (!traveler) throw Errors.notFound('Traveler not found');
-    if (!traveler.isTourLead) throw Errors.conflict('Only the tour lead needs a passport upload');
+    // Passports are only collected when the booking's finalized add-ons
+    // included Visa Assistance (Booking.requiresPassportUpload) -- and when
+    // they are, EVERY traveler needs one, not just the tour lead (a change
+    // from the original tour-lead-only rule).
+    if (!booking.requiresPassportUpload) {
+      throw Errors.conflict('This booking does not require any passport uploads');
+    }
     await bookingRepository.setTravelerPassport(organizationId, travelerId, documentId);
     await audit({
       actorUserId: ctx.userId,
@@ -479,15 +485,17 @@ export const bookingService = {
     }
 
     const items = [];
+    let requiresPassportUpload = false;
     for (const addonServiceId of input.addonServiceIds) {
       const addon = await catalogService.getAddonService(ctx, addonServiceId);
       if (addon.currency !== booking.currency) {
         throw Errors.conflict('Add-on currency does not match the booking currency');
       }
+      if (addon.code === 'VISA_ASSISTANCE') requiresPassportUpload = true;
       items.push({ addonServiceId, priceMinor: addon.priceMinor, currency: addon.currency });
     }
 
-    await bookingRepository.replaceAddons(organizationId, bookingId, items);
+    await bookingRepository.replaceAddons(organizationId, bookingId, items, requiresPassportUpload);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -516,8 +524,8 @@ export const bookingService = {
     }
 
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
-    if (!isTravelerManifestComplete(travelers, booking.seats) || !booking.addonsFinalizedAt) {
-      throw Errors.conflict('Complete travelers, the tour lead passport, and add-ons before invoicing');
+    if (!isTravelerManifestComplete(travelers, booking.seats, booking.requiresPassportUpload) || !booking.addonsFinalizedAt) {
+      throw Errors.conflict('Complete add-ons, travelers, and passports (if required) before invoicing');
     }
 
     const addons = await bookingRepository.listAddonsForBooking(organizationId, bookingId);

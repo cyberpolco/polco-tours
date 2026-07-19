@@ -20,5 +20,12 @@ export async function uploadPassportAction(bookingId: string, travelerId: string
     bytes,
   });
   await bookingService.setTravelerPassport(ctx, bookingId, travelerId, doc.id);
-  redirect(`/booking/${bookingId}/addons`);
+
+  // Every traveler needs one when this step applies at all -- loop back
+  // here for the next one still missing a passport, or move on once none
+  // are left.
+  const travelers = await bookingService.listTravelers(ctx, bookingId);
+  redirect(
+    travelers.some((t) => !t.passportDocumentId) ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`,
+  );
 }

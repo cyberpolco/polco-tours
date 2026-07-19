@@ -12,20 +12,17 @@ interface Props {
   params: Promise<{ bookingId: string }>;
 }
 
+// Add-ons is now the FIRST setup step (right after the booking exists) --
+// whether Visa Assistance is picked here decides if a later Passport step
+// appears at all, and for how many travelers (see bookingService.setAddons
+// / Booking.requiresPassportUpload).
 export default async function AddonsPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireStaffContext('booking.create');
-  const [booking, travelers] = await Promise.all([
-    bookingService.getById(ctx, bookingId),
-    bookingService.listTravelers(ctx, bookingId),
-  ]);
+  const booking = await bookingService.getById(ctx, bookingId);
 
-  const lead = travelers.find((t) => t.isTourLead);
-  if (travelers.length < booking.seats || !lead?.passportDocumentId) {
-    redirect(`/staff/bookings/${bookingId}/travelers/new`);
-  }
   if (booking.addonsFinalizedAt) {
-    redirect(`/staff/bookings/${bookingId}`);
+    redirect(`/staff/bookings/${bookingId}/travelers/new`);
   }
 
   // A TAILOR_MADE booking has no price until a quotation is sent -- add-ons

@@ -33,12 +33,24 @@ test.describe('guest checkout (DR-016)', () => {
     await expect(page.getByText('BOOKING SETUP')).toBeVisible();
     await page.getByRole('link', { name: 'Continue setup' }).click();
 
+    // Add-ons is now the first setup step -- selecting Visa Assistance here
+    // is what makes the Passport step (below) appear at all.
+    await expect(page).toHaveURL(/\/addons$/);
+    await page.getByLabel(/Visa Assistance/).check();
+    await page.getByRole('button', { name: 'Finish setup' }).click();
+
     await expect(page).toHaveURL(/\/travelers\/new$/);
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();
     await page.getByLabel('First name').fill('Guest');
     await page.getByLabel('Last name').fill('Traveler');
     await page.getByLabel('Age').fill('34');
     await page.getByLabel('ID / passport number').fill('GUESTE2E1');
+    // The only (first) traveler is always the tour lead -- gets the extra
+    // contact fields the wizard only ever asks the lead for.
+    await page.locator('select[name="dialCode"]').selectOption('264');
+    await page.locator('input[name="localNumber"]').fill('811234567');
+    await page.getByLabel('Email').fill('guest-traveler@example.test');
+    await page.getByLabel('Country of residence').selectOption('NA');
     await expect(page.getByLabel(/Tour lead/)).toBeChecked();
     await page.getByRole('button', { name: 'Finish travelers' }).click();
 
@@ -49,9 +61,6 @@ test.describe('guest checkout (DR-016)', () => {
       buffer: Buffer.from('%PDF-1.4 e2e fixture passport'),
     });
     await page.getByRole('button', { name: 'Upload & continue' }).click();
-
-    await expect(page).toHaveURL(/\/addons$/);
-    await page.getByRole('button', { name: 'Finish setup' }).click();
 
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]+$/);
     await expect(page.getByText('YOUR BOOKING')).toBeVisible();

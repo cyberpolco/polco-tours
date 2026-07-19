@@ -79,18 +79,20 @@ export default async function BookingDetailPage({ params }: Props) {
   const itinerary = await itineraryService.getItineraryForBooking(ctx, bookingId);
 
   const travelers = await bookingService.listTravelers(ctx, bookingId);
-  const lead = travelers.find((t) => t.isTourLead);
-  const travelersDone = travelers.length >= booking.seats;
-  const passportDone = !!lead?.passportDocumentId;
   const addonsDone = !!booking.addonsFinalizedAt;
-  const setupComplete = travelersDone && passportDone && addonsDone;
+  const travelersDone = travelers.length >= booking.seats;
+  // Passports are only collected at all if the finalized add-ons included
+  // Visa Assistance (booking.requiresPassportUpload) -- and when they are,
+  // EVERY traveler needs one, not just the tour lead.
+  const passportDone = !booking.requiresPassportUpload || travelers.every((t) => !!t.passportDocumentId);
+  const setupComplete = addonsDone && travelersDone && passportDone;
 
   if (!setupComplete) {
-    const nextHref = !travelersDone
-      ? `/staff/bookings/${bookingId}/travelers/new`
-      : !passportDone
-        ? `/staff/bookings/${bookingId}/passport`
-        : `/staff/bookings/${bookingId}/addons`;
+    const nextHref = !addonsDone
+      ? `/staff/bookings/${bookingId}/addons`
+      : !travelersDone
+        ? `/staff/bookings/${bookingId}/travelers/new`
+        : `/staff/bookings/${bookingId}/passport`;
 
     return (
       <div className="max-w-md space-y-6">
@@ -102,11 +104,15 @@ export default async function BookingDetailPage({ params }: Props) {
           </p>
         </div>
         <ul className="space-y-2 text-sm">
+          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
           <li className={travelersDone ? 'text-forest' : 'text-ink'}>
             {travelersDone ? '✓' : '○'} Travelers ({travelers.length}/{booking.seats})
           </li>
-          <li className={passportDone ? 'text-forest' : 'text-ink'}>{passportDone ? '✓' : '○'} Tour lead passport</li>
-          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
+          {booking.requiresPassportUpload && (
+            <li className={passportDone ? 'text-forest' : 'text-ink'}>
+              {passportDone ? '✓' : '○'} Passports ({travelers.filter((t) => !!t.passportDocumentId).length}/{travelers.length})
+            </li>
+          )}
         </ul>
         <LinkButton href={nextHref}>Continue setup</LinkButton>
       </div>

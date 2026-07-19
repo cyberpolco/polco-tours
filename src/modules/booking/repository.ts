@@ -61,6 +61,7 @@ function toBookingView(b: Booking): BookingView {
     priceMinor: b.priceMinor,
     currency: b.currency,
     addonsFinalizedAt: b.addonsFinalizedAt,
+    requiresPassportUpload: b.requiresPassportUpload,
     confirmationCode: b.confirmationCode,
     bookingReference: b.bookingReference,
     specialRequests: b.specialRequests,
@@ -92,6 +93,8 @@ function toTravelerView(t: Traveler): TravelerView {
     nationality: t.nationality,
     idOrPassportNumber: t.idOrPassportNumber,
     phone: t.phone,
+    countryOfResidence: t.countryOfResidence,
+    email: t.email,
     disabilities: t.disabilities,
     allergies: t.allergies,
     drinkPreference: t.drinkPreference,
@@ -421,6 +424,7 @@ export const bookingRepository = {
     organizationId: string,
     bookingId: string,
     items: Array<{ addonServiceId: string; priceMinor: number; currency: Currency }>,
+    requiresPassportUpload: boolean,
   ): Promise<void> {
     await withOrg(organizationId, async (tx) => {
       await tx.bookingAddon.deleteMany({ where: { bookingId } });
@@ -429,7 +433,7 @@ export const bookingRepository = {
           data: items.map((i) => ({ organizationId, bookingId, ...i })),
         });
       }
-      await tx.booking.update({ where: { id: bookingId }, data: { addonsFinalizedAt: new Date() } });
+      await tx.booking.update({ where: { id: bookingId }, data: { addonsFinalizedAt: new Date(), requiresPassportUpload } });
     });
   },
 };

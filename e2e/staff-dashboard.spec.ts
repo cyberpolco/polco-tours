@@ -60,7 +60,13 @@ test.describe('staff dashboard (DR-014)', () => {
     await expect(page.getByText('BOOKING SETUP')).toBeVisible();
     await expect(page.getByText('Travelers (0/2)')).toBeVisible();
 
+    // Add-ons is now the first setup step -- selecting Visa Assistance here
+    // is what makes the Passport step (below) appear at all.
     await page.getByRole('link', { name: 'Continue setup' }).click();
+    await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/addons`));
+    await page.getByLabel(/Visa Assistance/).check();
+    await page.getByRole('button', { name: 'Finish setup' }).click();
+
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/travelers/new`));
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 2' })).toBeVisible();
 
@@ -68,6 +74,12 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.getByLabel('Last name').fill('Traveler');
     await page.getByLabel('Age').fill('35');
     await page.getByLabel('ID / passport number').fill('LEADE2E1');
+    // The first traveler is always the tour lead -- gets the extra contact
+    // fields the wizard only ever asks the lead for.
+    await page.locator('select[name="dialCode"]').selectOption('264');
+    await page.locator('input[name="localNumber"]').fill('811234567');
+    await page.getByLabel('Email').fill('lead-traveler@example.test');
+    await page.getByLabel('Country of residence').selectOption('NA');
     await expect(page.getByLabel(/Tour lead/)).toBeChecked();
     await page.getByRole('button', { name: 'Add traveler & continue' }).click();
 

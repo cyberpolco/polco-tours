@@ -20,11 +20,20 @@ export default async function NewTravelerPage({ params }: Props) {
     bookingService.listTravelers(ctx, bookingId),
   ]);
 
-  if (travelers.length >= booking.seats) {
-    redirect(`/staff/bookings/${bookingId}/passport`);
+  // Add-ons now comes first -- bounce back to it if not finished yet.
+  if (!booking.addonsFinalizedAt) {
+    redirect(`/staff/bookings/${bookingId}/addons`);
   }
 
+  if (travelers.length >= booking.seats) {
+    redirect(booking.requiresPassportUpload ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`);
+  }
+
+  // The very first traveler added is always the tour lead (defaultChecked
+  // below, and the checkbox is disabled once one exists) -- so which
+  // traveler this form is currently adding is already known server-side.
   const hasTourLead = travelers.some((t) => t.isTourLead);
+  const isAddingTourLead = !hasTourLead;
   const travelerNumber = travelers.length + 1;
 
   return (
@@ -71,35 +80,45 @@ export default async function NewTravelerPage({ params }: Props) {
           <input name="idOrPassportNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
-        <div>
-          <p className="mb-1 block text-sm text-mist">Phone (optional)</p>
-          <div className="flex gap-2">
-            <select name="dialCode" defaultValue="264" className="rounded-survey border border-rule px-2 py-2">
-              {COUNTRY_CODES.map((c) => (
-                <option key={c.alpha2} value={c.dialCode}>
-                  {flagEmoji(c.alpha2)} +{c.dialCode}
-                </option>
-              ))}
-            </select>
-            <input
-              name="localNumber"
-              type="tel"
-              placeholder="81 234 5678"
-              className="flex-1 rounded-survey border border-rule px-3 py-2"
-            />
+        {isAddingTourLead && (
+          <div className="space-y-4 rounded-survey border border-rule p-4">
+            <p className="text-xs uppercase tracking-wide text-mist">Tour lead contact details</p>
+            <div>
+              <p className="mb-1 block text-sm text-mist">Phone</p>
+              <div className="flex gap-2">
+                <select name="dialCode" defaultValue="264" className="rounded-survey border border-rule px-2 py-2">
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.alpha2} value={c.dialCode}>
+                      {flagEmoji(c.alpha2)} +{c.dialCode}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="localNumber"
+                  type="tel"
+                  required
+                  placeholder="81 234 5678"
+                  className="flex-1 rounded-survey border border-rule px-3 py-2"
+                />
+              </div>
+            </div>
+            <FormField label="Email" htmlFor="email">
+              <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label="Country of residence" htmlFor="countryOfResidence">
+              <select name="countryOfResidence" required className="w-full rounded-survey border border-rule px-3 py-2">
+                {COUNTRY_CODES.map((c) => (
+                  <option key={c.alpha2} value={c.alpha2}>
+                    {flagEmoji(c.alpha2)} {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
           </div>
-        </div>
-
-        <FormField label="Disabilities" htmlFor="disabilities" optional>
-          <input name="disabilities" className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
+        )}
 
         <FormField label="Allergies" htmlFor="allergies" optional>
           <input name="allergies" className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-
-        <FormField label="Drink preference" htmlFor="drinkPreference" optional>
-          <input name="drinkPreference" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
         <div className="grid grid-cols-3 gap-4">
@@ -115,7 +134,7 @@ export default async function NewTravelerPage({ params }: Props) {
         </div>
 
         <SelectableCard type="checkbox" name="isTourLead" defaultChecked={!hasTourLead} disabled={hasTourLead}>
-          Tour lead (uploads the group&apos;s passport)
+          Tour lead (main point of contact for the group)
         </SelectableCard>
 
         <SubmitButton>{travelerNumber === booking.seats ? 'Finish travelers' : 'Add traveler & continue'}</SubmitButton>

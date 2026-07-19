@@ -42,6 +42,7 @@ const country = `SETUP${Date.now()}`.slice(0, 10);
 let orgId: string;
 let bookingId: string;
 let addonServiceId: string;
+let visaAddonServiceId: string;
 let touristAId: string;
 let guideId: string;
 let operatorId: string;
@@ -99,6 +100,17 @@ beforeAll(async () => {
       },
     });
     bookingId = booking.id;
+    const visaAddon = await tx.addonService.create({
+      data: {
+        organizationId: orgId,
+        code: 'VISA_ASSISTANCE',
+        name: 'Visa assistance',
+        description: 'Fixture add-on -- selecting this is what makes passport uploads required.',
+        priceMinor: 5000,
+        currency: 'USD',
+      },
+    });
+    visaAddonServiceId = visaAddon.id;
     const addon = await tx.addonService.create({
       data: {
         organizationId: orgId,
@@ -234,6 +246,28 @@ describe('GET /api/v1/bookings/:bookingId/invoice (gated on setup, DR-015)', () 
 });
 
 describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/passport', () => {
+  it('rejects a passport upload before Visa Assistance has been selected (409)', async () => {
+    const headers = await loginAs(touristAId);
+    const formData = new FormData();
+    formData.append('passport', new File([new TextEncoder().encode('%PDF-fixture')], 'passport.pdf', { type: 'application/pdf' }));
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${leadTravelerId}/passport`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const res = await uploadPassport(req, { params: Promise.resolve({ bookingId, travelerId: leadTravelerId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('selecting Visa Assistance makes passport uploads required (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, {
+      addonServiceIds: [visaAddonServiceId],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+  });
+
   it('uploads the tour lead passport without leaking the blob pathname (201)', async () => {
     const headers = await loginAs(touristAId);
     const formData = new FormData();

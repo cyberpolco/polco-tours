@@ -184,20 +184,33 @@ describe('booking domain', () => {
     const lead = { isTourLead: true, passportDocumentId: 'doc-1' };
     const companion = { isTourLead: false, passportDocumentId: null };
 
-    it('is false if fewer travelers than seats', () => {
-      expect(isTravelerManifestComplete([lead], 2)).toBe(false);
+    it('is false if fewer travelers than seats, regardless of whether passports are required', () => {
+      expect(isTravelerManifestComplete([lead], 2, false)).toBe(false);
+      expect(isTravelerManifestComplete([lead], 2, true)).toBe(false);
     });
 
     it('is false if no traveler is the tour lead', () => {
-      expect(isTravelerManifestComplete([companion, { ...companion }], 2)).toBe(false);
+      expect(isTravelerManifestComplete([companion, { ...companion }], 2, false)).toBe(false);
     });
 
-    it('is false if the tour lead has no passport yet', () => {
-      expect(isTravelerManifestComplete([{ ...lead, passportDocumentId: null }, companion], 2)).toBe(false);
+    it('is true once seats are filled and exactly one tour lead exists, when passports are not required', () => {
+      // Neither traveler has a passport on file, but requiresPassports=false
+      // (no Visa Assistance add-on) means that's fine.
+      expect(isTravelerManifestComplete([lead, companion], 2, false)).toBe(true);
     });
 
-    it('is true once seats are filled, exactly one tour lead, passport on file', () => {
-      expect(isTravelerManifestComplete([lead, companion], 2)).toBe(true);
+    it('is false if the tour lead has no passport yet, when passports are required', () => {
+      expect(
+        isTravelerManifestComplete([{ ...lead, passportDocumentId: null }, { ...companion, passportDocumentId: 'doc-2' }], 2, true),
+      ).toBe(false);
+    });
+
+    it('is false if a non-lead traveler has no passport yet, when passports are required (everyone needs one, not just the lead)', () => {
+      expect(isTravelerManifestComplete([lead, companion], 2, true)).toBe(false);
+    });
+
+    it('is true once every traveler has a passport on file, when passports are required', () => {
+      expect(isTravelerManifestComplete([lead, { ...companion, passportDocumentId: 'doc-2' }], 2, true)).toBe(true);
     });
   });
 
@@ -347,6 +360,8 @@ describe('booking domain', () => {
       nationality: 'US',
       idOrPassportNumber: 'P123456789',
       phone: '+15551234567',
+      countryOfResidence: 'US',
+      email: 'jane@example.test',
       disabilities: null,
       allergies: 'peanuts',
       drinkPreference: null,

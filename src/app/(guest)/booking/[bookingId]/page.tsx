@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
-import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
+import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction, requestQuotationAction } from './actions';
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
@@ -86,23 +86,25 @@ export default async function BookingHomePage({ params }: Props) {
   }
 
   const travelers = await bookingService.listTravelers(ctx, bookingId);
-  const lead = travelers.find((t) => t.isTourLead);
-  const travelersDone = travelers.length >= booking.seats;
-  const passportDone = !!lead?.passportDocumentId;
   const addonsDone = !!booking.addonsFinalizedAt;
-  const setupComplete = travelersDone && passportDone && addonsDone;
+  const travelersDone = travelers.length >= booking.seats;
+  // Passports are only collected at all if the finalized add-ons included
+  // Visa Assistance (booking.requiresPassportUpload) -- and when they are,
+  // EVERY traveler needs one, not just the tour lead.
+  const passportDone = !booking.requiresPassportUpload || travelers.every((t) => !!t.passportDocumentId);
+  const setupComplete = addonsDone && travelersDone && passportDone;
 
   if (!setupComplete) {
-    const nextHref = !travelersDone
-      ? `/booking/${bookingId}/travelers/new`
-      : !passportDone
-        ? `/booking/${bookingId}/passport`
-        : `/booking/${bookingId}/addons`;
-    const currentStepIndex = !travelersDone ? 1 : !passportDone ? 2 : 3;
+    const nextHref = !addonsDone
+      ? `/booking/${bookingId}/addons`
+      : !travelersDone
+        ? `/booking/${bookingId}/travelers/new`
+        : `/booking/${bookingId}/passport`;
+    const currentStepIndex = !addonsDone ? 1 : !travelersDone ? 2 : 3;
 
     return (
       <div className="max-w-md space-y-6">
-        <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={currentStepIndex} />
+        <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={currentStepIndex} />
         <div>
           <p className="eyebrow mt-4 text-mist">Booking setup</p>
           <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
@@ -112,11 +114,15 @@ export default async function BookingHomePage({ params }: Props) {
           </p>
         </div>
         <ul className="space-y-2 text-sm">
+          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
           <li className={travelersDone ? 'text-forest' : 'text-ink'}>
             {travelersDone ? '✓' : '○'} Travelers ({travelers.length}/{booking.seats})
           </li>
-          <li className={passportDone ? 'text-forest' : 'text-ink'}>{passportDone ? '✓' : '○'} Tour lead passport</li>
-          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
+          {booking.requiresPassportUpload && (
+            <li className={passportDone ? 'text-forest' : 'text-ink'}>
+              {passportDone ? '✓' : '○'} Passports ({travelers.filter((t) => !!t.passportDocumentId).length}/{travelers.length})
+            </li>
+          )}
         </ul>
         <LinkButton href={nextHref}>Continue setup</LinkButton>
       </div>
@@ -130,7 +136,7 @@ export default async function BookingHomePage({ params }: Props) {
 
   return (
     <div className="space-y-8">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={4} />
+      <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={booking.requiresPassportUpload ? 4 : 3} />
       <div>
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>

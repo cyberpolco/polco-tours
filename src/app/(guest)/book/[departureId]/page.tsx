@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
 import { StepIndicator } from '@/components/ui/StepIndicator';
-import { BOOKING_WIZARD_STEPS } from '../../booking-wizard-steps';
+import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { formatOrPending } from '@lib/money';
 import BookingForm from './booking-form';
 
@@ -22,7 +22,7 @@ export default async function BookDeparturePage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={0} />
+      <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
       <p className="eyebrow mt-4 text-mist">New booking</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">
         {detail.departure.startDate.toLocaleDateString()} ·{' '}

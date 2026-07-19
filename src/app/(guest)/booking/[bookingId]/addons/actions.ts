@@ -8,5 +8,5 @@ export async function finalizeAddonsAction(bookingId: string, formData: FormData
   const ctx = await requireGuestContext();
   const input = SetAddonsInput.parse({ addonServiceIds: formData.getAll('addonServiceId').map(String) });
   await bookingService.setAddons(ctx, bookingId, input);
-  redirect(`/booking/${bookingId}`);
+  redirect(`/booking/${bookingId}/travelers/new`);
 }

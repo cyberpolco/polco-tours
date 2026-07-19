@@ -20,5 +20,9 @@ export async function uploadPassportAction(bookingId: string, travelerId: string
     bytes,
   });
   await bookingService.setTravelerPassport(ctx, bookingId, travelerId, doc.id);
-  redirect(`/staff/bookings/${bookingId}/addons`);
+
+  const travelers = await bookingService.listTravelers(ctx, bookingId);
+  redirect(
+    travelers.some((t) => !t.passportDocumentId) ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`,
+  );
 }

@@ -62,6 +62,19 @@ export async function seedStaffAndBooking(opts?: { seats?: number }): Promise<{ 
         status: 'AWAITING_DEPOSIT',
       },
     });
+    // Selecting this at the Add-ons step (now the setup wizard's first step)
+    // is what makes the Passport step appear at all -- seeded here so e2e
+    // specs walking the full wizard can still exercise it.
+    await tx.addonService.create({
+      data: {
+        organizationId: org.id,
+        code: 'VISA_ASSISTANCE',
+        name: `E2E Visa Assistance ${suffix}`,
+        description: 'Fixture add-on for staff dashboard e2e tests.',
+        priceMinor: 5000,
+        currency: 'USD',
+      },
+    });
     return booking.id;
   });
 

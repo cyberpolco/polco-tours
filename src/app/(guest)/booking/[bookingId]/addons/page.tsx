@@ -6,36 +6,35 @@ import { catalogService } from '@modules/catalog';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { BOOKING_WIZARD_STEPS } from '../../../booking-wizard-steps';
+import { getBookingWizardSteps } from '../../../booking-wizard-steps';
 import { finalizeAddonsAction } from './actions';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
 }
 
+// Add-ons is now the FIRST setup step (right after the booking/hold itself
+// exists) -- whether Visa Assistance is picked here decides if a later
+// Passport step appears at all, and for how many travelers (see
+// bookingService.setAddons / Booking.requiresPassportUpload).
 export default async function AddonsPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireGuestContext();
-  const [booking, travelers] = await Promise.all([
-    bookingService.getById(ctx, bookingId),
-    bookingService.listTravelers(ctx, bookingId),
-  ]);
+  const booking = await bookingService.getById(ctx, bookingId);
 
-  const lead = travelers.find((t) => t.isTourLead);
-  if (travelers.length < booking.seats || !lead?.passportDocumentId) {
-    redirect(`/booking/${bookingId}/travelers/new`);
-  }
   if (booking.addonsFinalizedAt) {
-    redirect(`/booking/${bookingId}`);
+    redirect(`/booking/${bookingId}/travelers/new`);
   }
 
   // A TAILOR_MADE booking has no price until staff sends a quotation --
   // add-ons can't be currency-matched against it yet (setAddons enforces
-  // this server-side too).
+  // this server-side too). In practice unreachable once a quotation has
+  // been accepted (the only way to reach this wizard at all), kept as a
+  // defensive fallback rather than a routine path.
   if (!booking.currency) {
     return (
       <div className="max-w-md">
-        <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={3} />
+        <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
         <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">Waiting on your quotation</h1>
         <p className="mt-1 text-sm text-mist">
@@ -49,7 +48,7 @@ export default async function AddonsPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <StepIndicator steps={BOOKING_WIZARD_STEPS} currentIndex={3} />
+      <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>

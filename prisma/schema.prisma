@@ -549,6 +549,12 @@ model Booking {
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
   addonsFinalizedAt  DateTime?
+  // Snapshotted when add-ons are finalized (setAddons): true only if the
+  // selection included the VISA_ASSISTANCE add-on. Drives whether the
+  // Passport wizard step appears at all, and for how many travelers --
+  // computed once here rather than re-joining BookingAddon -> AddonService
+  // on every page render (see domain.isTravelerManifestComplete).
+  requiresPassportUpload Boolean   @default(false)
   // Short, human-typeable lookup code -- generated for every booking (staff
   // or guest) at creation time, but only ever revealed to a guest once
   // setup + payment-initiation are complete. Not a security boundary on its
@@ -624,7 +630,14 @@ model Traveler {
   sex                      Sex
   nationality              String // ISO-3166 alpha-2, matches TourPackage.country
   idOrPassportNumber       String
-  phone                    String? // E.164
+  phone                    String? // E.164 -- only ever collected for the tour lead
+  // ISO-3166 alpha-2, same convention as nationality -- only ever collected
+  // for the tour lead (the wizard's point of contact for the whole party).
+  countryOfResidence       String?
+  // Only ever collected for the tour lead -- distinct from Booking
+  // .contactEmail (TAILOR_MADE-only, DR-047), since a PREDEFINED_PACKAGE
+  // booking has no booking-level contact field of its own.
+  email                    String?
   disabilities             String?
   allergies                String?
   drinkPreference          String?
