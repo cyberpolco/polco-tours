@@ -64,7 +64,8 @@ export default function PlanMyTripForm() {
   const [countryOfResidence, setCountryOfResidence] = useState('');
   const [citizenship, setCitizenship] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [dialCode, setDialCode] = useState('264');
   const [localNumber, setLocalNumber] = useState('');
@@ -83,7 +84,7 @@ export default function PlanMyTripForm() {
     true, // your trip (description) -- optional (DR-048)
     true, // add-ons + residence/citizenship -- optional
     true, // special requests -- optional
-    name.trim() !== '' && email.trim() !== '' && localNumber.trim() !== '',
+    firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' && localNumber.trim() !== '',
   ][step];
 
   function next() {
@@ -122,7 +123,8 @@ export default function PlanMyTripForm() {
         countryOfResidence: countryOfResidence || undefined,
         citizenship: citizenship || undefined,
         specialRequests: specialRequests || undefined,
-        name,
+        firstName,
+        lastName,
         email,
         dialCode,
         localNumber,
@@ -306,9 +308,26 @@ export default function PlanMyTripForm() {
 
       {step === 8 && (
         <div className="space-y-4">
-          <FormField label="Your name" htmlFor="name">
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="First name" htmlFor="firstName">
+              <input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full rounded-survey border border-rule px-3 py-2"
+              />
+            </FormField>
+            <FormField label="Last name" htmlFor="lastName">
+              <input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full rounded-survey border border-rule px-3 py-2"
+              />
+            </FormField>
+          </div>
+          <p className="text-xs text-mist">
+            Keep your last name handy -- along with the booking reference we&apos;ll give you next, it&apos;s what we&apos;ll ask for
+            any time you contact us about this trip.
+          </p>
           <FormField label="Email" htmlFor="email">
             <input
               type="email"

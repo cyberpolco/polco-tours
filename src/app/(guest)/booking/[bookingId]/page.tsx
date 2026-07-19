@@ -51,11 +51,12 @@ export default async function BookingHomePage({ params }: Props) {
       <div className="max-w-md space-y-6">
         <div>
           <p className="eyebrow mt-4 text-mist">Your trip request</p>
-          <p className="mt-1 text-xs text-mist">
-            Reference: <span className="font-mono font-semibold">{booking.bookingReference}</span> -- keep this, we&apos;ll ask for it
-            if you contact us.
+          <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>
+          <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>
+          <p className="mt-2 text-sm text-mist">
+            Keep your last name and this reference handy -- we&apos;ll ask for both any time you contact us about this trip.
           </p>
-          <p className="mt-1 flex items-center gap-2 text-mist">
+          <p className="mt-3 flex items-center gap-2 text-mist">
             {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge>
           </p>
         </div>

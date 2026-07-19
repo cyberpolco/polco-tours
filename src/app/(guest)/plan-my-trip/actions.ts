@@ -21,7 +21,8 @@ export interface CreatePlanMyTripPayload {
   countryOfResidence?: string;
   citizenship?: string;
   specialRequests?: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   dialCode: string;
   localNumber: string;
@@ -42,7 +43,12 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
   try {
     const ctx = await authService.resolveSession(await headers());
 
-    const name = payload.name.trim();
+    // User.name is a single better-auth-managed string (no firstName/lastName
+    // split at the schema level) -- the form collects them separately so the
+    // last name can be called out on its own (see the confirmation screen's
+    // reminder), but they're combined here since there's nowhere else on
+    // User to put lastName individually.
+    const name = `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim();
     if (name) {
       await authService.updateProfile(ctx, {
         name,
