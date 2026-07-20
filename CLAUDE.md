@@ -2154,6 +2154,32 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   Prisma-to-Neon connectivity gotcha blocked creating one) -- a human
   should click through the countdown/swap in a real browser before fully
   trusting the timing.
+- **`/find-booking` now shows a trip-request summary for a TAILOR_MADE
+  inquiry (2026-07-20, same session, uncommitted):** previously the result
+  page rendered the same generic reference/seats/status/price line for
+  every origin and never referenced `booking.origin` at all -- a guest
+  looking up a fresh `/plan-my-trip` request by reference + last name saw
+  no destination/dates/description, just a bare status badge. New
+  `isTailorMadeInquiry` branch (mirrors `/booking/[bookingId]`'s own
+  `AWAITING_QUOTATION`/`QUOTATION_SENT` block, same status-specific
+  `Alert` copy) adds a "Request summary" section: destination countries
+  (`preferredCountries`, flag + name via `country-codes.ts`), travel dates
+  (`customTravelStart`/`customTravelEnd`), and the trip description
+  (`customDescription`) when present. **Deliberately read-only, no new
+  action** -- `/find-booking` has no session/ownership context (that's the
+  whole point of the two-factor no-account lookup, DR-016/052), so unlike
+  the logged-in booking-detail page this can't safely offer
+  Accept-quotation/Cancel here; the closing line instead points the guest
+  back to signing in on the device they originally requested from. No
+  service/domain change needed -- `bookingService.lookupByBookingReference`
+  already returns the full `BookingView` (confirmed no separate minimized
+  projection type exists for this path), so this was UI-only. Empty
+  `Travelers` section (always the case pre-quotation-acceptance, since the
+  setup wizard isn't reachable yet) is now hidden instead of rendering a
+  bare empty heading. `lint`/`typecheck` clean; `tests/booking-lookup.test.ts`
+  hit the documented Prisma-to-Neon connectivity gotcha this session (not a
+  regression from this change -- that file itself is untouched) and needs
+  a real CI run.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
