@@ -31,24 +31,31 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > it as bookable -- same grandfathered-nullable-until-set precedent as
 > `priceMinor` (DR-039). `CreateBookingWithDatesInput` dropped its `endDate`
 > field/refine entirely.
-> **Not yet committed on top of that**: **DR-055**, a real Resend
-> confirmation email sent the moment a guest submits a `/plan-my-trip`
-> (TAILOR_MADE) request -- see DR-055's own entry for the full spec. New
-> `NotificationEvent` `TAILOR_MADE_REQUEST_RECEIVED` (EN/FR templates) and a
-> new `notificationsService.notifyEmail(event, email, locale, organizationId,
-> data)` that sends straight to an explicit address instead of resolving one
-> from a `User` row -- necessary because `Booking.contactEmail` (the guest's
-> real, typed-in address) is deliberately not `User.email` (synthetic for an
-> anonymous guest session, per DR-047's own reasoning).
-> `bookingService.createTailorMadeRequest` now takes an optional `locale`
-> param (default `EN`, read from the guest site's `locale` cookie, DR-023,
-> by the `/plan-my-trip` Server Action) and fires the email after creating
-> the booking. Real, working `RESEND_API_KEY` credentials already exist in
-> `.env`/`.env.local` (confirmed live with a direct curl smoke test against
-> Resend's `delivered@resend.dev` test address) -- OI-05 can likely be
-> considered resolved, pending the human confirming that's their intended
-> production key; `RESEND_FROM_EMAIL` is still unset so it sends from
-> Resend's own `onboarding@resend.dev` until a real domain is verified.
+> **DR-055** (commit `1a0bef4`, pushed) sends a real Resend confirmation
+> email the moment a guest submits a `/plan-my-trip` (TAILOR_MADE) request
+> -- see DR-055's own entry for the full spec. New `NotificationEvent`
+> `TAILOR_MADE_REQUEST_RECEIVED` (EN/FR templates) and a new
+> `notificationsService.notifyEmail(event, email, locale, organizationId,
+> data)` that sends straight to an explicit address instead of resolving
+> one from a `User` row -- necessary because `Booking.contactEmail` (the
+> guest's real, typed-in address) is deliberately not `User.email`
+> (synthetic for an anonymous guest session, per DR-047's own reasoning).
+> **Root-caused a real live-test failure the same day**: the user reported
+> requesting a quote on the actual site and receiving no email at all.
+> Confirmed via direct curl against the real Resend API that the account
+> has no verified sending domain, so Resend sandboxes it to delivering
+> *only* to the account owner's own address (`cyberpolco@gmail.com`) --
+> any other recipient 403s. The app code is working correctly (the send is
+> attempted and the rejection is caught, per charter rule 8's "never fail
+> the booking"), it just can't deliver anywhere else until a domain is
+> verified at resend.com/domains (an external DNS/account action --
+> genuinely blocked on a human, see OI-05's updated entry). Real
+> end-to-end testing right now only works if the guest-typed contact email
+> IS `cyberpolco@gmail.com`. Also shipped this session (commit `97cd75f`,
+> pushed): on the same confirmation screen, **Cancel request only shows
+> for 30 seconds after `Booking.createdAt`**, swapping to a plain "Return
+> home" link after that (client-timed, UI-only, no change to the
+> underlying cancel rules).
 > `lint`/`typecheck` clean, pure-domain + gateway-mocked API tests green;
 > `tests/api/bookings-v2.api.test.ts`'s DB-backed suite hit the documented
 > intermittent Prisma-to-Neon connectivity gotcha this session (confirmed
@@ -2146,10 +2153,11 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   -- a human should click through the 30s swap in a real browser before
   fully trusting the timing.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
-  Starlink API integration (OI-09), and CRM. Email (Resend) and SMS
-  (Africa's Talking) both appear to already have real credentials sitting
-  in `.env`/`.env.local` as of DR-055 -- see OI-05/OI-07's own updated
-  entries.
+  Starlink API integration (OI-09), and CRM. Email (Resend) has real
+  credentials but is sandboxed to one recipient until a domain is verified
+  (see OI-05's update -- this was a real live-tested failure, not a
+  hypothetical); SMS (Africa's Talking) has real-looking credentials too
+  but hasn't been live-tested at all yet.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
   (DR-029, explicit user choice) -- real ML/AI-driven assignment and
   analytics remain open.
@@ -2633,15 +2641,26 @@ schema/RLS change.
   document upload feature exists until Phase 2); this just unblocks Phase 0
   close.
 - **OI-05** Resend account + API key. Blocks real email notifications.
-  **Update 2026-07-20:** a real, working `RESEND_API_KEY` is already sitting
-  in `.env`/`.env.local` and was confirmed live this session (a direct curl
-  smoke test against Resend's own `delivered@resend.dev` test address
-  returned a real message id). Left this item open rather than striking it
-  outright since nobody has confirmed in-conversation that this is the
-  founder's intended *production* key/account (vs. a personal/test one) or
-  that `RESEND_FROM_EMAIL` should stay `onboarding@resend.dev` rather than a
-  verified `polcotours.com` sender — a human should confirm both before this
-  is struck as resolved.
+  **Update 2026-07-20 (root cause of a real, reported live failure):** the
+  `RESEND_API_KEY` in `.env`/`.env.local` is real and live, but the Resend
+  **account has no verified sending domain** -- Resend sandboxes an
+  unverified account to only deliver to the account owner's own registered
+  address. Confirmed directly via curl against the real API: sending to
+  Resend's own test address (`delivered@resend.dev`) succeeds (200); sending
+  to any other real-looking address 403s with `"You can only send testing
+  emails to your own email address (cyberpolco@gmail.com). To send emails
+  to other recipients, please verify a domain at resend.com/domains..."`.
+  This is exactly why DR-055's confirmation email silently didn't arrive
+  when tested live on the site with a guest's own address -- the app code
+  is working correctly (`notificationsService.notifyEmail` sent the
+  request and got a real rejection back), it degrades gracefully per
+  charter rule 8 (never fails the booking), so nothing visibly broke for
+  the guest, but nothing was delivered either. **Still genuinely blocked on
+  a human**: verifying a domain (e.g. `polcotours.com`) at
+  resend.com/domains requires adding SPF/DKIM DNS records at the domain
+  registrar -- an external account/DNS action, not something fixable in
+  code. Until that's done, real end-to-end email testing only works when
+  the guest-typed contact email is `cyberpolco@gmail.com` itself.
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number). Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
