@@ -14,7 +14,16 @@ import { BOOKING_STATUS_TONE, ITINERARY_STATUS_TONE } from '@lib/status-tones';
 export default async function ItinerariesPage() {
   const ctx = await requireStaffContext('itinerary.write');
   const allItineraries = await itineraryService.listAll(ctx);
-  const allBookings = await Promise.all(allItineraries.map((i) => bookingService.getById(ctx, i.bookingId)));
+  // DR-058: a soft-deleted Booking is untouched (not hard-deleted) until the
+  // retention purge, so an Itinerary can still point at one for up to 90
+  // days -- bookingService.getById now throws for it (getOwnedBooking's
+  // findById returns null, which getById turns into a 404), where it never
+  // used to before soft-delete existed. This page's own JSX already treats
+  // a missing booking as "—" (see below); catch here so it actually gets
+  // that chance instead of one bad itinerary crashing the whole list.
+  const allBookings = await Promise.all(
+    allItineraries.map((i) => bookingService.getById(ctx, i.bookingId).catch(() => null)),
+  );
 
   // DR-049: no longer hidden -- convertToItinerary only requires a sent
   // quotation (priced), not an accepted one, so an Itinerary can exist for a

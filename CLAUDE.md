@@ -2360,6 +2360,64 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   the button by its old accessible name (`guest-checkout.spec.ts`,
   `staff-dashboard.spec.ts`). No schema/service change. `lint`/
   `typecheck` clean.
+- **Two real production incidents found and fixed, same session
+  (2026-07-20, uncommitted):** the user reported a live "Application
+  error: a server-side exception has occurred" on polco-tours.vercel.app
+  twice, with two different root causes.
+  **(1) DR-058 regression -- itineraries/schedule pages crashed.**
+  `Booking.softDelete` only sets `deletedAt` (an UPDATE), it never
+  actually removes the row (that only happens up to
+  `BOOKING_DELETION_RETENTION_DAYS` later, via the retention-purge
+  sweep) -- so an `Itinerary` can keep pointing at a soft-deleted
+  `bookingId` for up to 90 days. `bookingService.getById` (via
+  `getOwnedBooking`) now throws 404 for a soft-deleted booking, where it
+  never used to before DR-058 -- and three call sites that iterate a LIST
+  of itineraries/assignments and independently look up each one's
+  booking (`/staff/itineraries` list, `/staff/itineraries/[id]` detail,
+  `/staff/schedule`) called it completely unguarded. Since no
+  `error.tsx`/`global-error.tsx` exists anywhere in this app, one bad
+  itinerary's exception crashed the *entire* page for every itinerary,
+  not just the affected row. Fixed by catching per-item on the two list
+  pages (`.catch(() => null)`, since their own JSX already handled a
+  missing booking as "—" -- it just never got the chance) and by
+  wrapping the single-item detail-page lookup in try/catch → `notFound()`
+  (matching the itinerary fetch immediately above it, since that page's
+  JSX uses `booking.*` unguarded throughout and can't safely go null).
+  **(2) Pre-existing, unrelated to DR-058 -- Add-ons crashed for a
+  currency-mismatched package.** `prisma/seed.ts` seeds every
+  `AddonService` as `USD`, but several demo packages are priced `NAD` --
+  selecting any add-on for one of those bookings made
+  `bookingService.setAddons` throw `Errors.conflict('Add-on currency
+  does not match the booking currency')`, and
+  `finalizeAddonsAction` (guest AND staff) had **zero error handling** at
+  all, so the `ApiError` propagated completely unhandled out of the
+  Server Action -- this app has no FX conversion anywhere (BR-02), so
+  this was a real, always-reproducible break for any non-USD package,
+  not a rare edge case. Fixed two ways: the Add-ons page (guest + staff)
+  now filters `listActiveAddonServices` down to only add-ons matching
+  `booking.currency` (so a guest/staff user can never even select an
+  incompatible one), and `finalizeAddonsAction` (guest + staff) now
+  catches any `ApiError` and redirects back with a friendly `Alert`
+  instead of ever letting an exception propagate unhandled again (same
+  `?error=` convention the passport step already used). **Not yet
+  fixed, flagged for the human**: the underlying data gap -- the seeded
+  add-on catalog only exists in USD, so NAD/EUR/CDF-priced packages now
+  correctly show "No add-on services are currently available in
+  {currency}" instead of crashing, but genuinely have no purchasable
+  add-ons at all. There's no staff UI to create/edit `AddonService` rows
+  (`catalogService.listActiveAddonServices`'s own comment: "Staff-managed,
+  read-only for now -- seeded via prisma/seed.ts") -- adding currency-
+  matched add-ons currently requires either a script run against the
+  live DB or a new staff-facing CRUD screen, neither of which was built
+  here; this was scoped to stopping the crash, not closing that gap.
+  Also found and fixed while investigating: `tests/booking-delete.test.ts`
+  asserted the wrong error type for one case (`assertCan` throws a plain
+  `Error`, not an `ApiError` -- only the later `isBookingDeleter` check
+  throws a real one), which had been silently failing CI on the last two
+  pushes; since `Build` is gated on tests passing in this pipeline,
+  neither of those pushes' builds had actually been confirmed to succeed
+  by CI (they did, once the test was fixed and re-run). No schema
+  change; `lint`/`typecheck` clean throughout.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

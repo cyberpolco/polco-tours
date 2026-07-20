@@ -3,6 +3,7 @@ import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { Alert } from '@/components/ui/Alert';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -11,6 +12,7 @@ import { finalizeAddonsAction } from './actions';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
 // Add-ons is now the FIRST setup step (right after the booking/hold itself
@@ -20,8 +22,9 @@ interface Props {
 // after it's already been finalized once (e.g. via the Travelers step's
 // "back" link) re-opens it for editing instead of bouncing forward again --
 // setAddons is a replace-all, so resubmitting is always safe.
-export default async function AddonsPage({ params }: Props) {
+export default async function AddonsPage({ params, searchParams }: Props) {
   const { bookingId } = await params;
+  const { error } = await searchParams;
   const ctx = await requireGuestContext();
   const booking = await bookingService.getById(ctx, bookingId);
 
@@ -46,10 +49,18 @@ export default async function AddonsPage({ params }: Props) {
     );
   }
 
-  const [addons, selected] = await Promise.all([
+  const [allAddons, selected] = await Promise.all([
     catalogService.listActiveAddonServices(ctx),
     booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
   ]);
+  // This app has no FX conversion anywhere (BR-02) -- an add-on priced in a
+  // different currency than the booking can never actually be selected
+  // (setAddons rejects the mismatch server-side too). Filter here so the
+  // guest never sees an option that would fail on submit -- found live in
+  // production: the seeded add-on catalog is USD-only, but several demo
+  // packages are priced in NAD, so every add-on silently failed for those
+  // bookings until this filter existed.
+  const addons = allAddons.filter((a) => a.currency === booking.currency);
   const selectedIds = new Set(selected.map((a) => a.addonServiceId));
 
   return (
@@ -61,10 +72,19 @@ export default async function AddonsPage({ params }: Props) {
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add your traveler details next.</p>
+      {error && (
+        <div className="mt-3">
+          <Alert tone="error">Something went wrong saving your add-ons -- please try again.</Alert>
+        </div>
+      )}
 
       <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
         {addons.length === 0 ? (
-          <p className="text-sm text-mist">No add-on services configured.</p>
+          <p className="text-sm text-mist">
+            {allAddons.length === 0
+              ? 'No add-on services configured.'
+              : `No add-on services are currently available in ${booking.currency}.`}
+          </p>
         ) : (
           addons.map((a) => (
             <SelectableCard

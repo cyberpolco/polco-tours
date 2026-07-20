@@ -52,8 +52,21 @@ export default async function ItineraryDetailPage({ params }: Props) {
   const canWrite = can(ctx, 'itinerary.write');
   const canApprove = can(ctx, 'itinerary.approve');
 
-  const [booking, days, assignedHotels, assignedRestaurants] = await Promise.all([
-    bookingService.getById(ctx, itinerary.bookingId),
+  // DR-058: a soft-deleted Booking isn't hard-deleted until the retention
+  // purge, so this itinerary's own bookingId can point at one for up to 90
+  // days -- bookingService.getById throws for it (previously impossible,
+  // before soft-delete existed). The rest of this page uses `booking.*`
+  // unguarded throughout, so -- same as the itinerary fetch above -- treat
+  // a gone booking as a clean 404 rather than letting the exception
+  // propagate into an unhandled server error.
+  let booking;
+  try {
+    booking = await bookingService.getById(ctx, itinerary.bookingId);
+  } catch {
+    notFound();
+  }
+
+  const [days, assignedHotels, assignedRestaurants] = await Promise.all([
     itineraryService.listDays(ctx, itineraryId),
     itineraryService.listAssignedHotels(ctx, itineraryId),
     itineraryService.listAssignedRestaurants(ctx, itineraryId),

@@ -95,7 +95,13 @@ export default async function MySchedulePage() {
   let itineraryBookingRefs = new Map<string, string>();
   if (canReadItineraries) {
     myItineraries = await itineraryService.listMine(ctx);
-    const bookings = await Promise.all(myItineraries.map((i) => bookingService.getById(ctx, i.bookingId)));
+    // DR-058: a soft-deleted Booking isn't hard-deleted until the retention
+    // purge, so an Itinerary can still point at one for up to 90 days --
+    // bookingService.getById now throws for it, where it never used to
+    // before soft-delete existed. This line already treated the result as
+    // possibly missing (`bookings[idx]?.bookingReference ?? i.bookingId`
+    // below), it just never got the chance -- catch so it does.
+    const bookings = await Promise.all(myItineraries.map((i) => bookingService.getById(ctx, i.bookingId).catch(() => null)));
     itineraryBookingRefs = new Map(myItineraries.map((i, idx) => [i.id, bookings[idx]?.bookingReference ?? i.bookingId]));
   }
 
