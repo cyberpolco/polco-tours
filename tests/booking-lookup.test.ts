@@ -218,4 +218,48 @@ describe('bookingService.lookupByBookingReference', () => {
       if (cancelDepartureId) await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { id: cancelDepartureId } }));
     }
   }, 30_000);
+
+  // DR-057: a fresh TAILOR_MADE booking (AWAITING_QUOTATION) has no Traveler
+  // manifest at all yet -- the previous version of this lookup always found
+  // `lead` undefined for one and rejected every attempt, unconditionally
+  // breaking /find-booking for every /plan-my-trip request. Booking
+  // .contactLastName (set at inquiry time) is the fallback now.
+  it('finds a fresh TAILOR_MADE booking (no travelers yet) via Booking.contactLastName', async () => {
+    let tailorMadeBookingId: string | undefined;
+    let tailorMadeReference: string | undefined;
+    try {
+      await withOrg(orgId, async (tx) => {
+        tailorMadeReference = generateBookingReference();
+        const booking = await tx.booking.create({
+          data: {
+            organizationId: orgId,
+            origin: 'TAILOR_MADE',
+            touristUserId: touristId,
+            seats: 2,
+            status: 'AWAITING_QUOTATION',
+            customCountry: 'NA',
+            preferredCountries: ['NA'],
+            contactEmail: `tailor-made-lookup-${suffix}@example.test`,
+            contactFirstName: 'Tailor',
+            contactLastName: 'MadeFixture',
+            bookingReference: tailorMadeReference,
+          },
+        });
+        tailorMadeBookingId = booking.id;
+      });
+
+      const result = await bookingService.lookupByBookingReference(
+        { bookingReference: tailorMadeReference!, lastName: 'MadeFixture' },
+        '203.0.113.30',
+      );
+      expect(result.booking.id).toBe(tailorMadeBookingId);
+      expect(result.travelers).toHaveLength(0);
+
+      await expect(
+        bookingService.lookupByBookingReference({ bookingReference: tailorMadeReference!, lastName: 'Wrong' }, '203.0.113.31'),
+      ).rejects.toThrow();
+    } finally {
+      if (tailorMadeBookingId) await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { id: tailorMadeBookingId } }));
+    }
+  });
 });

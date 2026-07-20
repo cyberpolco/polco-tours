@@ -26,6 +26,14 @@ export default async function NewBookingPage({ searchParams }: Props) {
           <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
             <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Client first name" htmlFor="firstName">
+              <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label="Client last name" htmlFor="lastName">
+              <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+          </div>
           <FormField label="Destination country (ISO-3166 alpha-2, e.g. NA or CD)" htmlFor="customCountry">
             <input
               name="customCountry"

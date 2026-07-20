@@ -49,6 +49,12 @@ export interface BookingView {
   // tax/visa lookups). contactEmail is booking-scoped, not User.email.
   preferredCountries: string[];
   contactEmail: string | null;
+  // DR-057: the guest's own name at inquiry time -- see the schema
+  // comment on Booking.contactLastName for why this exists (find-booking's
+  // last-name check has no Traveler/tour-lead row to fall back on before a
+  // TAILOR_MADE booking's quotation is accepted).
+  contactFirstName: string | null;
+  contactLastName: string | null;
   // DR-048: guest-expressed add-on interest (staff context, no priced
   // AddonService/BookingAddon row -- there's no package to attach one to
   // yet) + the guest's own residence/citizenship (relevant to the
@@ -116,6 +122,11 @@ export const CreateTailorMadeInput = z.object({
   preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
   preferredSites: z.array(z.string()).optional(),
   email: z.string().email(),
+  // DR-057: required, not optional -- without a name captured here,
+  // /find-booking's last-name check has nothing to match against until
+  // the booking has a real Traveler manifest (post-quotation-acceptance).
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
   preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
   countryOfResidence: z.string().length(2).optional(),
   citizenship: z.string().length(2).optional(),

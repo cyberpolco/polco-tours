@@ -76,6 +76,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-01-10',
       customTravelEnd: '2027-01-15',
       seats: 2,
@@ -110,6 +112,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA', 'ZM'],
       email,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-03-10',
       customTravelEnd: '2027-03-17',
       seats: 3,
@@ -129,6 +133,41 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(notificationSendMock).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining('NA, ZM') }));
   }, 30_000);
 
+  // DR-056: also fires an SMS via Africa's Talking when the tourist has a
+  // phone on file (User.phone -- set for real by the wizard's contact step
+  // before this call, unlike the anonymous session's synthetic User.email).
+  // touristAId above has no phone, which is why the previous test only
+  // expects one send (email only) -- this uses its own tourist with a phone.
+  it('also sends an SMS confirmation when the tourist has a phone on file', async () => {
+    const smsTourist = await admin.user.create({
+      data: {
+        email: `plan-my-trip-sms-${Date.now()}@example.test`,
+        role: 'TOURIST',
+        organizationId: orgId,
+        phone: '+15551234567',
+      },
+    });
+    const headers = await loginAs(smsTourist.id);
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['NA'],
+      email: `plan-my-trip-sms-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
+      customTravelStart: '2027-08-01',
+      customTravelEnd: '2027-08-05',
+      seats: 1,
+    });
+    notificationSendMock.mockClear();
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+
+    expect(notificationSendMock).toHaveBeenCalledTimes(2); // email + SMS
+    expect(notificationSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '+15551234567', body: expect.stringContaining(body.booking.bookingReference) }),
+    );
+  }, 30_000);
+
   // DR-046: the merged "plan my trip" form's preference questions (old
   // quiz tags/sites) are carried onto the booking as staff context, not
   // used for any package matching/scoring anymore.
@@ -137,6 +176,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-02-10',
       customTravelEnd: '2027-02-15',
       seats: 2,
@@ -158,6 +199,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA', 'ZM', 'ZW'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-03-01',
       customTravelEnd: '2027-03-10',
       seats: 2,
@@ -178,6 +221,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['CD'],
       email,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-04-01',
       customTravelEnd: '2027-04-05',
       seats: 1,
@@ -196,6 +241,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['ZW'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-05-01',
       customTravelEnd: '2027-05-05',
       seats: 1,
@@ -213,6 +260,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-06-01',
       customTravelEnd: '2027-06-10',
       seats: 1,
@@ -237,6 +286,8 @@ describe('quotation send -> accept -> refund lifecycle', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-02-01',
       customTravelEnd: '2027-02-05',
       seats: 1,
@@ -348,6 +399,8 @@ describe('staff can accept a quotation on the client\'s behalf', () => {
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
       countries: ['NA'],
       email: `plan-my-trip-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-07-01',
       customTravelEnd: '2027-07-05',
       seats: 1,

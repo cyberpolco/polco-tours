@@ -51,6 +51,8 @@ export async function createTailorMadeBookingAction(formData: FormData): Promise
     touristUserId: client.id,
     specialRequests: optionalString(formData, 'specialRequests'),
     email,
+    firstName: String(formData.get('firstName')).trim(),
+    lastName: String(formData.get('lastName')).trim(),
   });
   const booking = await bookingService.createTailorMadeRequest(ctx, input);
   redirect(`/staff/bookings/${booking.id}`);

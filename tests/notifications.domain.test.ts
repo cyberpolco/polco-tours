@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveChannelOrder, renderMessage, type NotificationEvent } from '../src/modules/notifications/domain';
+import { resolveChannelOrder, renderMessage, renderSmsMessage, type NotificationEvent } from '../src/modules/notifications/domain';
 
 const EVENTS: NotificationEvent[] = [
   'BOOKING_CONFIRMED',
@@ -73,6 +73,30 @@ describe('notifications domain', () => {
     it('falls back to placeholder text when countries/dates are missing', () => {
       const { body } = renderMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', { bookingId: 'N9M0W8' });
       expect(body).toContain('Not yet specified');
+    });
+
+    // DR-056: a separate plain-text template for SMS (no HTML markup, no
+    // subject) -- reusing the HTML email body directly would show literal
+    // "<br>"/"<strong>" tags in a text message.
+    describe('renderSmsMessage', () => {
+      it('renders distinct, non-empty EN and FR plain-text bodies with no HTML markup', () => {
+        const en = renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData);
+        const fr = renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'FR', tripData);
+        expect(en).toBeTruthy();
+        expect(fr).toBeTruthy();
+        expect(en).not.toBe(fr);
+        expect(en).not.toContain('<br>');
+        expect(en).not.toContain('<strong>');
+      });
+
+      it('includes the booking reference and destination countries', () => {
+        expect(renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData)).toContain('N9M0W8');
+        expect(renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData)).toContain('NA, ZM');
+      });
+
+      it('returns null for an event with no SMS template', () => {
+        expect(renderSmsMessage('BOOKING_CONFIRMED', 'EN', { bookingId: 'bk_42' })).toBeNull();
+      });
     });
   });
 });

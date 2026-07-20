@@ -1,7 +1,7 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { BookingStatus, Locale, PaymentKind } from '@prisma/client';
-import type { AuthContext } from '@modules/auth';
+import { authService, type AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { audit, countRecentAuditEvents } from '@lib/audit';
@@ -205,6 +205,8 @@ export const bookingService = {
       preferredTags: input.preferredTags,
       preferredSites: input.preferredSites,
       email: input.email,
+      firstName: input.firstName,
+      lastName: input.lastName,
       preferredAddons: input.preferredAddons,
       countryOfResidence: input.countryOfResidence,
       citizenship: input.citizenship,
@@ -224,13 +226,25 @@ export const bookingService = {
     // (synthetic for an anonymous guest session), so this always uses
     // notifyEmail rather than notify(). Fire-and-forget, never throws --
     // a channel outage must never fail the booking itself (charter rule 8).
-    await notificationsService.notifyEmail('TAILOR_MADE_REQUEST_RECEIVED', input.email, locale, organizationId, {
+    const notificationData = {
       bookingId: booking.bookingReference,
       countries: input.countries,
       seats: input.seats,
       travelStart: input.customTravelStart,
       travelEnd: input.customTravelEnd,
-    });
+    };
+    await notificationsService.notifyEmail('TAILOR_MADE_REQUEST_RECEIVED', input.email, locale, organizationId, notificationData);
+
+    // DR-056: same confirmation, by SMS -- unlike contactEmail (booking-
+    // scoped, since an anonymous session's User.email is synthetic),
+    // User.phone IS the guest's real number (the wizard's contact step
+    // writes it via authService.updateProfile before this call), so no
+    // Booking.contactPhone column was needed. Best-effort: silently
+    // skipped if the tourist has no phone on file.
+    const tourist = await authService.getUser(touristUserId);
+    if (tourist?.phone) {
+      await notificationsService.notifySms('TAILOR_MADE_REQUEST_RECEIVED', tourist.phone, locale, organizationId, notificationData);
+    }
 
     return booking;
   },
@@ -658,8 +672,17 @@ export const bookingService = {
     const booking = found && !CLOSED_BOOKING_STATUSES.includes(found.status) ? found : null;
     const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
     const lead = travelers.find((t) => t.isTourLead);
+    // DR-057: a TAILOR_MADE booking still AWAITING_QUOTATION/QUOTATION_SENT
+    // has no Traveler manifest at all yet (the setup wizard only starts
+    // once a quotation is accepted) -- `lead` is always undefined for one,
+    // which made this lookup unconditionally fail for every fresh
+    // /plan-my-trip request. Fall back to the guest-provided
+    // Booking.contactLastName (same shape lastNameMatches already expects)
+    // in that case; a booking with a real Traveler manifest keeps matching
+    // against the tour lead exactly as before.
+    const nameSource = lead ?? (booking?.contactLastName ? { lastName: booking.contactLastName } : null);
 
-    if (!booking || !lead || !lastNameMatches(lead, input.lastName)) {
+    if (!booking || !nameSource || !lastNameMatches(nameSource, input.lastName)) {
       // Never reveal which part was wrong -- same anti-enumeration posture
       // as getOwnedBooking's 404-not-403 elsewhere in this module.
       await audit({ action: 'booking.lookup_failed', resourceType: 'Booking', organizationId, ip });

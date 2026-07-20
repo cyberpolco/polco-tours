@@ -5,7 +5,7 @@ import type { Locale } from '@prisma/client';
 import { authService } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { logger, newTraceId } from '@lib/logger';
-import { renderMessage, resolveChannelOrder, type NotificationData, type NotificationEvent } from './domain';
+import { renderMessage, renderSmsMessage, resolveChannelOrder, type NotificationData, type NotificationEvent } from './domain';
 import { gateways } from './gateway';
 
 export const notificationsService = {
@@ -107,6 +107,49 @@ export const notificationsService = {
         metadata: { event, attemptedChannels: ['EMAIL'] },
       });
       log.error('notification failed', { event, channel: 'EMAIL', message: err instanceof Error ? err.message : String(err) });
+    }
+  },
+
+  /**
+   * DR-056: sends straight to an explicit phone number via only the SMS
+   * gateway -- same "explicit recipient, not a User lookup" shape as
+   * notifyEmail, for the same caller (a fresh TAILOR_MADE request) that
+   * already has the tourist's phone on hand. Unlike notifyEmail, this uses
+   * a separate plain-text template map (renderSmsMessage) -- SMS has no
+   * HTML rendering, so the HTML-formatted email body can't be reused
+   * as-is. A no-op (not an error) when the event has no SMS template.
+   */
+  async notifySms(
+    event: NotificationEvent,
+    phone: string,
+    locale: Locale,
+    organizationId: string,
+    data: NotificationData,
+  ): Promise<void> {
+    const log = logger(newTraceId());
+    const body = renderSmsMessage(event, locale, data);
+    if (!body) {
+      log.warn('notifySms: no SMS template for event, skipping', { event });
+      return;
+    }
+
+    try {
+      const { providerRef } = await gateways.SMS.send({ to: phone, body });
+      await audit({
+        action: 'notification.sent',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, channel: 'SMS', providerRef },
+      });
+      log.info('notification sent', { event, channel: 'SMS' });
+    } catch (err) {
+      await audit({
+        action: 'notification.failed',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, attemptedChannels: ['SMS'] },
+      });
+      log.error('notification failed', { event, channel: 'SMS', message: err instanceof Error ? err.message : String(err) });
     }
   },
 };

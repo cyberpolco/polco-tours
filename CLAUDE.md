@@ -60,7 +60,29 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > `tests/api/bookings-v2.api.test.ts`'s DB-backed suite hit the documented
 > intermittent Prisma-to-Neon connectivity gotcha this session (confirmed
 > transient -- `psql` connected fine on the same credentials) -- needs a
-> real CI run. Also records the DR-034 Immigration Module/Country
+> real CI run.
+> **DR-056** adds an Africa's Talking SMS confirmation alongside DR-055's
+> email (new `notificationsService.notifySms`, reads `User.phone` -- real
+> for a guest since the wizard's contact step sets it, unlike synthetic
+> `User.email`) -- the account is real and live (confirmed via a
+> no-cost balance check, `USD 0.0621`) but that balance is very low,
+> good for maybe 1-2 real sends before it needs topping up.
+> **DR-057 fixed a real, user-reported break**: `/find-booking` rejected
+> *every* fresh `/plan-my-trip` reference, unconditionally, because the
+> last-name check only ever looked at a tour-lead `Traveler` row that
+> doesn't exist until a quotation is accepted. Fixed with new
+> `Booking.contactFirstName`/`contactLastName` (booking-scoped, same
+> `contactEmail` precedent, now required on `CreateTailorMadeInput`) as a
+> fallback match target. Schema applied to the shared Neon DB via a
+> user-pasted `neondb_owner` credential (never written to any file),
+> verified via `psql \d bookings`; `prisma generate` re-run locally.
+> `lint`/`typecheck` clean, pure-domain tests green throughout DR-056/057;
+> the new DB-backed `tests/booking-lookup.test.ts` case was confirmed
+> reaching the live DB via a bare `tsx` script, but `vitest run` itself hit
+> the documented vitest-specific connectivity quirk (bare `tsx` connects
+> fine, `vitest run` doesn't -- an unresolved sandbox oddity, not a real
+> outage) -- needs a real CI run to fully confirm.
+> Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -2180,6 +2202,63 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   hit the documented Prisma-to-Neon connectivity gotcha this session (not a
   regression from this change -- that file itself is untouched) and needs
   a real CI run.
+- **SMS confirmation on /plan-my-trip request creation, DR-056 (2026-07-20,
+  same session, uncommitted):** mirrors DR-055's email, via Africa's
+  Talking (also already real, unused credentials in `.env`/`.env.local` --
+  confirmed live with a balance-check API call, `USD 0.0621`, before
+  writing code -- **that balance is very low, likely only 1-2 real SMS
+  sends before it runs out; flagging for the human to top it up rather
+  than assuming it'll keep working**). New
+  `notificationsService.notifySms(event, phone, locale, organizationId,
+  data)` -- same "explicit recipient, not a User-row lookup" shape as
+  `notifyEmail`, sent via only the `SMS` gateway. Unlike email, this DOES
+  read `User.phone` (not a new `Booking.contactPhone` column) -- the
+  wizard's contact step already writes a real phone there via
+  `authService.updateProfile` before booking creation, so (unlike
+  `User.email`, synthetic for an anonymous session) it's reliable. New,
+  separate `SMS_TEMPLATES`/`renderSmsMessage` (plain text, no HTML) --
+  the email template's `<br>`/`<strong>` markup can't be reused verbatim
+  for a channel with no HTML rendering at all. Best-effort: silently
+  skipped when the tourist has no phone on file. New API test (mocked
+  gateway, asserts 2 sends -- email + SMS -- when a phone is present) and
+  domain render coverage. `lint`/`typecheck` clean; pure-domain tests
+  green.
+- **`/find-booking` fixed for a fresh `/plan-my-trip` reference -- was
+  completely broken, DR-057 (2026-07-20, same session, pushed):** a real
+  bug, not a hypothetical, found from the user's own live report
+  ("Find my booking isn't functional with Plan my trip booking
+  reference"). Root cause: `lookupByBookingReference`'s last-name check
+  only ever compared against the tour-lead `Traveler` row -- but a fresh
+  TAILOR_MADE booking (`AWAITING_QUOTATION`/`QUOTATION_SENT`) has **no**
+  Traveler manifest at all yet (the setup wizard only starts once a
+  quotation is accepted), so `lead` was always `undefined` and the lookup
+  **unconditionally rejected every `/plan-my-trip` reference**, no matter
+  how correct the last name was -- this had been broken since DR-046/047
+  first shipped `/plan-my-trip` and was never caught because
+  `tests/booking-lookup.test.ts`'s only fixture had a real Traveler from
+  the start. Fixed by adding new `Booking.contactFirstName`/
+  `contactLastName` columns (booking-scoped, same precedent as
+  `contactEmail` -- DR-047's reasoning for why a booking-scoped copy is
+  needed applies identically here, an anonymous session has no reliable
+  place to read a name back from), now **required** (not optional) on
+  `CreateTailorMadeInput` alongside `email`. `lookupByBookingReference`
+  now falls back to `{ lastName: booking.contactLastName }` when no
+  tour-lead `Traveler` exists, reusing `lastNameMatches` unchanged (same
+  shape). Every caller of `CreateTailorMadeInput`
+  (`/plan-my-trip`, the staff tailor-made form -- which gained new
+  required "Client first/last name" fields, previously only asked for
+  email -- and the raw API route) updated to pass real names through.
+  Schema applied directly to the shared Neon DB via a user-pasted
+  `neondb_owner` credential (never written to any file), verified via
+  `psql \d bookings`; `npx prisma generate` re-run locally to pick up the
+  new columns' TypeScript types. New DB-backed test in
+  `tests/booking-lookup.test.ts` (a bare TAILOR_MADE booking with zero
+  travelers now resolves via `contactLastName`) -- confirmed green via a
+  bare `tsx` script reaching the DB directly, but `vitest run` itself hit
+  the documented vitest-specific Prisma connectivity gotcha this session
+  (bare `tsx` connects fine, `vitest run` doesn't -- a known, unresolved
+  sandbox quirk, not a real outage) -- needs a real CI run to fully
+  confirm. `lint`/`typecheck` clean; pure-domain tests green throughout.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
@@ -2654,7 +2733,23 @@ real address is `Booking.contactEmail`, never the anonymous session's
 synthetic `User.email` (DR-047). `bookingService.createTailorMadeRequest`
 gained an optional `locale` param (default `EN`), read from the guest
 site's `locale` cookie (DR-023) by the `/plan-my-trip` Server Action. No
-schema/RLS change.
+schema/RLS change · DR-056 adds an Africa's Talking SMS confirmation
+alongside DR-055's email (new `notificationsService.notifySms`, own
+plain-text `SMS_TEMPLATES`/`renderSmsMessage` since HTML markup can't be
+reused for a channel with no HTML rendering) -- reads `User.phone`
+directly rather than a new booking-scoped column, since the guest wizard
+already writes a real phone there (unlike synthetic `User.email`); the
+real Africa's Talking account was confirmed live via a no-cost balance
+check (`USD 0.0621` -- low, flagged for top-up). No schema/RLS change ·
+DR-057 fixes `/find-booking` being completely broken for a fresh
+`/plan-my-trip` reference (found via the user's own live report): the
+last-name check only ever compared against a tour-lead `Traveler` row,
+which doesn't exist until a quotation is accepted, so every such lookup
+unconditionally failed. Fixed with new, required
+`Booking.contactFirstName`/`contactLastName` (booking-scoped, same
+`contactEmail` precedent) as `lookupByBookingReference`'s fallback match
+target when no `Traveler` manifest exists yet. Schema applied to the
+shared Neon DB via a user-pasted `neondb_owner` credential.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
@@ -2692,12 +2787,14 @@ schema/RLS change.
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number). Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
-  **Update 2026-07-20:** `AFRICAS_TALKING_API_KEY`/`AFRICAS_TALKING_USERNAME`
-  are also already populated in `.env`/`.env.local` with real-looking
-  (non-placeholder) values -- noticed incidentally while investigating
-  Resend for DR-055, not independently verified live the way the Resend key
-  was. Left open for the same reason as OI-05's update: nobody has
-  confirmed in-conversation this is the intended production account.
+  **Update 2026-07-20 (DR-056):** confirmed live this time, not just
+  present -- a balance-check API call (`GET /version1/user`, no message
+  sent, no cost) returned a real account with `USD 0.0621` balance. Now
+  actually wired up (`notificationsService.notifySms`,
+  `TAILOR_MADE_REQUEST_RECEIVED`). **That balance is very low** -- likely
+  enough for only 1-2 real SMS sends before it silently starts failing
+  (gracefully, per charter rule 8, but still worth knowing about) -- the
+  human should top up the account before relying on this in practice.
 - ~~**OI-08** `BLOB_READ_WRITE_TOKEN` provisioning.~~ Resolved 2026-07-09:
   `polco-tours-documents` Blob store (`fra1`, private) created, connected to
   Production/Preview/Development on Vercel, and set as a `cyberpolco/

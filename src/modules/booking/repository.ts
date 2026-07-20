@@ -38,6 +38,8 @@ export interface CreateTailorMadeParams {
   preferredTags?: PackageTag[];
   preferredSites?: string[];
   email: string;
+  firstName: string; // DR-057
+  lastName: string; // DR-057
   preferredAddons?: AddonCode[];
   countryOfResidence?: string;
   citizenship?: string;
@@ -72,6 +74,8 @@ function toBookingView(b: Booking): BookingView {
     preferredSites: b.preferredSites,
     preferredCountries: b.preferredCountries,
     contactEmail: b.contactEmail,
+    contactFirstName: b.contactFirstName,
+    contactLastName: b.contactLastName,
     preferredAddons: b.preferredAddons,
     countryOfResidence: b.countryOfResidence,
     citizenship: b.citizenship,
@@ -250,6 +254,8 @@ export const bookingRepository = {
             preferredSites: params.preferredSites ?? [],
             preferredCountries: params.countries,
             contactEmail: params.email,
+            contactFirstName: params.firstName,
+            contactLastName: params.lastName,
             preferredAddons: params.preferredAddons ?? [],
             countryOfResidence: params.countryOfResidence,
             citizenship: params.citizenship,

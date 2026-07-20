@@ -583,6 +583,15 @@ model Booking {
   // two different guests submitting the same real email would collide).
   preferredCountries String[]      @default([])
   contactEmail       String?       @db.VarChar(320)
+  // DR-057: the guest's own name at inquiry time, booking-scoped like
+  // contactEmail above -- needed because /find-booking's last-name check
+  // otherwise has nothing to match against for a TAILOR_MADE booking still
+  // AWAITING_QUOTATION/QUOTATION_SENT (no Traveler/tour-lead row exists
+  // until the setup wizard runs, which only starts after a quotation is
+  // accepted). Not written onto User.name, which the wizard's contact step
+  // already sets separately for account-profile purposes.
+  contactFirstName   String?       @db.VarChar(100)
+  contactLastName    String?       @db.VarChar(100)
   // DR-048: guest-expressed add-on interest (same AddonCode enum
   // BookingAddon/AddonService use for a real priced predefined-package
   // add-on) -- staff context only here, no priced AddonService/BookingAddon

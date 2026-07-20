@@ -180,3 +180,43 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
 export function renderMessage(event: NotificationEvent, locale: Locale, data: NotificationData): RenderedMessage {
   return TEMPLATES[event][locale](data);
 }
+
+type SmsTemplate = (data: NotificationData) => string;
+
+// DR-056: a separate, plain-text template map -- TEMPLATES' bodies are HTML
+// (Resend sends `html: body`, so line breaks need <br>/<strong>); an SMS
+// gateway has no HTML rendering at all, so reusing those bodies verbatim
+// would show literal "<br>" text in the message. Only events actually sent
+// by SMS need an entry here -- SMS_TEMPLATES[event] being undefined is how
+// notifySms knows an event isn't SMS-eligible (deliberately not every event
+// TEMPLATES has, since none of the others are sent by SMS yet).
+const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplate>>> = {
+  TAILOR_MADE_REQUEST_RECEIVED: {
+    EN: (d) => {
+      const destinations = d.countries?.length ? d.countries.join(', ') : 'TBD';
+      const start = formatDate(d.travelStart, 'en-US');
+      const end = formatDate(d.travelEnd, 'en-US');
+      const dates = start && end ? `${start} to ${end}` : 'TBD';
+      return (
+        `POLCO TOURS: Trip request received, ref ${d.bookingId}. ` +
+        `${destinations}, ${d.seats ?? '-'} traveler(s), ${dates}. ` +
+        `Keep this ref + your last name safe. We'll send a quotation soon.`
+      );
+    },
+    FR: (d) => {
+      const destinations = d.countries?.length ? d.countries.join(', ') : 'à préciser';
+      const start = formatDate(d.travelStart, 'fr-FR');
+      const end = formatDate(d.travelEnd, 'fr-FR');
+      const dates = start && end ? `du ${start} au ${end}` : 'à préciser';
+      return (
+        `POLCO TOURS : demande de voyage reçue, réf ${d.bookingId}. ` +
+        `${destinations}, ${d.seats ?? '-'} voyageur(s), ${dates}. ` +
+        `Conservez cette réf et votre nom de famille. Devis à venir.`
+      );
+    },
+  },
+};
+
+export function renderSmsMessage(event: NotificationEvent, locale: Locale, data: NotificationData): string | null {
+  return SMS_TEMPLATES[event]?.[locale]?.(data) ?? null;
+}

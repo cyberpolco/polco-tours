@@ -269,6 +269,8 @@ describe('booking domain', () => {
       seats: 2,
       customDescription: 'A private Etosha + Sossusvlei combo, 6 days.',
       email: 'guest@example.test',
+      firstName: 'Guest',
+      lastName: 'Traveler',
     };
 
     it('accepts preferredTags/preferredSites as optional arrays', () => {
@@ -308,6 +310,21 @@ describe('booking domain', () => {
 
     it('rejects a malformed email', () => {
       const result = CreateTailorMadeInput.safeParse({ ...base, email: 'not-an-email' });
+      expect(result.success).toBe(false);
+    });
+
+    // DR-057: required -- /find-booking's last-name check has nothing to
+    // match against until a Traveler manifest exists (post-quotation-
+    // acceptance), so a fresh TAILOR_MADE inquiry needs this on the booking.
+    it('rejects a missing lastName', () => {
+      const { lastName: _lastName, ...withoutLastName } = base;
+      const result = CreateTailorMadeInput.safeParse(withoutLastName);
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a missing firstName', () => {
+      const { firstName: _firstName, ...withoutFirstName } = base;
+      const result = CreateTailorMadeInput.safeParse(withoutFirstName);
       expect(result.success).toBe(false);
     });
 

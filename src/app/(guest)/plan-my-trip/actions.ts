@@ -44,10 +44,11 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
     const ctx = await authService.resolveSession(await headers());
 
     // User.name is a single better-auth-managed string (no firstName/lastName
-    // split at the schema level) -- the form collects them separately so the
-    // last name can be called out on its own (see the confirmation screen's
-    // reminder), but they're combined here since there's nowhere else on
-    // User to put lastName individually.
+    // split at the schema level), so it's combined here for the account
+    // profile -- but the split firstName/lastName ALSO get passed into
+    // CreateTailorMadeInput below and stored as Booking.contactFirstName/
+    // contactLastName (DR-057), since /find-booking's last-name check needs
+    // a real last name to match against before any Traveler manifest exists.
     const name = `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim();
     if (name) {
       await authService.updateProfile(ctx, {
@@ -66,6 +67,8 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       preferredTags: payload.preferredTags,
       preferredSites: payload.preferredSites,
       email: payload.email.trim(),
+      firstName: payload.firstName.trim(),
+      lastName: payload.lastName.trim(),
       preferredAddons: payload.preferredAddons,
       countryOfResidence: payload.countryOfResidence?.trim().toUpperCase() || undefined,
       citizenship: payload.citizenship?.trim().toUpperCase() || undefined,

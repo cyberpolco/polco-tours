@@ -137,6 +137,8 @@ describe('tailor-made booking -> operational itinerary -> resource assignment (D
     const createReq = jsonRequest('http://localhost/api/v1/bookings/tailor-made', touristHeaders, {
       countries: ['NA'],
       email: `itinerary-bridge-${Date.now()}@example.test`,
+      firstName: 'Test',
+      lastName: 'Guest',
       customTravelStart: '2027-04-01',
       customTravelEnd: '2027-04-05',
       seats: 2,
