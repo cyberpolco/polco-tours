@@ -1,6 +1,6 @@
 'use server';
 
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { authService } from '@modules/auth';
 import { CreateTailorMadeInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
@@ -70,7 +70,14 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       countryOfResidence: payload.countryOfResidence?.trim().toUpperCase() || undefined,
       citizenship: payload.citizenship?.trim().toUpperCase() || undefined,
     });
-    const booking = await bookingService.createTailorMadeRequest(ctx, input);
+    // Confirmation email language follows the guest's own site-wide locale
+    // cookie (DR-023) -- notifications' Locale enum is uppercase ('EN'/'FR'),
+    // the cookie's value is lowercase; default 'en' matches request.ts's own
+    // fallback.
+    const cookieLocale = (await cookies()).get('locale')?.value;
+    const locale = cookieLocale === 'fr' ? 'FR' : 'EN';
+
+    const booking = await bookingService.createTailorMadeRequest(ctx, input, locale);
     return { bookingId: booking.id };
   } catch (err) {
     if (err instanceof ApiError) {

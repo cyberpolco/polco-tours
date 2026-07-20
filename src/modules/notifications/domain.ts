@@ -15,7 +15,8 @@ export type NotificationEvent =
   | 'QUOTATION_SENT'
   | 'VISA_CONTACT_TRAVELER'
   | 'VISA_MISSING_DOCUMENTS'
-  | 'RATING_CODE_ISSUED';
+  | 'RATING_CODE_ISSUED'
+  | 'TAILOR_MADE_REQUEST_RECEIVED';
 
 export interface NotificationRecipient {
   phone: string | null;
@@ -35,6 +36,10 @@ export interface NotificationData {
   message?: string; // VISA_CONTACT_TRAVELER: staff-authored free text
   country?: string; // VISA_MISSING_DOCUMENTS
   ratingCode?: string; // RATING_CODE_ISSUED
+  countries?: string[]; // TAILOR_MADE_REQUEST_RECEIVED -- Booking.preferredCountries
+  seats?: number; // TAILOR_MADE_REQUEST_RECEIVED
+  travelStart?: Date; // TAILOR_MADE_REQUEST_RECEIVED
+  travelEnd?: Date; // TAILOR_MADE_REQUEST_RECEIVED
 }
 
 const FALLBACK_ORDER: NotificationChannel[] = ['WHATSAPP', 'SMS', 'EMAIL'];
@@ -50,6 +55,11 @@ type Template = (data: NotificationData) => RenderedMessage;
 
 function amount(data: NotificationData, locale: string): string {
   return format(money(data.amountMinor ?? 0, data.currency ?? 'USD'), locale);
+}
+
+function formatDate(date: Date | undefined, intlLocale: 'en-US' | 'fr-FR'): string | null {
+  if (!date) return null;
+  return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'long' }).format(date);
 }
 
 const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
@@ -120,6 +130,50 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
       subject: 'Évaluez votre voyage',
       body: `Merci d'avoir voyagé avec nous ! Une fois votre circuit terminé, utilisez la réservation ${d.bookingId} et le code d'évaluation ${d.ratingCode ?? ''} sur polcotours.com/rate pour partager votre avis.`,
     }),
+  },
+  // DR-055: sent to Booking.contactEmail right when a /plan-my-trip
+  // (TAILOR_MADE) request is created -- via notificationsService.notifyEmail,
+  // not the User-lookup-based notify(), since an anonymous guest session's
+  // User.email is a synthetic placeholder, not a real address (see
+  // Booking.contactEmail's own comment in booking/domain.ts).
+  TAILOR_MADE_REQUEST_RECEIVED: {
+    EN: (d) => {
+      const destinations = d.countries?.length ? d.countries.join(', ') : 'Not yet specified';
+      const start = formatDate(d.travelStart, 'en-US');
+      const end = formatDate(d.travelEnd, 'en-US');
+      const dates = start && end ? `${start} to ${end}` : 'Not yet specified';
+      return {
+        subject: `We received your trip request -- ${d.bookingId}`,
+        body:
+          `Thanks for your trip request! Here is a summary:<br><br>` +
+          `Destination(s): ${destinations}<br>` +
+          `Travelers: ${d.seats ?? '-'}<br>` +
+          `Travel dates: ${dates}<br><br>` +
+          `Your booking reference: <strong>${d.bookingId}</strong><br>` +
+          `Please keep this reference and your last name safe -- you'll need both any time you contact us about ` +
+          `this trip, including to check its status or accept a quotation.<br><br>` +
+          `Our team will be in touch soon with a personalized quotation.`,
+      };
+    },
+    FR: (d) => {
+      const destinations = d.countries?.length ? d.countries.join(', ') : 'Pas encore précisé';
+      const start = formatDate(d.travelStart, 'fr-FR');
+      const end = formatDate(d.travelEnd, 'fr-FR');
+      const dates = start && end ? `du ${start} au ${end}` : 'Pas encore précisées';
+      return {
+        subject: `Nous avons bien reçu votre demande de voyage -- ${d.bookingId}`,
+        body:
+          `Merci pour votre demande de voyage ! Voici un résumé :<br><br>` +
+          `Destination(s) : ${destinations}<br>` +
+          `Voyageurs : ${d.seats ?? '-'}<br>` +
+          `Dates de voyage : ${dates}<br><br>` +
+          `Votre référence de réservation : <strong>${d.bookingId}</strong><br>` +
+          `Merci de conserver cette référence ainsi que votre nom de famille en lieu sûr -- vous en aurez besoin ` +
+          `à chaque fois que vous nous contacterez au sujet de ce voyage, y compris pour suivre son statut ou ` +
+          `accepter un devis.<br><br>` +
+          `Notre équipe vous contactera bientôt avec un devis personnalisé.`,
+      };
+    },
   },
 };
 

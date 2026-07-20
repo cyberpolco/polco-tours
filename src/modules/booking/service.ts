@@ -1,6 +1,6 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { BookingStatus, PaymentKind } from '@prisma/client';
+import type { BookingStatus, Locale, PaymentKind } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
@@ -181,7 +181,15 @@ export const bookingService = {
   /** A bespoke trip request with no pre-existing Departure -- no capacity
    * check applies (there's nothing to reserve yet). Staff price it manually
    * afterward via sendQuotation. */
-  async createTailorMadeRequest(ctx: AuthContext, input: CreateTailorMadeInput): Promise<BookingView> {
+  /** `locale` (default EN) picks the confirmation email's language -- passed
+   * in by the caller (e.g. the guest site's own `locale` cookie, DR-023),
+   * never inferred here; this module has no session/cookie access of its
+   * own. */
+  async createTailorMadeRequest(
+    ctx: AuthContext,
+    input: CreateTailorMadeInput,
+    locale: Locale = 'EN',
+  ): Promise<BookingView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
@@ -210,6 +218,20 @@ export const bookingService = {
       resourceId: booking.id,
       organizationId,
     });
+
+    // DR-055: confirm the request by email straight away -- sent to
+    // Booking.contactEmail (input.email), not the tourist's User.email
+    // (synthetic for an anonymous guest session), so this always uses
+    // notifyEmail rather than notify(). Fire-and-forget, never throws --
+    // a channel outage must never fail the booking itself (charter rule 8).
+    await notificationsService.notifyEmail('TAILOR_MADE_REQUEST_RECEIVED', input.email, locale, organizationId, {
+      bookingId: booking.bookingReference,
+      countries: input.countries,
+      seats: input.seats,
+      travelStart: input.customTravelStart,
+      travelEnd: input.customTravelEnd,
+    });
+
     return booking;
   },
 

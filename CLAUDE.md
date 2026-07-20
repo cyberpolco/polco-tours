@@ -9,63 +9,51 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-20, against repo HEAD `9d8d08c`, pushed -- CI
-> confirmed fully green (Lint/Typecheck/Test/Build + Dependency audit +
-> E2E) on **DR-052** (removing `Booking.confirmationCode` entirely --
-> `/find-booking` is now single-factor by `bookingReference` + the tour
-> lead's last name) -- see `docs/decisions/DECISION_LOG.md`'s DR-052 entry
-> for the full spec. **Not yet committed on top of that**: **DR-053**, two
-> changes requested together in one message -- see DR-053's own entry for
-> the full spec. **(1)** cancelled/refunded bookings are now hidden from
-> both the guest `/find-booking` lookup (`lookupByBookingReference` excludes
-> `CANCELLED`/`REFUNDED` before the last-name check) and the staff
-> `/staff/bookings` default view (still reachable via their own
-> status-filter pills). **(2)** cancelling a booking now regenerates its
-> `bookingReference` (new `bookingRepository.cancelAndReleaseReference`,
-> same collision-retry shape as `createBookingWithUniqueReference`) so the
-> freed code can be drawn by a genuinely new booking instead of staying
-> permanently locked out of the keyspace for a hidden, dead record --
-> the pre-cancel reference is kept for the cancellation notification/audit
-> trail. New tests in `tests/booking-lookup.test.ts` (cancelled booking's
-> old reference stops resolving) and `tests/api/bookings-v2.api.test.ts`
-> (cancel response returns a changed `bookingReference`). No schema/RLS
-> change; `lint`/`typecheck` clean, not yet pushed for a real CI run.
-> **Also on top of that, same uncommitted batch:** back arrows added to
-> every step of the guest package-booking wizard (Add-ons and Passport
-> previously had none) with no loss of already-entered data going back --
-> the Travelers step's own forced forward-redirect-when-complete was
-> replaced with a read-only review screen so a back link from Passport
-> doesn't just bounce forward again; applied identically to the parallel
-> staff wizard; `/plan-my-trip`'s first step (previously the only one with
-> no back control) gained a plain link back to the homepage. **DR-054**,
-> also in this batch, closes the last item from the same two-message
-> request: a guest booking a `PREDEFINED_PACKAGE` now picks their own travel
-> start date, which actually creates the `Departure` (new
-> `catalogService.createDepartureForBooking`/`bookingService
-> .createHoldWithDates`, new guest route `/book-package/[packageId]` that
-> `/packages/[packageId]` now links to) instead of joining one from a
-> staff-pre-scheduled list -- purely additive, `/book/[departureId]` and
-> `CreateBookingInput`/`createHold` are untouched and still power staff's
-> own booking flow. **Revised the same day, per explicit user correction**:
-> trip length is staff-set (`TourPackage.durationDays`, already existed as an
-> optional package field, set on the package create/edit form) -- the guest
-> never picks an end date at all, only a start date; the server computes
-> `endDate` from `startDate + durationDays` (new pure
+> Last updated: 2026-07-20, against repo HEAD `949dd91`, pushed. `9d8d08c`
+> (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
+> fully green on real CI. **DR-053** (hide cancelled/refunded bookings from
+> both the guest `/find-booking` lookup and the staff `/staff/bookings`
+> default view, via new `CLOSED_BOOKING_STATUSES`/`HIDDEN_BY_DEFAULT`; cancel
+> now regenerates `bookingReference` via new
+> `bookingRepository.cancelAndReleaseReference` so the freed code re-enters
+> the keyspace), the guest wizard back-arrows batch, and the original
+> **DR-054** (guest-chosen departure dates) all shipped together in commit
+> `60530c4` -- see each DR's own entry in
+> `docs/decisions/DECISION_LOG.md` for the full spec.
+> **DR-054 was then revised same-session** (commit `949dd91`), per explicit
+> user correction: trip length is staff-set (`TourPackage.durationDays`, an
+> already-existing optional package field, set on the package create/edit
+> form) -- the guest never picks an end date at all, only a start date; the
+> server computes `endDate` from `startDate + durationDays` (new pure
 > `catalogService`/`domain.computeDepartureEndDate`). A package now also
 > needs `durationDays` set (alongside a price) before `updatePackage` will
 > let staff publish it, and before the guest package page/booking page treat
 > it as bookable -- same grandfathered-nullable-until-set precedent as
 > `priceMinor` (DR-039). `CreateBookingWithDatesInput` dropped its `endDate`
-> field/refine entirely. Commit `60530c4` had shipped the original
-> guest-picks-both-dates version; this revision landed as a follow-up in the
-> same working session, both now pushed together. New domain + DB-backed
-> tests (the pure-domain ones green; the DB-backed
-> `tests/booking-guest-dates.test.ts` hit the documented intermittent
-> Prisma-to-Neon connectivity gotcha this session -- confirmed transient via
-> a bare `tsx` script that also failed momentarily, while `psql` connected
-> fine -- needs a real CI run). No schema/RLS change (`durationDays` already
-> existed on `TourPackage`); `lint`/`typecheck` clean. Also records the
-> DR-034 Immigration Module/Country
+> field/refine entirely.
+> **Not yet committed on top of that**: **DR-055**, a real Resend
+> confirmation email sent the moment a guest submits a `/plan-my-trip`
+> (TAILOR_MADE) request -- see DR-055's own entry for the full spec. New
+> `NotificationEvent` `TAILOR_MADE_REQUEST_RECEIVED` (EN/FR templates) and a
+> new `notificationsService.notifyEmail(event, email, locale, organizationId,
+> data)` that sends straight to an explicit address instead of resolving one
+> from a `User` row -- necessary because `Booking.contactEmail` (the guest's
+> real, typed-in address) is deliberately not `User.email` (synthetic for an
+> anonymous guest session, per DR-047's own reasoning).
+> `bookingService.createTailorMadeRequest` now takes an optional `locale`
+> param (default `EN`, read from the guest site's `locale` cookie, DR-023,
+> by the `/plan-my-trip` Server Action) and fires the email after creating
+> the booking. Real, working `RESEND_API_KEY` credentials already exist in
+> `.env`/`.env.local` (confirmed live with a direct curl smoke test against
+> Resend's `delivered@resend.dev` test address) -- OI-05 can likely be
+> considered resolved, pending the human confirming that's their intended
+> production key; `RESEND_FROM_EMAIL` is still unset so it sends from
+> Resend's own `onboarding@resend.dev` until a real domain is verified.
+> `lint`/`typecheck` clean, pure-domain + gateway-mocked API tests green;
+> `tests/api/bookings-v2.api.test.ts`'s DB-backed suite hit the documented
+> intermittent Prisma-to-Neon connectivity gotcha this session (confirmed
+> transient -- `psql` connected fine on the same credentials) -- needs a
+> real CI run. Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
 > unscoped `deleteMany({})` calls) that wiped the real `users` table twice
@@ -2111,8 +2099,38 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `psql` connected fine) -- needs a real CI run. No schema/RLS change
   (`durationDays` already existed on `TourPackage`); `lint`/`typecheck`
   clean.
-- **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
-  real Starlink API integration (OI-09), and CRM.
+- **Trip-request confirmation email, DR-055 (2026-07-20, same session,
+  uncommitted):** the first real, live-tested notification send in this
+  codebase -- every prior notification event (DR-013 onward) shipped
+  env-gated against credentials that didn't exist yet (OI-05/06/07);
+  `.env`/`.env.local` already had a real `RESEND_API_KEY` sitting unused,
+  confirmed working with a direct curl call to Resend's own test address
+  before writing any code. New `NotificationEvent.TAILOR_MADE_REQUEST_RECEIVED`
+  (EN/FR templates: destination countries, traveler count, travel dates, and
+  the `bookingReference` the guest needs for `/find-booking`, DR-052) fires
+  from `bookingService.createTailorMadeRequest` right after a `/plan-my-trip`
+  submission. New `notificationsService.notifyEmail(event, email, locale,
+  organizationId, data)` -- sends straight to an explicit address via only
+  the EMAIL gateway (no WhatsApp/SMS fallback possible without a phone
+  number), bypassing the existing `notify()`'s `User`-row lookup entirely,
+  because the guest's real address is `Booking.contactEmail`, never
+  `User.email` (synthetic for an anonymous session, DR-047). Locale is
+  read from the guest site's own `locale` cookie (DR-023) by the
+  `/plan-my-trip` Server Action and passed through as a plain parameter --
+  the notifications module still has no cookie/session access of its own.
+  New `tests/api/bookings-v2.api.test.ts` case (asserts the mocked EMAIL
+  gateway is called with the guest's typed address + the real
+  `bookingReference` + the selected countries) and new
+  `tests/notifications.domain.test.ts` render coverage for the new event.
+  `lint`/`typecheck` clean; pure-domain + gateway-mocked tests green;
+  `tests/api/bookings-v2.api.test.ts`'s DB-backed suite hit the documented
+  Prisma-to-Neon connectivity gotcha this session -- needs a real CI run.
+  No schema/RLS change.
+- **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
+  Starlink API integration (OI-09), and CRM. Email (Resend) and SMS
+  (Africa's Talking) both appear to already have real credentials sitting
+  in `.env`/`.env.local` as of DR-055 -- see OI-05/OI-07's own updated
+  entries.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
   (DR-029, explicit user choice) -- real ML/AI-driven assignment and
   analytics remain open.
@@ -2569,7 +2587,19 @@ guest route `/book-package/[packageId]` that `/packages/[packageId]` now
 links to. Purely additive: `/book/[departureId]`,
 `CreateBookingInput`/`createHold`, and `POST /api/v1/bookings` are
 untouched and still used by staff's own booking-creation flow and any
-other API consumer. No schema/RLS change.
+other API consumer. No schema/RLS change · DR-055 sends a real confirmation
+email the moment a guest submits a `/plan-my-trip` (TAILOR_MADE) request --
+the first live-tested notification send in this codebase (every prior
+event shipped env-gated against not-yet-provisioned credentials). New
+`NotificationEvent.TAILOR_MADE_REQUEST_RECEIVED` (EN/FR) and new
+`notificationsService.notifyEmail(event, email, locale, organizationId,
+data)`, which sends to an explicit address via the EMAIL gateway only,
+bypassing `notify()`'s `User`-row lookup -- required because the guest's
+real address is `Booking.contactEmail`, never the anonymous session's
+synthetic `User.email` (DR-047). `bookingService.createTailorMadeRequest`
+gained an optional `locale` param (default `EN`), read from the guest
+site's `locale` cookie (DR-023) by the `/plan-my-trip` Server Action. No
+schema/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
@@ -2584,9 +2614,24 @@ other API consumer. No schema/RLS change.
   document upload feature exists until Phase 2); this just unblocks Phase 0
   close.
 - **OI-05** Resend account + API key. Blocks real email notifications.
+  **Update 2026-07-20:** a real, working `RESEND_API_KEY` is already sitting
+  in `.env`/`.env.local` and was confirmed live this session (a direct curl
+  smoke test against Resend's own `delivered@resend.dev` test address
+  returned a real message id). Left this item open rather than striking it
+  outright since nobody has confirmed in-conversation that this is the
+  founder's intended *production* key/account (vs. a personal/test one) or
+  that `RESEND_FROM_EMAIL` should stay `onboarding@resend.dev` rather than a
+  verified `polcotours.com` sender — a human should confirm both before this
+  is struck as resolved.
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number). Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking account + API key. Blocks real SMS notifications.
+  **Update 2026-07-20:** `AFRICAS_TALKING_API_KEY`/`AFRICAS_TALKING_USERNAME`
+  are also already populated in `.env`/`.env.local` with real-looking
+  (non-placeholder) values -- noticed incidentally while investigating
+  Resend for DR-055, not independently verified live the way the Resend key
+  was. Left open for the same reason as OI-05's update: nobody has
+  confirmed in-conversation this is the intended production account.
 - ~~**OI-08** `BLOB_READ_WRITE_TOKEN` provisioning.~~ Resolved 2026-07-09:
   `polco-tours-documents` Blob store (`fra1`, private) created, connected to
   Production/Preview/Development on Vercel, and set as a `cyberpolco/

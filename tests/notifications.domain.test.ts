@@ -43,4 +43,36 @@ describe('notifications domain', () => {
       expect(renderMessage('PAYMENT_FAILED', 'EN', DATA).body).toContain('44.00');
     });
   });
+
+  // DR-055: fires on /plan-my-trip (TAILOR_MADE) request creation, sent via
+  // notifyEmail straight to Booking.contactEmail.
+  describe('TAILOR_MADE_REQUEST_RECEIVED', () => {
+    const tripData = {
+      bookingId: 'N9M0W8',
+      countries: ['NA', 'ZM'],
+      seats: 3,
+      travelStart: new Date('2027-03-10T00:00:00Z'),
+      travelEnd: new Date('2027-03-17T00:00:00Z'),
+    };
+
+    it('renders distinct, non-empty EN and FR bodies', () => {
+      const en = renderMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData);
+      const fr = renderMessage('TAILOR_MADE_REQUEST_RECEIVED', 'FR', tripData);
+      expect(en.body.length).toBeGreaterThan(0);
+      expect(fr.body.length).toBeGreaterThan(0);
+      expect(en.body).not.toBe(fr.body);
+    });
+
+    it('includes the booking reference and destination countries', () => {
+      const { body } = renderMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData);
+      expect(body).toContain('N9M0W8');
+      expect(body).toContain('NA, ZM');
+      expect(body).toContain('3');
+    });
+
+    it('falls back to placeholder text when countries/dates are missing', () => {
+      const { body } = renderMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', { bookingId: 'N9M0W8' });
+      expect(body).toContain('Not yet specified');
+    });
+  });
 });

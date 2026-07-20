@@ -1,6 +1,7 @@
 // notifications module — service. Business logic; orchestrates the auth
 // module + gateways. Callable by other modules ONLY through index.ts
 // (module boundary rule).
+import type { Locale } from '@prisma/client';
 import { authService } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { logger, newTraceId } from '@lib/logger';
@@ -68,5 +69,44 @@ export const notificationsService = {
       metadata: { event, attemptedChannels: order },
     });
     log.error('notification failed on all channels', { event, recipientUserId });
+  },
+
+  /**
+   * DR-055: sends straight to an explicit email address rather than
+   * resolving one from a User row -- for an anonymous guest session (e.g.
+   * a fresh /plan-my-trip TAILOR_MADE request), User.email is a synthetic
+   * placeholder, not somewhere a real reply can land; the real address is
+   * booking-scoped (Booking.contactEmail). No WHATSAPP/SMS fallback is
+   * possible without a phone number, so this only ever tries EMAIL -- same
+   * fire-and-forget, never-throws contract as notify() (charter rule 8).
+   */
+  async notifyEmail(
+    event: NotificationEvent,
+    email: string,
+    locale: Locale,
+    organizationId: string,
+    data: NotificationData,
+  ): Promise<void> {
+    const log = logger(newTraceId());
+    const message = renderMessage(event, locale, data);
+
+    try {
+      const { providerRef } = await gateways.EMAIL.send({ to: email, subject: message.subject, body: message.body });
+      await audit({
+        action: 'notification.sent',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, channel: 'EMAIL', providerRef },
+      });
+      log.info('notification sent', { event, channel: 'EMAIL' });
+    } catch (err) {
+      await audit({
+        action: 'notification.failed',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, attemptedChannels: ['EMAIL'] },
+      });
+      log.error('notification failed', { event, channel: 'EMAIL', message: err instanceof Error ? err.message : String(err) });
+    }
   },
 };

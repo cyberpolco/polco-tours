@@ -100,6 +100,35 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(body.booking.preferredCountries).toEqual(['NA']);
   }, 30_000);
 
+  // DR-055: a confirmation email fires immediately, to Booking.contactEmail
+  // (the guest-typed address) not the anonymous session's synthetic
+  // User.email -- summarizing the request and calling out the reference the
+  // guest will need for /find-booking (DR-052) and to accept a quotation.
+  it('sends a confirmation email to Booking.contactEmail summarizing the request', async () => {
+    const headers = await loginAs(touristAId);
+    const email = `plan-my-trip-notify-${Date.now()}@example.test`;
+    const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
+      countries: ['NA', 'ZM'],
+      email,
+      customTravelStart: '2027-03-10',
+      customTravelEnd: '2027-03-17',
+      seats: 3,
+    });
+    notificationSendMock.mockClear();
+    const res = await createTailorMade(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+
+    expect(notificationSendMock).toHaveBeenCalledTimes(1);
+    expect(notificationSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: email,
+        body: expect.stringContaining(body.booking.bookingReference),
+      }),
+    );
+    expect(notificationSendMock).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining('NA, ZM') }));
+  }, 30_000);
+
   // DR-046: the merged "plan my trip" form's preference questions (old
   // quiz tags/sites) are carried onto the booking as staff context, not
   // used for any package matching/scoring anymore.
