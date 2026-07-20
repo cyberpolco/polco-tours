@@ -13,24 +13,30 @@ interface Props {
   // refresh/re-open doesn't reset the window.
 }
 
+function secondsRemaining(createdAt: string): number {
+  const deadline = new Date(createdAt).getTime() + CANCEL_WINDOW_MS;
+  return Math.max(Math.ceil((deadline - Date.now()) / 1000), 0);
+}
+
 // Guest-facing "oops, I made a mistake" grace period on a freshly-submitted
 // trip request: Cancel request is only offered for 30s after the booking
-// was created; past that, this swaps to a plain way back to the homepage
-// instead. Timed off Booking.createdAt (server truth), not this component's
-// own mount time -- ticks down live via a client timer so a guest sitting on
-// the page sees the swap happen without needing to reload.
+// was created, counting down live so the guest can see it running out;
+// past that, this swaps to a plain way back to the homepage instead. Timed
+// off Booking.createdAt (server truth), not this component's own mount
+// time, so a refresh/re-open doesn't reset the window.
 export function CancelRequestButton({ bookingId, createdAt }: Props) {
-  const elapsed = () => Date.now() - new Date(createdAt).getTime();
-  const [expired, setExpired] = useState(() => elapsed() >= CANCEL_WINDOW_MS);
+  const [secondsLeft, setSecondsLeft] = useState(() => secondsRemaining(createdAt));
 
   useEffect(() => {
-    if (expired) return;
-    const timer = setTimeout(() => setExpired(true), Math.max(CANCEL_WINDOW_MS - elapsed(), 0));
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createdAt, expired]);
+    const timer = setInterval(() => {
+      const remaining = secondsRemaining(createdAt);
+      setSecondsLeft(remaining);
+      if (remaining <= 0) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [createdAt]);
 
-  if (expired) {
+  if (secondsLeft <= 0) {
     return (
       <LinkButton href="/" variant="secondary">
         Return home
@@ -41,7 +47,7 @@ export function CancelRequestButton({ bookingId, createdAt }: Props) {
   return (
     <form action={cancelBookingAction.bind(null, bookingId)}>
       <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-        Cancel request
+        Cancel request ({secondsLeft}s)
       </SubmitButton>
     </form>
   );

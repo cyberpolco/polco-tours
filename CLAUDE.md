@@ -2133,25 +2133,27 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   `tests/api/bookings-v2.api.test.ts`'s DB-backed suite hit the documented
   Prisma-to-Neon connectivity gotcha this session -- needs a real CI run.
   No schema/RLS change.
-- **"Cancel request" gets a 30-second grace period (2026-07-20, same
-  session, uncommitted):** on the fresh-TAILOR_MADE-inquiry confirmation
-  screen only (`/booking/[bookingId]`'s `AWAITING_QUOTATION`/
-  `QUOTATION_SENT` block) -- the other "Cancel booking" button further down
-  the same file, on the post-setup invoice/payment screen, is untouched.
-  New client component `cancel-request-button.tsx`: for 30 seconds after
-  `Booking.createdAt` (server truth, not this component's own mount time,
-  so a reload/re-open doesn't reset the window) it renders the existing
-  Cancel request form; past that it swaps to a plain "Return home"
-  (`LinkButton` to `/`) -- ticks over live via a client-side `setTimeout`
-  if the guest is still sitting on the page, no reload needed. UI-only, no
-  server-side enforcement of the window (the cancel action itself is still
-  governed purely by `CANCELLABLE_STATUSES`/the domain's own transition
-  table, unchanged) -- this is a guest affordance, not a new security/
-  business rule, so no DR entry. `lint`/`typecheck` clean; could not be
-  visually verified in a real browser against a live booking this session
-  (the documented Prisma-to-Neon connectivity gotcha blocked creating one)
-  -- a human should click through the 30s swap in a real browser before
-  fully trusting the timing.
+- **"Cancel request" gets a 30-second grace period, with a live countdown
+  (2026-07-20, same session, commits `97cd75f` + a same-day follow-up):**
+  on the fresh-TAILOR_MADE-inquiry confirmation screen only
+  (`/booking/[bookingId]`'s `AWAITING_QUOTATION`/`QUOTATION_SENT` block) --
+  the other "Cancel booking" button further down the same file, on the
+  post-setup invoice/payment screen, is untouched. New client component
+  `cancel-request-button.tsx`: for 30 seconds after `Booking.createdAt`
+  (server truth, not this component's own mount time, so a reload/re-open
+  doesn't reset the window) it renders the Cancel request button labeled
+  with the seconds remaining (`Cancel request (23s)`, via a `setInterval`
+  ticking every second); once the countdown reaches 0 it swaps to a plain
+  "Return home" (`LinkButton` to `/`) -- no reload needed if the guest is
+  still sitting on the page. UI-only, no server-side enforcement of the
+  window (the cancel action itself is still governed purely by
+  `CANCELLABLE_STATUSES`/the domain's own transition table, unchanged) --
+  this is a guest affordance, not a new security/business rule, so no DR
+  entry. `lint`/`typecheck` clean; could not be visually verified in a real
+  browser against a live booking this session (the documented
+  Prisma-to-Neon connectivity gotcha blocked creating one) -- a human
+  should click through the countdown/swap in a real browser before fully
+  trusting the timing.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
