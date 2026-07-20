@@ -84,7 +84,12 @@ describe('bookingService.deleteBooking (DR-058)', () => {
   it('rejects a non-SUPERADMIN caller even with booking.delete somehow in their permission set', async () => {
     const bookingId = await createRawBooking('CANCELLED');
     const ctx = ctxFor(operatorId, ['TOUR_OPERATOR'], ['booking.delete']);
-    await expect(bookingService.deleteBooking(ctx, bookingId)).rejects.toThrow();
+    // Passes assertCan (permission is in the set) but isBookingDeleter still
+    // rejects it -- this is the real gate, and it throws a genuine ApiError
+    // via Errors.forbidden().
+    const err = await bookingService.deleteBooking(ctx, bookingId).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
 
     // Confirmed still present, not soft-deleted, via a raw read.
     const row = await withOrg(orgId, (tx) => tx.booking.findUnique({ where: { id: bookingId } }));
@@ -94,9 +99,14 @@ describe('bookingService.deleteBooking (DR-058)', () => {
   it('rejects a caller with no booking.delete permission at all (assertCan itself fails first)', async () => {
     const bookingId = await createRawBooking('CANCELLED');
     const ctx = ctxFor(operatorId, ['TOUR_OPERATOR'], []);
+    // assertCan (rbac.ts) throws a plain Error (`FORBIDDEN: ...`), not an
+    // ApiError -- only the later isBookingDeleter check in deleteBooking
+    // throws a real ApiError via Errors.forbidden(). Route handlers map
+    // assertCan's plain Error to a 403 one layer up (route-guard.ts); a
+    // direct service call in a test sees the raw Error.
     const err = await bookingService.deleteBooking(ctx, bookingId).catch((e) => e);
-    expect(err).toBeInstanceOf(ApiError);
-    expect((err as ApiError).status).toBe(403);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/FORBIDDEN/);
   });
 
   it('SUPERADMIN can soft-delete a booking in ANY status, not just CANCELLED', async () => {
