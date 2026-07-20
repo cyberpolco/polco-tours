@@ -1,7 +1,7 @@
 // booking module — repository. The only place that touches the DB for this module.
 import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
-import { canTransition, generateBookingReference, holdExpiryFrom } from './domain';
+import { BOOKING_DELETION_RETENTION_DAYS, canTransition, generateBookingReference, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
@@ -178,6 +178,15 @@ async function sweepLifecycle(tx: TenantTx): Promise<void> {
       OR ("departureId" IS NULL AND "customTravelEnd" IS NOT NULL AND "customTravelEnd" < now())
     )
   `;
+  // DR-058: same lazy-sweep convention, not a scheduled job -- a
+  // soft-deleted booking (deletedAt set by softDelete) past the retention
+  // window gets permanently purged the next time anything touches this
+  // org's bookings, cascading (via the schema's onDelete: Cascade) to its
+  // Traveler/Invoice/Payment/BookingAddon/Itinerary/RatingCode/Review rows.
+  await tx.$executeRaw`
+    DELETE FROM bookings
+    WHERE "deletedAt" IS NOT NULL AND "deletedAt" < now() - (${BOOKING_DELETION_RETENTION_DAYS} * interval '1 day')
+  `;
 }
 
 // Call only immediately after sweepLifecycle() in the same transaction --
@@ -272,7 +281,7 @@ export const bookingRepository = {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
       const b = await tx.booking.findUnique({ where: { id } });
-      return b ? toBookingView(b) : null;
+      return b && !b.deletedAt ? toBookingView(b) : null;
     });
   },
 
@@ -285,14 +294,14 @@ export const bookingRepository = {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
       const b = await tx.booking.findUnique({ where: { bookingReference } });
-      return b ? toBookingView(b) : null;
+      return b && !b.deletedAt ? toBookingView(b) : null;
     });
   },
 
   async listMine(organizationId: string, touristUserId: string): Promise<BookingView[]> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
-      const rows = await tx.booking.findMany({ where: { touristUserId }, orderBy: { createdAt: 'desc' } });
+      const rows = await tx.booking.findMany({ where: { touristUserId, deletedAt: null }, orderBy: { createdAt: 'desc' } });
       return rows.map(toBookingView);
     });
   },
@@ -300,7 +309,7 @@ export const bookingRepository = {
   async listForOrg(organizationId: string): Promise<BookingView[]> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
-      const rows = await tx.booking.findMany({ orderBy: { createdAt: 'desc' } });
+      const rows = await tx.booking.findMany({ where: { deletedAt: null }, orderBy: { createdAt: 'desc' } });
       return rows.map(toBookingView);
     });
   },
@@ -317,6 +326,7 @@ export const bookingRepository = {
       const rows = await tx.booking.findMany({
         where: {
           departureId,
+          deletedAt: null,
           status: { in: ['DEPOSIT_PAID', 'FULLY_PAID', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED'] },
         },
         include: { travelers: { orderBy: { createdAt: 'asc' } } },
@@ -330,7 +340,7 @@ export const bookingRepository = {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
       const existing = await tx.booking.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       if (!canTransition(existing.status, to)) {
         throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to ${to}`);
       }
@@ -364,7 +374,7 @@ export const bookingRepository = {
         return await withOrg(organizationId, async (tx) => {
           await sweepLifecycle(tx);
           const existing = await tx.booking.findUnique({ where: { id } });
-          if (!existing) return null;
+          if (!existing || existing.deletedAt) return null;
           if (!canTransition(existing.status, 'CANCELLED')) {
             throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to CANCELLED`);
           }
@@ -382,6 +392,25 @@ export const bookingRepository = {
     throw new Error('unreachable');
   },
 
+  /** DR-058: sets `deletedAt`, hiding the booking from every read path in
+   * this module immediately (findById/findByBookingReference/listMine/
+   * listForOrg/listBookingsWithTravelersForDeparture all check it). The
+   * row and everything hanging off it (Traveler/Invoice/Payment/etc.)
+   * stays intact in Postgres until sweepLifecycle's retention purge
+   * removes it `BOOKING_DELETION_RETENTION_DAYS` days later -- soft
+   * delete, not an immediate hard delete, per explicit user choice. No
+   * status restriction: any booking, in any status, can be soft-deleted
+   * (SUPERADMIN-only, enforced in the service). */
+  async softDelete(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const result = await tx.booking.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      return result.count > 0;
+    });
+  },
+
   /** DR-028: attaches the newly-created bespoke Departure (see
    * bookingService.convertToItinerary) to a TAILOR_MADE booking -- from this
    * point on the booking behaves like any other departure-having booking for
@@ -389,7 +418,7 @@ export const bookingRepository = {
   async attachDeparture(organizationId: string, id: string, departureId: string): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.booking.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       const b = await tx.booking.update({ where: { id }, data: { departureId } });
       return toBookingView(b);
     });
@@ -402,7 +431,7 @@ export const bookingRepository = {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
       const existing = await tx.booking.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       if (!canTransition(existing.status, 'QUOTATION_SENT')) {
         throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to QUOTATION_SENT`);
       }

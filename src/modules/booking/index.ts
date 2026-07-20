@@ -3,6 +3,7 @@ export { bookingService } from './service';
 export type { Availability, BillableTotal } from './service';
 export {
   AddTravelerInput,
+  BOOKING_DELETION_RETENTION_DAYS,
   CreateBookingInput,
   CreateBookingWithDatesInput,
   CreateTailorMadeInput,

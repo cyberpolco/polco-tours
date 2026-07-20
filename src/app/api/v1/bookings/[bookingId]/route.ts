@@ -15,3 +15,10 @@ export const GET = withAuth<Params>('booking.read', async (ctx, _req, { bookingI
   const booking = await bookingService.getById(ctx, bookingId);
   return NextResponse.json({ booking });
 });
+
+// DR-058: SUPERADMIN-only, enforced inside bookingService.deleteBooking (the
+// route permission alone isn't the real gate -- see that method's comment).
+export const DELETE = withAuth<Params>('booking.delete', async (ctx, _req, { bookingId }) => {
+  await bookingService.deleteBooking(ctx, bookingId);
+  return new NextResponse(null, { status: 204 });
+});

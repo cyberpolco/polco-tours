@@ -4,11 +4,25 @@
 // directly) to validate Booking.preferredTags against the same tag
 // vocabulary TourPackage.tags uses, rather than hand-duplicating that
 // 7-value tuple in a second module where it could silently drift.
-import type { AddonCode, BookingOrigin, BookingStatus, Currency, PackageTag, Sex } from '@prisma/client';
+import type { AddonCode, BookingOrigin, BookingStatus, Currency, PackageTag, Role, Sex } from '@prisma/client';
 import { z } from 'zod';
 import { PACKAGE_TAGS } from '@modules/catalog';
 
 export const HOLD_DURATION_MINUTES = 30;
+
+// DR-058: a soft-deleted booking (Booking.deletedAt) is permanently purged
+// this many days later, via the same lazy sweepLifecycle convention
+// repository.ts already uses for hold-expiry/status transitions -- no
+// scheduled job exists in this codebase, deliberately.
+export const BOOKING_DELETION_RETENTION_DAYS = 90;
+
+/** Genuinely destructive (unlike every other booking mutation, this has no
+ * status-transition table entry and no way back) -- SUPERADMIN-only, same
+ * "route passes via the DB-editable permission matrix, service still
+ * rejects" layering as isCountryRegulationWriter/isFinanceConfigWriter. */
+export function isBookingDeleter(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN');
+}
 
 // Mirrors the Prisma AddonCode enum -- defined locally rather than imported
 // (unlike PACKAGE_TAGS) since catalog/domain.ts doesn't itself export a

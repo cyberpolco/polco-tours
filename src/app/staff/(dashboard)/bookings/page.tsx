@@ -4,9 +4,11 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { formatOrPending } from '@lib/money';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
+import { deleteBookingAction } from './[bookingId]/actions';
 
 interface Props {
   searchParams: Promise<{ status?: string }>;
@@ -105,9 +107,22 @@ export default async function BookingsPage({ searchParams }: Props) {
                 <Td>{formatOrPending(b.priceMinor, b.currency)}</Td>
                 <Td>{b.createdAt.toLocaleDateString()}</Td>
                 <Td>
-                  <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
-                    View
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
+                      View
+                    </Link>
+                    {/* DR-058: SUPERADMIN-only, any status -- see the detail
+                        page's own comment on why this role check (not just
+                        the route's booking.delete permission) is the real
+                        gate for rendering the control at all. */}
+                    {ctx.roles.includes('SUPERADMIN') && (
+                      <form action={deleteBookingAction.bind(null, b.id)}>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                          Delete
+                        </SubmitButton>
+                      </form>
+                    )}
+                  </div>
                 </Td>
               </Tr>
             ))}

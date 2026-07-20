@@ -82,6 +82,17 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > the documented vitest-specific connectivity quirk (bare `tsx` connects
 > fine, `vitest run` doesn't -- an unresolved sandbox oddity, not a real
 > outage) -- needs a real CI run to fully confirm.
+> Also pushed this session, HEAD now `f47cc0b`: a staff "Confirm & Pay"
+> trip-summary section on `/staff/bookings/[bookingId]`.
+> **Not yet committed on top of that**: **DR-058**, real booking deletion
+> for the staff dashboard -- see DR-058's own Phase-status entry and
+> `docs/decisions/DECISION_LOG.md` for the full spec (soft-delete +
+> 90-day retention purge, SUPERADMIN-only, any status, after two design
+> corrections mid-conversation from an initial "hard delete" choice).
+> Schema (`Booking.deletedAt` + index) applied to the shared Neon DB;
+> `lint`/`typecheck` clean, pure-domain/rbac tests green; the new
+> DB-backed test needs a real CI run (Prisma's engine, not just `vitest`,
+> couldn't reach the DB this time -- confirmed `psql` still could).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2286,6 +2297,53 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   connectivity was intermittent this session) -- a human should click
   through a real staff-created package booking before fully trusting the
   layout.
+- **Booking deletion, DR-058 (2026-07-20, same session, uncommitted):**
+  closes a real gap -- staff had no way to remove a booking from the admin
+  dashboard at all, cancelled or otherwise. Went through two design
+  pivots in conversation before landing: user first chose "real hard
+  delete" (which the schema itself explicitly argues against -- `Booking`
+  deliberately has no `deletedAt`, "booking history must survive
+  cancellation for audit/reconciliation," and a real hard delete cascades
+  onto `Invoice`/`Payment` too, destroying financial records with no
+  soft-delete escape hatch, unlike the packages module's own DR-028
+  precedent of choosing soft delete for exactly this reason), then
+  corrected to soft delete plus a 90-day retention purge once that
+  tradeoff was surfaced; separately widened from "cancelled bookings only"
+  to any booking in any status. Final design: new `Booking.deletedAt`
+  (hides the booking from every read path in `booking/repository.ts`
+  immediately -- `findById`/`findByBookingReference`/`listMine`/
+  `listForOrg`/`listBookingsWithTravelersForDeparture` all check it, same
+  as every mutation method's own `existing` lookup) + a new retention-purge
+  statement folded into the existing `sweepLifecycle` lazy-sweep (no
+  scheduled job exists in this codebase at all, deliberately -- this
+  matches that same convention exactly rather than introducing one).
+  `BOOKING_DELETION_RETENTION_DAYS = 90` (explicit user choice). New
+  `booking.delete` permission -- **never seeded to any role**, same
+  `isCountryRegulationWriter`/`isFinanceConfigWriter` two-layer pattern:
+  the route/service's own `assertCan` is only the first gate, a new
+  `isBookingDeleter(roles)` (`SUPERADMIN` only) in `booking/service.ts` is
+  the real one, so granting `booking.delete` to another role via the
+  runtime-editable permission matrix still wouldn't let them use it. New
+  `bookingService.deleteBooking`, `DELETE /api/v1/bookings/{id}`, and a
+  "Delete" control on both `/staff/bookings` (per row) and
+  `/staff/bookings/{id}` (detail page) -- both render the button only for
+  `ctx.roles.includes('SUPERADMIN')` (country-regulations' own
+  `canWrite` convention), not just whoever passes the route permission.
+  New `tests/booking-delete.test.ts` (own throwaway org, not the shared
+  primary org, since this test creates/soft-deletes/backdates bookings
+  directly): non-SUPERADMIN rejected even with the permission hand-set,
+  SUPERADMIN can delete any status, a deleted booking vanishes from
+  `bookingService.list` immediately, and the retention sweep actually
+  purges a booking backdated past 90 days while leaving a recent one
+  alone. Schema (`Booking.deletedAt` + an index) applied to the shared
+  Neon DB via the same user-pasted `neondb_owner` credential from earlier
+  in this session (reused, not re-requested), verified via `psql \d
+  bookings`. `lint`/`typecheck` clean; pure-domain/rbac tests green;
+  `tests/booking-delete.test.ts` couldn't be run to completion this
+  session -- this time even a bare `tsx` script failed to reach the DB
+  (confirmed `psql` still connects fine on the same credentials, so this
+  is the same documented Prisma-engine-specific gotcha, not a real outage
+  or a code defect) -- needs a real CI run to fully confirm.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

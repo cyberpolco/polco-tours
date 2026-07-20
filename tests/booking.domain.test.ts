@@ -14,6 +14,8 @@ import {
   toTravelerDutyView,
   CreateTailorMadeInput,
   CreateBookingWithDatesInput,
+  isBookingDeleter,
+  BOOKING_DELETION_RETENTION_DAYS,
   type TravelerView,
 } from '../src/modules/booking/domain';
 
@@ -454,6 +456,30 @@ describe('booking domain', () => {
         emergencyContactRelation: 'Spouse',
         isTourLead: true,
       });
+    });
+  });
+
+  // DR-058: hard-to-reverse, SUPERADMIN-only booking deletion.
+  describe('isBookingDeleter', () => {
+    it('is true only for SUPERADMIN', () => {
+      expect(isBookingDeleter(['SUPERADMIN'])).toBe(true);
+    });
+
+    it('is false for every other role, including PLATFORM_ADMIN/TOUR_OPERATOR', () => {
+      expect(isBookingDeleter(['PLATFORM_ADMIN'])).toBe(false);
+      expect(isBookingDeleter(['TOUR_OPERATOR'])).toBe(false);
+      expect(isBookingDeleter(['TOURIST'])).toBe(false);
+      expect(isBookingDeleter([])).toBe(false);
+    });
+
+    it('is true if SUPERADMIN is any one of several held roles', () => {
+      expect(isBookingDeleter(['TOUR_OPERATOR', 'SUPERADMIN'])).toBe(true);
+    });
+  });
+
+  describe('BOOKING_DELETION_RETENTION_DAYS', () => {
+    it('is 90 (explicit user choice, DR-058)', () => {
+      expect(BOOKING_DELETION_RETENTION_DAYS).toBe(90);
     });
   });
 });

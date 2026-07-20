@@ -24,6 +24,7 @@ import {
   cancelBookingAction,
   convertToItineraryAction,
   createItineraryAction,
+  deleteBookingAction,
   issueRatingCodeAction,
   initiatePaymentAction,
   refundBookingAction,
@@ -312,6 +313,18 @@ export default async function BookingDetailPage({ params }: Props) {
               </form>
             )}
           </div>
+          {/* DR-058: SUPERADMIN-only, any status -- the write control itself
+              renders only for SUPERADMIN (same convention as
+              country-regulations' canWrite) since PLATFORM_ADMIN would pass
+              this route's booking.delete permission but still 403 in
+              bookingService.deleteBooking's own isBookingDeleter check. */}
+          {ctx.roles.includes('SUPERADMIN') && (
+            <form action={deleteBookingAction.bind(null, booking.id)}>
+              <SubmitButton variant="secondary" pendingLabel="Deleting…">
+                Delete booking
+              </SubmitButton>
+            </form>
+          )}
         </div>
       </div>
 

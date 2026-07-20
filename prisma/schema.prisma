@@ -529,8 +529,15 @@ model Assignment {
 // flipped AWAITING_DEPOSIT row as not occupying a seat (see booking module).
 // A TAILOR_MADE booking has no departure/capacity to protect, so it never
 // gets a holdExpiresAt even while AWAITING_DEPOSIT.
-// Deliberately no deletedAt: booking history must survive cancellation for
-// audit/reconciliation — status already encodes the lifecycle.
+// Status alone encodes the ordinary lifecycle (cancellation/refund do NOT
+// set deletedAt -- a cancelled booking's history still needs to survive for
+// audit/reconciliation). deletedAt (DR-058) is a separate, explicit,
+// SUPERADMIN-only "delete this booking" action, staff-triggered, never
+// automatic -- it hides the row from every read path in this module
+// immediately, then the row (and everything cascading off it) is
+// permanently purged BOOKING_DELETION_RETENTION_DAYS days later by the
+// same lazy sweepLifecycle convention this module already uses for
+// hold-expiry/status transitions.
 model Booking {
   id                 String        @id @default(uuid()) @db.Uuid
   organizationId     String        @db.Uuid
@@ -604,6 +611,10 @@ model Booking {
   citizenship        String?       @db.VarChar(2)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+  // DR-058: see this model's own doc comment above -- a deliberate,
+  // explicit, SUPERADMIN-only delete action, not an automatic side effect
+  // of cancellation/refund.
+  deletedAt          DateTime?
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departure    Departure?     @relation(fields: [departureId], references: [id], onDelete: Cascade)
@@ -619,6 +630,7 @@ model Booking {
   @@index([departureId])
   @@index([touristUserId])
   @@index([status, holdExpiresAt]) // cheap index scan for the expiry sweep
+  @@index([deletedAt]) // cheap index scan for the retention-purge sweep
   @@map("bookings")
 }
 

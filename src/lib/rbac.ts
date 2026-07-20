@@ -34,6 +34,7 @@ export type Permission =
   | 'booking.read'
   | 'booking.confirm'
   | 'booking.cancel'
+  | 'booking.delete'
   | 'assignment.read'
   | 'assignment.write'
   | 'finance.read'
@@ -111,6 +112,7 @@ export const ALL_PERMISSIONS = [
   'booking.read',
   'booking.confirm',
   'booking.cancel',
+  'booking.delete', // DR-058: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isBookingDeleter in booking/service.ts, same layering as country_regulation.write/platform_settings.write
   'assignment.read',
   'assignment.write',
   'finance.read',

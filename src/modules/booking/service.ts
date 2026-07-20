@@ -12,6 +12,7 @@ import { assertCan } from '@lib/rbac';
 import {
   canAddTraveler,
   computeAvailability,
+  isBookingDeleter,
   isTravelerManifestComplete,
   lastNameMatches,
   toTravelerDutyView,
@@ -367,6 +368,38 @@ export const bookingService = {
       organizationId,
     });
     return updated;
+  },
+
+  /** DR-058: genuinely destructive, unlike every other method here -- no
+   * status-transition table entry, no way back once the retention window
+   * (BOOKING_DELETION_RETENTION_DAYS) passes and sweepLifecycle's purge
+   * runs. SUPERADMIN-only: `assertCan` alone isn't enough, since
+   * `booking.delete` could in principle be granted to another role via the
+   * runtime-editable permission matrix (/staff/admin/permissions) -- the
+   * `isBookingDeleter` check below is the real gate, same "route passes,
+   * service still rejects" layering as isCountryRegulationWriter/
+   * isFinanceConfigWriter. Any booking, any status -- explicit user choice,
+   * not limited to CANCELLED. */
+  async deleteBooking(ctx: AuthContext, bookingId: string): Promise<void> {
+    assertCan(ctx, 'booking.delete');
+    if (!isBookingDeleter(ctx.roles)) {
+      throw Errors.forbidden('Only SUPERADMIN may delete a booking');
+    }
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+
+    const deleted = await bookingRepository.softDelete(organizationId, bookingId);
+    if (!deleted) throw Errors.notFound('Booking not found');
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.deleted',
+      resourceType: 'Booking',
+      resourceId: bookingId,
+      organizationId,
+      metadata: { bookingReference: booking.bookingReference, statusAtDeletion: booking.status },
+    });
   },
 
   /** DR-028: the "Super Admin converts it into an operational itinerary"

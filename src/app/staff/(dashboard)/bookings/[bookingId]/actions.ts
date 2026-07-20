@@ -92,3 +92,13 @@ export async function issueRatingCodeAction(bookingId: string) {
   await ratingsService.issueRatingCode(ctx, bookingId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
+
+// DR-058: genuinely destructive -- SUPERADMIN-only, enforced inside
+// bookingService.deleteBooking (this route-level permission alone isn't the
+// real gate). Redirects rather than revalidating, since the page this
+// action runs from no longer exists once the booking is gone.
+export async function deleteBookingAction(bookingId: string) {
+  const ctx = await requireStaffContext('booking.delete');
+  await bookingService.deleteBooking(ctx, bookingId);
+  redirect('/staff/bookings');
+}

@@ -243,4 +243,14 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('PLATFORM_ADMIN', 'finance_config.write')).toBe(false);
     expect(hasDefault('TOUR_OPERATOR', 'finance_config.write')).toBe(false);
   });
+
+  it('booking.delete is never seeded to any role (DR-058, same layering as finance_config.write/country_regulation.write)', () => {
+    expect(hasDefault('PLATFORM_ADMIN', 'booking.delete')).toBe(false);
+    expect(hasDefault('TOUR_OPERATOR', 'booking.delete')).toBe(false);
+    expect(hasDefault('TOURIST', 'booking.delete')).toBe(false);
+    expect(hasDefault('TOUR_GUIDE', 'booking.delete')).toBe(false);
+    expect(hasDefault('DRIVER', 'booking.delete')).toBe(false);
+    expect(hasDefault('VEHICLE_OWNER', 'booking.delete')).toBe(false);
+    expect(hasDefault('VISA_FACILITATOR', 'booking.delete')).toBe(false);
+  });
 });
