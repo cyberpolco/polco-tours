@@ -2418,6 +2418,29 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   neither of those pushes' builds had actually been confirmed to succeed
   by CI (they did, once the test was fixed and re-run). No schema
   change; `lint`/`typecheck` clean throughout.
+- **"Cancel booking" (post-setup Confirm & Pay screen) gets the same
+  30-second grace window, 2026-07-20, same session, uncommitted:** this
+  is the OTHER cancel button in `/booking/[bookingId]/page.tsx` --
+  distinct from `CancelRequestButton`, which already had this treatment
+  on the earlier TAILOR_MADE-inquiry confirmation screen. New
+  `CancelBookingButton`: same live-countdown mechanic, but timed off
+  `Invoice.createdAt`, not `Booking.createdAt` -- by the time a guest
+  reaches this screen, setup (add-ons/travelers/passport) is already
+  done and the booking itself may be many minutes old, so
+  `Booking.createdAt` would often already be expired before the button
+  ever rendered; the invoice is lazily created exactly when this screen
+  first becomes reachable, so its `createdAt` is the right "you just got
+  here" reference point (still server truth, a reload doesn't reset it).
+  Also deliberately different past expiry: `CancelRequestButton` swaps to
+  a "Return home" link (sensible on a bare confirmation screen with
+  nothing else to do); here, mid setup/payment, there's no sensible
+  redirect, so this just renders the button `disabled` in place with a
+  small explanatory line ("The 30-second cancellation window has
+  passed.") instead of silently going inert with no explanation. UI-only,
+  no change to the underlying cancel transition rules (same as the
+  earlier countdown feature). `lint`/`typecheck` clean; no e2e spec
+  referenced the old static "Cancel booking" text. Could not click
+  through live in a browser this session.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

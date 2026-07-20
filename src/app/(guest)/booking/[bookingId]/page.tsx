@@ -12,7 +12,8 @@ import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
-import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction } from './actions';
+import { acceptQuotationAction, initiatePaymentAction } from './actions';
+import { CancelBookingButton } from './cancel-booking-button';
 import { CancelRequestButton } from './cancel-request-button';
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
@@ -172,11 +173,9 @@ export default async function BookingHomePage({ params }: Props) {
           </div>
         )}
         {CANCELLABLE_STATUSES.includes(booking.status) && (
-          <form action={cancelBookingAction.bind(null, booking.id)} className="mt-4">
-            <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-              Cancel booking
-            </SubmitButton>
-          </form>
+          <div className="mt-4">
+            <CancelBookingButton bookingId={booking.id} invoiceCreatedAt={invoice.createdAt.toISOString()} />
+          </div>
         )}
       </div>
 
