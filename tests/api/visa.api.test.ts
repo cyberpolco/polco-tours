@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 
 // Same Vercel Blob gateway mock convention as tests/api/booking-setup.api.test.ts.
 const { uploadMock, downloadMock } = vi.hoisted(() => ({
@@ -91,8 +91,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

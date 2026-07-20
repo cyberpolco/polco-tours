@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { formatPackageReference } from '@modules/catalog';
-import { generateConfirmationCode } from '@modules/booking';
+import { generateBookingReference } from '@modules/booking';
 import { ratingsService } from '@modules/ratings';
 import { prisma, withOrg } from '../src/lib/db';
 import { ApiError } from '../src/lib/errors';
@@ -9,7 +9,7 @@ import { ApiError } from '../src/lib/errors';
 /**
  * Customer Ratings & Feedback (DR-037) -- full-flow, direct-service-call
  * tests mirroring booking-lookup.test.ts's DR-016 precedent: no ctx/session,
- * bookingReference + Rating Code instead of confirmationCode + last name.
+ * bookingReference + Rating Code instead of bookingReference + last name.
  * Seeds into the real seeded primary org (Lam), same rationale as
  * booking-lookup.test.ts -- ratingsService.lookupForRating/submitRating
  * always resolve getPrimaryOrgId() internally, not a caller-supplied org.
@@ -99,7 +99,7 @@ beforeAll(async () => {
   });
 
   await withOrg(orgId, async (tx) => {
-    bookingReference = generateConfirmationCode();
+    bookingReference = generateBookingReference();
     const booking = await tx.booking.create({
       data: {
         organizationId: orgId,
@@ -109,7 +109,6 @@ beforeAll(async () => {
         status: 'COMPLETED',
         priceMinor: 100000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
         bookingReference,
       },
     });

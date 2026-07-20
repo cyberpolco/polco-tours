@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { generateConfirmationCode } from '@modules/booking';
+import { generateBookingReference } from '@modules/booking';
 import { withOrg, prisma } from '../src/lib/db';
 
 /** Extends the RLS proof to the `reviews` table added in DR-037. */
@@ -24,8 +24,7 @@ async function seedOrgWithReview(name: string): Promise<{ orgId: string; tourist
         organizationId: org.id,
         touristUserId: tourist.id,
         seats: 1,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     const ratingCode = await tx.ratingCode.create({
@@ -71,8 +70,7 @@ beforeAll(async () => {
         organizationId: orgA,
         touristUserId: touristAId,
         seats: 1,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     spareBookingAId = booking.id;

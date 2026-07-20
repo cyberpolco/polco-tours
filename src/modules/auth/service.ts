@@ -25,7 +25,7 @@ export const authService = {
    * never sign up (DR-016), so requiring a pre-existing account here was
    * never consistent with that rule. The created row has no Account/
    * credential row and can never sign in; the client can still find their
-   * booking via bookingService.lookupByConfirmationCode (confirmation code +
+   * booking via bookingService.lookupByBookingReference (booking reference +
    * last name), same as a guest checkout. No internal permission check; the
    * caller (booking.create) already gates. */
   async findOrCreateTouristByEmail(ctx: AuthContext, email: string): Promise<PublicUser> {

@@ -34,7 +34,7 @@ function requireOrg(ctx: AuthContext): string {
 }
 
 // Same threshold/window as booking's own guest-lookup rate limit
-// (lookupByConfirmationCode) -- no real rate-limiting infra exists yet
+// (lookupByBookingReference) -- no real rate-limiting infra exists yet
 // (crude audit-log-backed counter, DR-016).
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
@@ -43,7 +43,7 @@ const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
  * re-derive full eligibility end-to-end (defense in depth against a time
  * gap between a guest viewing the form and submitting it). Throws a single
  * generic 404/409 on any failure, same anti-enumeration posture as
- * bookingService.lookupByConfirmationCode -- never reveal which check
+ * bookingService.lookupByBookingReference -- never reveal which check
  * failed. */
 async function resolveEligibleBooking(
   organizationId: string,
@@ -186,7 +186,7 @@ export const ratingsService = {
     return { organization, drivers, guides };
   },
 
-  /** Public, no-ctx -- mirrors bookingService.lookupByConfirmationCode. */
+  /** Public, no-ctx -- mirrors bookingService.lookupByBookingReference. */
   async lookupForRating(input: RatingCodeLookupInput, ip: string | undefined): Promise<RatingLookupResult> {
     const organizationId = await getPrimaryOrgId();
     const { booking } = await resolveEligibleBooking(organizationId, input, ip);

@@ -2,20 +2,20 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../src/lib/db';
-import { bookingService, generateConfirmationCode } from '../src/modules/booking';
+import { bookingService, generateBookingReference } from '../src/modules/booking';
 import { ApiError } from '../src/lib/errors';
 
 /**
- * Public "find my booking" lookup (DR-016) -- no ctx/session, code + tour
- * lead last name instead. Seeds into the real seeded primary org (Lam),
- * same rationale as tests/catalog-public.test.ts.
+ * Public "find my booking" lookup (DR-016, DR-052) -- no ctx/session,
+ * bookingReference + tour lead last name instead. Seeds into the real
+ * seeded primary org (Lam), same rationale as tests/catalog-public.test.ts.
  */
 const admin = new PrismaClient();
 const suffix = `${Date.now()}`;
 
 let orgId: string;
 let bookingId: string;
-let confirmationCode: string;
+let bookingReference: string;
 let touristId: string;
 let departureId: string;
 let tourPackageId: string;
@@ -48,7 +48,7 @@ beforeAll(async () => {
     });
     departureId = departure.id;
 
-    confirmationCode = generateConfirmationCode();
+    bookingReference = generateBookingReference();
     const booking = await tx.booking.create({
       data: {
         organizationId: orgId,
@@ -57,8 +57,7 @@ beforeAll(async () => {
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
-        confirmationCode,
-        bookingReference: generateConfirmationCode(),
+        bookingReference,
       },
     });
     bookingId = booking.id;
@@ -101,10 +100,10 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('bookingService.lookupByConfirmationCode', () => {
-  it('returns the booking + travelers on a correct code + last name', async () => {
-    const result = await bookingService.lookupByConfirmationCode(
-      { confirmationCode, lastName: 'Fixture' },
+describe('bookingService.lookupByBookingReference', () => {
+  it('returns the booking + travelers on a correct reference + last name', async () => {
+    const result = await bookingService.lookupByBookingReference(
+      { bookingReference, lastName: 'Fixture' },
       '203.0.113.10',
     );
     expect(result.booking.id).toBe(bookingId);
@@ -112,22 +111,22 @@ describe('bookingService.lookupByConfirmationCode', () => {
   });
 
   it('matches the last name case-insensitively', async () => {
-    const result = await bookingService.lookupByConfirmationCode(
-      { confirmationCode, lastName: 'fixture' },
+    const result = await bookingService.lookupByBookingReference(
+      { bookingReference, lastName: 'fixture' },
       '203.0.113.11',
     );
     expect(result.booking.id).toBe(bookingId);
   });
 
-  it('rejects a correct code with the wrong last name (no leak of which part was wrong)', async () => {
+  it('rejects a correct reference with the wrong last name (no leak of which part was wrong)', async () => {
     await expect(
-      bookingService.lookupByConfirmationCode({ confirmationCode, lastName: 'Someone Else' }, '203.0.113.12'),
+      bookingService.lookupByBookingReference({ bookingReference, lastName: 'Someone Else' }, '203.0.113.12'),
     ).rejects.toThrow();
   });
 
-  it('rejects a made-up code', async () => {
+  it('rejects a made-up reference', async () => {
     await expect(
-      bookingService.lookupByConfirmationCode({ confirmationCode: 'NOTREAL1', lastName: 'Fixture' }, '203.0.113.13'),
+      bookingService.lookupByBookingReference({ bookingReference: 'NOTREAL1', lastName: 'Fixture' }, '203.0.113.13'),
     ).rejects.toThrow();
   });
 
@@ -136,12 +135,12 @@ describe('bookingService.lookupByConfirmationCode', () => {
     // Exhaust the limit with wrong-answer attempts...
     for (let i = 0; i < 10; i++) {
       await expect(
-        bookingService.lookupByConfirmationCode({ confirmationCode, lastName: 'Wrong' }, ip),
+        bookingService.lookupByBookingReference({ bookingReference, lastName: 'Wrong' }, ip),
       ).rejects.toThrow();
     }
     // ...then even a CORRECT attempt from that same IP is rejected (429).
     const err = await bookingService
-      .lookupByConfirmationCode({ confirmationCode, lastName: 'Fixture' }, ip)
+      .lookupByBookingReference({ bookingReference, lastName: 'Fixture' }, ip)
       .catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(429);

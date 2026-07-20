@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
-import { generateConfirmationCode } from '../src/modules/booking';
+import { generateBookingReference } from '../src/modules/booking';
 
 /**
  * Extends the Phase 0 RLS proof to the `bookings` table added in Phase 1
@@ -44,8 +44,7 @@ async function seedOrgWithBooking(name: string): Promise<string> {
         organizationId: org.id,
         departureId: departure.id,
         touristUserId: tourist.id,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 2,
         priceMinor: 20000,
         currency: 'USD',
@@ -110,8 +109,7 @@ describe('Row-Level Security: bookings tenant isolation', () => {
             organizationId: orgA,
             departureId: orgADeparture.id,
             touristUserId: orgATourist.id,
-            confirmationCode: generateConfirmationCode(),
-            bookingReference: generateConfirmationCode(),
+            bookingReference: generateBookingReference(),
             seats: 1,
             priceMinor: 100,
             currency: 'USD',

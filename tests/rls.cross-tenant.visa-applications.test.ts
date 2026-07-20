@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
-import { generateConfirmationCode } from '../src/modules/booking';
+import { generateBookingReference } from '../src/modules/booking';
 
 /** Extends the RLS proof to the `visa_applications` table added in DR-019. */
 const admin = new PrismaClient();
@@ -35,8 +35,7 @@ async function seedOrgWithVisaApplication(name: string): Promise<string> {
         organizationId: org.id,
         departureId: departure.id,
         touristUserId: tourist.id,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

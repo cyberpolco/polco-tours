@@ -44,7 +44,7 @@ export interface ReviewView {
 export const RATING_CODE_VALIDITY_DAYS = 30;
 export const RATING_ELIGIBILITY_DELAY_HOURS = 48;
 
-// Same shape as booking's generateConfirmationCode (excludes 0/O/1/I --
+// Same shape as booking's generateBookingReference (excludes 0/O/1/I --
 // unambiguous when read aloud or handwritten) -- duplicated rather than
 // imported since it's a private, unexported detail of booking/domain.ts and
 // this module's `code` column is an independent DB-unique value.

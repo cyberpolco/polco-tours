@@ -69,7 +69,7 @@ export const authRepository = {
    * created, so this person can never sign in (tourists never sign up,
    * DR-016). Exists purely so Booking.touristUserId has a real row to point
    * at; the client can still find their booking via
-   * bookingService.lookupByConfirmationCode, same as a guest checkout. */
+   * bookingService.lookupByBookingReference, same as a guest checkout. */
   async createBareTourist(email: string, organizationId: string): Promise<PublicUser> {
     const u = await prisma.user.create({ data: { email, organizationId } });
     return toPublicUser(u, await resolveRoles(u));

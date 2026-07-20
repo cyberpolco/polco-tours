@@ -549,13 +549,22 @@ export const bookingService = {
     }));
   },
 
-  /** Public "find my booking" lookup (DR-016) -- deliberately NOT ctx-gated,
-   * there is no session for this caller. Two factors (code + tour lead's
-   * last name) stand in for session auth; a crude audit-log-backed rate
-   * limit raises the cost of guessing since no real rate-limiting infra
-   * exists yet. Read-only by design -- no mutating action reachable from
-   * here (staff handle guest-requested changes from the staff dashboard). */
-  async lookupByConfirmationCode(input: LookupBookingInput, ip: string | undefined): Promise<BookingLookupResult> {
+  /** Public "find my booking" lookup (DR-016, DR-052) -- deliberately NOT
+   * ctx-gated, there is no session for this caller. `bookingReference` +
+   * the tour lead's last name together are a *light* anti-enumeration
+   * check, not a real secret -- DR-052 removed the separate confirmationCode
+   * this used to pair with (per explicit user direction: it was confusing
+   * to show two same-format codes with different rules for what's "safe" to
+   * share, so this consolidated onto the one code that was already shown
+   * non-privately everywhere -- staff pages, invoices, this same page).
+   * Practical effect: anyone who's seen a booking's reference (e.g. on a
+   * shared screen, an emailed receipt) and can guess/know the tour lead's
+   * last name can pull up the manifest here. The crude audit-log-backed
+   * rate limit below is the only remaining defense against automated
+   * guessing, since no real rate-limiting infra exists yet. Read-only by
+   * design regardless -- no mutating action reachable from here (staff
+   * handle guest-requested changes from the staff dashboard). */
+  async lookupByBookingReference(input: LookupBookingInput, ip: string | undefined): Promise<BookingLookupResult> {
     const organizationId = await getPrimaryOrgId();
 
     if (ip) {
@@ -570,7 +579,7 @@ export const bookingService = {
       }
     }
 
-    const booking = await bookingRepository.findByConfirmationCode(organizationId, input.confirmationCode);
+    const booking = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
     const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
     const lead = travelers.find((t) => t.isTourLead);
 
@@ -584,14 +593,13 @@ export const bookingService = {
     return { booking, travelers };
   },
 
-  /** Ratings module (DR-037): resolves a booking by its (non-secret)
-   * bookingReference for the guest rating flow -- no ctx, since there is no
-   * session for this caller either. Deliberately named for its one caller,
-   * same convention as getBookingForTraveler (visa)/
-   * listTravelersForDeparture (guides): the ratings service pairs this with
-   * its own RatingCode check for the real two-factor secret, so this alone
-   * reveals nothing sensitive (a bookingReference is already shown to staff
-   * and guests throughout the app, unlike confirmationCode). */
+  /** Ratings module (DR-037): resolves a booking by its bookingReference for
+   * the guest rating flow -- no ctx, since there is no session for this
+   * caller either. Deliberately named for its one caller, same convention as
+   * getBookingForTraveler (visa)/listTravelersForDeparture (guides): the
+   * ratings service pairs this with its own RatingCode check for the real
+   * two-factor secret (RatingCode is single-use and 30-day-expiring, unlike
+   * bookingReference), so this alone reveals nothing sensitive. */
   async getBookingForRating(organizationId: string, bookingReference: string): Promise<BookingView | null> {
     return bookingRepository.findByBookingReference(organizationId, bookingReference);
   },

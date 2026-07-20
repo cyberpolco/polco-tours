@@ -9,35 +9,37 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-19, against repo HEAD `a3aba4b`, pushed -- **DR-050**
-> (package booking-setup wizard restructured, both guest and staff
-> versions: Add-ons now first, a new conditional Passport step gated on
-> Visa Assistance requiring every traveler's passport not just the lead,
-> new tour-lead-only `Traveler.email`/`countryOfResidence`) is fully
-> shipped and its schema is live on the shared Neon DB -- see
-> `docs/decisions/DECISION_LOG.md`'s DR-050 entry for the full spec.
-> **Not yet committed on top of that**: **DR-051**, a guest package-booking
-> flow polish batch, same session -- see DR-051's own entry for the full
-> spec. Departure dates are now staff-only (the package detail page shows
-> one Available/Unavailable slot for the whole package, not a row per
-> departure; `/book/[departureId]`'s heading dropped its raw date too).
-> "Request a quotation" removed entirely (button/action/service method) --
-> removing it surfaced a real pre-existing bug: `domain.ts`'s `TRANSITIONS`
-> table never actually allowed `AWAITING_DEPOSIT -> AWAITING_QUOTATION`, so
-> since DR-049 started enforcing that table strictly, this feature had
-> already been silently 409ing for anyone who tried it. "Your details"
-> (`/book/[departureId]`) now asks First/Last name like `/plan-my-trip`
-> does; those values (name + phone) now prefill the tour lead's fields on
-> the Travelers step via a new `authService.getUser` read + a new
-> `parseE164` helper in `src/lib/country-codes.ts`. Back navigation added:
-> a `←` arrow on Plan My Trip's existing button, new back links on "Your
-> details" and Travelers, and Add-ons is now re-editable if revisited
-> instead of auto-bouncing forward (new `bookingService.listAddons`).
-> No schema/RLS change. `lint`/`typecheck` clean; `tests/booking.domain
-> .test.ts` (54) + new `tests/lib/country-codes.test.ts` (7) green.
-> `tests/api/bookings.security.test.ts` and both e2e specs were updated
-> but couldn't run to completion in this sandbox (the documented
-> persistent Neon connectivity gotcha) -- needs a real CI run.
+> Last updated: 2026-07-19, against repo HEAD `71f05e2`, pushed -- CI
+> confirmed fully green (Lint/Typecheck/Test/Build + Dependency audit +
+> E2E) on **DR-051** (guest package-booking flow polish batch: staff-only
+> departure dates, "Request a quotation" removed, "Your details" first/
+> last name split + tour-lead prefill, back navigation added throughout
+> both wizards) after two real CI-surfaced bugs were found and fixed
+> post-push (a test-isolation gap in `booking-setup.api.test.ts`, and an
+> e2e fixture-ambiguity flake in the Visa Assistance checkbox locator) --
+> see `docs/decisions/DECISION_LOG.md`'s DR-051 entry for the full spec.
+> **Not yet committed on top of that**: **DR-052**, removing
+> `Booking.confirmationCode` entirely -- see DR-052's own entry for the
+> full spec. Per explicit user direction, after they noticed the "Your
+> booking" page showing two different-looking-but-same-format codes with
+> no obvious reason why: `/find-booking` is now single-factor by
+> `bookingReference` + the tour lead's last name (was `confirmationCode` +
+> last name) -- a deliberate, knowing tradeoff, since `bookingReference` is
+> already shown non-privately everywhere (staff pages, invoices), so this
+> measurably weakens the anti-enumeration protection DR-016 originally
+> designed in. `generateConfirmationCode()`/`lookupByConfirmationCode`
+> renamed to `generateBookingReference()`/`lookupByBookingReference`; the
+> "Your reference code" alert on the booking page is gone, replaced by a
+> single, larger `bookingReference` display. Touched 29 test fixture files
+> (mechanical) + a full rewrite of `tests/booking-lookup.test.ts` +
+> `e2e/guest-checkout.spec.ts`. `lint`/`typecheck` clean;
+> `tests/booking.domain.test.ts` (54) green. Schema applied to the shared
+> Neon DB via a user-pasted `neondb_owner` credential (never written to
+> any file) -- `ALTER TABLE "bookings" DROP COLUMN "confirmationCode"` run
+> directly via `psql` against the direct endpoint (Prisma's engine still
+> couldn't reach Neon from this sandbox), confirmed 20 pre-existing
+> bookings all had a value (now permanently gone, as intended) and
+> verified via `psql \d bookings` afterward.
 > Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
@@ -356,12 +358,19 @@ src/
                        #   scorePackagesForQuiz/getQuizResults/QuizAnswers
                        #   (the old quiz's package-matching) are gone, DR-046
     booking/           # Booking (11-value lifecycle, DRAFT->..., DR-027) +
-                       #   confirmationCode/bookingReference, both generated
-                       #   by the same generateConfirmationCode() (DR-045
-                       #   pattern spec: 6 chars, 2-3 non-adjacent unique
-                       #   letters + unique digits) -- NOT the original
-                       #   8-char alphabet code / POL-{year}-{seq} formats
-                       #   DR-016/027 shipped with, both superseded;
+                       #   bookingReference, generated by
+                       #   generateBookingReference() (DR-045 pattern spec:
+                       #   6 chars, 2-3 non-adjacent unique letters + unique
+                       #   digits) -- NOT the original 8-char alphabet code /
+                       #   POL-{year}-{seq} formats DR-016/027 shipped with,
+                       #   both superseded. Also the sole "find my booking"
+                       #   lookup key (+ tour lead last name) since DR-052
+                       #   removed the separate confirmationCode secret this
+                       #   used to coexist with (explicit user choice,
+                       #   knowingly trading away some anti-enumeration
+                       #   protection for no-longer-confusing single-code
+                       #   UX -- bookingReference was already shown
+                       #   non-privately everywhere anyway);
                        #   preferredTags/preferredSites (DR-046) +
                        #   preferredCountries/contactEmail (DR-047) +
                        #   preferredAddons/countryOfResidence/citizenship
@@ -1952,10 +1961,34 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   re-editable if revisited instead of auto-bouncing forward (new
   `bookingService.listAddons`). No schema/RLS change. `lint`/`typecheck`
   clean, `tests/booking.domain.test.ts` (54) + new
-  `tests/lib/country-codes.test.ts` (7) green; `tests/api/bookings
-  .security.test.ts` and both e2e specs updated but unverified this
-  session (same persistent Neon connectivity gotcha) -- needs a real CI
-  run.
+  `tests/lib/country-codes.test.ts` (7) green. **Verified for real this
+  time**: pushed, then real CI (not just this sandbox) surfaced two
+  genuine bugs the sandbox couldn't catch (no reachable Postgres all
+  session) -- a test-isolation gap in `booking-setup.api.test.ts` (a new
+  negative test still triggered a real mocked Blob upload before its 409,
+  throwing off a later `toHaveBeenCalledOnce()`) and an e2e
+  fixture-ambiguity flake (`seedStaffAndBooking`'s Visa Assistance addon
+  accumulated across the file's tests/retries in the same shared org, so
+  a broad label-text locator matched multiple checkboxes). Both fixed in
+  two follow-up pushes; final state is fully CI-green end to end
+  (Lint/Typecheck/Test/Build + Dependency audit + E2E all passing).
+- **`Booking.confirmationCode` removed entirely (DR-052, 2026-07-19):**
+  see the "Last updated" note above and `docs/decisions/DECISION_LOG.md`'s
+  DR-052 entry for the full spec -- per explicit user direction,
+  `/find-booking` is now single-factor by `bookingReference` + the tour
+  lead's last name (a deliberate, informed tradeoff: `bookingReference`
+  is already shown non-privately everywhere, so this weakens the
+  anti-enumeration protection DR-016 originally designed in).
+  `generateConfirmationCode`/`lookupByConfirmationCode` renamed to
+  `generateBookingReference`/`lookupByBookingReference`; the separate
+  "Your reference code" alert on the booking page is gone, folded into a
+  single larger `bookingReference` display. Touched 29 fixture files +
+  a full rewrite of `tests/booking-lookup.test.ts` +
+  `e2e/guest-checkout.spec.ts`. `lint`/`typecheck` clean,
+  `tests/booking.domain.test.ts` (54) green. Schema (`DROP COLUMN
+  confirmationCode`) applied to the shared Neon DB via a user-pasted
+  `neondb_owner` credential -- verified via `psql \d bookings`
+  afterward.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2373,7 +2406,18 @@ asks First/Last name and prefills the tour lead's Travelers-step fields
 from it (new `authService.getUser` read + `parseE164` helper); back
 navigation added to both wizards, with Add-ons now re-editable instead
 of auto-redirecting forward when revisited (new
-`bookingService.listAddons`). No schema/RLS change.
+`bookingService.listAddons`). No schema/RLS change · DR-052 removes
+`Booking.confirmationCode` entirely, per explicit user direction:
+`/find-booking` is now single-factor by `bookingReference` + tour lead
+last name (was `confirmationCode` + last name) -- a knowing tradeoff,
+since `bookingReference` is already shown non-privately everywhere,
+weakening the anti-enumeration protection DR-016 designed in.
+`generateConfirmationCode`/`lookupByConfirmationCode` renamed to
+`generateBookingReference`/`lookupByBookingReference`; the booking
+page's separate "Your reference code" alert is gone, folded into one
+larger `bookingReference` display. Schema (`DROP COLUMN
+confirmationCode`) applied to the shared Neon DB via a user-pasted
+`neondb_owner` credential.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

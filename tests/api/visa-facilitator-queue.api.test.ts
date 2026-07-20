@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 
 const { GET: getFacilitatorQueue } = await import('../../src/app/api/v1/visa/queue/route');
 
@@ -61,8 +61,7 @@ beforeAll(async () => {
         origin: 'PREDEFINED_PACKAGE',
         departureId: departure.id,
         touristUserId: touristId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 2,
         priceMinor: 20000,
         currency: 'USD',
@@ -137,8 +136,7 @@ beforeAll(async () => {
         organizationId: orgId,
         origin: 'TAILOR_MADE',
         touristUserId: touristId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         customCountry: 'CD',
         customTravelStart: new Date('2026-11-01'),

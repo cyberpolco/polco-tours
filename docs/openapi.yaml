@@ -23,7 +23,7 @@ info:
     is PAID (POST /bookings/{bookingId}/rating-code, rating.issue); a client
     later rates the assigned driver(s)/guide(s) and the agency overall via a
     public, session-less flow (bookingReference + Rating Code, mirroring the
-    confirmationCode + last-name "find my booking" pattern) -- not exposed
+    bookingReference + last-name "find my booking" pattern) -- not exposed
     as a REST route, only GET /ratings (rating.read, staff moderation/
     aggregate view) is new here. Ratings recompute live average scores on
     DriverProfile/GuideProfile/Organization, which now factor into
@@ -2534,12 +2534,9 @@ components:
           format: date-time
           nullable: true
           description: Set once the add-ons wizard step is submitted (DR-015), even choosing none. Gates invoicing.
-        confirmationCode:
-          type: string
-          description: 8-char random, non-guessable guest-lookup secret (paired with the tour lead's last name).
         bookingReference:
           type: string
-          description: 'Business-facing reference, e.g. POL-2026-000154. Coexists with confirmationCode.'
+          description: 'Business-facing reference, e.g. H0I4O8 (6-char pattern, DR-045). Also the sole "find my booking" lookup key (+ tour lead last name, DR-052) -- the separate confirmationCode secret this used to coexist with was removed.'
         specialRequests: { type: string, nullable: true, maxLength: 1000 }
         customCountry:
           type: string

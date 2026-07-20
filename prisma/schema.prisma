@@ -555,18 +555,15 @@ model Booking {
   // computed once here rather than re-joining BookingAddon -> AddonService
   // on every page render (see domain.isTravelerManifestComplete).
   requiresPassportUpload Boolean   @default(false)
-  // Short, human-typeable lookup code -- generated for every booking (staff
-  // or guest) at creation time, but only ever revealed to a guest once
-  // setup + payment-initiation are complete. Not a security boundary on its
-  // own -- the "find my booking" flow also requires the tour lead's last
-  // name (see bookingService.lookupByConfirmationCode). Pattern (DR-045):
-  // 6 chars, 2-3 non-adjacent unique uppercase letters + unique digits --
-  // see src/modules/booking/domain.ts's generateConfirmationCode.
-  confirmationCode   String        @unique
-  // Business-facing reference, e.g. shown on invoices/receipts -- coexists
-  // with confirmationCode (which stays the non-guessable guest-lookup
-  // secret). Same generateConfirmationCode() pattern as confirmationCode
-  // (DR-045) -- no longer POL-{year}-{seq}; booking_reference_seq is dead.
+  // Business-facing reference, e.g. shown on invoices/receipts and used as
+  // the sole "find my booking" lookup key (+ the tour lead's last name --
+  // see bookingService.lookupByBookingReference). DR-052 removed the
+  // separate confirmationCode secret this coexisted with -- bookingReference
+  // was already shown non-privately everywhere, so keeping both was
+  // confusing without adding real protection. Pattern (DR-045): 6 chars,
+  // 2-3 non-adjacent unique uppercase letters + unique digits -- see
+  // src/modules/booking/domain.ts's generateBookingReference;
+  // booking_reference_seq is dead (superseded by that same DR-045 change).
   bookingReference   String        @unique
   specialRequests    String?       @db.VarChar(1000)
   // TAILOR_MADE-only fields (all null/empty for a PREDEFINED_PACKAGE booking).

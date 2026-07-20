@@ -1,7 +1,7 @@
 // booking module — repository. The only place that touches the DB for this module.
 import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
-import { canTransition, generateConfirmationCode, holdExpiryFrom } from './domain';
+import { canTransition, generateBookingReference, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
 
 export class SoldOutError extends Error {}
@@ -62,7 +62,6 @@ function toBookingView(b: Booking): BookingView {
     currency: b.currency,
     addonsFinalizedAt: b.addonsFinalizedAt,
     requiresPassportUpload: b.requiresPassportUpload,
-    confirmationCode: b.confirmationCode,
     bookingReference: b.bookingReference,
     specialRequests: b.specialRequests,
     customCountry: b.customCountry,
@@ -122,19 +121,18 @@ function toBookingAddonView(a: BookingAddon): BookingAddonView {
 
 const MAX_CODE_GENERATION_ATTEMPTS = 5;
 
-/** `confirmationCode`/`bookingReference` are both freshly random per booking
- * (see domain.ts's generateConfirmationCode) -- the DB's `@unique`
- * constraint is what actually guarantees no two bookings ever share a code
- * (never silently duplicated), and this retry is what turns a rare
- * collision into an invisible regenerate-and-retry instead of a failed
- * request. At the 77,688,000-combination keyspace this pattern spec
- * produces, a same-attempt collision on 2 independently drawn codes is
- * astronomically unlikely; this exists for correctness, not because
+/** `bookingReference` is freshly random per booking (see domain.ts's
+ * generateBookingReference) -- the DB's `@unique` constraint is what
+ * actually guarantees no two bookings ever share a code (never silently
+ * duplicated), and this retry is what turns a rare collision into an
+ * invisible regenerate-and-retry instead of a failed request. At the
+ * 77,688,000-combination keyspace this pattern spec produces, a collision
+ * is astronomically unlikely; this exists for correctness, not because
  * collisions are expected in practice. */
-async function createBookingWithUniqueCodes(create: (codes: { confirmationCode: string; bookingReference: string }) => Promise<Booking>): Promise<Booking> {
+async function createBookingWithUniqueReference(create: (bookingReference: string) => Promise<Booking>): Promise<Booking> {
   for (let attempt = 1; attempt <= MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
     try {
-      return await create({ confirmationCode: generateConfirmationCode(), bookingReference: generateConfirmationCode() });
+      return await create(generateBookingReference());
     } catch (err) {
       const isLastAttempt = attempt === MAX_CODE_GENERATION_ATTEMPTS;
       if (isLastAttempt || !(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') throw err;
@@ -207,7 +205,7 @@ export const bookingRepository = {
       if (seatsTaken + params.seats > params.capacity) {
         throw new SoldOutError('Not enough seats available on this departure');
       }
-      const b = await createBookingWithUniqueCodes((codes) =>
+      const b = await createBookingWithUniqueReference((bookingReference) =>
         tx.booking.create({
           data: {
             organizationId,
@@ -219,7 +217,7 @@ export const bookingRepository = {
             holdExpiresAt: holdExpiryFrom(new Date()),
             priceMinor: params.priceMinor,
             currency: params.currency,
-            ...codes,
+            bookingReference,
             specialRequests: params.specialRequests,
           },
         }),
@@ -236,7 +234,7 @@ export const bookingRepository = {
     if (!primaryCountry) throw new Error('CreateTailorMadeParams.countries must have at least one entry');
 
     return withOrg(organizationId, async (tx) => {
-      const b = await createBookingWithUniqueCodes((codes) =>
+      const b = await createBookingWithUniqueReference((bookingReference) =>
         tx.booking.create({
           data: {
             organizationId,
@@ -255,7 +253,7 @@ export const bookingRepository = {
             preferredAddons: params.preferredAddons ?? [],
             countryOfResidence: params.countryOfResidence,
             citizenship: params.citizenship,
-            ...codes,
+            bookingReference,
             specialRequests: params.specialRequests,
           },
         }),
@@ -272,21 +270,11 @@ export const bookingRepository = {
     });
   },
 
-  /** Powers the public "find my booking" lookup (DR-016) -- no org context
-   * exists for that caller, so this scans across the primary org the caller
-   * already resolved (confirmationCode is globally unique regardless). */
-  async findByConfirmationCode(organizationId: string, confirmationCode: string): Promise<BookingView | null> {
-    return withOrg(organizationId, async (tx) => {
-      await sweepLifecycle(tx);
-      const b = await tx.booking.findUnique({ where: { confirmationCode } });
-      return b ? toBookingView(b) : null;
-    });
-  },
-
-  /** Ratings module (DR-037): the "Booking ID" half of the guest rating
-   * lookup's two factors (paired with RatingCode). Mirrors
-   * findByConfirmationCode's shape -- no org context exists for that caller
-   * either, so the ratings service resolves the primary org itself first. */
+  /** Powers both the public "find my booking" lookup (DR-016, DR-052) and
+   * the ratings module's guest rating lookup (DR-037, paired with
+   * RatingCode) -- no org context exists for either caller, so this scans
+   * across the primary org the caller already resolved (bookingReference is
+   * globally unique regardless). */
   async findByBookingReference(organizationId: string, bookingReference: string): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);

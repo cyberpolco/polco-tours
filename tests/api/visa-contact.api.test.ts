@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 
 // Same real-notification-send-guard convention as tests/api/bookings.api.test.ts --
 // contactTraveler/requestMissingDocuments (DR-034) call notificationsService.notify
@@ -76,8 +76,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

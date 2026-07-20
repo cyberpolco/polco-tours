@@ -5,8 +5,8 @@ import { seedPublicDeparture } from './helpers/catalog-fixture';
 // authClient.signIn.anonymous() session (not a testUtils()/loginAs()
 // shortcut), a real Vercel Blob passport upload (BLOB_READ_WRITE_TOKEN is
 // wired into this job's env, see .github/workflows/ci.yml), and the
-// confirmation-code lookup after clearing cookies to simulate coming back
-// later on a different visit.
+// bookingReference + last-name lookup (DR-052) after clearing cookies to
+// simulate coming back later on a different visit.
 test.describe('guest checkout (DR-016)', () => {
   test('browse -> book -> setup wizard -> pay -> find my booking later', async ({ page }) => {
     const { departureId, visaAddonServiceId } = await seedPublicDeparture({ capacity: 1 });
@@ -73,24 +73,20 @@ test.describe('guest checkout (DR-016)', () => {
     await expect(page.getByText('YOUR BOOKING')).toBeVisible();
     await page.getByRole('button', { name: 'Pay deposit' }).click();
 
-    await expect(page.getByText('Your reference code:')).toBeVisible();
-    // DR-027 added a second `span.font-mono` on this page for
-    // bookingReference -- only the confirmationCode span also carries
-    // font-semibold, so scope to that combination rather than the
-    // ambiguous bare class. Both codes are the same 6-char pattern (2-3
-    // non-adjacent unique letters + unique digits) since DR-045.
-    const code = await page.locator('span.font-mono.font-semibold').innerText();
-    expect(code).toMatch(/^[A-Z0-9]{6}$/);
-    // The lookup form still takes confirmationCode (`code`, above), but the
-    // result page's heading displays the business-facing bookingReference
-    // instead (DR-027) -- capture it too rather than assume they match.
-    const bookingReference = await page.locator('span.font-mono').first().innerText();
+    await expect(page.getByText('Your booking reference')).toBeVisible();
+    // DR-052: a single bookingReference is the only code shown now (the
+    // separate confirmationCode secret this used to pair with was removed
+    // -- /find-booking is single-factor by bookingReference + last name).
+    // 6-char pattern (2-3 non-adjacent unique letters + unique digits)
+    // since DR-045.
+    const bookingReference = await page.locator('p.font-mono.text-3xl.font-bold').innerText();
+    expect(bookingReference).toMatch(/^[A-Z0-9]{6}$/);
 
     // Simulate coming back later, on what the app must treat as a fresh visit.
     await page.context().clearCookies();
 
     await page.goto('/find-booking');
-    await page.getByLabel('Reference code').fill(code);
+    await page.getByLabel('Booking reference').fill(bookingReference);
     await page.getByLabel("Tour lead's last name").fill('Traveler');
     await page.getByRole('button', { name: 'Find my booking' }).click();
 

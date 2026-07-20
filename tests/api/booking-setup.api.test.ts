@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 
 // Vercel Blob needs a real BLOB_READ_WRITE_TOKEN this repo's CI does not
 // provision (same category of gap as OI-05/06/07 for notification
@@ -92,8 +92,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristAId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 2,
         priceMinor: 20000,
         currency: 'USD',

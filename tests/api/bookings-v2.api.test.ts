@@ -89,7 +89,7 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(body.booking.status).toBe('AWAITING_QUOTATION');
     expect(body.booking.priceMinor).toBeNull();
     // 6-char pattern code (2-3 non-adjacent unique letters + unique digits) --
-    // no longer POL-{year}-{seq}, see domain.ts's generateConfirmationCode.
+    // no longer POL-{year}-{seq}, see domain.ts's generateBookingReference.
     expect(body.booking.bookingReference).toMatch(/^[A-Z0-9]{6}$/);
     // Defaults to empty, not null/undefined, when the guest picks none (DR-046).
     expect(body.booking.preferredTags).toEqual([]);

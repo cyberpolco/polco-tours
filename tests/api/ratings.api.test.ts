@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { generateConfirmationCode } from '@modules/booking';
+import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { POST as issueRatingCode } from '../../src/app/api/v1/bookings/[bookingId]/rating-code/route';
@@ -45,8 +45,7 @@ beforeAll(async () => {
         status: 'COMPLETED',
         priceMinor: 50000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     paidBookingId = paidBooking.id;
@@ -73,8 +72,7 @@ beforeAll(async () => {
         status: 'CONFIRMED',
         priceMinor: 50000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     unpaidBookingId = unpaidBooking.id;

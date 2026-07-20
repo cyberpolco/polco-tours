@@ -136,19 +136,16 @@ export default async function BookingHomePage({ params }: Props) {
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={booking.requiresPassportUpload ? 4 : 3} />
       <div>
         <p className="eyebrow mt-4 text-mist">Your booking</p>
-        <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
-        <p className="mt-1 flex items-center gap-2 text-mist">
+        <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>
+        <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>
+        <p className="mt-2 text-sm text-mist">
+          Keep your last name and this reference handy -- we&apos;ll ask for both any time you contact us, and you can
+          look your booking up again later at /find-booking.
+        </p>
+        <p className="mt-3 flex items-center gap-2 text-mist">
           {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
           {formatOrPending(booking.priceMinor, booking.currency)}
         </p>
-        {payments.length > 0 && (
-          <div className="mt-3">
-            <Alert tone="success">
-              Your reference code: <span className="font-mono font-semibold">{booking.confirmationCode}</span> --
-              keep this to look up your booking later at /find-booking.
-            </Alert>
-          </div>
-        )}
         {booking.status === 'AWAITING_QUOTATION' && (
           <div className="mt-3">
             <Alert tone="success">

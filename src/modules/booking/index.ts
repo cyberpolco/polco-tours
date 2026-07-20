@@ -8,7 +8,7 @@ export {
   LookupBookingInput,
   SendQuotationInput,
   SetAddonsInput,
-  generateConfirmationCode,
+  generateBookingReference,
 } from './domain';
 export type {
   BookingAddonView,

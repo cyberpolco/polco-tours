@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { formatPackageReference } from '@modules/catalog';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
-import { generateConfirmationCode } from '../src/modules/booking';
+import { generateBookingReference } from '../src/modules/booking';
 
 /** Extends the RLS proof to the `booking_addons` table added in DR-015
  * (priced add-on selections, snapshotted from addon_services). */
@@ -36,8 +36,7 @@ async function seedOrgWithBookingAddon(name: string): Promise<string> {
         organizationId: org.id,
         departureId: departure.id,
         touristUserId: tourist.id,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',

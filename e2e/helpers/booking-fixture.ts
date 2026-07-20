@@ -1,4 +1,4 @@
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 import { formatPackageReference } from '@modules/catalog';
 import { prisma, withOrg } from '../../src/lib/db';
 
@@ -55,8 +55,7 @@ export async function seedStaffAndBooking(
         seats,
         priceMinor: 10000 * seats,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         // Raw fixture, not created via bookingService.createHold -- set this
         // explicitly to match what a real hold produces (DR-027 renamed the
         // old HELD status to AWAITING_DEPOSIT), rather than leave it at the
@@ -137,8 +136,7 @@ export async function seedStaffAndCompleteBooking(): Promise<{ staffUserId: stri
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         addonsFinalizedAt: new Date(),
       },
     });

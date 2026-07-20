@@ -8,16 +8,16 @@ import { formatOrPending } from '@lib/money';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
 
 interface Props {
-  searchParams: Promise<{ confirmationCode?: string; lastName?: string }>;
+  searchParams: Promise<{ bookingReference?: string; lastName?: string }>;
 }
 
 export default async function FindBookingResultPage({ searchParams }: Props) {
-  const { confirmationCode, lastName } = await searchParams;
+  const { bookingReference, lastName } = await searchParams;
 
-  if (!confirmationCode || !lastName) {
+  if (!bookingReference || !lastName) {
     return (
       <div className="max-w-sm">
-        <Alert tone="info">Enter a reference code and last name.</Alert>
+        <Alert tone="info">Enter a booking reference and last name.</Alert>
         <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
           ← try again
         </Link>
@@ -29,8 +29,8 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
 
   let result;
   try {
-    result = await bookingService.lookupByConfirmationCode(
-      { confirmationCode: confirmationCode.trim().toUpperCase(), lastName },
+    result = await bookingService.lookupByBookingReference(
+      { bookingReference: bookingReference.trim().toUpperCase(), lastName },
       ip,
     );
   } catch (err) {

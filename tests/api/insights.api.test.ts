@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { formatPackageReference } from '@modules/catalog';
-import { generateConfirmationCode } from '@modules/booking';
+import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getInsights } from '../../src/app/api/v1/insights/route';
@@ -113,8 +113,7 @@ beforeAll(async () => {
         status: 'IN_PROGRESS',
         priceMinor: 100000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     bookingAId = bookingA.id;
@@ -146,8 +145,7 @@ beforeAll(async () => {
         status: 'CONFIRMED',
         priceMinor: 50000,
         currency: 'USD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     bookingBId = bookingB.id;
@@ -178,8 +176,7 @@ beforeAll(async () => {
         seats: 2,
         status: 'AWAITING_QUOTATION',
         customCountry: 'CD',
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
       },
     });
     bookingCId = bookingC.id;

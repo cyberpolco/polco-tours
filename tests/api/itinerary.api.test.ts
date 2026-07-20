@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { formatPackageReference } from '@modules/catalog';
-import { generateConfirmationCode } from '@modules/booking';
+import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getBookingItinerary, POST as createItinerary } from '../../src/app/api/v1/bookings/[bookingId]/itinerary/route';
@@ -72,8 +72,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 2,
         priceMinor: 10000,
         currency: 'USD',

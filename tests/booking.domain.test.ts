@@ -9,7 +9,7 @@ import {
   canAddTraveler,
   hasExactlyOneTourLead,
   isTravelerManifestComplete,
-  generateConfirmationCode,
+  generateBookingReference,
   lastNameMatches,
   toTravelerDutyView,
   CreateTailorMadeInput,
@@ -214,27 +214,27 @@ describe('booking domain', () => {
     });
   });
 
-  describe('generateConfirmationCode', () => {
+  describe('generateBookingReference', () => {
     const LETTER = /[A-Z]/;
     const DIGIT = /[0-9]/;
     const SAMPLE_SIZE = 200;
 
     it('is 6 characters of only uppercase letters and digits', () => {
-      const code = generateConfirmationCode();
+      const code = generateBookingReference();
       expect(code).toHaveLength(6);
       expect(code).toMatch(/^[A-Z0-9]{6}$/);
     });
 
     it('never repeats a character within a single code', () => {
       for (let i = 0; i < SAMPLE_SIZE; i++) {
-        const code = generateConfirmationCode();
+        const code = generateBookingReference();
         expect(new Set(code.split('')).size).toBe(code.length);
       }
     });
 
     it('has exactly 2 or 3 letters, the rest digits', () => {
       for (let i = 0; i < SAMPLE_SIZE; i++) {
-        const chars = generateConfirmationCode().split('');
+        const chars = generateBookingReference().split('');
         const letterCount = chars.filter((c) => LETTER.test(c)).length;
         expect([2, 3]).toContain(letterCount);
         expect(chars.filter((c) => DIGIT.test(c)).length).toBe(6 - letterCount);
@@ -243,7 +243,7 @@ describe('booking domain', () => {
 
     it('never places two letters adjacent to each other', () => {
       for (let i = 0; i < SAMPLE_SIZE; i++) {
-        const chars = generateConfirmationCode().split('');
+        const chars = generateBookingReference().split('');
         for (let pos = 0; pos < chars.length - 1; pos++) {
           if (LETTER.test(chars[pos] ?? '')) expect(LETTER.test(chars[pos + 1] ?? '')).toBe(false);
         }
@@ -251,7 +251,7 @@ describe('booking domain', () => {
     });
 
     it('is not the same every call', () => {
-      const codes = new Set(Array.from({ length: 20 }, () => generateConfirmationCode()));
+      const codes = new Set(Array.from({ length: 20 }, () => generateBookingReference()));
       expect(codes.size).toBeGreaterThan(1);
     });
   });

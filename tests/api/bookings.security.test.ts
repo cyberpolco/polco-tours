@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
-import { generateConfirmationCode } from '../../src/modules/booking';
+import { generateBookingReference } from '../../src/modules/booking';
 
 // Real RESEND_API_KEY/AFRICAS_TALKING_* credentials now exist in .env/.env.local
 // (2026-07-15) and Vitest loads .env automatically -- without this mock,
@@ -79,8 +79,7 @@ beforeAll(async () => {
         organizationId: orgId,
         departureId: departure.id,
         touristUserId: touristAId,
-        confirmationCode: generateConfirmationCode(),
-        bookingReference: generateConfirmationCode(),
+        bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
