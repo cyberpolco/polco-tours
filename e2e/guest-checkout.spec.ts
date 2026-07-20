@@ -43,7 +43,7 @@ test.describe('guest checkout (DR-016)', () => {
     // CI failure this exact ambiguity caused).
     await expect(page).toHaveURL(/\/addons$/);
     await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
-    await page.getByRole('button', { name: 'Finish setup' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page).toHaveURL(/\/travelers\/new$/);
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();

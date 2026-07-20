@@ -60,7 +60,7 @@ export default async function AddonsPage({ params }: Props) {
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
-      <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>
+      <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add your traveler details next.</p>
 
       <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
         {addons.length === 0 ? (
@@ -81,7 +81,7 @@ export default async function AddonsPage({ params }: Props) {
             </SelectableCard>
           ))
         )}
-        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Finish setup'}</SubmitButton>
+        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Continue'}</SubmitButton>
       </form>
     </div>
   );

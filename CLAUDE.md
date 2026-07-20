@@ -2344,6 +2344,22 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   (confirmed `psql` still connects fine on the same credentials, so this
   is the same documented Prisma-engine-specific gotcha, not a real outage
   or a code defect) -- needs a real CI run to fully confirm.
+- **Add-ons step's misleading "Finish setup" copy fixed (2026-07-20, same
+  session, uncommitted):** found via user confusion -- since DR-050 moved
+  Add-ons to the *first* wizard step, its "Selecting none is fine -- just
+  finish setup to continue" helper text and "Finish setup" submit-button
+  label (guest and staff wizards both) read as if this optional step
+  completes the *entire* booking setup. It never did -- the server action
+  always redirects to Travelers next regardless of how many add-ons are
+  picked, and the booking-detail page's `setupComplete` gate already
+  correctly requires travelers/passport too; this was purely a copy bug,
+  confirmed by reading the actual redirect/gating code before touching
+  anything. Reworded to "...continue to add your traveler details next"
+  / button label "Continue" (still "Save changes" when revisiting an
+  already-finalized selection). Updated the two e2e specs that clicked
+  the button by its old accessible name (`guest-checkout.spec.ts`,
+  `staff-dashboard.spec.ts`). No schema/service change. `lint`/
+  `typecheck` clean.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

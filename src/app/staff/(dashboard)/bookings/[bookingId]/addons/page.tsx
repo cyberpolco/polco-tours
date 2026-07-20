@@ -51,7 +51,7 @@ export default async function AddonsPage({ params }: Props) {
         ← back to booking
       </Link>
       <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
-      <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>
+      <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add traveler details next.</p>
 
       <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
         {addons.length === 0 ? (
@@ -72,7 +72,7 @@ export default async function AddonsPage({ params }: Props) {
             </SelectableCard>
           ))
         )}
-        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Finish setup'}</SubmitButton>
+        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Continue'}</SubmitButton>
       </form>
     </div>
   );

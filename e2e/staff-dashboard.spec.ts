@@ -69,7 +69,7 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.getByRole('link', { name: 'Continue setup' }).click();
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/addons`));
     await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
-    await page.getByRole('button', { name: 'Finish setup' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/bookings/${bookingId}/travelers/new`));
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 2' })).toBeVisible();
