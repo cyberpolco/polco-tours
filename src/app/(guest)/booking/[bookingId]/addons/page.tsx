@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -32,6 +33,9 @@ export default async function AddonsPage({ params }: Props) {
   if (!booking.currency) {
     return (
       <div className="max-w-md">
+        <Link href={`/booking/${bookingId}`} className="text-sm text-forest hover:underline">
+          ← back to your booking
+        </Link>
         <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
         <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">Waiting on your quotation</h1>
@@ -50,6 +54,9 @@ export default async function AddonsPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
+      <Link href={`/booking/${bookingId}`} className="text-sm text-forest hover:underline">
+        ← back to your booking
+      </Link>
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>

@@ -13,6 +13,7 @@ import {
   lastNameMatches,
   toTravelerDutyView,
   CreateTailorMadeInput,
+  CreateBookingWithDatesInput,
   type TravelerView,
 } from '../src/modules/booking/domain';
 
@@ -330,6 +331,42 @@ describe('booking domain', () => {
     it('rejects a preferredAddons value outside the known AddonCode vocabulary', () => {
       const result = CreateTailorMadeInput.safeParse({ ...base, preferredAddons: ['NOT_A_REAL_ADDON'] });
       expect(result.success).toBe(false);
+    });
+  });
+
+  // DR-054: guest-chosen dates replace picking a pre-existing Departure.
+  describe('CreateBookingWithDatesInput', () => {
+    const base = {
+      packageId: '11111111-1111-4111-8111-111111111111',
+      startDate: '2027-03-01',
+      endDate: '2027-03-08',
+      seats: 2,
+    };
+
+    it('accepts a valid date range', () => {
+      expect(CreateBookingWithDatesInput.safeParse(base).success).toBe(true);
+    });
+
+    it('rejects an end date on or before the start date', () => {
+      expect(CreateBookingWithDatesInput.safeParse({ ...base, endDate: '2027-03-01' }).success).toBe(false);
+      expect(CreateBookingWithDatesInput.safeParse({ ...base, endDate: '2027-02-25' }).success).toBe(false);
+    });
+
+    it('rejects a non-positive seat count', () => {
+      expect(CreateBookingWithDatesInput.safeParse({ ...base, seats: 0 }).success).toBe(false);
+    });
+
+    it('rejects a malformed packageId', () => {
+      expect(CreateBookingWithDatesInput.safeParse({ ...base, packageId: 'not-a-uuid' }).success).toBe(false);
+    });
+
+    it('accepts the optional touristUserId/specialRequests fields', () => {
+      const result = CreateBookingWithDatesInput.safeParse({
+        ...base,
+        touristUserId: '22222222-2222-4222-8222-222222222222',
+        specialRequests: 'Vegetarian meals please',
+      });
+      expect(result.success).toBe(true);
     });
   });
 

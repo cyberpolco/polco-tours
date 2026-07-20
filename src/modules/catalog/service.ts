@@ -14,6 +14,7 @@ import {
   isPackageVisible,
   type AddonServiceView,
   type CreateBespokeDepartureParams,
+  type CreateDepartureForBookingParams,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
@@ -213,6 +214,50 @@ export const catalogService = {
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
       action: 'catalog.bespoke_departure_created',
+      resourceType: 'Departure',
+      resourceId: departure.id,
+      organizationId,
+    });
+    return departure;
+  },
+
+  /** DR-054: a guest booking a real, published TourPackage now chooses their
+   * own travel dates instead of joining a staff-pre-scheduled Departure --
+   * this creates a brand-new Departure scoped to exactly those dates and
+   * this one booking's seat count (capacity == seats, same "exists for one
+   * group, not public sale" precedent as createBespokeDeparture, DR-028),
+   * inheriting the package's price/currency/country via the normal
+   * TourPackage join (no priceOverrideMinor/customCountry set -- unlike a
+   * bespoke departure, this one has a real tourPackageId). Gated on
+   * catalog.read, not catalog.write -- a TOURIST triggers this themselves as
+   * part of booking, not administering the catalog; the package itself must
+   * already be PUBLISHED and priced, mirroring isBookable's own gate (which
+   * can't be called directly here since it needs a Departure that doesn't
+   * exist yet). */
+  async createDepartureForBooking(
+    ctx: AuthContext,
+    packageId: string,
+    params: CreateDepartureForBookingParams,
+  ): Promise<DepartureView> {
+    assertCan(ctx, 'catalog.read');
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogRepository.findPackageById(organizationId, packageId);
+    if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
+    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null) {
+      throw Errors.conflict('This package is not currently bookable');
+    }
+    if (params.endDate <= params.startDate) {
+      throw Errors.conflict('Travel end date must be after the start date');
+    }
+    const departure = await catalogRepository.createDeparture(organizationId, packageId, {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      capacity: params.capacity,
+    });
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'catalog.departure_created_for_booking',
       resourceType: 'Departure',
       resourceId: departure.id,
       organizationId,

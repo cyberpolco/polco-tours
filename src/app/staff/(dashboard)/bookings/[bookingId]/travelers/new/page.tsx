@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { bookingService } from '@modules/booking';
+import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -26,8 +27,38 @@ export default async function NewTravelerPage({ params }: Props) {
     redirect(`/staff/bookings/${bookingId}/addons`);
   }
 
+  // Same review-instead-of-bounce fix as the guest wizard: this branch only
+  // fires on a revisit after the forward flow (addTravelerAction) already
+  // redirected away once the last traveler was added -- show what's on file
+  // instead of silently redirecting forward again, so the Passport step's
+  // back link actually goes somewhere useful.
   if (travelers.length >= booking.seats) {
-    redirect(booking.requiresPassportUpload ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`);
+    return (
+      <div className="max-w-lg">
+        <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+          ← back to add-ons
+        </Link>
+        <PageHeader eyebrow="Booking setup · Travelers" title={`Travelers (${travelers.length} of ${booking.seats})`} />
+        <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
+        <ul className="mt-4 space-y-2">
+          {travelers.map((t) => (
+            <li key={t.id} className="rounded-survey border border-rule p-3 text-sm">
+              <span className="font-medium text-navy">
+                {t.firstName} {t.lastName}
+              </span>
+              {t.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">Tour lead</span>}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6">
+          <LinkButton
+            href={booking.requiresPassportUpload ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`}
+          >
+            Continue
+          </LinkButton>
+        </div>
+      </div>
+    );
   }
 
   // The very first traveler added is always the tour lead (defaultChecked

@@ -336,6 +336,46 @@ export const bookingRepository = {
     });
   },
 
+  /** Cancelling is the one transition that also retires the booking's
+   * bookingReference -- a cancelled booking is hidden from both the guest
+   * find-booking lookup and the staff dashboard's default list (see
+   * bookingService.lookupByBookingReference / staff/bookings/page.tsx), so
+   * nothing needs its exact code to keep resolving to it; freeing the code
+   * lets a genuinely new booking draw it again instead of it staying
+   * permanently locked out of the ~77.7M-combination keyspace for no
+   * practical benefit. Same collision-retry shape as
+   * createBookingWithUniqueReference. Only the explicit cancel action does
+   * this -- the lazy sweepLifecycle expiry-to-CANCELLED sweep is a bulk raw
+   * SQL statement across possibly many rows at once and deliberately
+   * doesn't (would need a per-row fresh code + per-row collision handling,
+   * real complexity for an automatic background sweep). */
+  async cancelAndReleaseReference(
+    organizationId: string,
+    id: string,
+  ): Promise<{ booking: BookingView; previousReference: string } | null> {
+    for (let attempt = 1; attempt <= MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
+      try {
+        return await withOrg(organizationId, async (tx) => {
+          await sweepLifecycle(tx);
+          const existing = await tx.booking.findUnique({ where: { id } });
+          if (!existing) return null;
+          if (!canTransition(existing.status, 'CANCELLED')) {
+            throw new InvalidTransitionError(`Cannot transition booking from ${existing.status} to CANCELLED`);
+          }
+          const b = await tx.booking.update({
+            where: { id },
+            data: { status: 'CANCELLED', holdExpiresAt: null, bookingReference: generateBookingReference() },
+          });
+          return { booking: toBookingView(b), previousReference: existing.bookingReference };
+        });
+      } catch (err) {
+        const isLastAttempt = attempt === MAX_CODE_GENERATION_ATTEMPTS;
+        if (isLastAttempt || !(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') throw err;
+      }
+    }
+    throw new Error('unreachable');
+  },
+
   /** DR-028: attaches the newly-created bespoke Departure (see
    * bookingService.convertToItinerary) to a TAILOR_MADE booking -- from this
    * point on the booking behaves like any other departure-having booking for

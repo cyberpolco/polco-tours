@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
@@ -152,6 +153,16 @@ export default async function BookingDetailPage({ params }: Props) {
   return (
     <div className="space-y-8">
       <div>
+        {/* Add-ons/travelers/passport stay re-editable up to first payment
+            (setAddons has no status gate) -- the invoice snapshot below is
+            frozen at creation regardless, so hiding this once a payment has
+            actually succeeded avoids inviting an edit that can no longer
+            affect what was billed. */}
+        {booking.status === 'AWAITING_DEPOSIT' && (
+          <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+            ← review setup details
+          </Link>
+        )}
         <PageHeader eyebrow="Booking" title={booking.bookingReference} />
         <p className="mt-1 text-xs text-mist">{booking.origin === 'TAILOR_MADE' ? 'Tailor-made request' : 'Predefined package'}</p>
         <p className="mt-1 flex items-center gap-2 text-mist">

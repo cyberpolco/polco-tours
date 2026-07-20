@@ -71,6 +71,28 @@ export const CreateBookingInput = z.object({
 });
 export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
 
+// DR-054: a guest booking a real, PUBLISHED TourPackage now picks their own
+// travel dates instead of joining a staff-pre-scheduled Departure -- capacity/
+// pricing/scheduling revolve around exactly this booking's dates, much closer
+// to how a TAILOR_MADE request already works (see CreateTailorMadeInput
+// below), except this one DOES have a real packageId from the start (a
+// Departure gets created for it, see catalogService.createDepartureForBooking,
+// rather than staying package-less like a bespoke departure).
+export const CreateBookingWithDatesInput = z
+  .object({
+    packageId: z.string().uuid(),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    seats: z.number().int().positive(),
+    touristUserId: z.string().uuid().optional(),
+    specialRequests: z.string().max(1000).optional(),
+  })
+  .refine((v) => v.endDate > v.startDate, {
+    message: 'Travel end date must be after the start date',
+    path: ['endDate'],
+  });
+export type CreateBookingWithDatesInput = z.infer<typeof CreateBookingWithDatesInput>;
+
 // A bespoke trip request with no pre-existing Departure -- staff price it
 // manually afterward via sendQuotation. `countries` is ISO-3166 alpha-2
 // (same convention as Traveler.nationality), one or more, in the guest's

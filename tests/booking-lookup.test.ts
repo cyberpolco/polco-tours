@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../src/lib/db';
 import { bookingService, generateBookingReference } from '../src/modules/booking';
 import { ApiError } from '../src/lib/errors';
+import type { AuthContext } from '../src/modules/auth/domain';
 
 /**
  * Public "find my booking" lookup (DR-016, DR-052) -- no ctx/session,
@@ -145,4 +146,76 @@ describe('bookingService.lookupByBookingReference', () => {
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).status).toBe(429);
   }, 40_000); // 11 sequential lookups, each running the 3-statement lifecycle sweep (DR-027); this sandbox's Neon latency can exceed the 20s default
+
+  it('DR-053: a cancelled booking is hidden -- its bookingReference stops resolving at all', async () => {
+    // Own booking (not the shared one above) so cancelling it doesn't affect
+    // the other tests in this file, which all assume the fixture booking
+    // stays AWAITING_DEPOSIT throughout.
+    let cancelBookingId: string | undefined;
+    let cancelDepartureId: string | undefined;
+    let cancelReference: string | undefined;
+    try {
+      await withOrg(orgId, async (tx) => {
+        const departure = await tx.departure.create({
+          data: { organizationId: orgId, tourPackageId, startDate: new Date('2027-04-01'), capacity: 5 },
+        });
+        cancelDepartureId = departure.id;
+        cancelReference = generateBookingReference();
+        const booking = await tx.booking.create({
+          data: {
+            organizationId: orgId,
+            departureId: departure.id,
+            touristUserId: touristId,
+            seats: 1,
+            priceMinor: 10000,
+            currency: 'USD',
+            bookingReference: cancelReference,
+          },
+        });
+        cancelBookingId = booking.id;
+        await tx.traveler.create({
+          data: {
+            organizationId: orgId,
+            bookingId: booking.id,
+            firstName: 'ToCancel',
+            lastName: 'Fixture',
+            age: 30,
+            sex: 'X',
+            nationality: 'NA',
+            idOrPassportNumber: `CANCEL-${suffix}`,
+            isTourLead: true,
+          },
+        });
+      });
+
+      // Sanity check: it resolves before cancellation.
+      const before = await bookingService.lookupByBookingReference(
+        { bookingReference: cancelReference!, lastName: 'Fixture' },
+        '203.0.113.20',
+      );
+      expect(before.booking.id).toBe(cancelBookingId);
+
+      const ctx: AuthContext = {
+        userId: touristId,
+        roles: ['TOURIST'],
+        permissions: new Set(['booking.cancel']),
+        organizationId: orgId,
+        sessionId: 'test-session',
+        mustChangePassword: false,
+      };
+      const cancelled = await bookingService.cancel(ctx, cancelBookingId!);
+      expect(cancelled.status).toBe('CANCELLED');
+      expect(cancelled.bookingReference).not.toBe(cancelReference);
+
+      // The OLD reference no longer resolves -- the booking is CANCELLED now,
+      // excluded from lookupByBookingReference's CLOSED_BOOKING_STATUSES.
+      await expect(
+        bookingService.lookupByBookingReference({ bookingReference: cancelReference!, lastName: 'Fixture' }, '203.0.113.21'),
+      ).rejects.toThrow();
+    } finally {
+      if (cancelBookingId) await withOrg(orgId, (tx) => tx.traveler.deleteMany({ where: { bookingId: cancelBookingId } }));
+      if (cancelBookingId) await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { id: cancelBookingId } }));
+      if (cancelDepartureId) await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { id: cancelDepartureId } }));
+    }
+  }, 30_000);
 });

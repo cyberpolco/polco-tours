@@ -4,6 +4,7 @@ import { requireGuestContext } from '@lib/guest-guard';
 import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
+import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
@@ -29,8 +30,42 @@ export default async function NewTravelerPage({ params }: Props) {
     redirect(`/booking/${bookingId}/addons`);
   }
 
+  // The wizard's own forward flow (addTravelerAction) always redirects away
+  // the moment the last traveler is added -- this branch only fires on a
+  // later revisit (e.g. the Passport step's back link). Rather than
+  // silently bouncing forward again (which would make "back" from Passport
+  // a no-op with no way to see what was already entered), show a read-only
+  // review of every traveler already on file -- nothing is re-entered,
+  // edited, or lost by landing here.
   if (travelers.length >= booking.seats) {
-    redirect(booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`);
+    return (
+      <div className="max-w-lg">
+        <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+          ← back to add-ons
+        </Link>
+        <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
+        <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">
+          Travelers ({travelers.length} of {booking.seats})
+        </h1>
+        <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
+        <ul className="mt-4 space-y-2">
+          {travelers.map((t) => (
+            <li key={t.id} className="rounded-survey border border-rule p-3 text-sm">
+              <span className="font-medium text-navy">
+                {t.firstName} {t.lastName}
+              </span>
+              {t.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">Tour lead</span>}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6">
+          <LinkButton href={booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`}>
+            Continue
+          </LinkButton>
+        </div>
+      </div>
+    );
   }
 
   // The very first traveler added is always the tour lead (defaultChecked

@@ -9,37 +9,46 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-19, against repo HEAD `71f05e2`, pushed -- CI
+> Last updated: 2026-07-20, against repo HEAD `9d8d08c`, pushed -- CI
 > confirmed fully green (Lint/Typecheck/Test/Build + Dependency audit +
-> E2E) on **DR-051** (guest package-booking flow polish batch: staff-only
-> departure dates, "Request a quotation" removed, "Your details" first/
-> last name split + tour-lead prefill, back navigation added throughout
-> both wizards) after two real CI-surfaced bugs were found and fixed
-> post-push (a test-isolation gap in `booking-setup.api.test.ts`, and an
-> e2e fixture-ambiguity flake in the Visa Assistance checkbox locator) --
-> see `docs/decisions/DECISION_LOG.md`'s DR-051 entry for the full spec.
-> **Not yet committed on top of that**: **DR-052**, removing
-> `Booking.confirmationCode` entirely -- see DR-052's own entry for the
-> full spec. Per explicit user direction, after they noticed the "Your
-> booking" page showing two different-looking-but-same-format codes with
-> no obvious reason why: `/find-booking` is now single-factor by
-> `bookingReference` + the tour lead's last name (was `confirmationCode` +
-> last name) -- a deliberate, knowing tradeoff, since `bookingReference` is
-> already shown non-privately everywhere (staff pages, invoices), so this
-> measurably weakens the anti-enumeration protection DR-016 originally
-> designed in. `generateConfirmationCode()`/`lookupByConfirmationCode`
-> renamed to `generateBookingReference()`/`lookupByBookingReference`; the
-> "Your reference code" alert on the booking page is gone, replaced by a
-> single, larger `bookingReference` display. Touched 29 test fixture files
-> (mechanical) + a full rewrite of `tests/booking-lookup.test.ts` +
-> `e2e/guest-checkout.spec.ts`. `lint`/`typecheck` clean;
-> `tests/booking.domain.test.ts` (54) green. Schema applied to the shared
-> Neon DB via a user-pasted `neondb_owner` credential (never written to
-> any file) -- `ALTER TABLE "bookings" DROP COLUMN "confirmationCode"` run
-> directly via `psql` against the direct endpoint (Prisma's engine still
-> couldn't reach Neon from this sandbox), confirmed 20 pre-existing
-> bookings all had a value (now permanently gone, as intended) and
-> verified via `psql \d bookings` afterward.
+> E2E) on **DR-052** (removing `Booking.confirmationCode` entirely --
+> `/find-booking` is now single-factor by `bookingReference` + the tour
+> lead's last name) -- see `docs/decisions/DECISION_LOG.md`'s DR-052 entry
+> for the full spec. **Not yet committed on top of that**: **DR-053**, two
+> changes requested together in one message -- see DR-053's own entry for
+> the full spec. **(1)** cancelled/refunded bookings are now hidden from
+> both the guest `/find-booking` lookup (`lookupByBookingReference` excludes
+> `CANCELLED`/`REFUNDED` before the last-name check) and the staff
+> `/staff/bookings` default view (still reachable via their own
+> status-filter pills). **(2)** cancelling a booking now regenerates its
+> `bookingReference` (new `bookingRepository.cancelAndReleaseReference`,
+> same collision-retry shape as `createBookingWithUniqueReference`) so the
+> freed code can be drawn by a genuinely new booking instead of staying
+> permanently locked out of the keyspace for a hidden, dead record --
+> the pre-cancel reference is kept for the cancellation notification/audit
+> trail. New tests in `tests/booking-lookup.test.ts` (cancelled booking's
+> old reference stops resolving) and `tests/api/bookings-v2.api.test.ts`
+> (cancel response returns a changed `bookingReference`). No schema/RLS
+> change; `lint`/`typecheck` clean, not yet pushed for a real CI run.
+> **Also on top of that, same uncommitted batch:** back arrows added to
+> every step of the guest package-booking wizard (Add-ons and Passport
+> previously had none) with no loss of already-entered data going back --
+> the Travelers step's own forced forward-redirect-when-complete was
+> replaced with a read-only review screen so a back link from Passport
+> doesn't just bounce forward again; applied identically to the parallel
+> staff wizard; `/plan-my-trip`'s first step (previously the only one with
+> no back control) gained a plain link back to the homepage. **DR-054**,
+> also in this uncommitted batch, closes the last item from the same
+> two-message request: a guest booking a `PREDEFINED_PACKAGE` now picks
+> their own travel dates, which actually create the `Departure` (new
+> `catalogService.createDepartureForBooking`/`bookingService
+> .createHoldWithDates`, new guest route `/book-package/[packageId]` that
+> `/packages/[packageId]` now links to) instead of joining one from a
+> staff-pre-scheduled list -- purely additive, `/book/[departureId]` and
+> `CreateBookingInput`/`createHold` are untouched and still power staff's
+> own booking flow. New domain + DB-backed tests (the latter 3/4 confirmed
+> against the real Neon DB, the 4th needs a real CI run per the usual
+> connectivity gotcha). No schema/RLS change; `lint`/`typecheck` clean.
 > Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
@@ -1989,6 +1998,93 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   confirmationCode`) applied to the shared Neon DB via a user-pasted
   `neondb_owner` credential -- verified via `psql \d bookings`
   afterward.
+- **Cancelled bookings hidden + bookingReference reuse on cancel done
+  2026-07-20 (DR-053, uncommitted):** two changes requested together in
+  one message. Cancelled/refunded bookings no longer surface in the guest
+  `/find-booking` lookup (`bookingService.lookupByBookingReference`'s new
+  `CLOSED_BOOKING_STATUSES` check, same anti-enumeration posture as a
+  wrong reference -- no leak of "found but closed" vs. "never existed")
+  nor in `/staff/bookings`'s default view (`HIDDEN_BY_DEFAULT`, still
+  reachable via the status-filter pills). Cancelling a booking now also
+  regenerates its `bookingReference` (new
+  `bookingRepository.cancelAndReleaseReference`, same collision-retry
+  shape as DR-045's `createBookingWithUniqueReference`) rather than
+  leaving the code permanently locked out of the ~77.7M-combination
+  keyspace for a hidden, dead record -- a partial/conditional unique index
+  was considered and rejected (not expressible in Prisma's schema DSL,
+  and dropping `@unique` would force every `findUnique` call site onto an
+  ambiguity-prone `findFirst`). The pre-cancel reference is preserved for
+  the cancellation notification/audit trail. Scoped to the explicit
+  `cancel()` action only, not the automatic `sweepLifecycle` bulk hold-
+  expiry sweep (documented in the new repository method -- per-row
+  collision retry inside a bulk raw-SQL statement is unneeded complexity
+  for a background job). New tests in `tests/booking-lookup.test.ts` +
+  `tests/api/bookings-v2.api.test.ts`; `lint`/`typecheck` clean. No
+  schema/RLS change. Both new DB-backed test files could not be run to
+  completion in this sandbox (the documented intermittent Prisma-to-Neon
+  connectivity gotcha, confirmed still transient via a bare `tsx` script
+  connecting fine on the same credentials) -- needs a real CI run.
+- **Back arrows on every guest package-booking wizard step, no data loss,
+  same session (uncommitted):** closes the other half of the same
+  two-message user request. Add-ons and Passport previously had no back
+  link at all (Travelers already did, since DR-051); both gained one now,
+  applied identically to the parallel guest and staff wizards. The real
+  fix wasn't just adding links -- the Travelers page, once every seat's
+  traveler was already entered, unconditionally redirected forward again
+  on any revisit (its own defensive guard, mirroring the forward flow's
+  own post-submit redirect), which would have made Passport's new back
+  link a silent no-op bouncing straight back to Passport. Replaced that
+  guard with a read-only review screen (name + tour-lead badge per
+  traveler already on file, a "Continue" link forward) -- nothing is
+  re-entered, edited, or lost, and no new traveler-edit/remove capability
+  was built (not requested; would need real repository/service/RBAC
+  additions of its own). The booking-detail page's final "Confirm & Pay"
+  screen also gained a "review setup details" back link, but only while
+  `booking.status === 'AWAITING_DEPOSIT'` -- `setAddons` has no status
+  gate and the invoice is a frozen snapshot from creation, so surfacing
+  an edit affordance after a payment has actually succeeded would invite
+  a change with no effect other than a misleading manifest/invoice
+  mismatch. `/plan-my-trip`'s first step (previously the only one with no
+  back control at all, nothing in-wizard to go back to) gained a plain
+  "back to homepage" link. No schema/RLS/permission change; `lint`/
+  `typecheck` clean; `tests/booking.domain.test.ts` (54) +
+  `tests/rbac.test.ts` (30) green (neither touches the DB).
+- **Guest-chosen travel dates now determine the Departure for a
+  `PREDEFINED_PACKAGE` booking, same session (DR-054, uncommitted):**
+  closes the last item from the original two-message request. Booking a
+  package no longer means joining a departure picked from a
+  staff-pre-scheduled list -- the guest's own start/end dates + seat count
+  now create a fresh `Departure` just for that booking (real
+  `tourPackageId`, capacity == seats, price/currency/country inherited via
+  the normal package join), much closer to how a `TAILOR_MADE` request
+  already worked. New `catalogService.createDepartureForBooking`
+  (`catalog.read`-gated -- a `TOURIST` triggers this themselves as part of
+  booking, not administering the catalog; requires the package `PUBLISHED`
+  + priced, rejects `endDate <= startDate`) and
+  `bookingService.createHoldWithDates`/`CreateBookingWithDatesInput` --
+  extracted a shared `finalizeHold` helper out of the existing `createHold`
+  so both the old departureId-based path and this new dates-based one
+  share identical pricing/capacity/audit logic, no duplication. New guest
+  route `/book-package/[packageId]` (modeled closely on `/book/
+  [departureId]`'s existing trio, date inputs added), which
+  `/packages/[packageId]` now links to instead of a specific departure --
+  that page's "Available/Unavailable" badge is now a package-level
+  question (published + priced), not "is there an open slot right now."
+  **Purely additive, nothing removed:** `/book/[departureId]`,
+  `CreateBookingInput`/`bookingService.createHold`, and
+  `POST /api/v1/bookings` are all completely unchanged -- still used by
+  staff's own `/staff/bookings/new` flow (which still picks a real,
+  staff-managed departure, sensible for group/staff-context bookings) and
+  by any other API consumer. New domain tests for
+  `CreateBookingWithDatesInput` (59 tests total in
+  `tests/booking.domain.test.ts`, all green) and a new DB-backed
+  `tests/booking-guest-dates.test.ts` -- 3 of 4 cases confirmed against
+  the real Neon DB in this session (fresh-Departure-per-booking, capacity
+  == seats, price inherited not snapshotted, two guests get two different
+  Departures, DRAFT package rejected); the 4th needed a longer per-test
+  timeout (bumped to 40s) and couldn't be re-verified afterward due to the
+  documented intermittent Prisma-to-Neon connectivity gotcha recurring --
+  needs a real CI run. No schema/RLS change; `lint`/`typecheck` clean.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2417,7 +2513,31 @@ weakening the anti-enumeration protection DR-016 designed in.
 page's separate "Your reference code" alert is gone, folded into one
 larger `bookingReference` display. Schema (`DROP COLUMN
 confirmationCode`) applied to the shared Neon DB via a user-pasted
-`neondb_owner` credential.
+`neondb_owner` credential · DR-053 hides cancelled/refunded bookings from
+both the guest `/find-booking` lookup (new `CLOSED_BOOKING_STATUSES`
+check inside `lookupByBookingReference`, same anti-enumeration posture as
+a wrong reference) and `/staff/bookings`'s default view (`HIDDEN_BY_DEFAULT`,
+still reachable via status-filter pills), and makes cancelling a booking
+regenerate its `bookingReference` (new
+`bookingRepository.cancelAndReleaseReference`, same collision-retry shape
+as DR-045's `createBookingWithUniqueReference`) so the freed code re-enters
+the keyspace for a future booking instead of staying permanently locked
+out on a hidden, dead record -- a partial/conditional unique index was
+considered and rejected as not expressible in Prisma's schema DSL. The
+pre-cancel reference is kept for the cancellation notification/audit
+trail. No schema/RLS change · DR-054 lets a guest booking a
+`PREDEFINED_PACKAGE` choose their own travel dates, which now actually
+create the `Departure` (new `catalogService.createDepartureForBooking`,
+`catalog.read`-gated, capacity == the booking's own seats, real
+`tourPackageId`) instead of joining one picked from a staff-pre-scheduled
+list -- new `bookingService.createHoldWithDates`/
+`CreateBookingWithDatesInput`, a shared `finalizeHold` helper extracted
+out of `createHold` so both paths share pricing/capacity/audit logic, and
+a new guest route `/book-package/[packageId]` that `/packages/[packageId]`
+now links to. Purely additive: `/book/[departureId]`,
+`CreateBookingInput`/`createHold`, and `POST /api/v1/bookings` are
+untouched and still used by staff's own booking-creation flow and any
+other API consumer. No schema/RLS change.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 

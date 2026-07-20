@@ -4,6 +4,7 @@ export type { Availability, BillableTotal } from './service';
 export {
   AddTravelerInput,
   CreateBookingInput,
+  CreateBookingWithDatesInput,
   CreateTailorMadeInput,
   LookupBookingInput,
   SendQuotationInput,

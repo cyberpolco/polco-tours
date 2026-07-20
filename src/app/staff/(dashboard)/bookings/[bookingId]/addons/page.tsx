@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -29,6 +30,9 @@ export default async function AddonsPage({ params }: Props) {
   if (!booking.currency) {
     return (
       <div className="max-w-md">
+        <Link href={`/staff/bookings/${bookingId}`} className="text-sm text-forest hover:underline">
+          ← back to booking
+        </Link>
         <PageHeader eyebrow="Booking setup · Add-ons" title="Waiting on a quotation" />
         <p className="mt-1 text-sm text-mist">Send a quotation for this booking before selecting add-ons.</p>
       </div>
@@ -43,6 +47,9 @@ export default async function AddonsPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
+      <Link href={`/staff/bookings/${bookingId}`} className="text-sm text-forest hover:underline">
+        ← back to booking
+      </Link>
       <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- just finish setup to continue.</p>
 

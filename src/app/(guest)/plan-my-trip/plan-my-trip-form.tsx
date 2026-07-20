@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -146,6 +147,15 @@ export default function PlanMyTripForm() {
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Every later step already has a "← Back" button (below, client-side
+          state, nothing lost); step 0 has nowhere in-wizard to go back to,
+          so it gets a real link out instead, same convention as the other
+          wizards' entry-point back links. */}
+      {step === 0 && (
+        <Link href="/" className="text-sm text-forest hover:underline">
+          ← back to homepage
+        </Link>
+      )}
       <StepIndicator steps={STEPS} currentIndex={step} />
 
       {step === 0 && (

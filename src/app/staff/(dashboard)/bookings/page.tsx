@@ -37,11 +37,18 @@ const ORIGIN_LABEL: Record<string, string> = {
   TAILOR_MADE: 'Plan my trip',
 };
 
+// Cancelled/refunded bookings are done, dead ends -- clutter for day-to-day
+// staff work, so they're excluded from the default "All" view. Still fully
+// reachable via their own status-filter pills below (e.g. to find one and
+// mark it refunded), just not mixed in with active bookings by default.
+const HIDDEN_BY_DEFAULT: BookingStatus[] = ['CANCELLED', 'REFUNDED'];
+
 export default async function BookingsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.read');
   const { status } = await searchParams;
   const allBookings = await bookingService.list(ctx); // staff -> full org manifest, every source
-  const bookings = status ? allBookings.filter((b) => b.status === status) : allBookings;
+  const activeBookings = allBookings.filter((b) => !HIDDEN_BY_DEFAULT.includes(b.status));
+  const bookings = status ? allBookings.filter((b) => b.status === status) : activeBookings;
 
   function pillHref(nextStatus?: string): string {
     return nextStatus ? `/staff/bookings?status=${nextStatus}` : '/staff/bookings';
@@ -55,7 +62,7 @@ export default async function BookingsPage({ searchParams }: Props) {
           href={pillHref(undefined)}
           className={`rounded-survey border border-rule px-3 py-1 ${!status ? 'bg-navy text-bone' : 'text-ink'}`}
         >
-          All ({allBookings.length})
+          All ({activeBookings.length})
         </Link>
         {FILTERABLE_STATUSES.map((s) => {
           const count = allBookings.filter((b) => b.status === s).length;

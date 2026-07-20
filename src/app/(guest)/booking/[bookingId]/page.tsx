@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, formatOrPending, money } from '@lib/money';
@@ -135,6 +136,16 @@ export default async function BookingHomePage({ params }: Props) {
     <div className="space-y-8">
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={booking.requiresPassportUpload ? 4 : 3} />
       <div>
+        {/* Add-ons/travelers/passport stay re-editable up to first payment
+            (setAddons has no status gate) -- the invoice snapshot below is
+            frozen at creation regardless, so hiding this once a payment has
+            actually succeeded avoids inviting an edit that can no longer
+            affect what was billed. */}
+        {booking.status === 'AWAITING_DEPOSIT' && (
+          <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+            ← review setup details
+          </Link>
+        )}
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>
         <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { catalogService, effectivePrice, isBookable } from '@modules/catalog';
+import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
@@ -13,13 +13,19 @@ interface Props {
 export default async function PackageDetailPage({ params }: Props) {
   const { packageId } = await params;
 
-  let detail;
+  let pkg;
   try {
-    detail = await catalogService.getPublicPackageWithDepartures(packageId);
+    ({ pkg } = await catalogService.getPublicPackageWithDepartures(packageId));
   } catch {
     notFound();
   }
-  const { pkg, departures } = detail;
+
+  // DR-054: a guest now picks their own travel dates instead of joining a
+  // staff-pre-scheduled Departure (a fresh one is created just for their
+  // booking, see catalogService.createDepartureForBooking) -- bookability is
+  // a package-level question (published + priced), not "is there an open
+  // slot right now".
+  const bookable = pkg.status === 'PUBLISHED' && pkg.priceMinor != null;
 
   return (
     <div>
@@ -34,32 +40,15 @@ export default async function PackageDetailPage({ params }: Props) {
       <div className="survey-rule mt-8" />
       <div className="pt-6">
         <p className="eyebrow text-mist">Availability</p>
-        {departures.length === 0 ? (
-          <p className="mt-2 text-mist">No departures scheduled right now.</p>
-        ) : (
-          (() => {
-            // Guests only ever see one bookable slot per package, never a
-            // per-departure date -- departure dates are staff-only
-            // information (visible in the staff dashboard). Prefer the
-            // first departure that's actually open for booking; if none
-            // are, fall back to the first one just to report "Unavailable".
-            const featured = departures.find((d) => isBookable(pkg, d)) ?? departures[0];
-            if (!featured) return null;
-            const price = effectivePrice(pkg, featured);
-            const bookable = isBookable(pkg, featured);
-            return (
-              <Card className="flex items-center justify-between">
-                <div>
-                  <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
-                  <p className="mt-1 text-sm text-mist">
-                    {formatOrPending(price?.minor ?? null, price?.currency ?? null)}/seat · capacity {featured.capacity}
-                  </p>
-                </div>
-                {bookable && <LinkButton href={`/book/${featured.id}`}>Book this departure</LinkButton>}
-              </Card>
-            );
-          })()
-        )}
+        <Card className="flex items-center justify-between">
+          <div>
+            <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
+            <p className="mt-1 text-sm text-mist">
+              {formatOrPending(pkg.priceMinor, pkg.currency)}/seat · choose your own travel dates
+            </p>
+          </div>
+          {bookable && <LinkButton href={`/book-package/${pkg.id}`}>Book this trip</LinkButton>}
+        </Card>
       </div>
     </div>
   );

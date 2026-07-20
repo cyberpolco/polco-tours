@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { bookingService } from '@modules/booking';
@@ -41,6 +42,9 @@ export default async function PassportPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
+      <Link href={`/booking/${bookingId}/travelers/new`} className="text-sm text-forest hover:underline">
+        ← back to travelers
+      </Link>
       <StepIndicator steps={getBookingWizardSteps(true)} currentIndex={3} />
       <p className="eyebrow mt-4 text-mist">Booking setup · Passport</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">

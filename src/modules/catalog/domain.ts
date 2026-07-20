@@ -107,6 +107,17 @@ export interface CreateBespokeDepartureParams {
   currency: Currency;
 }
 
+/** Params for a guest-chosen-dates departure on a real, existing TourPackage
+ * (DR-054). Same "plain interface, booking module already validated it"
+ * convention as CreateBespokeDepartureParams above -- the difference is this
+ * one DOES have a real tourPackageId, so price/currency/country are inherited
+ * via the normal package join rather than snapshotted onto the row. */
+export interface CreateDepartureForBookingParams {
+  startDate: Date;
+  endDate: Date;
+  capacity: number;
+}
+
 /** Departure's own price wins; otherwise inherit the package's. Null when
  * neither is set (DR-039: an unpriced package with no departure override) --
  * updatePackage's publish gate keeps this defensive rather than routine for

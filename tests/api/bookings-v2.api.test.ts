@@ -263,12 +263,22 @@ describe('quotation send -> accept -> refund lifecycle', () => {
     expect(res.status).toBe(403);
   });
 
-  it('staff cancels, then marks the booking refunded (200, REFUNDED)', async () => {
+  it('staff cancels, then marks the booking refunded (200, REFUNDED) -- cancelling also retires the bookingReference', async () => {
     const opHeaders = await loginAs(operatorId);
+
+    const beforeReq = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}`, { headers: opHeaders });
+    const referenceBeforeCancel = (await (await getBooking(beforeReq, { params: Promise.resolve({ bookingId }) })).json())
+      .booking.bookingReference;
+
     const cancelReq = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/cancel`, opHeaders, undefined);
     const cancelRes = await cancelBooking(cancelReq, { params: Promise.resolve({ bookingId }) });
     expect(cancelRes.status).toBe(200);
-    expect((await cancelRes.json()).booking.status).toBe('CANCELLED');
+    const cancelBody = await cancelRes.json();
+    expect(cancelBody.booking.status).toBe('CANCELLED');
+    // DR-052 follow-up: cancelling regenerates bookingReference, freeing the
+    // original code for a future booking to draw instead of it staying
+    // permanently locked out of the keyspace for a hidden, dead record.
+    expect(cancelBody.booking.bookingReference).not.toBe(referenceBeforeCancel);
 
     const refundReq = jsonRequest(`http://localhost/api/v1/bookings/${bookingId}/refund`, opHeaders, undefined);
     const refundRes = await refundBooking(refundReq, { params: Promise.resolve({ bookingId }) });

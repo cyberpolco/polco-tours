@@ -1,6 +1,6 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { PaymentKind } from '@prisma/client';
+import type { BookingStatus, PaymentKind } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
@@ -20,6 +20,7 @@ import {
   type BookingLookupResult,
   type BookingView,
   type CreateBookingInput,
+  type CreateBookingWithDatesInput,
   type CreateTailorMadeInput,
   type LookupBookingInput,
   type SendQuotationInput,
@@ -31,6 +32,11 @@ import { bookingRepository, InvalidTransitionError, SoldOutError } from './repos
 
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
+
+// A cancelled or refunded booking is done -- a dead end for the guest
+// lookup flow and hidden from the staff dashboard's default list (see
+// staff/bookings/page.tsx's own HIDDEN_BY_DEFAULT, kept in sync by hand).
+const CLOSED_BOOKING_STATUSES: BookingStatus[] = ['CANCELLED', 'REFUNDED'];
 
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
@@ -83,6 +89,53 @@ async function transition<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Shared by createHold and createHoldWithDates -- prices, capacity-checks,
+ * and persists the hold once a real (either pre-existing or just-created)
+ * Departure id is known. */
+async function finalizeHold(
+  ctx: AuthContext,
+  organizationId: string,
+  touristUserId: string,
+  departureId: string,
+  seats: number,
+  specialRequests: string | undefined,
+): Promise<BookingView> {
+  const detail = await catalogService.getDepartureDetail(ctx, departureId);
+  if (!detail.bookable) throw Errors.conflict('This departure is not open for booking');
+  // isBookable already requires a real price to exist (DR-039) -- this is
+  // a defensive re-check, not a routine path (TS can't correlate the two
+  // fields' nullability across the isBookable/effectivePrice boundary).
+  if (!detail.effectiveUnitPrice) throw Errors.conflict('This package is not yet priced');
+
+  const price = scale(detail.effectiveUnitPrice, seats);
+
+  let booking: BookingView;
+  try {
+    booking = await bookingRepository.createHold(organizationId, {
+      departureId,
+      touristUserId,
+      seats,
+      capacity: detail.departure.capacity,
+      priceMinor: price.minor,
+      currency: price.currency,
+      specialRequests,
+    });
+  } catch (err) {
+    if (err instanceof SoldOutError) throw Errors.conflict(err.message);
+    throw err;
+  }
+
+  await audit({
+    actorUserId: ctx.userId,
+    actorRole: ctx.roles[0],
+    action: 'booking.hold_created',
+    resourceType: 'Booking',
+    resourceId: booking.id,
+    organizationId,
+  });
+  return booking;
+}
+
 export const bookingService = {
   async getAvailability(ctx: AuthContext, departureId: string): Promise<Availability> {
     assertCan(ctx, 'catalog.read');
@@ -101,40 +154,27 @@ export const bookingService = {
     // phone/walk-in bookings entered on a tourist's behalf.
     const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
 
-    const detail = await catalogService.getDepartureDetail(ctx, input.departureId);
-    if (!detail.bookable) throw Errors.conflict('This departure is not open for booking');
-    // isBookable already requires a real price to exist (DR-039) -- this is
-    // a defensive re-check, not a routine path (TS can't correlate the two
-    // fields' nullability across the isBookable/effectivePrice boundary).
-    if (!detail.effectiveUnitPrice) throw Errors.conflict('This package is not yet priced');
+    return finalizeHold(ctx, organizationId, touristUserId, input.departureId, input.seats, input.specialRequests);
+  },
 
-    const price = scale(detail.effectiveUnitPrice, input.seats);
+  /** DR-054: guest-chosen dates replace picking a pre-existing, staff-
+   * scheduled Departure -- creates a fresh one scoped to exactly this
+   * booking (via catalogService.createDepartureForBooking, capacity ==
+   * seats) and then holds it exactly like createHold. Only ever reachable
+   * for a real, PUBLISHED, priced TourPackage -- createDepartureForBooking
+   * itself enforces that. */
+  async createHoldWithDates(ctx: AuthContext, input: CreateBookingWithDatesInput): Promise<BookingView> {
+    assertCan(ctx, 'booking.create');
+    const organizationId = requireOrg(ctx);
+    const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
 
-    let booking: BookingView;
-    try {
-      booking = await bookingRepository.createHold(organizationId, {
-        departureId: input.departureId,
-        touristUserId,
-        seats: input.seats,
-        capacity: detail.departure.capacity,
-        priceMinor: price.minor,
-        currency: price.currency,
-        specialRequests: input.specialRequests,
-      });
-    } catch (err) {
-      if (err instanceof SoldOutError) throw Errors.conflict(err.message);
-      throw err;
-    }
-
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'booking.hold_created',
-      resourceType: 'Booking',
-      resourceId: booking.id,
-      organizationId,
+    const departure = await catalogService.createDepartureForBooking(ctx, input.packageId, {
+      startDate: input.startDate,
+      endDate: input.endDate,
+      capacity: input.seats,
     });
-    return booking;
+
+    return finalizeHold(ctx, organizationId, touristUserId, departure.id, input.seats, input.specialRequests);
   },
 
   /** A bespoke trip request with no pre-existing Departure -- no capacity
@@ -246,8 +286,14 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
 
     await getOwnedBooking(ctx, organizationId, bookingId);
-    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'CANCELLED'));
-    if (!updated) throw Errors.notFound('Booking not found');
+    // Cancelling also retires this booking's bookingReference (freeing it
+    // for reuse by a future booking) -- see
+    // bookingRepository.cancelAndReleaseReference. The notification below
+    // deliberately uses `previousReference`, the code the guest actually
+    // knows, not the freshly regenerated one now sitting on the row.
+    const result = await transition(() => bookingRepository.cancelAndReleaseReference(organizationId, bookingId));
+    if (!result) throw Errors.notFound('Booking not found');
+    const { booking: updated, previousReference } = result;
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -255,9 +301,10 @@ export const bookingService = {
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
+      metadata: { previousBookingReference: previousReference },
     });
     await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
-      bookingId: updated.bookingReference,
+      bookingId: previousReference,
     });
     return updated;
   },
@@ -579,7 +626,13 @@ export const bookingService = {
       }
     }
 
-    const booking = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
+    const found = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
+    // A cancelled/refunded booking is a dead end -- excluded here the same
+    // way as the staff dashboard's default list, and for the same
+    // "reference number can be reused" reason: once hidden, nothing
+    // depends on this exact code still resolving to this exact booking
+    // (see bookingRepository.createBookingWithUniqueReference).
+    const booking = found && !CLOSED_BOOKING_STATUSES.includes(found.status) ? found : null;
     const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
     const lead = travelers.find((t) => t.isTourLead);
 
