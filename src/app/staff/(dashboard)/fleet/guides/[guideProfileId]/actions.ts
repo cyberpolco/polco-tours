@@ -23,6 +23,14 @@ export async function updateGuideProfileAction(guideProfileId: string, formData:
   redirect(`/staff/fleet/guides/${guideProfileId}`);
 }
 
+// DR-059: genuinely destructive -- SUPERADMIN-only, enforced inside
+// fleetService.deleteGuideProfile.
+export async function deleteGuideProfileAction(guideProfileId: string): Promise<void> {
+  const ctx = await requireStaffContext('fleet.delete');
+  await fleetService.deleteGuideProfile(ctx, guideProfileId);
+  redirect('/staff/fleet');
+}
+
 export async function uploadGuideDocumentAction(guideProfileId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');
 

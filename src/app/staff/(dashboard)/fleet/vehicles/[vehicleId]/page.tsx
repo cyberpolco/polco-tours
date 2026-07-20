@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, money } from '@lib/money';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
-import { addMaintenanceRecordAction, updateVehicleAction, uploadVehicleDocumentAction } from './actions';
+import { deleteVehicleAction, addMaintenanceRecordAction, updateVehicleAction, uploadVehicleDocumentAction } from './actions';
 
 interface Props {
   params: Promise<{ vehicleId: string }>;
@@ -195,6 +195,22 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
           </SubmitButton>
         </form>
       </div>
+
+      {/* DR-059: SUPERADMIN-only, any status -- the control itself renders
+          only for SUPERADMIN (same convention as booking deletion, DR-058)
+          since PLATFORM_ADMIN/TOUR_OPERATOR would pass this route's
+          fleet.delete permission but still 403 in fleetService
+          .deleteVehicle's own isFleetDeleter check. */}
+      {ctx.roles.includes('SUPERADMIN') && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <form action={deleteVehicleAction.bind(null, vehicleId)}>
+            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+              Delete vehicle
+            </SubmitButton>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

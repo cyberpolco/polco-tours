@@ -282,6 +282,98 @@ async function main() {
     });
   }
 
+  // --- Fleet demo data (DR-059) -- 10 vehicles, 10 drivers, 10 guides, so
+  // there's real fleet data to browse (and demo the new SUPERADMIN-only
+  // delete option against) in the staff dashboard day one, same rationale
+  // as the demo catalog above. One withOrg(...) per item (not one
+  // transaction wrapping the whole loop) -- matches the packages loop's own
+  // convention just above, since this sandbox's Neon connection can time out
+  // an interactive transaction that does too many sequential round trips
+  // (see CLAUDE.md's Insights/DR-038 connection-pool finding). ---
+  const vehicles: Array<{
+    plateNumber: string;
+    make: string;
+    model: string;
+    year: number;
+    vehicleType: string;
+    seatCapacity: number;
+  }> = [
+    { plateNumber: 'N12345W', make: 'Toyota', model: 'Land Cruiser', year: 2022, vehicleType: '4x4', seatCapacity: 7 },
+    { plateNumber: 'N12346W', make: 'Toyota', model: 'Hilux', year: 2021, vehicleType: '4x4', seatCapacity: 5 },
+    { plateNumber: 'N12347W', make: 'Toyota', model: 'Quantum', year: 2023, vehicleType: 'Minibus', seatCapacity: 14 },
+    { plateNumber: 'N12348W', make: 'Mercedes-Benz', model: 'Sprinter', year: 2022, vehicleType: 'Minibus', seatCapacity: 16 },
+    { plateNumber: 'N12349W', make: 'Toyota', model: 'Corolla', year: 2020, vehicleType: 'Sedan', seatCapacity: 4 },
+    { plateNumber: 'N12350W', make: 'Volkswagen', model: 'Polo', year: 2021, vehicleType: 'Sedan', seatCapacity: 4 },
+    { plateNumber: 'N12351W', make: 'Land Rover', model: 'Defender', year: 2023, vehicleType: '4x4', seatCapacity: 6 },
+    { plateNumber: 'N12352W', make: 'Isuzu', model: 'NPR', year: 2019, vehicleType: 'Truck', seatCapacity: 3 },
+    { plateNumber: 'N12353W', make: 'MAN', model: "Lion's Coach", year: 2020, vehicleType: 'Bus', seatCapacity: 45 },
+    { plateNumber: 'CDBOAT01', make: 'Yamaha', model: 'River Cruiser', year: 2022, vehicleType: 'Boat', seatCapacity: 10 },
+  ];
+  for (const v of vehicles) {
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.vehicle.findFirst({ where: { organizationId: lam.id, plateNumber: v.plateNumber } });
+      if (!existing) {
+        await tx.vehicle.create({ data: { organizationId: lam.id, ...v } });
+      }
+    });
+  }
+
+  const drivers: Array<{ email: string; name: string; licenseNumber: string; languages: string[] }> = [
+    { email: 'driver1@polcotours.com', name: 'Petrus Amutenya', licenseNumber: 'NA-DL-00001', languages: ['en'] },
+    { email: 'driver2@polcotours.com', name: 'Frans Nangolo', licenseNumber: 'NA-DL-00002', languages: ['en'] },
+    { email: 'driver3@polcotours.com', name: 'Simon Kandjimi', licenseNumber: 'NA-DL-00003', languages: ['en', 'af'] },
+    { email: 'driver4@polcotours.com', name: 'David Haufiku', licenseNumber: 'NA-DL-00004', languages: ['en'] },
+    { email: 'driver5@polcotours.com', name: 'Andreas Shilongo', licenseNumber: 'NA-DL-00005', languages: ['en'] },
+    { email: 'driver6@polcotours.com', name: 'Jean-Pierre Kalonji', licenseNumber: 'CD-DL-00006', languages: ['fr'] },
+    { email: 'driver7@polcotours.com', name: 'Patrice Mukendi', licenseNumber: 'CD-DL-00007', languages: ['fr'] },
+    { email: 'driver8@polcotours.com', name: 'Joseph Kabongo', licenseNumber: 'CD-DL-00008', languages: ['fr', 'en'] },
+    { email: 'driver9@polcotours.com', name: 'Emmanuel Tshisekedi', licenseNumber: 'CD-DL-00009', languages: ['fr'] },
+    { email: 'driver10@polcotours.com', name: 'Moise Ilunga', licenseNumber: 'CD-DL-00010', languages: ['fr'] },
+  ];
+  for (const d of drivers) {
+    const user = await prisma.user.upsert({
+      where: { email: d.email },
+      update: { role: Role.DRIVER, organizationId: lam.id },
+      create: { email: d.email, name: d.name, role: Role.DRIVER, organizationId: lam.id, emailVerified: true },
+    });
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.driverProfile.findFirst({ where: { userId: user.id } });
+      if (!existing) {
+        await tx.driverProfile.create({
+          data: { organizationId: lam.id, userId: user.id, licenseNumber: d.licenseNumber, languages: d.languages },
+        });
+      }
+    });
+  }
+
+  const guides: Array<{ email: string; name: string; languages: string[]; specialties: string[] }> = [
+    { email: 'guide1@polcotours.com', name: 'Maria Nghifikwa', languages: ['en'], specialties: ['Wildlife', 'Photography'] },
+    { email: 'guide2@polcotours.com', name: 'Helena Iipinge', languages: ['en'], specialties: ['Cultural Tours'] },
+    { email: 'guide3@polcotours.com', name: 'Ndeshi Amupolo', languages: ['en', 'af'], specialties: ['Desert Trekking'] },
+    { email: 'guide4@polcotours.com', name: 'Selma Uugwanga', languages: ['en'], specialties: ['Wildlife'] },
+    { email: 'guide5@polcotours.com', name: 'Tuyeni Nakale', languages: ['en'], specialties: ['Family Tours'] },
+    { email: 'guide6@polcotours.com', name: 'Chantal Mbuyi', languages: ['fr'], specialties: ['Gorilla Trekking'] },
+    { email: 'guide7@polcotours.com', name: 'Grace Kabeya', languages: ['fr'], specialties: ['Cultural Tours'] },
+    { email: 'guide8@polcotours.com', name: 'Aline Mwamba', languages: ['fr', 'en'], specialties: ['River Tours'] },
+    { email: 'guide9@polcotours.com', name: 'Bijoux Kasongo', languages: ['fr'], specialties: ['Wildlife'] },
+    { email: 'guide10@polcotours.com', name: 'Divine Ngoy', languages: ['fr'], specialties: ['Adventure'] },
+  ];
+  for (const g of guides) {
+    const user = await prisma.user.upsert({
+      where: { email: g.email },
+      update: { role: Role.TOUR_GUIDE, organizationId: lam.id },
+      create: { email: g.email, name: g.name, role: Role.TOUR_GUIDE, organizationId: lam.id, emailVerified: true },
+    });
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.guideProfile.findFirst({ where: { userId: user.id } });
+      if (!existing) {
+        await tx.guideProfile.create({
+          data: { organizationId: lam.id, userId: user.id, languages: g.languages, specialties: g.specialties },
+        });
+      }
+    });
+  }
+
   // --- Role permissions (User Management / permission-matrix editor,
   // DR-035) -- one-time seed of the historical DEFAULT_PERMISSIONS map into
   // the DB-backed RolePermission table. SUPERADMIN deliberately excluded:
@@ -309,6 +401,9 @@ async function main() {
     countryRegulations: countryRegulations.length,
     addonServices: addons.length,
     packages: packages.length,
+    vehicles: vehicles.length,
+    drivers: drivers.length,
+    guides: guides.length,
     rolePermissions: rolePermissionCount,
   });
 }

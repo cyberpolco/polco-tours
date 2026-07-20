@@ -253,4 +253,12 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('VEHICLE_OWNER', 'booking.delete')).toBe(false);
     expect(hasDefault('VISA_FACILITATOR', 'booking.delete')).toBe(false);
   });
+
+  it('fleet.delete is never seeded to any role (DR-059, same layering as booking.delete)', () => {
+    expect(hasDefault('PLATFORM_ADMIN', 'fleet.delete')).toBe(false);
+    expect(hasDefault('TOUR_OPERATOR', 'fleet.delete')).toBe(false);
+    expect(hasDefault('DRIVER', 'fleet.delete')).toBe(false);
+    expect(hasDefault('VEHICLE_OWNER', 'fleet.delete')).toBe(false);
+    expect(hasDefault('TOUR_GUIDE', 'fleet.delete')).toBe(false);
+  });
 });

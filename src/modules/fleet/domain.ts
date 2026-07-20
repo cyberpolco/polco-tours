@@ -1,6 +1,15 @@
 // fleet module — domain types & rules. Pure; no framework or DB imports.
-import type { Currency, DriverStatus, GuideStatus, StarlinkStatus, VehicleStatus } from '@prisma/client';
+import type { Currency, DriverStatus, GuideStatus, Role, StarlinkStatus, VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
+
+/** Genuinely destructive (Vehicle/DriverProfile/GuideProfile deletion has no
+ * status-transition table and no way back within the app) -- SUPERADMIN-only,
+ * same "route passes via the DB-editable permission matrix, service still
+ * rejects" layering as isBookingDeleter/isCountryRegulationWriter/
+ * isFinanceConfigWriter. */
+export function isFleetDeleter(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN');
+}
 
 export interface VehicleView {
   id: string;

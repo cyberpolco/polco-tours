@@ -4,8 +4,12 @@ import { authService } from '@modules/auth';
 import { fleetService } from '@modules/fleet';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { DRIVER_STATUS_TONE, GUIDE_STATUS_TONE, STARLINK_STATUS_TONE, VEHICLE_STATUS_TONE } from '@lib/status-tones';
+import { deleteVehicleAction } from './vehicles/[vehicleId]/actions';
+import { deleteDriverProfileAction } from './drivers/[driverProfileId]/actions';
+import { deleteGuideProfileAction } from './guides/[guideProfileId]/actions';
 
 export default async function FleetPage() {
   const ctx = await requireStaffContext('fleet.read');
@@ -53,9 +57,22 @@ export default async function FleetPage() {
                     <Badge tone={VEHICLE_STATUS_TONE[v.status]}>{v.status}</Badge>
                   </Td>
                   <Td>
-                    <Link href={`/staff/fleet/vehicles/${v.id}`} className="text-forest hover:underline">
-                      View
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link href={`/staff/fleet/vehicles/${v.id}`} className="text-forest hover:underline">
+                        View
+                      </Link>
+                      {/* DR-059: SUPERADMIN-only -- see the vehicle detail
+                          page's own comment on why this role check (not just
+                          the route's fleet.delete permission) is the real
+                          gate for rendering the control at all. */}
+                      {ctx.roles.includes('SUPERADMIN') && (
+                        <form action={deleteVehicleAction.bind(null, v.id)}>
+                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                            Delete
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </Td>
                 </Tr>
               ))}
@@ -92,9 +109,18 @@ export default async function FleetPage() {
                     <Badge tone={DRIVER_STATUS_TONE[d.status]}>{d.status}</Badge>
                   </Td>
                   <Td>
-                    <Link href={`/staff/fleet/drivers/${d.id}`} className="text-forest hover:underline">
-                      View
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link href={`/staff/fleet/drivers/${d.id}`} className="text-forest hover:underline">
+                        View
+                      </Link>
+                      {ctx.roles.includes('SUPERADMIN') && (
+                        <form action={deleteDriverProfileAction.bind(null, d.id)}>
+                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                            Delete
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </Td>
                 </Tr>
               ))}
@@ -133,9 +159,18 @@ export default async function FleetPage() {
                     <Badge tone={GUIDE_STATUS_TONE[g.status]}>{g.status}</Badge>
                   </Td>
                   <Td>
-                    <Link href={`/staff/fleet/guides/${g.id}`} className="text-forest hover:underline">
-                      View
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link href={`/staff/fleet/guides/${g.id}`} className="text-forest hover:underline">
+                        View
+                      </Link>
+                      {ctx.roles.includes('SUPERADMIN') && (
+                        <form action={deleteGuideProfileAction.bind(null, g.id)}>
+                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                            Delete
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </Td>
                 </Tr>
               ))}

@@ -47,6 +47,7 @@ export type Permission =
   | 'visa.process'
   | 'fleet.read'
   | 'fleet.write'
+  | 'fleet.delete'
   | 'itinerary.read'
   | 'itinerary.write'
   | 'itinerary.approve'
@@ -125,6 +126,7 @@ export const ALL_PERMISSIONS = [
   'visa.process',
   'fleet.read',
   'fleet.write',
+  'fleet.delete', // DR-059: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isFleetDeleter in fleet/service.ts, same layering as booking.delete/country_regulation.write
   'itinerary.read',
   'itinerary.write',
   'itinerary.approve',

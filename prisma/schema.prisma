@@ -792,8 +792,10 @@ model Vehicle {
 }
 
 // 1:1 with a DRIVER-role User -- compliance data doesn't belong on the
-// auth-owned User model (module-boundary rule, CLAUDE.md). No deletedAt --
-// deactivate via `status`, same reasoning as Booking having none.
+// auth-owned User model (module-boundary rule, CLAUDE.md). deletedAt
+// (DR-059) is a deliberate, explicit, SUPERADMIN-only "delete this driver"
+// action -- distinct from `status`, which is the ordinary
+// ACTIVE/SUSPENDED deactivation toggle every staff fleet.write caller uses.
 model DriverProfile {
   id               String       @id @default(uuid()) @db.Uuid
   organizationId   String       @db.Uuid
@@ -810,6 +812,7 @@ model DriverProfile {
   ratingCount      Int          @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
 
   organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -846,6 +849,9 @@ model GuideProfile {
   ratingCount    Int         @default(0)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+  // DR-059: same deliberate, explicit, SUPERADMIN-only delete action as
+  // DriverProfile.deletedAt -- see that field's own comment.
+  deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -2441,6 +2441,62 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   earlier countdown feature). `lint`/`typecheck` clean; no e2e spec
   referenced the old static "Cancel booking" text. Could not click
   through live in a browser this session.
+- **Fleet deletion (SUPERADMIN-only) + demo fleet data, DR-059
+  (2026-07-20, same session, uncommitted):** closes the gap that staff had
+  no way to remove a Vehicle/DriverProfile/GuideProfile from the fleet
+  dashboard at all -- same two-layer SUPERADMIN-only pattern as booking
+  deletion (DR-058): `fleet.delete` added to the permission union but
+  **never seeded to any role** (`DEFAULT_PERMISSIONS`), and a new
+  `isFleetDeleter(roles)` (`SUPERADMIN` only) inside `fleet/service.ts`'s
+  new `deleteVehicle`/`deleteDriverProfile`/`deleteGuideProfile` is the
+  real gate -- granting `fleet.delete` to another role via the runtime
+  permission matrix still wouldn't let them use it. **Soft delete, not
+  hard** (decided without re-asking, since the destructive tradeoff was
+  already fully litigated for DR-058 days earlier in this same session):
+  every FK into `Vehicle`/`DriverProfile` (`Assignment`,
+  `ReviewSubjectRating`, `Document`, `MaintenanceRecord`) is
+  `onDelete: Cascade` with **no `Restrict` anywhere in the schema**, so a
+  real hard delete would silently destroy Assignment/rating history with
+  no FK-violation warning at all. `Vehicle.deletedAt` already existed
+  (scaffolded, read-filtered, but nothing ever wrote to it) -- reused as-is.
+  New `DriverProfile.deletedAt`/`GuideProfile.deletedAt` (neither had one
+  before; their own schema comments claimed "deactivate via `status`
+  instead," same now-superseded reasoning `Booking`'s pre-DR-058 comment
+  used). Unlike DR-058, **no retention-purge sweep** -- deliberately kept
+  simpler since nothing prompted that added complexity this time; a
+  soft-deleted fleet record stays hidden indefinitely rather than being
+  auto-purged after N days. "Delete" buttons added to both the fleet index
+  list (per row, Vehicles/Drivers/Guides tables) and each entity's own
+  detail page, all rendered only for `ctx.roles.includes('SUPERADMIN')`
+  (same convention as booking deletion's UI). New
+  `tests/fleet-delete.test.ts` (own throwaway org): non-SUPERADMIN
+  rejected even with the permission hand-set, SUPERADMIN can delete each
+  of the three entity types, and each disappears from its list method
+  immediately. **Also seeded 10 vehicles + 10 drivers + 10 guides** into
+  the shared Neon DB via `prisma/seed.ts` (ran for real, confirmed via
+  `psql`) -- interpreted "10 fleet per categories" as the fleet module's
+  own three natural categories (Vehicles/Drivers/Guides, matching the
+  fleet index page's own section structure) rather than inventing an
+  arbitrary `vehicleType` taxonomy, since `Vehicle.vehicleType` is a
+  freeform string with no enum to seed "categories" against (confirmed by
+  reading the schema first) -- flagging this interpretation choice in
+  case a different one was intended. Vehicles/drivers/guides use varied,
+  realistic NA/DRC-flavored data (plate numbers, makes/models/vehicleType
+  strings, driver/guide names, languages); each driver/guide got a real
+  login-less `User` row (`role: DRIVER`/`TOUR_GUIDE`), same
+  upsert-by-email idempotency as the file's existing SUPERADMIN seed, so
+  re-running `db:seed` never duplicates them. `lint`/`typecheck` clean;
+  `tests/fleet.domain.test.ts`/`tests/rbac.test.ts` (pure) green;
+  `tests/fleet-delete.test.ts` partially confirmed live (3 of 5 cases --
+  both driver/guide delete tests -- passed against the real DB in one run;
+  the 2 vehicle-delete cases hit the documented vitest-specific Prisma
+  connectivity gotcha in a later run, confirmed transient via a bare
+  `tsx` script connecting fine on the same credentials) -- needs a real
+  CI run to fully confirm the vehicle path, though the identical code
+  pattern already succeeded for driver/guide. Schema
+  (`DriverProfile.deletedAt`/`GuideProfile.deletedAt`) applied to the
+  shared Neon DB via the `neondb_owner` credential from earlier in this
+  session (reused, not re-requested), verified via `psql \d`.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

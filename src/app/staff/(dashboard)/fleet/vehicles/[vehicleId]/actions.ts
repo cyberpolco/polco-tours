@@ -24,6 +24,16 @@ export async function updateVehicleAction(vehicleId: string, formData: FormData)
   redirect(`/staff/fleet/vehicles/${vehicleId}`);
 }
 
+// DR-059: genuinely destructive -- SUPERADMIN-only, enforced inside
+// fleetService.deleteVehicle (this route-level permission alone isn't the
+// real gate). Redirects rather than revalidating, since the page this
+// action runs from no longer exists once the vehicle is gone.
+export async function deleteVehicleAction(vehicleId: string): Promise<void> {
+  const ctx = await requireStaffContext('fleet.delete');
+  await fleetService.deleteVehicle(ctx, vehicleId);
+  redirect('/staff/fleet');
+}
+
 export async function addMaintenanceRecordAction(vehicleId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');
 

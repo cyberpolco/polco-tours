@@ -22,6 +22,14 @@ export async function updateDriverProfileAction(driverProfileId: string, formDat
   redirect(`/staff/fleet/drivers/${driverProfileId}`);
 }
 
+// DR-059: genuinely destructive -- SUPERADMIN-only, enforced inside
+// fleetService.deleteDriverProfile.
+export async function deleteDriverProfileAction(driverProfileId: string): Promise<void> {
+  const ctx = await requireStaffContext('fleet.delete');
+  await fleetService.deleteDriverProfile(ctx, driverProfileId);
+  redirect('/staff/fleet');
+}
+
 export async function uploadDriverDocumentAction(driverProfileId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');
 

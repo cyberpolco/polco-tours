@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   complianceStatus,
+  isFleetDeleter,
   maintenanceRecencyScore,
   CreateDriverProfileInput,
   CreateGuideProfileInput,
@@ -157,6 +158,24 @@ describe('fleet domain', () => {
     it('floors at 0 for maintenance long past the lookback window', () => {
       const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
       expect(maintenanceRecencyScore(yearAgo, now)).toBe(0);
+    });
+  });
+
+  // DR-059: hard-to-reverse, SUPERADMIN-only fleet deletion.
+  describe('isFleetDeleter', () => {
+    it('is true only for SUPERADMIN', () => {
+      expect(isFleetDeleter(['SUPERADMIN'])).toBe(true);
+    });
+
+    it('is false for every other role, including PLATFORM_ADMIN/TOUR_OPERATOR', () => {
+      expect(isFleetDeleter(['PLATFORM_ADMIN'])).toBe(false);
+      expect(isFleetDeleter(['TOUR_OPERATOR'])).toBe(false);
+      expect(isFleetDeleter(['VEHICLE_OWNER'])).toBe(false);
+      expect(isFleetDeleter([])).toBe(false);
+    });
+
+    it('is true if SUPERADMIN is any one of several held roles', () => {
+      expect(isFleetDeleter(['TOUR_OPERATOR', 'SUPERADMIN'])).toBe(true);
     });
   });
 });

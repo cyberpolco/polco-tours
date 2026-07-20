@@ -6,22 +6,23 @@ import { documentsService, type DocumentSummary } from '@modules/documents';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import type {
-  CreateDriverProfileInput,
-  CreateGuideProfileInput,
-  CreateMaintenanceRecordInput,
-  CreateStarlinkKitInput,
-  CreateVehicleInput,
-  DriverProfileView,
-  GuideProfileView,
-  MaintenanceRecordView,
-  SetStarlinkLocationInput,
-  StarlinkKitView,
-  UpdateDriverProfileInput,
-  UpdateGuideProfileInput,
-  UpdateStarlinkKitInput,
-  UpdateVehicleInput,
-  VehicleView,
+import {
+  isFleetDeleter,
+  type CreateDriverProfileInput,
+  type CreateGuideProfileInput,
+  type CreateMaintenanceRecordInput,
+  type CreateStarlinkKitInput,
+  type CreateVehicleInput,
+  type DriverProfileView,
+  type GuideProfileView,
+  type MaintenanceRecordView,
+  type SetStarlinkLocationInput,
+  type StarlinkKitView,
+  type UpdateDriverProfileInput,
+  type UpdateGuideProfileInput,
+  type UpdateStarlinkKitInput,
+  type UpdateVehicleInput,
+  type VehicleView,
 } from './domain';
 import { fleetRepository } from './repository';
 
@@ -61,6 +62,31 @@ export const fleetService = {
     return updated;
   },
 
+  /** DR-059: genuinely destructive, unlike every other fleet mutation --
+   * SUPERADMIN-only. `assertCan` alone isn't enough, since `fleet.delete`
+   * could in principle be granted to another role via the runtime-editable
+   * permission matrix -- `isFleetDeleter` is the real gate, same layering
+   * as bookingService.deleteBooking (DR-058). Soft delete (Vehicle
+   * .deletedAt already existed, scaffolded but unwritten until now) --
+   * every FK into Vehicle is onDelete: Cascade with no Restrict anywhere,
+   * so a real hard delete would silently destroy Assignment history with
+   * no warning; this avoids that entirely. */
+  async deleteVehicle(ctx: AuthContext, vehicleId: string): Promise<void> {
+    assertCan(ctx, 'fleet.delete');
+    if (!isFleetDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a vehicle');
+    const organizationId = requireOrg(ctx);
+    const deleted = await fleetRepository.softDeleteVehicle(organizationId, vehicleId);
+    if (!deleted) throw Errors.notFound('Vehicle not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.vehicle_deleted',
+      resourceType: 'Vehicle',
+      resourceId: vehicleId,
+      organizationId,
+    });
+  },
+
   async getVehicle(ctx: AuthContext, vehicleId: string): Promise<VehicleView> {
     assertCan(ctx, 'fleet.read');
     const vehicle = await fleetRepository.findVehicleById(requireOrg(ctx), vehicleId);
@@ -96,6 +122,25 @@ export const fleetService = {
     const updated = await fleetRepository.updateDriverProfile(requireOrg(ctx), driverProfileId, input);
     if (!updated) throw Errors.notFound('Driver profile not found');
     return updated;
+  },
+
+  /** DR-059: SUPERADMIN-only, same layering as deleteVehicle -- soft delete
+   * (new DriverProfile.deletedAt) since Assignment/ReviewSubjectRating both
+   * cascade from this table with no Restrict guard anywhere. */
+  async deleteDriverProfile(ctx: AuthContext, driverProfileId: string): Promise<void> {
+    assertCan(ctx, 'fleet.delete');
+    if (!isFleetDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a driver profile');
+    const organizationId = requireOrg(ctx);
+    const deleted = await fleetRepository.softDeleteDriverProfile(organizationId, driverProfileId);
+    if (!deleted) throw Errors.notFound('Driver profile not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.driver_profile_deleted',
+      resourceType: 'DriverProfile',
+      resourceId: driverProfileId,
+      organizationId,
+    });
   },
 
   async getDriverProfile(ctx: AuthContext, driverProfileId: string): Promise<DriverProfileView> {
@@ -194,6 +239,24 @@ export const fleetService = {
     const updated = await fleetRepository.updateGuideProfile(requireOrg(ctx), guideProfileId, input);
     if (!updated) throw Errors.notFound('Guide profile not found');
     return updated;
+  },
+
+  /** DR-059: SUPERADMIN-only, same layering as deleteVehicle/
+   * deleteDriverProfile. Soft delete (new GuideProfile.deletedAt). */
+  async deleteGuideProfile(ctx: AuthContext, guideProfileId: string): Promise<void> {
+    assertCan(ctx, 'fleet.delete');
+    if (!isFleetDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a guide profile');
+    const organizationId = requireOrg(ctx);
+    const deleted = await fleetRepository.softDeleteGuideProfile(organizationId, guideProfileId);
+    if (!deleted) throw Errors.notFound('Guide profile not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.guide_profile_deleted',
+      resourceType: 'GuideProfile',
+      resourceId: guideProfileId,
+      organizationId,
+    });
   },
 
   async getGuideProfile(ctx: AuthContext, guideProfileId: string): Promise<GuideProfileView> {

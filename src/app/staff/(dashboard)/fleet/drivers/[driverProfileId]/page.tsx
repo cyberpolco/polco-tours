@@ -8,7 +8,7 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
-import { updateDriverProfileAction, uploadDriverDocumentAction } from './actions';
+import { deleteDriverProfileAction, updateDriverProfileAction, uploadDriverDocumentAction } from './actions';
 
 interface Props {
   params: Promise<{ driverProfileId: string }>;
@@ -110,6 +110,20 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
           </SubmitButton>
         </form>
       </div>
+
+      {/* DR-059: SUPERADMIN-only -- see the vehicle detail page's own
+          comment for why this role check (not just the route permission)
+          is the real gate for rendering the control at all. */}
+      {ctx.roles.includes('SUPERADMIN') && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <form action={deleteDriverProfileAction.bind(null, driverProfileId)}>
+            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+              Delete driver
+            </SubmitButton>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

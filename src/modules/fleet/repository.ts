@@ -112,6 +112,20 @@ export const fleetRepository = {
     });
   },
 
+  /** DR-059: SUPERADMIN-only, real (see fleetService.deleteVehicle). Same
+   * shape as bookingRepository.softDelete -- Vehicle.deletedAt already
+   * existed (scaffolded, read-filtered) but nothing ever wrote to it until
+   * now. */
+  async softDeleteVehicle(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const result = await tx.vehicle.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      return result.count > 0;
+    });
+  },
+
   async findVehicleById(organizationId: string, id: string): Promise<VehicleView | null> {
     return withOrg(organizationId, async (tx) => {
       const v = await tx.vehicle.findUnique({ where: { id } });
@@ -148,36 +162,50 @@ export const fleetRepository = {
   ): Promise<DriverProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.driverProfile.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       const d = await tx.driverProfile.update({ where: { id }, data: input });
       return toDriverProfileView(d);
+    });
+  },
+
+  /** DR-059: SUPERADMIN-only, real (see fleetService.deleteDriverProfile).
+   * Same shape as bookingRepository.softDelete -- an UPDATE, not a real
+   * DELETE, so Assignment/ReviewSubjectRating history (both onDelete:
+   * Cascade from this table) is never at risk. */
+  async softDeleteDriverProfile(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const result = await tx.driverProfile.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      return result.count > 0;
     });
   },
 
   async findDriverProfileById(organizationId: string, id: string): Promise<DriverProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.driverProfile.findUnique({ where: { id } });
-      return d ? toDriverProfileView(d) : null;
+      return d && !d.deletedAt ? toDriverProfileView(d) : null;
     });
   },
 
   async findDriverProfileByUserId(organizationId: string, userId: string): Promise<DriverProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.driverProfile.findUnique({ where: { userId } });
-      return d ? toDriverProfileView(d) : null;
+      return d && !d.deletedAt ? toDriverProfileView(d) : null;
     });
   },
 
   async listDriverProfiles(organizationId: string): Promise<DriverProfileView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.driverProfile.findMany({ orderBy: { createdAt: 'desc' } });
+      const rows = await tx.driverProfile.findMany({ where: { deletedAt: null }, orderBy: { createdAt: 'desc' } });
       return rows.map(toDriverProfileView);
     });
   },
 
   async findDriverProfilesByIds(organizationId: string, ids: string[]): Promise<DriverProfileView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.driverProfile.findMany({ where: { id: { in: ids } } });
+      const rows = await tx.driverProfile.findMany({ where: { id: { in: ids }, deletedAt: null } });
       return rows.map(toDriverProfileView);
     });
   },
@@ -211,36 +239,48 @@ export const fleetRepository = {
   ): Promise<GuideProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.guideProfile.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       const g = await tx.guideProfile.update({ where: { id }, data: input });
       return toGuideProfileView(g);
+    });
+  },
+
+  /** DR-059: SUPERADMIN-only, real (see fleetService.deleteGuideProfile).
+   * Same shape as bookingRepository.softDelete. */
+  async softDeleteGuideProfile(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const result = await tx.guideProfile.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      return result.count > 0;
     });
   },
 
   async findGuideProfileById(organizationId: string, id: string): Promise<GuideProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const g = await tx.guideProfile.findUnique({ where: { id } });
-      return g ? toGuideProfileView(g) : null;
+      return g && !g.deletedAt ? toGuideProfileView(g) : null;
     });
   },
 
   async findGuideProfileByUserId(organizationId: string, userId: string): Promise<GuideProfileView | null> {
     return withOrg(organizationId, async (tx) => {
       const g = await tx.guideProfile.findUnique({ where: { userId } });
-      return g ? toGuideProfileView(g) : null;
+      return g && !g.deletedAt ? toGuideProfileView(g) : null;
     });
   },
 
   async listGuideProfiles(organizationId: string): Promise<GuideProfileView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.guideProfile.findMany({ orderBy: { createdAt: 'desc' } });
+      const rows = await tx.guideProfile.findMany({ where: { deletedAt: null }, orderBy: { createdAt: 'desc' } });
       return rows.map(toGuideProfileView);
     });
   },
 
   async findGuideProfilesByIds(organizationId: string, ids: string[]): Promise<GuideProfileView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.guideProfile.findMany({ where: { id: { in: ids } } });
+      const rows = await tx.guideProfile.findMany({ where: { id: { in: ids }, deletedAt: null } });
       return rows.map(toGuideProfileView);
     });
   },
