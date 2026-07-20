@@ -2259,6 +2259,33 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   (bare `tsx` connects fine, `vitest run` doesn't -- a known, unresolved
   sandbox quirk, not a real outage) -- needs a real CI run to fully
   confirm. `lint`/`typecheck` clean; pure-domain tests green throughout.
+- **Staff "Confirm & Pay" trip summary (2026-07-20, same session,
+  uncommitted):** closes a real gap in `/staff/bookings/new`'s own
+  package-departure-seats flow -- it creates the hold and redirects
+  straight into the setup checklist (add-ons/travelers/passport), and once
+  that's done, staff previously landed on bare invoice cells + "send
+  payment link" buttons with zero reminder of which package/departure/
+  travelers/add-ons the invoice is even for. New "Trip summary" section on
+  `/staff/bookings/[bookingId]` (`PREDEFINED_PACKAGE`-only -- a
+  `TAILOR_MADE` booking already gets its own rich context in the header
+  block, and has no real `Departure` to summarize until converted to an
+  operational itinerary): package title/country/departure dates (via
+  `catalogService.getDepartureDetail` + `getPackage`, neither previously
+  imported by this page), the traveler list (reusing data already fetched
+  for the Visa section), and the selected add-ons with names/prices (new
+  lookup joining `bookingService.listAddons` against
+  `catalogService.listActiveAddonServices` by id, since `BookingAddonView`
+  only carries a bare `addonServiceId`). Sits right above the unchanged
+  Invoice/Payments sections -- the "send deposit/full-payment link" +
+  "mark paid/failed" mechanics stay exactly as they were (DPO is still
+  stubbed, OI-01 still open; per explicit user direction, this increment
+  was scoped to designing the summary/review content around the existing
+  stubbed payment flow, not building real DPO integration). No schema/
+  service-layer change -- purely additive UI composing existing public
+  methods. `lint`/`typecheck` clean; could not exercise this live (DB
+  connectivity was intermittent this session) -- a human should click
+  through a real staff-created package booking before fully trusting the
+  layout.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

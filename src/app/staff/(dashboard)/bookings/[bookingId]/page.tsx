@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Currency } from '@prisma/client';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
+import { catalogService } from '@modules/catalog';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
@@ -122,6 +124,40 @@ export default async function BookingDetailPage({ params }: Props) {
 
   const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
   const payments = await invoicingService.listPayments(ctx, invoice.id);
+
+  // Trip summary for the "Confirm & Pay" review, staff's own New Booking
+  // flow (/staff/bookings/new -> pick a package+departure) never showed
+  // one -- staff previously saw only bare invoice cells with no reminder
+  // of which package/departure/add-ons this invoice is actually for.
+  // PREDEFINED_PACKAGE-only: a TAILOR_MADE booking already gets its own
+  // rich context (country/dates/description/preferences) in the header
+  // block above, and has no real Departure to summarize until it's
+  // converted to an operational itinerary.
+  let packageSummary: { title: string; country: string; startDate: Date; endDate: Date | null } | null = null;
+  let bookingAddonsWithNames: { id: string; name: string; priceMinor: number; currency: Currency }[] = [];
+  if (booking.origin === 'PREDEFINED_PACKAGE' && booking.departureId) {
+    const detail = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    if (detail.departure.tourPackageId) {
+      const pkg = await catalogService.getPackage(ctx, detail.departure.tourPackageId);
+      packageSummary = {
+        title: pkg.title,
+        country: detail.packageCountry,
+        startDate: detail.departure.startDate,
+        endDate: detail.departure.endDate,
+      };
+    }
+    const [addons, addonServices] = await Promise.all([
+      bookingService.listAddons(ctx, bookingId),
+      catalogService.listActiveAddonServices(ctx),
+    ]);
+    const addonNameById = new Map(addonServices.map((a) => [a.id, a.name]));
+    bookingAddonsWithNames = addons.map((a) => ({
+      id: a.id,
+      name: addonNameById.get(a.addonServiceId) ?? 'Add-on',
+      priceMinor: a.priceMinor,
+      currency: a.currency,
+    }));
+  }
 
   // Customer Ratings & Feedback (DR-037) -- only an actor who could issue a
   // code needs to see this panel at all.
@@ -278,6 +314,46 @@ export default async function BookingDetailPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {packageSummary && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <p className="eyebrow text-mist">Trip summary</p>
+          <Card className="mt-2">
+            <p className="font-semibold text-navy">{packageSummary.title}</p>
+            <p className="mt-1 text-sm text-mist">
+              {countryName(packageSummary.country)} · {packageSummary.startDate.toLocaleDateString()}
+              {packageSummary.endDate && <> – {packageSummary.endDate.toLocaleDateString()}</>}
+            </p>
+          </Card>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="eyebrow text-mist">Travelers ({travelers.length}/{booking.seats})</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {travelers.map((t) => (
+                  <li key={t.id}>
+                    {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="eyebrow text-mist">Add-ons</p>
+              {bookingAddonsWithNames.length === 0 ? (
+                <p className="mt-2 text-sm text-mist">None selected.</p>
+              ) : (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {bookingAddonsWithNames.map((a) => (
+                    <li key={a.id}>
+                      {a.name} · {format(money(a.priceMinor, a.currency))}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="survey-rule mb-6" />
