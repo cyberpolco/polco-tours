@@ -13,6 +13,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { acceptQuotationAction, cancelBookingAction, initiatePaymentAction } from './actions';
+import { CancelRequestButton } from './cancel-request-button';
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
 // CANCELLED/REFUNDED, plus unreachable DRAFT) can still be cancelled by the
@@ -73,11 +74,7 @@ export default async function BookingHomePage({ params }: Props) {
           </div>
         )}
         {CANCELLABLE_STATUSES.includes(booking.status) && (
-          <form action={cancelBookingAction.bind(null, booking.id)}>
-            <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-              Cancel request
-            </SubmitButton>
-          </form>
+          <CancelRequestButton bookingId={booking.id} createdAt={booking.createdAt.toISOString()} />
         )}
       </div>
     );
