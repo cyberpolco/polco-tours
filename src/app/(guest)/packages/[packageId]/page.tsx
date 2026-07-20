@@ -20,12 +20,13 @@ export default async function PackageDetailPage({ params }: Props) {
     notFound();
   }
 
-  // DR-054: a guest now picks their own travel dates instead of joining a
-  // staff-pre-scheduled Departure (a fresh one is created just for their
-  // booking, see catalogService.createDepartureForBooking) -- bookability is
-  // a package-level question (published + priced), not "is there an open
-  // slot right now".
-  const bookable = pkg.status === 'PUBLISHED' && pkg.priceMinor != null;
+  // DR-054 (revised same session): a guest now picks their own travel start
+  // date instead of joining a staff-pre-scheduled Departure (a fresh one is
+  // created just for their booking, see catalogService.createDepartureForBooking)
+  // -- bookability is a package-level question (published + priced +
+  // duration set), not "is there an open slot right now". Trip length
+  // (durationDays) is staff-set at package creation, never a guest choice.
+  const bookable = pkg.status === 'PUBLISHED' && pkg.priceMinor != null && pkg.durationDays != null;
 
   return (
     <div>
@@ -44,7 +45,8 @@ export default async function PackageDetailPage({ params }: Props) {
           <div>
             <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
             <p className="mt-1 text-sm text-mist">
-              {formatOrPending(pkg.priceMinor, pkg.currency)}/seat · choose your own travel dates
+              {formatOrPending(pkg.priceMinor, pkg.currency)}/seat
+              {pkg.durationDays != null && ` · ${pkg.durationDays}-day trip`} · choose your own travel start date
             </p>
           </div>
           {bookable && <LinkButton href={`/book-package/${pkg.id}`}>Book this trip</LinkButton>}

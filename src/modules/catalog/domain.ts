@@ -107,15 +107,29 @@ export interface CreateBespokeDepartureParams {
   currency: Currency;
 }
 
-/** Params for a guest-chosen-dates departure on a real, existing TourPackage
- * (DR-054). Same "plain interface, booking module already validated it"
- * convention as CreateBespokeDepartureParams above -- the difference is this
- * one DOES have a real tourPackageId, so price/currency/country are inherited
- * via the normal package join rather than snapshotted onto the row. */
+/** Params for a guest-chosen-start-date departure on a real, existing
+ * TourPackage (DR-054, revised same session -- a guest picks only a start
+ * date, not a range; trip length is `pkg.durationDays`, set by staff at
+ * package creation, not something a tourist can vary per booking). Same
+ * "plain interface, booking module already validated it" convention as
+ * CreateBespokeDepartureParams above -- the difference is this one DOES have
+ * a real tourPackageId, so price/currency/country are inherited via the
+ * normal package join rather than snapshotted onto the row. */
 export interface CreateDepartureForBookingParams {
   startDate: Date;
-  endDate: Date;
   capacity: number;
+}
+
+/** A package's trip length is staff-set (`TourPackage.durationDays`), not
+ * guest-chosen -- this is the one place that turns "starts on X, runs for N
+ * days" into a calendar end date, so createDepartureForBooking is the only
+ * caller and there is exactly one definition of what "N days" means. N=1 is
+ * a single-day trip (endDate == startDate); N=7 spans 7 calendar days
+ * (startDate through startDate+6). */
+export function computeDepartureEndDate(startDate: Date, durationDays: number): Date {
+  const end = new Date(startDate);
+  end.setUTCDate(end.getUTCDate() + durationDays - 1);
+  return end;
 }
 
 /** Departure's own price wins; otherwise inherit the package's. Null when

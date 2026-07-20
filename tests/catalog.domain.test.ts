@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { effectivePrice, formatPackageReference, isBookable, isPackageVisible, isDepartureVisible } from '../src/modules/catalog/domain';
+import {
+  computeDepartureEndDate,
+  effectivePrice,
+  formatPackageReference,
+  isBookable,
+  isPackageVisible,
+  isDepartureVisible,
+} from '../src/modules/catalog/domain';
 import type { TourPackageView, DepartureView } from '../src/modules/catalog/domain';
 
 function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
@@ -87,6 +94,23 @@ describe('catalog domain', () => {
     it('tourists only see scheduled departures', () => {
       expect(isDepartureVisible(departure({ status: 'CANCELLED' }), ['TOURIST'])).toBe(false);
       expect(isDepartureVisible(departure({ status: 'SCHEDULED' }), ['TOURIST'])).toBe(true);
+    });
+  });
+
+  // DR-054 (revised same session): trip length is staff-set (durationDays),
+  // the guest only picks a start date -- this is the sole place that turns
+  // "N days" into a calendar end date.
+  describe('computeDepartureEndDate', () => {
+    it('a 1-day trip ends on the same day it starts', () => {
+      expect(computeDepartureEndDate(new Date('2027-03-01T00:00:00Z'), 1)).toEqual(new Date('2027-03-01T00:00:00Z'));
+    });
+
+    it('a 7-day trip spans 7 calendar days, start through start+6', () => {
+      expect(computeDepartureEndDate(new Date('2027-03-01T00:00:00Z'), 7)).toEqual(new Date('2027-03-07T00:00:00Z'));
+    });
+
+    it('rolls over a month boundary correctly', () => {
+      expect(computeDepartureEndDate(new Date('2027-01-28T00:00:00Z'), 5)).toEqual(new Date('2027-02-01T00:00:00Z'));
     });
   });
 

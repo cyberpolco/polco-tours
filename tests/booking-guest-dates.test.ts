@@ -6,13 +6,16 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../src/lib/db';
 
 /**
- * DR-054: a guest booking a PREDEFINED_PACKAGE now picks their own travel
- * dates instead of joining a staff-pre-scheduled Departure --
+ * DR-054 (revised same session): a guest booking a PREDEFINED_PACKAGE now
+ * picks only their own travel start date instead of joining a
+ * staff-pre-scheduled Departure -- trip length is the package's own
+ * staff-set durationDays, never a guest choice.
  * bookingService.createHoldWithDates creates a fresh Departure (scoped to
- * exactly this booking, capacity == seats) via
- * catalogService.createDepartureForBooking, then holds it exactly like the
- * existing departureId-based createHold. Seeds into the real seeded primary
- * org (Lam), same rationale as tests/catalog-public.test.ts.
+ * exactly this booking, capacity == seats, endDate computed from
+ * pkg.durationDays) via catalogService.createDepartureForBooking, then holds
+ * it exactly like the existing departureId-based createHold. Seeds into the
+ * real seeded primary org (Lam), same rationale as
+ * tests/catalog-public.test.ts.
  */
 const admin = new PrismaClient();
 const suffix = `${Date.now()}`;
@@ -21,6 +24,7 @@ let orgId: string;
 let touristId: string;
 let publishedPackageId: string;
 let draftPackageId: string;
+let noDurationPackageId: string;
 const createdDepartureIds: string[] = [];
 const createdBookingIds: string[] = [];
 
@@ -54,6 +58,7 @@ beforeAll(async () => {
         country: 'NA',
         priceMinor: 40000,
         currency: 'USD',
+        durationDays: 8,
         status: 'PUBLISHED',
       },
     });
@@ -68,10 +73,25 @@ beforeAll(async () => {
         country: 'NA',
         priceMinor: 40000,
         currency: 'USD',
+        durationDays: 8,
         status: 'DRAFT',
       },
     });
     draftPackageId = draft.id;
+
+    const noDuration = await tx.tourPackage.create({
+      data: {
+        organizationId: orgId,
+        packageReference: formatPackageReference(Date.now()),
+        title: `TEST-GUEST-DATES-NO-DURATION-${suffix}`,
+        description: 'Published + priced but no staff-set duration -- must not be guest-bookable.',
+        country: 'NA',
+        priceMinor: 40000,
+        currency: 'USD',
+        status: 'PUBLISHED',
+      },
+    });
+    noDurationPackageId = noDuration.id;
   });
 });
 
@@ -82,7 +102,7 @@ afterAll(async () => {
   // shared PRIMARY organization, not a throwaway fixture org. This has hit
   // production data before; skipping cleanup is always safe, an unscoped
   // delete is not.
-  if (!orgId || !touristId || !publishedPackageId || !draftPackageId) {
+  if (!orgId || !touristId || !publishedPackageId || !draftPackageId || !noDurationPackageId) {
     await admin.$disconnect();
     await prisma.$disconnect();
     return;
@@ -93,18 +113,19 @@ afterAll(async () => {
   if (createdDepartureIds.length > 0) {
     await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { id: { in: createdDepartureIds } } }));
   }
-  await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { id: { in: [publishedPackageId, draftPackageId] } } }));
+  await withOrg(orgId, (tx) =>
+    tx.tourPackage.deleteMany({ where: { id: { in: [publishedPackageId, draftPackageId, noDurationPackageId] } } }),
+  );
   await admin.user.delete({ where: { id: touristId } });
   await admin.$disconnect();
   await prisma.$disconnect();
 });
 
-describe('bookingService.createHoldWithDates (DR-054)', () => {
-  it('creates a fresh Departure scoped to the guest-chosen dates and a matching booking', async () => {
+describe('bookingService.createHoldWithDates (DR-054, revised same session)', () => {
+  it('creates a fresh Departure scoped to the guest-chosen start date + staff-set duration, and a matching booking', async () => {
     const booking = await bookingService.createHoldWithDates(ctx, {
       packageId: publishedPackageId,
       startDate: new Date('2027-05-01'),
-      endDate: new Date('2027-05-08'),
       seats: 2,
     });
     createdBookingIds.push(booking.id);
@@ -121,21 +142,20 @@ describe('bookingService.createHoldWithDates (DR-054)', () => {
     expect(departure.tourPackageId).toBe(publishedPackageId);
     expect(departure.capacity).toBe(2); // capacity == this booking's seat count, not shared
     expect(departure.startDate.toISOString().slice(0, 10)).toBe('2027-05-01');
+    // pkg.durationDays is 8 -- endDate = startDate + 7 calendar days
     expect(departure.endDate?.toISOString().slice(0, 10)).toBe('2027-05-08');
     expect(departure.priceOverrideMinor).toBeNull(); // inherits the package's price, doesn't snapshot its own
   });
 
-  it('two guests booking the same package with different dates get two different Departures', async () => {
+  it('two guests booking the same package with different start dates get two different Departures', async () => {
     const first = await bookingService.createHoldWithDates(ctx, {
       packageId: publishedPackageId,
       startDate: new Date('2027-06-01'),
-      endDate: new Date('2027-06-05'),
       seats: 1,
     });
     const second = await bookingService.createHoldWithDates(ctx, {
       packageId: publishedPackageId,
       startDate: new Date('2027-07-01'),
-      endDate: new Date('2027-07-05'),
       seats: 3,
     });
     createdBookingIds.push(first.id, second.id);
@@ -150,18 +170,16 @@ describe('bookingService.createHoldWithDates (DR-054)', () => {
       bookingService.createHoldWithDates(ctx, {
         packageId: draftPackageId,
         startDate: new Date('2027-05-01'),
-        endDate: new Date('2027-05-08'),
         seats: 1,
       }),
     ).rejects.toThrow();
   });
 
-  it('rejects an end date on or before the start date', async () => {
+  it('rejects a published, priced package with no staff-set duration', async () => {
     await expect(
       bookingService.createHoldWithDates(ctx, {
-        packageId: publishedPackageId,
-        startDate: new Date('2027-05-08'),
-        endDate: new Date('2027-05-01'),
+        packageId: noDurationPackageId,
+        startDate: new Date('2027-05-01'),
         seats: 1,
       }),
     ).rejects.toThrow();

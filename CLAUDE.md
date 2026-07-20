@@ -38,18 +38,33 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > doesn't just bounce forward again; applied identically to the parallel
 > staff wizard; `/plan-my-trip`'s first step (previously the only one with
 > no back control) gained a plain link back to the homepage. **DR-054**,
-> also in this uncommitted batch, closes the last item from the same
-> two-message request: a guest booking a `PREDEFINED_PACKAGE` now picks
-> their own travel dates, which actually create the `Departure` (new
+> also in this batch, closes the last item from the same two-message
+> request: a guest booking a `PREDEFINED_PACKAGE` now picks their own travel
+> start date, which actually creates the `Departure` (new
 > `catalogService.createDepartureForBooking`/`bookingService
 > .createHoldWithDates`, new guest route `/book-package/[packageId]` that
 > `/packages/[packageId]` now links to) instead of joining one from a
 > staff-pre-scheduled list -- purely additive, `/book/[departureId]` and
 > `CreateBookingInput`/`createHold` are untouched and still power staff's
-> own booking flow. New domain + DB-backed tests (the latter 3/4 confirmed
-> against the real Neon DB, the 4th needs a real CI run per the usual
-> connectivity gotcha). No schema/RLS change; `lint`/`typecheck` clean.
-> Also records the
+> own booking flow. **Revised the same day, per explicit user correction**:
+> trip length is staff-set (`TourPackage.durationDays`, already existed as an
+> optional package field, set on the package create/edit form) -- the guest
+> never picks an end date at all, only a start date; the server computes
+> `endDate` from `startDate + durationDays` (new pure
+> `catalogService`/`domain.computeDepartureEndDate`). A package now also
+> needs `durationDays` set (alongside a price) before `updatePackage` will
+> let staff publish it, and before the guest package page/booking page treat
+> it as bookable -- same grandfathered-nullable-until-set precedent as
+> `priceMinor` (DR-039). `CreateBookingWithDatesInput` dropped its `endDate`
+> field/refine entirely. Commit `60530c4` had shipped the original
+> guest-picks-both-dates version; this revision landed as a follow-up in the
+> same working session, both now pushed together. New domain + DB-backed
+> tests (the pure-domain ones green; the DB-backed
+> `tests/booking-guest-dates.test.ts` hit the documented intermittent
+> Prisma-to-Neon connectivity gotcha this session -- confirmed transient via
+> a bare `tsx` script that also failed momentarily, while `psql` connected
+> fine -- needs a real CI run). No schema/RLS change (`durationDays` already
+> existed on `TourPackage`); `lint`/`typecheck` clean. Also records the
 > DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2049,42 +2064,53 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   "back to homepage" link. No schema/RLS/permission change; `lint`/
   `typecheck` clean; `tests/booking.domain.test.ts` (54) +
   `tests/rbac.test.ts` (30) green (neither touches the DB).
-- **Guest-chosen travel dates now determine the Departure for a
-  `PREDEFINED_PACKAGE` booking, same session (DR-054, uncommitted):**
-  closes the last item from the original two-message request. Booking a
-  package no longer means joining a departure picked from a
-  staff-pre-scheduled list -- the guest's own start/end dates + seat count
-  now create a fresh `Departure` just for that booking (real
-  `tourPackageId`, capacity == seats, price/currency/country inherited via
-  the normal package join), much closer to how a `TAILOR_MADE` request
-  already worked. New `catalogService.createDepartureForBooking`
+- **Guest-chosen start date now determines the Departure for a
+  `PREDEFINED_PACKAGE` booking, DR-054 (pushed `60530c4`, then revised the
+  same session per explicit user correction):** closes the last item from
+  the original two-message request. Booking a package no longer means
+  joining a departure picked from a staff-pre-scheduled list -- a fresh
+  `Departure` is created just for that booking (real `tourPackageId`,
+  capacity == seats, price/currency/country inherited via the normal
+  package join), much closer to how a `TAILOR_MADE` request already worked.
+  **Revised same day**: the guest does NOT choose trip length -- only a
+  start date. Trip length is `TourPackage.durationDays` (an existing,
+  already-nullable field, set by staff on the package create/edit form,
+  same nullable-until-set precedent as `priceMinor`/DR-039); the server
+  computes `endDate = startDate + durationDays` (new pure
+  `computeDepartureEndDate`, 1 day = same start/end date, N days = N
+  calendar days inclusive). New `catalogService.createDepartureForBooking`
   (`catalog.read`-gated -- a `TOURIST` triggers this themselves as part of
-  booking, not administering the catalog; requires the package `PUBLISHED`
-  + priced, rejects `endDate <= startDate`) and
-  `bookingService.createHoldWithDates`/`CreateBookingWithDatesInput` --
+  booking, not administering the catalog; requires the package `PUBLISHED`,
+  priced, AND duration-set) and
+  `bookingService.createHoldWithDates`/`CreateBookingWithDatesInput` (now
+  `{packageId, startDate, seats, ...}` -- no `endDate` field at all) --
   extracted a shared `finalizeHold` helper out of the existing `createHold`
   so both the old departureId-based path and this new dates-based one
   share identical pricing/capacity/audit logic, no duplication. New guest
-  route `/book-package/[packageId]` (modeled closely on `/book/
-  [departureId]`'s existing trio, date inputs added), which
-  `/packages/[packageId]` now links to instead of a specific departure --
-  that page's "Available/Unavailable" badge is now a package-level
-  question (published + priced), not "is there an open slot right now."
-  **Purely additive, nothing removed:** `/book/[departureId]`,
+  route `/book-package/[packageId]` (a single start-date input + a
+  display-only "you'll return on..." preview, modeled closely on `/book/
+  [departureId]`'s existing trio), which `/packages/[packageId]` now links
+  to instead of a specific departure -- that page's "Available/Unavailable"
+  badge is a package-level question (published + priced + duration-set),
+  not "is there an open slot right now." `updatePackage` now also blocks
+  publishing a package with no `durationDays` set, mirroring its existing
+  no-price block. **Purely additive, nothing removed:** `/book/[departureId]`,
   `CreateBookingInput`/`bookingService.createHold`, and
   `POST /api/v1/bookings` are all completely unchanged -- still used by
   staff's own `/staff/bookings/new` flow (which still picks a real,
   staff-managed departure, sensible for group/staff-context bookings) and
-  by any other API consumer. New domain tests for
-  `CreateBookingWithDatesInput` (59 tests total in
-  `tests/booking.domain.test.ts`, all green) and a new DB-backed
-  `tests/booking-guest-dates.test.ts` -- 3 of 4 cases confirmed against
-  the real Neon DB in this session (fresh-Departure-per-booking, capacity
-  == seats, price inherited not snapshotted, two guests get two different
-  Departures, DRAFT package rejected); the 4th needed a longer per-test
-  timeout (bumped to 40s) and couldn't be re-verified afterward due to the
-  documented intermittent Prisma-to-Neon connectivity gotcha recurring --
-  needs a real CI run. No schema/RLS change; `lint`/`typecheck` clean.
+  by any other API consumer. Domain tests updated/added (74 tests across
+  `tests/booking.domain.test.ts` + `tests/catalog.domain.test.ts`, all
+  green) and `tests/booking-guest-dates.test.ts` updated for the new
+  start-only shape (fresh-Departure-per-booking, capacity == seats, price
+  inherited not snapshotted, computed endDate matches `durationDays`, two
+  guests get two different Departures, DRAFT package rejected, no-duration
+  package rejected) -- could not be run to completion this session (the
+  documented intermittent Prisma-to-Neon connectivity gotcha, confirmed
+  transient via a bare `tsx` script that also failed momentarily while
+  `psql` connected fine) -- needs a real CI run. No schema/RLS change
+  (`durationDays` already existed on `TourPackage`); `lint`/`typecheck`
+  clean.
 - **Phase 2 (remaining):** WhatsApp/SMS fallback real wiring (OI-05/06/07),
   real Starlink API integration (OI-09), and CRM.
 - **Phase 3:** a first rules-based assignment recommendation shipped early
@@ -2526,15 +2552,21 @@ out on a hidden, dead record -- a partial/conditional unique index was
 considered and rejected as not expressible in Prisma's schema DSL. The
 pre-cancel reference is kept for the cancellation notification/audit
 trail. No schema/RLS change · DR-054 lets a guest booking a
-`PREDEFINED_PACKAGE` choose their own travel dates, which now actually
-create the `Departure` (new `catalogService.createDepartureForBooking`,
-`catalog.read`-gated, capacity == the booking's own seats, real
-`tourPackageId`) instead of joining one picked from a staff-pre-scheduled
-list -- new `bookingService.createHoldWithDates`/
-`CreateBookingWithDatesInput`, a shared `finalizeHold` helper extracted
-out of `createHold` so both paths share pricing/capacity/audit logic, and
-a new guest route `/book-package/[packageId]` that `/packages/[packageId]`
-now links to. Purely additive: `/book/[departureId]`,
+`PREDEFINED_PACKAGE` choose their own travel **start date** (revised the
+same session, per explicit user correction, from an original
+guest-picks-both-dates design), which now actually creates the `Departure`
+(new `catalogService.createDepartureForBooking`, `catalog.read`-gated,
+capacity == the booking's own seats, real `tourPackageId`) instead of
+joining one picked from a staff-pre-scheduled list. Trip length is
+staff-set (`TourPackage.durationDays`, on the package create/edit form,
+nullable-until-set like `priceMinor`) -- the server computes
+`endDate = startDate + durationDays` (new `computeDepartureEndDate`);
+`updatePackage` also blocks publishing without a duration set. New
+`bookingService.createHoldWithDates`/`CreateBookingWithDatesInput` (no
+`endDate` field), a shared `finalizeHold` helper extracted out of
+`createHold` so both paths share pricing/capacity/audit logic, and a new
+guest route `/book-package/[packageId]` that `/packages/[packageId]` now
+links to. Purely additive: `/book/[departureId]`,
 `CreateBookingInput`/`createHold`, and `POST /api/v1/bookings` are
 untouched and still used by staff's own booking-creation flow and any
 other API consumer. No schema/RLS change.

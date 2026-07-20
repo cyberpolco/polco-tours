@@ -334,22 +334,22 @@ describe('booking domain', () => {
     });
   });
 
-  // DR-054: guest-chosen dates replace picking a pre-existing Departure.
+  // DR-054 (revised same session): guest-chosen start date replaces picking
+  // a pre-existing Departure -- trip length is the package's own staff-set
+  // durationDays, not a guest input, so there is no endDate field here at all.
   describe('CreateBookingWithDatesInput', () => {
     const base = {
       packageId: '11111111-1111-4111-8111-111111111111',
       startDate: '2027-03-01',
-      endDate: '2027-03-08',
       seats: 2,
     };
 
-    it('accepts a valid date range', () => {
+    it('accepts a valid start date', () => {
       expect(CreateBookingWithDatesInput.safeParse(base).success).toBe(true);
     });
 
-    it('rejects an end date on or before the start date', () => {
-      expect(CreateBookingWithDatesInput.safeParse({ ...base, endDate: '2027-03-01' }).success).toBe(false);
-      expect(CreateBookingWithDatesInput.safeParse({ ...base, endDate: '2027-02-25' }).success).toBe(false);
+    it('rejects a malformed start date', () => {
+      expect(CreateBookingWithDatesInput.safeParse({ ...base, startDate: 'not-a-date' }).success).toBe(false);
     });
 
     it('rejects a non-positive seat count', () => {

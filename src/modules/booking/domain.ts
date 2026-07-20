@@ -71,26 +71,23 @@ export const CreateBookingInput = z.object({
 });
 export type CreateBookingInput = z.infer<typeof CreateBookingInput>;
 
-// DR-054: a guest booking a real, PUBLISHED TourPackage now picks their own
-// travel dates instead of joining a staff-pre-scheduled Departure -- capacity/
-// pricing/scheduling revolve around exactly this booking's dates, much closer
-// to how a TAILOR_MADE request already works (see CreateTailorMadeInput
+// DR-054 (revised same session): a guest booking a real, PUBLISHED
+// TourPackage now picks only their own travel start date instead of joining
+// a staff-pre-scheduled Departure -- trip length is staff-set
+// (TourPackage.durationDays, set when the package is created/edited), never
+// a per-booking guest choice, so there's no endDate here at all; capacity/
+// pricing/scheduling revolve around exactly this booking's start date, much
+// closer to how a TAILOR_MADE request already works (see CreateTailorMadeInput
 // below), except this one DOES have a real packageId from the start (a
 // Departure gets created for it, see catalogService.createDepartureForBooking,
 // rather than staying package-less like a bespoke departure).
-export const CreateBookingWithDatesInput = z
-  .object({
-    packageId: z.string().uuid(),
-    startDate: z.coerce.date(),
-    endDate: z.coerce.date(),
-    seats: z.number().int().positive(),
-    touristUserId: z.string().uuid().optional(),
-    specialRequests: z.string().max(1000).optional(),
-  })
-  .refine((v) => v.endDate > v.startDate, {
-    message: 'Travel end date must be after the start date',
-    path: ['endDate'],
-  });
+export const CreateBookingWithDatesInput = z.object({
+  packageId: z.string().uuid(),
+  startDate: z.coerce.date(),
+  seats: z.number().int().positive(),
+  touristUserId: z.string().uuid().optional(),
+  specialRequests: z.string().max(1000).optional(),
+});
 export type CreateBookingWithDatesInput = z.infer<typeof CreateBookingWithDatesInput>;
 
 // A bespoke trip request with no pre-existing Departure -- staff price it

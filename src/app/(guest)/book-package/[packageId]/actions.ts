@@ -13,9 +13,10 @@ export type CreateGuestBookingResult = { bookingId: string } | { error: string }
 // same anonymous-session-already-established assumption, same
 // return-a-result-instead-of-redirect() convention (see that file's own
 // comment for why). The one real difference: this resolves/creates its own
-// Departure from the guest's chosen dates (DR-054,
+// Departure from the guest's chosen start date (DR-054,
 // bookingService.createHoldWithDates) instead of taking a pre-existing
-// departureId.
+// departureId -- trip length is the package's own staff-set durationDays,
+// not a guest choice, so there's no endDate here at all.
 export async function createGuestPackageBookingAction(
   packageId: string,
   formData: FormData,
@@ -39,7 +40,6 @@ export async function createGuestPackageBookingAction(
     const input = CreateBookingWithDatesInput.parse({
       packageId,
       startDate: String(formData.get('startDate') ?? ''),
-      endDate: String(formData.get('endDate') ?? ''),
       seats: Number(formData.get('seats')),
     });
     const booking = await bookingService.createHoldWithDates(ctx, input);

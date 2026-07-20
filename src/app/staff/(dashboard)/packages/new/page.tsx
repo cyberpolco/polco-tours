@@ -43,6 +43,10 @@ export default async function NewPackagePage() {
         <FormField label="Duration (days)" htmlFor="durationDays" optional>
           <input name="durationDays" type="number" min={1} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        <p className="text-xs text-mist">
+          Trip length -- guests pick their own travel start date but not how many days the trip runs; a package
+          needs this set (along with a price) before it can be booked.
+        </p>
         <div>
           <p className="mb-1 text-sm text-mist">Tags</p>
           <div className="flex flex-wrap gap-2">

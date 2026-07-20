@@ -157,12 +157,14 @@ export const bookingService = {
     return finalizeHold(ctx, organizationId, touristUserId, input.departureId, input.seats, input.specialRequests);
   },
 
-  /** DR-054: guest-chosen dates replace picking a pre-existing, staff-
-   * scheduled Departure -- creates a fresh one scoped to exactly this
-   * booking (via catalogService.createDepartureForBooking, capacity ==
+  /** DR-054 (revised same session): a guest-chosen start date replaces
+   * picking a pre-existing, staff-scheduled Departure -- trip length comes
+   * from the package's own staff-set durationDays, not the guest, so only
+   * startDate is passed through. Creates a fresh Departure scoped to exactly
+   * this booking (via catalogService.createDepartureForBooking, capacity ==
    * seats) and then holds it exactly like createHold. Only ever reachable
-   * for a real, PUBLISHED, priced TourPackage -- createDepartureForBooking
-   * itself enforces that. */
+   * for a real, PUBLISHED, priced, duration-set TourPackage --
+   * createDepartureForBooking itself enforces that. */
   async createHoldWithDates(ctx: AuthContext, input: CreateBookingWithDatesInput): Promise<BookingView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
@@ -170,7 +172,6 @@ export const bookingService = {
 
     const departure = await catalogService.createDepartureForBooking(ctx, input.packageId, {
       startDate: input.startDate,
-      endDate: input.endDate,
       capacity: input.seats,
     });
 

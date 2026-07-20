@@ -8,6 +8,7 @@ import { money, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertCan } from '@lib/rbac';
 import {
+  computeDepartureEndDate,
   effectivePrice,
   isBookable,
   isDepartureVisible,
@@ -65,12 +66,19 @@ export const catalogService = {
     // DR-039: a package with no price at all (no cost breakdown yet, never
     // manually priced) must not be publishable -- keeps isBookable's
     // PUBLISHED gate a real guarantee rather than something every
-    // downstream consumer has to re-check defensively.
+    // downstream consumer has to re-check defensively. DR-054 (revised same
+    // session) adds the same gate for durationDays -- a guest booking now
+    // only ever picks a start date, so a package with no staff-set trip
+    // length has no way to get a bookable Departure at all.
     if (input.status === 'PUBLISHED') {
       const existing = await catalogRepository.findPackageById(organizationId, packageId);
       const priceMinor = input.priceMinor ?? existing?.priceMinor;
       if (priceMinor == null) {
         throw Errors.conflict('This package has no price yet -- set one via a cost breakdown before publishing');
+      }
+      const durationDays = input.durationDays ?? existing?.durationDays;
+      if (durationDays == null) {
+        throw Errors.conflict('This package has no duration set yet -- set one before publishing');
       }
     }
     const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
@@ -221,19 +229,22 @@ export const catalogService = {
     return departure;
   },
 
-  /** DR-054: a guest booking a real, published TourPackage now chooses their
-   * own travel dates instead of joining a staff-pre-scheduled Departure --
-   * this creates a brand-new Departure scoped to exactly those dates and
-   * this one booking's seat count (capacity == seats, same "exists for one
-   * group, not public sale" precedent as createBespokeDeparture, DR-028),
-   * inheriting the package's price/currency/country via the normal
-   * TourPackage join (no priceOverrideMinor/customCountry set -- unlike a
-   * bespoke departure, this one has a real tourPackageId). Gated on
-   * catalog.read, not catalog.write -- a TOURIST triggers this themselves as
-   * part of booking, not administering the catalog; the package itself must
-   * already be PUBLISHED and priced, mirroring isBookable's own gate (which
-   * can't be called directly here since it needs a Departure that doesn't
-   * exist yet). */
+  /** DR-054 (revised same session): a guest booking a real, published
+   * TourPackage now chooses only their own travel start date instead of
+   * joining a staff-pre-scheduled Departure -- trip length is
+   * `pkg.durationDays` (staff-set at package creation, not guest-chosen), so
+   * this creates a brand-new Departure scoped to that start date + computed
+   * end date + this one booking's seat count (capacity == seats, same
+   * "exists for one group, not public sale" precedent as
+   * createBespokeDeparture, DR-028), inheriting the package's
+   * price/currency/country via the normal TourPackage join (no
+   * priceOverrideMinor/customCountry set -- unlike a bespoke departure, this
+   * one has a real tourPackageId). Gated on catalog.read, not catalog.write
+   * -- a TOURIST triggers this themselves as part of booking, not
+   * administering the catalog; the package itself must already be
+   * PUBLISHED, priced, and have a set duration, mirroring isBookable's own
+   * gate (which can't be called directly here since it needs a Departure
+   * that doesn't exist yet). */
   async createDepartureForBooking(
     ctx: AuthContext,
     packageId: string,
@@ -243,15 +254,13 @@ export const catalogService = {
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
-    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null) {
+    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) {
       throw Errors.conflict('This package is not currently bookable');
     }
-    if (params.endDate <= params.startDate) {
-      throw Errors.conflict('Travel end date must be after the start date');
-    }
+    const endDate = computeDepartureEndDate(params.startDate, pkg.durationDays);
     const departure = await catalogRepository.createDeparture(organizationId, packageId, {
       startDate: params.startDate,
-      endDate: params.endDate,
+      endDate,
       capacity: params.capacity,
     });
     await audit({

@@ -11,20 +11,30 @@ import { createGuestPackageBookingAction } from './actions';
 
 interface Props {
   packageId: string;
+  durationDays: number;
 }
 
 // Mirrors (guest)/book/[departureId]/booking-form.tsx -- same anonymous-
 // session-then-Server-Action shape (see that file's own comment on why the
 // FormData snapshot has to happen before any await). The only real
-// difference: this collects the guest's own travel dates instead of a fixed
-// departure's seat cap, since there's no pre-existing Departure to bound
-// seats against (DR-054) -- capacity is created equal to whatever the guest
-// requests.
-export default function BookingForm({ packageId }: Props) {
+// difference: this collects the guest's own travel start date instead of a
+// fixed departure's seat cap, since there's no pre-existing Departure to
+// bound seats against (DR-054) -- capacity is created equal to whatever the
+// guest requests. Trip length (durationDays) is staff-set on the package,
+// not a guest choice, so there's no end-date input -- the real end date is
+// computed server-side (catalogService.createDepartureForBooking); this
+// component only echoes it back for the guest's own planning.
+export default function BookingForm({ packageId, durationDays }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState('');
   const today = new Date().toISOString().slice(0, 10);
+  // Display-only preview -- the authoritative end date is always computed
+  // server-side (catalogService.createDepartureForBooking), this just
+  // echoes the same trivial "start + (durationDays - 1)" arithmetic back so
+  // the guest can see their expected return date before submitting.
+  const previewReturnDate = startDate ? addDaysToDateString(startDate, durationDays - 1) : null;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -58,26 +68,21 @@ export default function BookingForm({ packageId }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Travel start" htmlFor="startDate">
-          <input
-            name="startDate"
-            type="date"
-            min={today}
-            required
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <FormField label="Travel end" htmlFor="endDate">
-          <input
-            name="endDate"
-            type="date"
-            min={today}
-            required
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-      </div>
+      <FormField label="Travel start" htmlFor="startDate">
+        <input
+          name="startDate"
+          type="date"
+          min={today}
+          required
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="w-full rounded-survey border border-rule px-3 py-2"
+        />
+      </FormField>
+      <p className="text-sm text-mist">
+        This is a {durationDays}-day trip.
+        {previewReturnDate && ` You'll return on ${previewReturnDate}.`}
+      </p>
 
       <FormField label="Seats" htmlFor="seats">
         <input
@@ -126,4 +131,13 @@ export default function BookingForm({ packageId }: Props) {
       </Button>
     </form>
   );
+}
+
+// Display-only preview matching catalogService's computeDepartureEndDate
+// formula (start + extraDays calendar days) -- never the source of truth,
+// just avoids a blank "your return date" while the guest is picking a start.
+function addDaysToDateString(dateString: string, extraDays: number): string {
+  const d = new Date(`${dateString}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + extraDays);
+  return d.toISOString().slice(0, 10);
 }
