@@ -70,7 +70,10 @@ test.describe('guest checkout (DR-016)', () => {
     await page.getByRole('button', { name: 'Upload & continue' }).click();
 
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]+$/);
-    await expect(page.getByText('YOUR BOOKING')).toBeVisible();
+    // exact: true -- DR-052's new copy ("Your booking reference", "...look
+    // your booking up again later") also contains this substring, so a
+    // plain getByText('YOUR BOOKING') now ambiguously matches 3 elements.
+    await expect(page.getByText('Your booking', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Pay deposit' }).click();
 
     await expect(page.getByText('Your booking reference')).toBeVisible();
