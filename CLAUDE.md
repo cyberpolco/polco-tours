@@ -9,7 +9,11 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-20, against repo HEAD `efcb5f7`, pushed and
+> Last updated: 2026-07-21, against repo HEAD `0495c81` (DR-062 itinerary
+> template + DR-063 session timeout/lastLoginAt), pushed but CI not yet
+> confirmed for this exact commit -- both DB-backed test suites hit the
+> documented Prisma-to-Neon connectivity gotcha locally this session (see
+> each DR's own paragraph below). The prior push, `efcb5f7`, was
 > CI-confirmed fully green (Lint/Typecheck/Test/Build, Dependency audit,
 > E2E all passing). `9d8d08c`
 > (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
@@ -330,6 +334,75 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > and confirmed `authService.deactivateUser` has zero dependency on the
 > renamed methods), so this needs a real CI run to fully confirm, but
 > there's no code-level reason to expect a regression.
+> **Change-password consolidated onto "My Profile" (same session,
+> 2026-07-21, uncommitted at time of writing):** explicit user instruction
+> ("Change password for superadmin should go to my profile"). The
+> standalone `/staff/change-password` voluntary-visit entry point (DR-043)
+> is now reached via `/staff/profile` (DR-059/060's SUPERADMIN-only self-
+> service page) instead of its own separate Settings-sidebar entry -- a new
+> `PasswordSection` client component (extracted from the existing
+> `ChangePasswordForm`) renders inline on the profile page below the name/
+> phone form. `settings-items.ts`'s standalone "Change password" entry
+> removed; the forced (`mustChangePassword`) redirect still lands on
+> `/staff/change-password` directly, unchanged -- only the voluntary path
+> moved. `lint`/`typecheck` clean; no schema/permission change.
+> **DR-062 (2026-07-21): reusable per-package itinerary template, auto-
+> copied onto new itineraries** -- offered proactively alongside a now-
+> dropped generic fleet-tracking-tag idea (user: "No -- drop it, not
+> needed anymore"); this one was confirmed ("Yes -- add a reusable
+> itinerary template per package"). New `PackageItineraryDay` (catalog
+> module, org-scoped/RLS, `@@unique([tourPackageId, dayNumber])`) --
+> `dayNumber` relative to trip start, not a real date -- staff-editable via
+> a new "Itinerary template" section on `/staff/packages/{packageId}`.
+> `itineraryService.createItinerary` now copies the template onto the
+> fresh `Itinerary`'s real `ItineraryDay` rows (dates computed as
+> `departure.startDate + (dayNumber - 1)` days) whenever the booking's
+> departure has a `tourPackageId`, wrapped in try/catch so a copy failure
+> can never block itinerary creation itself (DR-060's `autoSubmitOn
+> PassportUpload` best-effort precedent). New no-ctx
+> `catalogService.listTemplateDaysForItineraryCopy` for the itinerary
+> module's internal use only (`getDepartureWindow`'s "caller already
+> gates" convention). Bundled in: moved the "Tracking" staff-nav entry to
+> sit right after "Visa Queue" (explicit user request, pure reorder).
+> Schema + RLS applied to the shared Neon DB via a user-pasted
+> `neondb_owner` credential, verified via `psql \d`. `lint`/`typecheck`
+> clean; new `tests/package-itinerary-template.test.ts` (3 tests) could
+> not be run to completion this session -- the documented Prisma-to-Neon
+> connectivity gotcha was unusually persistent (transaction-timeout
+> errors even across several retries, while a direct `psql` check
+> confirmed the DB itself stayed reachable throughout) -- needs a real CI
+> run to confirm.
+> **DR-063 (2026-07-21): real 30-minute inactivity session timeout,
+> applied globally, + `User.lastLoginAt` tracking** -- explicit user
+> instruction: "every user cannot have an inactive session beyond 30min
+> after that if still inactive, the system automatically require a new
+> sign[-in]." better-auth's session model is a sliding window: `expiresIn`
+> is how long a session stays valid since its last refresh, `updateAge` is
+> how often using the session actually pushes that expiry forward. The
+> prior `{expiresIn: 12h, updateAge: 30m}` actually tolerated up to 12h of
+> real inactivity despite a misleadingly-named old comment; changed to
+> `{expiresIn: 30m, updateAge: 30m}` so the two work together as a genuine
+> 30-minute inactivity timeout. **Explicit, informed tradeoff, applies
+> globally**: flagged that this would also affect anonymous guest-checkout
+> sessions (no way to "sign back into" the same anonymous identity after a
+> lapse) -- user confirmed "Every session, staff and guest alike" rather
+> than scoping to staff only; a guest pausing 30+ minutes mid-wizard now
+> restarts as a new anonymous identity. New `User.lastLoginAt` (nullable,
+> set via a new `databaseHooks.session.create.after` hook -- a plain,
+> best-effort `prisma.user.update`, fired only on an actual new-Session-
+> creation event, i.e. a real sign-in, not every authenticated request)
+> surfaced as a new "Last login" column (`Never` when null) on
+> `/staff/admin/users`; `PublicUser`/`RawUser`/`toPublicUser` all updated
+> to carry it through. No RLS change (`users` has none). Schema applied to
+> the shared Neon DB via the same `neondb_owner` credential, verified via
+> `psql \d users`. `lint`/`typecheck` clean; new
+> `tests/auth-last-login-hook.test.ts` (exercises a real
+> `auth.api.signInEmail` call against a manually-created credentialed
+> user, mirroring `tests/auth-signup-hook.test.ts`'s precedent -- the
+> `loginAs()` test helper mints a `Session` directly and never fires this
+> hook, and `signUpEmail` alone doesn't reach it either since
+> `requireEmailVerification: true` skips auto-sign-in-on-signup) confirmed
+> passing live against the real Neon DB.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2798,6 +2871,56 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   permission change -- purely a new page + Server Action composing
   already-existing `authService` methods. `lint`/`typecheck` clean;
   could not click through live in a browser this session.
+- **Staff-only hotel/restaurant 5-star ratings, DR-061 (2026-07-21):** new
+  `HotelRating`/`RestaurantRating` (one row per rater, overwritten not
+  accumulated) + live-recomputed `averageRating`/`ratingCount` on `Hotel`/
+  `Restaurant`; new `hotel_restaurant_rating.write` permission
+  (`TOUR_GUIDE`/`DRIVER` anti-BOLA-scoped to their own assigned
+  itineraries, `TOUR_OPERATOR`/`PLATFORM_ADMIN` unscoped); rating widget
+  on `/staff/itineraries/{id}`, read-only average column on `/staff/
+  hotels`/`/staff/restaurants`. See CLAUDE.md's own DR-061 paragraph above
+  and `docs/decisions/DECISION_LOG.md` for the full spec, including the
+  real "new permission needs a `db:seed` re-run" gap this found.
+- **My Schedule regrouped into In progress/Upcoming/Completed sections +
+  a trip-progress bar, same session (UI-only, no schema/service change):**
+  closes the third topic from the same planning discussion as DR-061.
+- **Visa facilitator can view/download a traveler's passport, same
+  session:** new `FacilitatorVisaView.hasPassport` + a Passport column/
+  link on `/staff/visa-queue`, distinct from the existing `hasDocument`
+  (the visa decision document, not the passport).
+- **Global staff back button + `/staff/bookings/new` rewrite, same
+  session:** one shared `BackButton` in the dashboard layout replaces
+  every page's own back link; New Booking now reuses the exact guest-
+  facing package/tailor-made forms (no departure picker -- DR-054 creates
+  the `Departure` from a chosen start date) instead of custom ones,
+  restricted to `SUPERADMIN`/`TOUR_OPERATOR` via a new `requiresAnyRole`
+  nav field + `requireNewBookingAccess`.
+- **New "Clients" directory, same session:** splits `authRepository
+  .listAll` into `listStaff` (excludes `TOURIST`) + `listClients`
+  (`TOURIST`-only, no role/password UI) so login-less client contact
+  records (`findOrCreateTouristByEmail`, DR-036) no longer clutter
+  `/staff/admin/users`. New `/staff/admin/clients`, SUPERADMIN/
+  TOUR_OPERATOR-only (`isClientDirectoryViewer`).
+- **Change-password moved onto "My Profile", same session:** per explicit
+  user instruction -- the voluntary (not forced) `/staff/change-password`
+  visit is now reached via `/staff/profile` instead of its own Settings-
+  sidebar entry; the forced `mustChangePassword` redirect is unchanged.
+- **DR-062 (2026-07-21): reusable per-package itinerary template**,
+  auto-copied onto a new `Itinerary`'s real, dated `ItineraryDay` rows the
+  moment one is created for a booking against that package -- new
+  `PackageItineraryDay` (catalog module) + a template-editor section on
+  `/staff/packages/{packageId}`. Pushed (`dfcf2c6`); the new DB-backed
+  test hit an unusually persistent Prisma-to-Neon connectivity gotcha
+  locally (confirmed the DB itself was reachable via `psql` throughout)
+  and needs a real CI run to confirm.
+- **DR-063 (2026-07-21): real 30-minute inactivity session timeout**
+  (`{expiresIn: 30m, updateAge: 30m}`, replacing a config that actually
+  tolerated 12h of inactivity) applied globally to staff AND anonymous
+  guest sessions alike -- an explicit, informed user tradeoff -- plus new
+  `User.lastLoginAt`, set via a `databaseHooks.session.create.after` hook,
+  shown as a new "Last login" column on `/staff/admin/users`. Pushed
+  (`0495c81`); its own DB-backed test (a real `signInEmail` call)
+  confirmed passing live.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
@@ -3288,7 +3411,52 @@ unconditionally failed. Fixed with new, required
 `Booking.contactFirstName`/`contactLastName` (booking-scoped, same
 `contactEmail` precedent) as `lookupByBookingReference`'s fallback match
 target when no `Traveler` manifest exists yet. Schema applied to the
-shared Neon DB via a user-pasted `neondb_owner` credential.
+shared Neon DB via a user-pasted `neondb_owner` credential · DR-058 adds
+real booking deletion for staff: new `Booking.deletedAt` (soft delete,
+hides the booking from every read path immediately) + a 90-day retention
+purge folded into the existing `sweepLifecycle` lazy sweep (no scheduled-
+job infra exists in this codebase); new `booking.delete` permission,
+never seeded to any role, gated for real by a `SUPERADMIN`-only
+`isBookingDeleter` check one layer below the route permission (same
+two-layer pattern as `finance_config.write`/`country_regulation.write`).
+Widened from "cancelled bookings only" to any status, and switched from
+an initial hard-delete choice to soft-delete-plus-purge, both after the
+tradeoffs were surfaced to the user · DR-059 adds the same SUPERADMIN-
+only soft-delete pattern to `Vehicle`/`DriverProfile`/`GuideProfile`
+(`fleet.delete`, `isFleetDeleter`) plus a genuine hard delete for
+`StarlinkKit` (confirmed no FK anywhere points at it); seeds 10 each of
+vehicles/drivers/guides/Starlink kits and 10 each of hotels/restaurants
+across NA/CD/ZM/ZW; adds `itineraryService.deleteForBooking` (called
+from the staff Server Action layer, not from inside
+`bookingService.deleteBooking`, to avoid a circular module dependency)
+and a new `/staff/profile` self-service page · DR-060 closes a real gap
+research surfaced (not assumption): `visaService.submitApplication` had
+no UI anywhere calling it, so no visa application could ever be started
+through the app. New `visaService.autoSubmitOnPassportUpload` (best-
+effort, called from all 3 passport-upload call sites, deliberately skips
+the `visa.process` check since the caller already has legitimate access
+via `setTravelerPassport`'s own anti-BOLA check) + a "Needs application"
+reconciliation section on `/staff/visa-queue` with a manual "Start
+application" button + an origin column/filter. Found and fixed a real
+`Promise.all` connection-pool-exhaustion bug during testing, same class
+as DR-038/041 · DR-061 adds staff-only 5-star hotel/restaurant ratings
+(`HotelRating`/`RestaurantRating`, overwritten not accumulated per
+explicit user choice) via the existing `itinerary` module, distinct from
+the tourist-facing `ratings` module's driver/guide reviews; new
+`hotel_restaurant_rating.write` permission -- found that a brand-new
+permission needs a `db:seed` re-run to actually grant it live, since
+DR-035 made permissions DB-backed · DR-062 adds a reusable per-package
+itinerary template (`PackageItineraryDay`, catalog module), auto-copied
+onto a fresh `Itinerary`'s real `ItineraryDay` rows the moment one is
+created for a booking against that package, with computed real dates
+(`departure.startDate + (dayNumber-1)` days); copy failures are best-
+effort and never block itinerary creation · DR-063 changes better-auth's
+session config from a 12h-tolerant `{expiresIn: 12h, updateAge: 30m}` to
+a genuine 30-minute sliding-window inactivity timeout
+(`{expiresIn: 30m, updateAge: 30m}`), applied globally including
+anonymous guest-checkout sessions per explicit, informed user choice, and
+adds `User.lastLoginAt` (set via a `session.create.after` hook) as a new
+"Last login" column on `/staff/admin/users`.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
