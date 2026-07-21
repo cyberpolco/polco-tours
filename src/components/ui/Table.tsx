@@ -15,8 +15,8 @@ export function TableHeaderRow({ children }: WithChildren) {
   return <tr className="border-b border-rule text-mist">{children}</tr>;
 }
 
-export function Th({ children }: WithChildren) {
-  return <th className="py-2 font-medium">{children}</th>;
+export function Th({ children, className }: WithChildren) {
+  return <th className={['py-2 font-medium', className].filter(Boolean).join(' ')}>{children}</th>;
 }
 
 export function Tr({ children, className }: WithChildren) {
