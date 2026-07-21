@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
+import { BackButton } from './back-button';
 import { StaffNav } from './nav';
 import { SignOutButton } from './sign-out-button';
 
@@ -25,7 +26,10 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           <SignOutButton />
         </div>
       </nav>
-      <main className="mx-auto max-w-5xl px-8 py-10">{children}</main>
+      <main className="mx-auto max-w-5xl px-8 py-10">
+        <BackButton />
+        {children}
+      </main>
     </div>
   );
 }
