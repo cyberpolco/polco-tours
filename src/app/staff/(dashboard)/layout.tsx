@@ -26,12 +26,12 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           <SignOutButton />
         </div>
       </nav>
-      {/* Full-width, not a centered max-w-5xl column -- explicit user
-          direction ("let it fill the entire screen, like permission
-          matrix"), which previously had to break out of this layout's own
-          column with a one-off full-bleed hack (now removed, since there's
-          nothing left to break out of). */}
-      <main className="px-8 py-10">
+      {/* Wider than the original centered max-w-5xl column, but still a
+          bounded column with margin on very wide screens -- explicit user
+          feedback, in two steps: "fill the entire screen" (max-w-5xl was
+          too narrow) then "too wide, just leave some margin" (fully
+          unbounded was too wide). max-w-7xl splits the difference. */}
+      <main className="mx-auto max-w-7xl px-8 py-10">
         <BackButton />
         {children}
       </main>
