@@ -9,12 +9,14 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-21, against repo HEAD `2fd3d05` (DR-064
-> `/find-booking` lifecycle status, on top of DR-062 itinerary template +
-> DR-063 session timeout/lastLoginAt), pushed but CI not yet confirmed for
-> this exact commit -- every DB-backed test suite this session hit the
-> documented Prisma-to-Neon connectivity gotcha locally (see each DR's own
-> paragraph below). The prior CI-confirmed-green push was `efcb5f7`. `9d8d08c`
+> Last updated: 2026-07-21, against repo HEAD `6e7d19f` (DR-065 Country
+> Regulations linked into the visa queue + a package/booking reference
+> column, on top of DR-062 itinerary template, DR-063 session timeout/
+> lastLoginAt, and DR-064 `/find-booking` lifecycle status), pushed but CI
+> not yet confirmed for this exact commit -- every DB-backed test suite
+> this session hit the documented Prisma-to-Neon connectivity gotcha
+> locally (see each DR's own paragraph below). The prior CI-confirmed-green
+> push was `efcb5f7`. `9d8d08c`
 > (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
 > fully green on real CI. **DR-053** (hide cancelled/refunded bookings from
 > both the guest `/find-booking` lookup and the staff `/staff/bookings`
@@ -437,6 +439,25 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > retries this session (confirmed the DB itself stayed reachable via direct
 > `psql` checks throughout; cleaned up two orphaned test orgs left by the
 > failed attempts) -- needs a real CI run to confirm.
+> **DR-065 (2026-07-21): Country Regulations linked into the visa queue +
+> a package/booking reference column** -- explicit user request. `/staff/
+> visa-queue`'s main table gains a **Reference** column (the tour
+> package's own `packageReference` when the booking came from an existing
+> `PREDEFINED_PACKAGE` departure, falling back to the booking's own
+> `bookingReference` for a `TAILOR_MADE` request or an unresolvable
+> package, linking into the booking-detail page either way -- new
+> `FacilitatorVisaView.packageReference`/`bookingReference`, resolved
+> live inside `listForFacilitator`'s existing booking/departure
+> composition) and its **Country** column now also shows the
+> destination's processing time plus a "View requirements"/"Add
+> requirements" link straight into `/staff/country-regulations/{country}`
+> (both `VISA_FACILITATOR` and `TOUR_OPERATOR` already hold
+> `country_regulation.read` since DR-034), composed directly in the page,
+> sequential `await`s over the small distinct-country set per the usual
+> connection-pool-exhaustion precedent. No schema/RLS change. `lint`/
+> `typecheck` clean; new `tests/api/visa-facilitator-queue.api.test.ts`
+> assertions hit the connectivity gotcha across 3 retries and need a real
+> CI run to confirm.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2963,6 +2984,12 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   driver/vehicle details on this no-login page. Pushed (`2fd3d05`); its
   new DB-backed test hit the connectivity gotcha across 3 retries and
   needs a real CI run to confirm.
+- **DR-065 (2026-07-21): Country Regulations linked into the visa
+  queue + a package/booking reference column** -- `/staff/visa-queue`
+  gains a Reference column (package reference, falling back to booking
+  reference) and its Country column gains processing-time + a link into
+  `/staff/country-regulations/{country}`. Pushed (`6e7d19f`); new test
+  assertions hit the connectivity gotcha and need a real CI run.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
@@ -3505,7 +3532,11 @@ redacted rating-code availability) via new no-ctx "caller already gates"
 service methods across the itinerary/fleet/visa/ratings modules, composed
 directly in the guest page's Server Component; real driver names/vehicle
 details are shown on this no-login page as an explicit, informed user
-tradeoff, and the Rating Code's raw value is deliberately never exposed.
+tradeoff, and the Rating Code's raw value is deliberately never exposed ·
+DR-065 links Country Regulations into `/staff/visa-queue` (processing time +
+a link to `/staff/country-regulations/{country}` on the Country column) and
+adds a Reference column falling back package-reference-then-booking-
+reference, both composed directly in the page.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
