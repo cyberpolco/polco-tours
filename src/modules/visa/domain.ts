@@ -59,6 +59,18 @@ export interface FacilitatorVisaView {
   // offer a "view passport" link. False, not null, in the rare case the
   // reverse lookup itself fails (same convention as hasDocument).
   hasPassport: boolean;
+  // Resolved live alongside bookingId/origin -- the tour package's own
+  // reference (e.g. "PKG-00034") when this booking's departure came from a
+  // real, still-resolvable TourPackage; null for a TAILOR_MADE booking (no
+  // package at all) or when the package itself is no longer resolvable.
+  // The visa-queue page falls back to bookingReference below when this is
+  // null, per explicit user direction ("the package reference number if it
+  // came from an existing one or if not then use the booking reference
+  // number").
+  packageReference: string | null;
+  // Resolved live alongside bookingId -- always present whenever bookingId
+  // itself resolves (unlike packageReference, every booking has one).
+  bookingReference: string | null;
 }
 
 // DR-060: a traveler with an uploaded passport on a booking that requires

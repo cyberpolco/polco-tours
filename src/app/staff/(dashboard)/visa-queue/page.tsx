@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { BookingOrigin } from '@prisma/client';
 import { requireStaffContext } from '@lib/staff-guard';
+import { immigrationService, type CountryRegulationView } from '@modules/immigration';
 import { visaService } from '@modules/visa';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -46,6 +47,24 @@ export default async function VisaQueuePage({ searchParams }: Props) {
   const applications = origin ? allApplications.filter((a) => a.origin === origin) : allApplications;
   const pendingCount = applications.filter((a) => a.status === 'SUBMITTED').length;
   const missingDocCount = applications.filter((a) => !a.hasDocument).length;
+
+  // Country Regulations, linked in to help assess an application -- per
+  // explicit user direction. Sequential awaits over the small distinct-
+  // country set (typically <=4, one per platform country), not Promise.all,
+  // matching this codebase's documented connection-pool-exhaustion
+  // precedent (DR-038/041/060/062/064). Tolerates a country with no
+  // regulation row yet (immigrationService.getRegulation 404s) rather than
+  // failing the whole queue over it.
+  const regulationsByCountry = new Map<string, CountryRegulationView>();
+  for (const country of new Set(applications.map((a) => a.country))) {
+    try {
+      regulationsByCountry.set(country, await immigrationService.getRegulation(ctx, country));
+    } catch {
+      // No regulation on file for this country yet -- the page falls back
+      // to a bare link into /staff/country-regulations/{country} so staff
+      // can add one.
+    }
+  }
 
   function pillHref(nextOrigin?: string): string {
     return nextOrigin ? `/staff/visa-queue?origin=${nextOrigin}` : '/staff/visa-queue';
@@ -151,6 +170,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
             <thead>
               <TableHeaderRow>
                 <Th>Traveler</Th>
+                <Th>Reference</Th>
                 <Th>Nationality</Th>
                 <Th>Source</Th>
                 <Th>Country</Th>
@@ -163,14 +183,39 @@ export default async function VisaQueuePage({ searchParams }: Props) {
               </TableHeaderRow>
             </thead>
             <tbody>
-              {applications.map((a) => (
+              {applications.map((a) => {
+                const regulation = regulationsByCountry.get(a.country);
+                return (
                 <Tr key={a.id}>
                   <Td>
                     {a.travelerFirstName} {a.travelerLastName}
                   </Td>
+                  <Td>
+                    {/* The package reference when this came from an existing
+                        package, otherwise the booking reference (explicit
+                        user direction) -- links into the booking detail page
+                        either way, since that's what the reference identifies. */}
+                    {a.bookingId ? (
+                      <Link href={`/staff/bookings/${a.bookingId}`} className="text-forest hover:underline">
+                        {a.packageReference ?? a.bookingReference ?? '—'}
+                      </Link>
+                    ) : (
+                      (a.packageReference ?? a.bookingReference ?? '—')
+                    )}
+                  </Td>
                   <Td>{a.travelerNationality}</Td>
                   <Td className="text-xs text-mist">{a.origin ? (ORIGIN_LABEL[a.origin] ?? a.origin) : '—'}</Td>
-                  <Td>{a.country}</Td>
+                  <Td>
+                    {a.country}
+                    <div className="mt-1 text-xs">
+                      {regulation?.processingTimeDays != null && (
+                        <span className="text-mist">{regulation.processingTimeDays}d processing · </span>
+                      )}
+                      <Link href={`/staff/country-regulations/${a.country}`} className="text-forest hover:underline">
+                        {regulation ? 'View requirements' : 'Add requirements'}
+                      </Link>
+                    </div>
+                  </Td>
                   <Td>
                     <Badge tone={VISA_STATUS_TONE[a.status]}>{a.status}</Badge>
                   </Td>
@@ -227,7 +272,8 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                     )}
                   </Td>
                 </Tr>
-              ))}
+                );
+              })}
             </tbody>
           </Table>
         )}

@@ -3,7 +3,10 @@ import type { VisaApplication, VisaStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type { FacilitatorVisaView, VisaApplicationView } from './domain';
 
-type FacilitatorVisaRow = Omit<FacilitatorVisaView, 'travelStartDate' | 'bookingId' | 'origin' | 'hasPassport'>;
+type FacilitatorVisaRow = Omit<
+  FacilitatorVisaView,
+  'travelStartDate' | 'bookingId' | 'origin' | 'hasPassport' | 'packageReference' | 'bookingReference'
+>;
 
 export interface CreateVisaApplicationParams {
   travelerId: string;

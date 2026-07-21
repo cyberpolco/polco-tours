@@ -22,6 +22,8 @@ let facilitatorId: string;
 let operatorId: string;
 let touristId: string;
 let travelerA2Id: string;
+let packageReference: string;
+let bookingBReference: string;
 
 beforeAll(async () => {
   const org = await admin.organization.create({
@@ -39,10 +41,11 @@ beforeAll(async () => {
   touristId = tourist.id;
 
   await withOrg(orgId, async (tx) => {
+    packageReference = formatPackageReference(Date.now());
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference,
         title: 'Visa Queue Fixture Safari',
         description: 'Fixture for the facilitator queue test.',
         country: 'NA',
@@ -131,12 +134,13 @@ beforeAll(async () => {
   // one transaction (documented gotcha, CLAUDE.md).
   await withOrg(orgId, async (tx) => {
     // TAILOR_MADE booking -- no departureId, travel date comes from customTravelStart instead.
+    bookingBReference = generateBookingReference();
     const bookingB = await tx.booking.create({
       data: {
         organizationId: orgId,
         origin: 'TAILOR_MADE',
         touristUserId: touristId,
-        bookingReference: generateBookingReference(),
+        bookingReference: bookingBReference,
         seats: 1,
         customCountry: 'CD',
         customTravelStart: new Date('2026-11-01'),
@@ -207,14 +211,22 @@ describe('GET /api/v1/visa/queue', () => {
     expect(a1.hasDocument).toBe(false);
     expect(a1.status).toBe('SUBMITTED');
     expect(new Date(a1.travelStartDate).toISOString().slice(0, 10)).toBe('2026-12-01');
+    // PREDEFINED_PACKAGE: the reference column resolves to the real
+    // package's own reference, not the booking's.
+    expect(a1.packageReference).toBe(packageReference);
 
     const a2 = body.applications.find((a: { travelerIdOrPassportNumber: string }) => a.travelerIdOrPassportNumber === 'A2');
     expect(a2.hasDocument).toBe(true);
     expect(a2.status).toBe('APPROVED');
+    expect(a2.packageReference).toBe(packageReference);
 
     const b1 = body.applications.find((a: { travelerIdOrPassportNumber: string }) => a.travelerIdOrPassportNumber === 'B1');
     expect(b1.hasDocument).toBe(false);
     expect(new Date(b1.travelStartDate).toISOString().slice(0, 10)).toBe('2026-11-01');
+    // TAILOR_MADE: no package at all, so the reference column falls back to
+    // the booking's own reference (explicit user direction).
+    expect(b1.packageReference).toBeNull();
+    expect(b1.bookingReference).toBe(bookingBReference);
 
     // Data shape: no raw documentId exposed, just the boolean.
     expect(a1).not.toHaveProperty('documentId');

@@ -259,14 +259,26 @@ export const visaService = {
         let bookingId: string | null = null;
         let origin: FacilitatorVisaView['origin'] = null;
         let hasPassport = false;
+        let packageReference: string | null = null;
+        let bookingReference: string | null = null;
         try {
           const booking = await bookingService.getBookingForTraveler(ctx, row.travelerId);
           if (booking) {
             bookingId = booking.id;
             origin = booking.origin;
+            bookingReference = booking.bookingReference;
             if (booking.departureId) {
               const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
               travelStartDate = departure.startDate;
+              if (departure.tourPackageId) {
+                try {
+                  const pkg = await catalogService.getPackage(ctx, departure.tourPackageId);
+                  packageReference = pkg.packageReference;
+                } catch {
+                  // Package no longer resolvable for this role (e.g.
+                  // archived) -- the page falls back to bookingReference.
+                }
+              }
             } else {
               travelStartDate = booking.customTravelStart;
             }
@@ -283,7 +295,7 @@ export const visaService = {
           // Same tolerance as above -- leave hasPassport false rather than
           // fail the whole queue over one unresolvable row.
         }
-        return { ...row, bookingId, origin, travelStartDate, hasPassport };
+        return { ...row, bookingId, origin, travelStartDate, hasPassport, packageReference, bookingReference };
       }),
     );
 
