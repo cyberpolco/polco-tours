@@ -104,6 +104,36 @@ export const itineraryService = {
     return itineraryRepository.listAll(requireOrg(ctx));
   },
 
+  /** DR-059 follow-up: closes a real regression a booking-deletion (DR-058)
+   * feature surfaced -- an Itinerary left pointing at a soft-deleted
+   * Booking crashed the itineraries/schedule pages (bookingService.getById
+   * now throws for a soft-deleted booking, where it never used to).
+   * Per explicit user direction, deleting a booking now also removes its
+   * itinerary automatically, rather than just tolerating the dangling
+   * reference. Deliberately NOT called from bookingService.deleteBooking
+   * itself -- this module already depends on booking (see
+   * isAssignedToItinerary/getItineraryForBooking above), so booking calling
+   * back into itinerary would create a circular module dependency; the
+   * caller (the staff deleteBookingAction Server Action, which already
+   * imports both modules for createItineraryAction) orchestrates both
+   * calls instead. No-op, not an error, when the booking never had an
+   * itinerary at all -- most bookings don't. */
+  async deleteForBooking(ctx: AuthContext, bookingId: string): Promise<void> {
+    assertCan(ctx, 'itinerary.write');
+    const organizationId = requireOrg(ctx);
+    const deleted = await itineraryRepository.deleteByBookingId(organizationId, bookingId);
+    if (!deleted) return;
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary.deleted',
+      resourceType: 'Itinerary',
+      resourceId: deleted.id,
+      organizationId,
+      metadata: { bookingId },
+    });
+  },
+
   /** TOUR_GUIDE/DRIVER: itineraries for their own assigned departures --
    * mirrors assignmentService.listMyAssignments' self-service shape
    * (DR-021/030/031). Managers use listAll instead. */

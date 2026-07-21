@@ -2487,16 +2487,80 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   upsert-by-email idempotency as the file's existing SUPERADMIN seed, so
   re-running `db:seed` never duplicates them. `lint`/`typecheck` clean;
   `tests/fleet.domain.test.ts`/`tests/rbac.test.ts` (pure) green;
-  `tests/fleet-delete.test.ts` partially confirmed live (3 of 5 cases --
-  both driver/guide delete tests -- passed against the real DB in one run;
-  the 2 vehicle-delete cases hit the documented vitest-specific Prisma
-  connectivity gotcha in a later run, confirmed transient via a bare
-  `tsx` script connecting fine on the same credentials) -- needs a real
-  CI run to fully confirm the vehicle path, though the identical code
-  pattern already succeeded for driver/guide. Schema
+  `tests/fleet-delete.test.ts` fully confirmed live on a later retry (all 7
+  cases, including both vehicle-delete ones that initially hit the
+  documented vitest-specific Prisma connectivity gotcha -- confirmed
+  transient, not a code issue). Schema
   (`DriverProfile.deletedAt`/`GuideProfile.deletedAt`) applied to the
   shared Neon DB via the `neondb_owner` credential from earlier in this
   session (reused, not re-requested), verified via `psql \d`.
+- **StarlinkKit gets the same SUPERADMIN-only delete + 10 seeded
+  (unassigned) kits, same session (uncommitted), user follow-up to
+  DR-059:** unlike Vehicle/DriverProfile/GuideProfile, this one is a
+  genuine **hard** delete (`fleetRepository.deleteStarlinkKit`,
+  `fleetService.deleteStarlinkKit`) -- confirmed by reading the schema
+  that no other table has an FK pointing at `StarlinkKit.id` at all, so
+  there's no cascade/history-loss risk a soft delete would need to guard
+  against, unlike the other three. Same UI convention (SUPERADMIN-gated
+  button on both the fleet list row and the kit's own detail page). 10
+  kits seeded via `prisma/seed.ts` with `vehicleId` left `null`
+  (deliberately unassigned, per explicit user request) -- ran for real
+  against the shared Neon DB, confirmed via `psql`. New test cases in
+  `tests/fleet-delete.test.ts` (non-SUPERADMIN rejected; SUPERADMIN
+  deletes for real, row is actually gone from Postgres afterward, not
+  just `deletedAt`-flagged) -- all passed live. `lint`/`typecheck` clean.
+- **Deleting a Booking now also removes its Itinerary, same session
+  (uncommitted), user follow-up to the DR-058 regression this session
+  already found and patched around:** the earlier fix (itineraries/
+  schedule pages tolerating a dangling itinerary-pointing-at-a-deleted-
+  booking) stays in place as defense in depth, but per explicit user
+  direction the itinerary is now actually cleaned up when its booking is
+  deleted, not just tolerated. New `itineraryRepository.deleteByBookingId`
+  + `itineraryService.deleteForBooking` (real hard delete -- cascades via
+  the schema's own `onDelete: Cascade` to `ItineraryDay`/`ItineraryHotel`/
+  `ItineraryRestaurant` join rows; `Hotel`/`Restaurant` reference rows
+  themselves are untouched; a no-op, not an error, when the booking never
+  had an itinerary at all). **Deliberately not called from inside
+  `bookingService.deleteBooking`** -- the itinerary module already
+  depends on booking (`isAssignedToItinerary`/`getItineraryForBooking`
+  both call `bookingService`), so booking calling back into itinerary
+  would create a circular module dependency, which the charter's module-
+  boundary rule forbids. Instead the staff `deleteBookingAction` Server
+  Action (which already imports both modules for the pre-existing
+  `createItineraryAction`) orchestrates both calls itself -- itinerary
+  first, then the booking, specifically so a failure partway through
+  never reproduces the original dangling-reference bug (the other
+  ordering would). New `tests/itinerary-delete.test.ts` (own throwaway
+  org): confirms the cascade delete and the no-itinerary no-op case, both
+  passed live against the real DB. No schema change. `lint`/`typecheck`
+  clean.
+- **10 hotels + 10 restaurants seeded across all 4 platform countries,
+  same session (uncommitted):** closes the itinerary hotel/restaurant-
+  assignment UI's empty-list problem -- `Hotel`/`Restaurant` (DR-033) had
+  existed since that DR but nothing ever seeded them. Spread roughly
+  evenly across NA/CD/ZM/ZW (not literally 10-per-country, interpreted as
+  "10 of each entity, drawn from the countries this platform already
+  operates in"). Names are illustrative demo content, explicitly not
+  verified real-world listings -- same posture as the country-regulations
+  seed content. Ran for real against the shared Neon DB, confirmed via
+  `psql`. No schema/service change -- pure seed data.
+- **Self-service "My Profile" (name/phone) for any staff role, starting
+  from a SUPERADMIN request, same session (uncommitted):** no self-edit
+  profile page existed for staff at all before this (only the forced/
+  voluntary `/staff/change-password`, and the SUPERADMIN-only admin panel
+  for editing *someone else's* row) -- `authService.updateProfile` (real
+  since DR-013) had no staff-facing UI calling it outside the guest
+  wizards. New `/staff/profile` (inside the `(dashboard)` group, unlike
+  change-password, since it needs no forced-redirect escape hatch),
+  added to the Settings sidebar with no `permission` gate -- same "every
+  staff role already holds `profile.write`, so this needs no narrower
+  gate than being signed in as staff" reasoning `settings-items.ts`
+  already uses for Change Password. Reuses the existing dial-code +
+  local-number phone input pattern (`country-codes.ts`'s
+  `parseE164`/`toE164`) the guest wizards already established. No schema/
+  permission change -- purely a new page + Server Action composing
+  already-existing `authService` methods. `lint`/`typecheck` clean;
+  could not click through live in a browser this session.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified

@@ -6,7 +6,7 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { STARLINK_STATUS_TONE } from '@lib/status-tones';
-import { setStarlinkLocationAction, updateStarlinkKitAction } from './actions';
+import { deleteStarlinkKitAction, setStarlinkLocationAction, updateStarlinkKitAction } from './actions';
 
 interface Props {
   params: Promise<{ kitId: string }>;
@@ -91,6 +91,20 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
           </SubmitButton>
         </form>
       </div>
+
+      {/* DR-059: SUPERADMIN-only -- see the vehicle detail page's own
+          comment for why this role check (not just the route permission)
+          is the real gate for rendering the control at all. */}
+      {ctx.roles.includes('SUPERADMIN') && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <form action={deleteStarlinkKitAction.bind(null, kitId)}>
+            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+              Delete Starlink kit
+            </SubmitButton>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

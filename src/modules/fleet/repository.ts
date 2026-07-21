@@ -383,4 +383,19 @@ export const fleetRepository = {
       return new Map(rows.map((k) => [k.vehicleId as string, toStarlinkKitView(k)]));
     });
   },
+
+  /** DR-059: SUPERADMIN-only (see fleetService.deleteStarlinkKit). A real
+   * hard delete, unlike softDeleteVehicle/softDeleteDriverProfile/
+   * softDeleteGuideProfile -- no other table has an FK pointing at
+   * StarlinkKit.id at all (confirmed by reading the full schema), so
+   * there's no cascade/history-loss risk a soft delete would need to guard
+   * against here. */
+  async deleteStarlinkKit(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.starlinkKit.findUnique({ where: { id } });
+      if (!existing) return false;
+      await tx.starlinkKit.delete({ where: { id } });
+      return true;
+    });
+  },
 };

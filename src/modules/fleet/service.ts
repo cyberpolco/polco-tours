@@ -428,6 +428,27 @@ export const fleetService = {
     return fleetRepository.listStarlinkKits(requireOrg(ctx));
   },
 
+  /** DR-059: SUPERADMIN-only, same layering as deleteVehicle/
+   * deleteDriverProfile/deleteGuideProfile -- but a real hard delete here,
+   * not soft: no other table has an FK pointing at StarlinkKit.id at all
+   * (confirmed by reading the full schema), so there's no cascade/history
+   * risk a soft delete would need to guard against. */
+  async deleteStarlinkKit(ctx: AuthContext, kitId: string): Promise<void> {
+    assertCan(ctx, 'fleet.delete');
+    if (!isFleetDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a Starlink kit');
+    const organizationId = requireOrg(ctx);
+    const deleted = await fleetRepository.deleteStarlinkKit(organizationId, kitId);
+    if (!deleted) throw Errors.notFound('Starlink kit not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'fleet.starlink_kit_deleted',
+      resourceType: 'StarlinkKit',
+      resourceId: kitId,
+      organizationId,
+    });
+  },
+
   /** Backs assignmentService.recommendAssignment's maintenance-recency
    * scoring -- one query across every candidate vehicle, not an N+1. */
   async getMaintenanceRecencyByVehicleIds(ctx: AuthContext, vehicleIds: string[]): Promise<Map<string, Date>> {

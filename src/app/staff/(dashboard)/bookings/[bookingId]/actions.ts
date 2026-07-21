@@ -97,8 +97,17 @@ export async function issueRatingCodeAction(bookingId: string) {
 // bookingService.deleteBooking (this route-level permission alone isn't the
 // real gate). Redirects rather than revalidating, since the page this
 // action runs from no longer exists once the booking is gone.
+//
+// DR-059 follow-up: also removes the booking's Itinerary, if it has one --
+// orchestrated HERE, not inside bookingService.deleteBooking itself, since
+// the itinerary module already depends on booking (module-boundary rule
+// forbids the reverse). Itinerary first, then the booking: if the booking
+// step fails afterward, the booking is still visible with its itinerary
+// gone (recreatable); the other order would risk exactly the dangling-
+// itinerary regression DR-059 already had to fix once.
 export async function deleteBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.delete');
+  await itineraryService.deleteForBooking(ctx, bookingId);
   await bookingService.deleteBooking(ctx, bookingId);
   redirect('/staff/bookings');
 }

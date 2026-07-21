@@ -142,3 +142,32 @@ describe('fleetService.deleteGuideProfile (DR-059)', () => {
     await expect(fleetService.deleteGuideProfile(ctx, '00000000-0000-4000-8000-000000000000')).rejects.toThrow();
   });
 });
+
+describe('fleetService.deleteStarlinkKit (DR-059)', () => {
+  it('rejects a non-SUPERADMIN caller even with fleet.delete somehow in their permission set', async () => {
+    const kit = await withOrg(orgId, (tx) => tx.starlinkKit.create({ data: { organizationId: orgId, kitId: `KIT-${suffix}-1` } }));
+    const err = await fleetService.deleteStarlinkKit(ctxFor(operatorId, ['TOUR_OPERATOR'], ['fleet.delete']), kit.id).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(403);
+
+    const row = await withOrg(orgId, (tx) => tx.starlinkKit.findUnique({ where: { id: kit.id } }));
+    expect(row).not.toBeNull(); // still there -- rejected, not deleted
+  });
+
+  it('SUPERADMIN can permanently delete a Starlink kit, which then disappears from listStarlinkKits', async () => {
+    const kit = await withOrg(orgId, (tx) => tx.starlinkKit.create({ data: { organizationId: orgId, kitId: `KIT-${suffix}-2` } }));
+    const managerCtx = ctxFor(operatorId, ['TOUR_OPERATOR'], ['fleet.read']);
+    const before = await fleetService.listStarlinkKits(managerCtx);
+    expect(before.some((k) => k.id === kit.id)).toBe(true);
+
+    await fleetService.deleteStarlinkKit(ctxFor(superadminId, ['SUPERADMIN']), kit.id);
+
+    const after = await fleetService.listStarlinkKits(managerCtx);
+    expect(after.some((k) => k.id === kit.id)).toBe(false);
+
+    // Real hard delete -- unlike Vehicle/DriverProfile/GuideProfile, the
+    // row is genuinely gone, not just deletedAt-flagged.
+    const row = await withOrg(orgId, (tx) => tx.starlinkKit.findUnique({ where: { id: kit.id } }));
+    expect(row).toBeNull();
+  });
+});

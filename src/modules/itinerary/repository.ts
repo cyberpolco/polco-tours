@@ -112,6 +112,21 @@ export const itineraryRepository = {
     });
   },
 
+  /** DR-059 follow-up: cascade cleanup when a Booking is deleted -- a real
+   * hard delete (not soft), cascading via the schema's own onDelete:
+   * Cascade to this itinerary's ItineraryDay/ItineraryHotel/
+   * ItineraryRestaurant join rows (Hotel/Restaurant reference rows
+   * themselves are untouched). Returns null (not an error) when the
+   * booking never had an itinerary at all -- most bookings don't. */
+  async deleteByBookingId(organizationId: string, bookingId: string): Promise<ItineraryView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.itinerary.findUnique({ where: { bookingId } });
+      if (!existing) return null;
+      await tx.itinerary.delete({ where: { id: existing.id } });
+      return toItineraryView(existing);
+    });
+  },
+
   /** Guides Module / My Schedule-style scoping (DR-030/031): itineraries
    * whose booking sits on one of the caller's own assigned departures --
    * itineraryService resolves departureIds via assignmentService first. */

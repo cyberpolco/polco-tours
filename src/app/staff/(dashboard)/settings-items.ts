@@ -21,4 +21,8 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // reset-password panel on their own row) needs a way to change their own
   // password.
   { href: '/staff/change-password', label: 'Change Password' },
+  // Same "no permission gate" convention as Change Password above -- every
+  // staff role holds profile.write already (rbac.ts), and self-editing your
+  // own name/phone needs no narrower gate than "signed in as staff."
+  { href: '/staff/profile', label: 'My Profile' },
 ];

@@ -28,3 +28,11 @@ export async function setStarlinkLocationAction(kitId: string, formData: FormDat
   await fleetService.setStarlinkLocation(ctx, kitId, input);
   redirect(`/staff/fleet/starlink-kits/${kitId}`);
 }
+
+// DR-059: genuinely destructive -- SUPERADMIN-only, enforced inside
+// fleetService.deleteStarlinkKit.
+export async function deleteStarlinkKitAction(kitId: string): Promise<void> {
+  const ctx = await requireStaffContext('fleet.delete');
+  await fleetService.deleteStarlinkKit(ctx, kitId);
+  redirect('/staff/fleet');
+}

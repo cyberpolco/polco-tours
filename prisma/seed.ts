@@ -374,6 +374,68 @@ async function main() {
     });
   }
 
+  // --- Starlink kits (DR-059) -- 10 real kits, deliberately all unassigned
+  // (vehicleId left null) per explicit user request, so there's real data to
+  // browse/delete on the fleet dashboard without implying any of the 10
+  // seeded vehicles above already has one fitted. ---
+  const starlinkKitIds = Array.from({ length: 10 }, (_, i) => `SL-${String(i + 1).padStart(4, '0')}`);
+  for (const kitId of starlinkKitIds) {
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.starlinkKit.findFirst({ where: { organizationId: lam.id, kitId } });
+      if (!existing) {
+        await tx.starlinkKit.create({ data: { organizationId: lam.id, kitId } });
+      }
+    });
+  }
+
+  // --- Hotels + Restaurants (Itinerary Management, DR-033) -- 10 of each,
+  // spread across all 4 platform countries, so the itinerary hotel/
+  // restaurant-assignment UI has real reference data to pick from instead of
+  // an empty list. Names are illustrative, not verified real-world listings
+  // -- same "demo data, not verified fact" posture as the country
+  // regulations content above. ---
+  const hotels: Array<{ name: string; country: string }> = [
+    { name: 'Windhoek Country Club Resort', country: 'NA' },
+    { name: 'Etosha Safari Lodge', country: 'NA' },
+    { name: 'Sossusvlei Desert Lodge', country: 'NA' },
+    { name: 'Pullman Kinshasa Grand Hotel', country: 'CD' },
+    { name: 'Mikeno Lodge', country: 'CD' },
+    { name: 'Lubumbashi Grand Karavia Hotel', country: 'CD' },
+    { name: 'Royal Livingstone Victoria Falls Zambia Hotel', country: 'ZM' },
+    { name: 'Protea Hotel Lusaka', country: 'ZM' },
+    { name: 'Victoria Falls Hotel', country: 'ZW' },
+    { name: 'Elephant Hills Resort', country: 'ZW' },
+  ];
+  for (const h of hotels) {
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.hotel.findFirst({ where: { organizationId: lam.id, name: h.name, country: h.country } });
+      if (!existing) {
+        await tx.hotel.create({ data: { organizationId: lam.id, ...h } });
+      }
+    });
+  }
+
+  const restaurants: Array<{ name: string; country: string }> = [
+    { name: "Joe's Beerhouse", country: 'NA' },
+    { name: 'The Stellenbosch Wine Bar & Bistro', country: 'NA' },
+    { name: 'Onguma Bush Camp Restaurant', country: 'NA' },
+    { name: 'Chez Ntemba', country: 'CD' },
+    { name: 'Restaurant Le Firenze', country: 'CD' },
+    { name: 'Le Massaï Grill', country: 'CD' },
+    { name: 'The Bridge Restaurant', country: 'ZM' },
+    { name: 'Marlin Restaurant', country: 'ZM' },
+    { name: 'The Kingdom at Victoria Falls Restaurant', country: 'ZW' },
+    { name: 'Mama Africa Eating House', country: 'ZW' },
+  ];
+  for (const r of restaurants) {
+    await withOrg(lam.id, async (tx) => {
+      const existing = await tx.restaurant.findFirst({ where: { organizationId: lam.id, name: r.name, country: r.country } });
+      if (!existing) {
+        await tx.restaurant.create({ data: { organizationId: lam.id, ...r } });
+      }
+    });
+  }
+
   // --- Role permissions (User Management / permission-matrix editor,
   // DR-035) -- one-time seed of the historical DEFAULT_PERMISSIONS map into
   // the DB-backed RolePermission table. SUPERADMIN deliberately excluded:
@@ -404,6 +466,9 @@ async function main() {
     vehicles: vehicles.length,
     drivers: drivers.length,
     guides: guides.length,
+    starlinkKits: starlinkKitIds.length,
+    hotels: hotels.length,
+    restaurants: restaurants.length,
     rolePermissions: rolePermissionCount,
   });
 }
