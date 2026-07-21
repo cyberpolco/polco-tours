@@ -1,15 +1,18 @@
 // catalog module — repository. The only place that touches the DB for this module.
-import type { AddonService, Departure, PackageStatus, TourPackage } from '@prisma/client';
+import type { AddonService, Departure, PackageItineraryDay, PackageStatus, TourPackage } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
 import { formatPackageReference } from './domain';
 import type {
   AddonServiceView,
+  AddPackageItineraryDayInput,
   CreateBespokeDepartureParams,
   CreateDepartureInput,
   CreatePackageInput,
   DepartureView,
+  PackageItineraryDayView,
   TourPackageView,
   UpdatePackageInput,
+  UpdatePackageItineraryDayInput,
 } from './domain';
 
 function toPackageView(p: TourPackage): TourPackageView {
@@ -59,6 +62,22 @@ function toDepartureView(d: Departure): DepartureView {
     status: d.status,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
+  };
+}
+
+function toPackageItineraryDayView(d: PackageItineraryDay): PackageItineraryDayView {
+  return {
+    id: d.id,
+    tourPackageId: d.tourPackageId,
+    dayNumber: d.dayNumber,
+    departureTime: d.departureTime,
+    arrivalTime: d.arrivalTime,
+    pickupLocation: d.pickupLocation,
+    dropoffLocation: d.dropoffLocation,
+    plannedSites: d.plannedSites,
+    activities: d.activities,
+    estimatedTravelMinutes: d.estimatedTravelMinutes,
+    notes: d.notes,
   };
 }
 
@@ -225,6 +244,48 @@ export const catalogRepository = {
     return withOrg(organizationId, async (tx) => {
       const a = await tx.addonService.findUnique({ where: { id } });
       return a ? toAddonServiceView(a) : null;
+    });
+  },
+
+  // ------------------------------------------------------------ package itinerary template
+
+  async addTemplateDay(
+    organizationId: string,
+    tourPackageId: string,
+    input: AddPackageItineraryDayInput,
+  ): Promise<PackageItineraryDayView> {
+    return withOrg(organizationId, async (tx) => {
+      const d = await tx.packageItineraryDay.create({ data: { organizationId, tourPackageId, ...input } });
+      return toPackageItineraryDayView(d);
+    });
+  },
+
+  async updateTemplateDay(
+    organizationId: string,
+    dayId: string,
+    input: UpdatePackageItineraryDayInput,
+  ): Promise<PackageItineraryDayView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.packageItineraryDay.findUnique({ where: { id: dayId } });
+      if (!existing) return null;
+      const d = await tx.packageItineraryDay.update({ where: { id: dayId }, data: input });
+      return toPackageItineraryDayView(d);
+    });
+  },
+
+  async removeTemplateDay(organizationId: string, dayId: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.packageItineraryDay.findUnique({ where: { id: dayId } });
+      if (!existing) return false;
+      await tx.packageItineraryDay.delete({ where: { id: dayId } });
+      return true;
+    });
+  },
+
+  async listTemplateDays(organizationId: string, tourPackageId: string): Promise<PackageItineraryDayView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.packageItineraryDay.findMany({ where: { tourPackageId }, orderBy: { dayNumber: 'asc' } });
+      return rows.map(toPackageItineraryDayView);
     });
   },
 };

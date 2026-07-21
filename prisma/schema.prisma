@@ -194,6 +194,7 @@ model Organization {
   packageCostLineItems  PackageCostLineItem[]
   hotelRatings          HotelRating[]
   restaurantRatings     RestaurantRating[]
+  packageItineraryDays  PackageItineraryDay[]
 
   @@map("organizations")
 }
@@ -445,12 +446,49 @@ model TourPackage {
   // reads across this module already filter deletedAt: null.
   deletedAt        DateTime?
 
-  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departures    Departure[]
-  costBreakdown PackageCostBreakdown?
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departures          Departure[]
+  costBreakdown       PackageCostBreakdown?
+  itineraryTemplateDays PackageItineraryDay[]
 
   @@index([organizationId])
   @@map("tour_packages")
+}
+
+// A reusable day-by-day itinerary template for a package -- copied onto a
+// fresh Itinerary's real, dated ItineraryDay rows the moment one is created
+// for a booking against this package (itineraryService.createItinerary),
+// so staff review/adjust an already-populated plan instead of building one
+// from scratch every time. dayNumber is relative to the trip's start (day
+// 1, day 2, ...), not a real calendar date -- the real date only exists
+// once a specific booking's Departure.startDate is known. Deliberately
+// mirrors ItineraryDay's shape (itinerary module) rather than being shared
+// with it -- this is catalog-owned reference/template data, that one is a
+// live per-booking record; duplicating the shape is simpler than the two
+// modules depending on each other for one shared type.
+model PackageItineraryDay {
+  id                     String   @id @default(uuid()) @db.Uuid
+  organizationId         String   @db.Uuid
+  tourPackageId          String   @db.Uuid
+  dayNumber              Int
+  departureTime          String?
+  arrivalTime            String?
+  pickupLocation         String?
+  dropoffLocation        String?
+  plannedSites           String?  @db.Text
+  activities             String?  @db.Text
+  estimatedTravelMinutes Int?
+  notes                  String?  @db.Text
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tourPackage  TourPackage  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
+
+  @@unique([tourPackageId, dayNumber])
+  @@index([organizationId])
+  @@index([tourPackageId])
+  @@map("package_itinerary_days")
 }
 
 // A scheduled instance of a TourPackage. Capacity lives here (not on the

@@ -14,14 +14,17 @@ import {
   isDepartureVisible,
   isPackageVisible,
   type AddonServiceView,
+  type AddPackageItineraryDayInput,
   type CreateBespokeDepartureParams,
   type CreateDepartureForBookingParams,
   type CreateDepartureInput,
   type CreatePackageInput,
   type DepartureView,
+  type PackageItineraryDayView,
   type SetDeparturePickupLocationInput,
   type TourPackageView,
   type UpdatePackageInput,
+  type UpdatePackageItineraryDayInput,
 } from './domain';
 import { catalogRepository } from './repository';
 
@@ -91,6 +94,46 @@ export const catalogService = {
     const pkg = await catalogRepository.findPackageById(requireOrg(ctx), packageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
     return pkg;
+  },
+
+  // ------------------------------------------------------------ itinerary template
+
+  /** Reusable day-by-day itinerary template for a package -- copied onto a
+   * fresh Itinerary's real ItineraryDay rows the moment one is created for a
+   * booking against this package (itineraryService.createItinerary). */
+  async addTemplateDay(ctx: AuthContext, packageId: string, input: AddPackageItineraryDayInput): Promise<PackageItineraryDayView> {
+    assertCan(ctx, 'catalog.write');
+    return catalogRepository.addTemplateDay(requireOrg(ctx), packageId, input);
+  },
+
+  async updateTemplateDay(
+    ctx: AuthContext,
+    dayId: string,
+    input: UpdatePackageItineraryDayInput,
+  ): Promise<PackageItineraryDayView> {
+    assertCan(ctx, 'catalog.write');
+    const updated = await catalogRepository.updateTemplateDay(requireOrg(ctx), dayId, input);
+    if (!updated) throw Errors.notFound('Itinerary template day not found');
+    return updated;
+  },
+
+  async removeTemplateDay(ctx: AuthContext, dayId: string): Promise<void> {
+    assertCan(ctx, 'catalog.write');
+    const removed = await catalogRepository.removeTemplateDay(requireOrg(ctx), dayId);
+    if (!removed) throw Errors.notFound('Itinerary template day not found');
+  },
+
+  async listTemplateDays(ctx: AuthContext, packageId: string): Promise<PackageItineraryDayView[]> {
+    assertCan(ctx, 'catalog.read');
+    return catalogRepository.listTemplateDays(requireOrg(ctx), packageId);
+  },
+
+  /** No-ctx variant for itineraryService.createItinerary's auto-copy step --
+   * that caller already holds itinerary.write and has independently
+   * resolved this exact packageId via the booking's own departure, same
+   * "caller already gates" convention as getDepartureWindow above. */
+  async listTemplateDaysForItineraryCopy(organizationId: string, packageId: string): Promise<PackageItineraryDayView[]> {
+    return catalogRepository.listTemplateDays(organizationId, packageId);
   },
 
   async listPackages(ctx: AuthContext): Promise<TourPackageView[]> {

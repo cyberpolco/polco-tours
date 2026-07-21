@@ -174,3 +174,40 @@ export interface AddonServiceView {
   active: boolean;
 }
 
+// A reusable day-by-day itinerary template for a package -- see the schema
+// comment on PackageItineraryDay for why this isn't shared with the
+// itinerary module's own (structurally identical) ItineraryDayView.
+export interface PackageItineraryDayView {
+  id: string;
+  tourPackageId: string;
+  dayNumber: number;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  pickupLocation: string | null;
+  dropoffLocation: string | null;
+  plannedSites: string | null;
+  activities: string | null;
+  estimatedTravelMinutes: number | null;
+  notes: string | null;
+}
+
+// 24h "HH:MM" -- same convention as itinerary/domain.ts's own local copy of
+// this regex (no shared time-of-day type exists in this schema).
+const TIME_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+export const AddPackageItineraryDayInput = z.object({
+  dayNumber: z.number().int().positive(),
+  departureTime: z.string().regex(TIME_HHMM).optional(),
+  arrivalTime: z.string().regex(TIME_HHMM).optional(),
+  pickupLocation: z.string().max(500).optional(),
+  dropoffLocation: z.string().max(500).optional(),
+  plannedSites: z.string().max(2000).optional(),
+  activities: z.string().max(2000).optional(),
+  estimatedTravelMinutes: z.number().int().nonnegative().optional(),
+  notes: z.string().max(2000).optional(),
+});
+export type AddPackageItineraryDayInput = z.infer<typeof AddPackageItineraryDayInput>;
+
+export const UpdatePackageItineraryDayInput = AddPackageItineraryDayInput.omit({ dayNumber: true }).partial();
+export type UpdatePackageItineraryDayInput = z.infer<typeof UpdatePackageItineraryDayInput>;
+

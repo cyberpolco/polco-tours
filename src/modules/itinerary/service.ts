@@ -4,6 +4,7 @@ import type { Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
 import { bookingService } from '@modules/booking';
+import { catalogService } from '@modules/catalog';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
@@ -68,7 +69,7 @@ export const itineraryService = {
   async createItinerary(ctx: AuthContext, bookingId: string, input: CreateItineraryInput): Promise<ItineraryView> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await bookingService.getById(ctx, bookingId); // 404s if not found/visible in this org
+    const booking = await bookingService.getById(ctx, bookingId); // 404s if not found/visible in this org
 
     const existing = await itineraryRepository.findByBookingId(organizationId, bookingId);
     if (existing) throw Errors.conflict('This booking already has an itinerary');
@@ -82,6 +83,40 @@ export const itineraryService = {
       resourceId: itinerary.id,
       organizationId,
     });
+
+    // Explicit user direction: a package's own reusable itinerary template
+    // (catalog module, per-package day-by-day plan) gets copied onto this
+    // fresh Itinerary's real, dated ItineraryDay rows as a starting point --
+    // staff review/adjust from there instead of building one from scratch
+    // every time. Best-effort: a bespoke/TAILOR_MADE booking has no
+    // departure/package to copy from at all (skip silently, same as today);
+    // any other failure here must never fail itinerary creation itself.
+    try {
+      if (booking.departureId) {
+        const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+        if (departure.tourPackageId) {
+          const templateDays = await catalogService.listTemplateDaysForItineraryCopy(organizationId, departure.tourPackageId);
+          for (const day of templateDays) {
+            await itineraryRepository.addDay(organizationId, itinerary.id, {
+              dayNumber: day.dayNumber,
+              date: addDaysToDate(departure.startDate, day.dayNumber - 1),
+              departureTime: day.departureTime ?? undefined,
+              arrivalTime: day.arrivalTime ?? undefined,
+              pickupLocation: day.pickupLocation ?? undefined,
+              dropoffLocation: day.dropoffLocation ?? undefined,
+              plannedSites: day.plannedSites ?? undefined,
+              activities: day.activities ?? undefined,
+              estimatedTravelMinutes: day.estimatedTravelMinutes ?? undefined,
+              notes: day.notes ?? undefined,
+            });
+          }
+        }
+      }
+    } catch {
+      // Never fail itinerary creation over a template-copy issue -- staff
+      // can still add days manually, same as before this feature existed.
+    }
+
     return itinerary;
   },
 
@@ -451,4 +486,14 @@ async function transition(ctx: AuthContext, itineraryId: string, to: 'DRAFT' | '
     organizationId,
   });
   return updated;
+}
+
+// Same "start + extraDays calendar days" arithmetic as catalog/domain.ts's
+// computeDepartureEndDate -- a package template day's dayNumber is relative
+// to the trip start, this converts it to the real calendar date once a
+// specific booking's departure.startDate is known.
+function addDaysToDate(startDate: Date, extraDays: number): Date {
+  const d = new Date(startDate);
+  d.setUTCDate(d.getUTCDate() + extraDays);
+  return d;
 }

@@ -290,6 +290,15 @@ CREATE POLICY tenant_isolation ON restaurant_ratings
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
+-- ------------------------------------------------------- package_itinerary_days
+ALTER TABLE package_itinerary_days ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_itinerary_days FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON package_itinerary_days;
+CREATE POLICY tenant_isolation ON package_itinerary_days
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
 -- ------------------------------------------------------------- rating_codes (DR-037)
 ALTER TABLE rating_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rating_codes FORCE ROW LEVEL SECURITY;

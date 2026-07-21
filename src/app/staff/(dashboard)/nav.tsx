@@ -28,7 +28,6 @@ interface NavLink {
 }
 
 const LINKS: NavLink[] = [
-  { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
   { href: '/staff/bookings', label: 'Bookings', permission: 'booking.read' },
   { href: '/staff/bookings/new', label: 'New booking', requiresAnyRole: ['TOUR_OPERATOR'] },
   { href: '/staff/packages', label: 'Packages', permission: 'catalog.read' },
@@ -38,6 +37,7 @@ const LINKS: NavLink[] = [
   { href: '/staff/restaurants', label: 'Restaurants', permission: 'itinerary.write' },
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
+  { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
   { href: '/staff/ratings', label: 'Ratings', permission: 'rating.read' },
   // Settings (DR-042): reorganizes 5 pre-existing tabs (Country
   // Regulations, Operational Rates, Insights, Users, Permissions -- URLs

@@ -1,8 +1,9 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { UpdatePackageInput, catalogService } from '@modules/catalog';
+import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
@@ -45,4 +46,48 @@ export async function duplicatePackageAction(packageId: string): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');
   const duplicated = await catalogService.duplicatePackage(ctx, packageId);
   redirect(`/staff/packages/${duplicated.id}`);
+}
+
+function optionalString(formData: FormData, key: string): string | undefined {
+  const value = formData.get(key);
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+export async function addTemplateDayAction(packageId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('catalog.write');
+  const input = AddPackageItineraryDayInput.parse({
+    dayNumber: Number(formData.get('dayNumber')),
+    departureTime: optionalString(formData, 'departureTime'),
+    arrivalTime: optionalString(formData, 'arrivalTime'),
+    pickupLocation: optionalString(formData, 'pickupLocation'),
+    dropoffLocation: optionalString(formData, 'dropoffLocation'),
+    plannedSites: optionalString(formData, 'plannedSites'),
+    activities: optionalString(formData, 'activities'),
+    estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
+    notes: optionalString(formData, 'notes'),
+  });
+  await catalogService.addTemplateDay(ctx, packageId, input);
+  revalidatePath(`/staff/packages/${packageId}`);
+}
+
+export async function updateTemplateDayAction(packageId: string, dayId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('catalog.write');
+  const input = UpdatePackageItineraryDayInput.parse({
+    departureTime: optionalString(formData, 'departureTime'),
+    arrivalTime: optionalString(formData, 'arrivalTime'),
+    pickupLocation: optionalString(formData, 'pickupLocation'),
+    dropoffLocation: optionalString(formData, 'dropoffLocation'),
+    plannedSites: optionalString(formData, 'plannedSites'),
+    activities: optionalString(formData, 'activities'),
+    estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
+    notes: optionalString(formData, 'notes'),
+  });
+  await catalogService.updateTemplateDay(ctx, dayId, input);
+  revalidatePath(`/staff/packages/${packageId}`);
+}
+
+export async function removeTemplateDayAction(packageId: string, dayId: string): Promise<void> {
+  const ctx = await requireStaffContext('catalog.write');
+  await catalogService.removeTemplateDay(ctx, dayId);
+  revalidatePath(`/staff/packages/${packageId}`);
 }
