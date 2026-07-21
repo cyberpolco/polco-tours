@@ -9,14 +9,18 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-21, against repo HEAD `6e7d19f` (DR-065 Country
-> Regulations linked into the visa queue + a package/booking reference
-> column, on top of DR-062 itinerary template, DR-063 session timeout/
-> lastLoginAt, and DR-064 `/find-booking` lifecycle status), pushed but CI
-> not yet confirmed for this exact commit -- every DB-backed test suite
-> this session hit the documented Prisma-to-Neon connectivity gotcha
-> locally (see each DR's own paragraph below). The prior CI-confirmed-green
-> push was `efcb5f7`. `9d8d08c`
+> Last updated: 2026-07-21, against repo HEAD `3cc9ea0`, pushed and
+> CI-confirmed fully green (Lint/Typecheck/Test/Build, Dependency audit, E2E
+> all passing) -- covers DR-062 (itinerary template), DR-063 (session
+> timeout/lastLoginAt), DR-064 (`/find-booking` lifecycle status, whose
+> real CI run also caught and required a same-session e2e-locator fix, see
+> its own paragraph), DR-065 (Country Regulations + reference column in the
+> visa queue), plus two small uncommitted-until-now UI fixes: the staff
+> dashboard now fills the full screen width (previously only the
+> permission-matrix page did, via a page-local hack), and the standalone
+> "Change Password" Settings-sidebar entry -- a real gap in an earlier
+> same-session "merge into My Profile" change that never actually removed
+> it -- is gone. `9d8d08c`
 > (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
 > fully green on real CI. **DR-053** (hide cancelled/refunded bookings from
 > both the guest `/find-booking` lookup and the staff `/staff/bookings`
@@ -458,6 +462,27 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > `typecheck` clean; new `tests/api/visa-facilitator-queue.api.test.ts`
 > assertions hit the connectivity gotcha across 3 retries and need a real
 > CI run to confirm.
+> **Real CI failure on DR-064's push, fixed same session (no new DR --
+> pure e2e-locator fix):** the "Trip status" section DR-064 added to
+> `/find-booking/result` can render a traveler's bare name again (e.g.
+> next to a visa status badge), so `e2e/guest-checkout.spec.ts`'s plain
+> `getByText('Guest Traveler')` started ambiguously matching both that and
+> the existing Travelers-list entry ("Guest Traveler (tour lead)") --
+> narrowed to the full, unique text, same disambiguation precedent this
+> file already used once. Confirmed CI-green afterward.
+> **Two small UI fixes, same session (no schema/permission change, no new
+> DR):** per direct user feedback, (1) every staff dashboard page now
+> fills the full screen width -- previously only `/staff/admin/permissions`
+> did, via a page-local full-bleed hack working around the shared
+> layout's own `mx-auto max-w-5xl`; removed that constraint from
+> `layout.tsx` instead (now every page benefits) and simplified the
+> permissions page's now-redundant wrapper. (2) The standalone "Change
+> Password" entry in the Settings sidebar is gone -- a real gap in an
+> earlier same-session "merge Change Password into My Profile" change
+> that added the inline `PasswordSection` to `/staff/profile` and the
+> voluntary-visit redirect, but never actually deleted the old sidebar
+> entry from `settings-items.ts`, so every role kept seeing a redundant
+> link. CI-confirmed fully green afterward (commit `3cc9ea0`).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
