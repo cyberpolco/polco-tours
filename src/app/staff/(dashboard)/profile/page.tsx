@@ -8,6 +8,7 @@ import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
 import { updateMyProfileAction } from './actions';
+import { PasswordSection } from './password-section';
 
 // SUPERADMIN's own self-service "edit my name/phone" page -- reached via the
 // Settings sidebar (settings-items.ts). Explicit user correction: this was
@@ -64,6 +65,10 @@ export default async function MyProfilePage() {
           </div>
           <SubmitButton pendingLabel="Saving…">Save changes</SubmitButton>
         </form>
+
+        <div className="survey-rule my-8" />
+        <h2 className="text-lg font-semibold text-navy">Password</h2>
+        <PasswordSection />
       </div>
     </SidebarShell>
   );
