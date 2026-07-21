@@ -22,25 +22,16 @@ export default async function PermissionsPage() {
   const matrix = await authService.getPermissionMatrix(ctx);
 
   return (
-    // Breaks out of the (dashboard) layout's centered `max-w-5xl` column --
-    // the parent's fixed max-width was leaving unused margin on either side
-    // while this page's own table needed more room than that column gave
-    // it. The classic full-bleed trick (100vw + negative margin pulled to
-    // the viewport center) rather than raising the shared layout's
-    // max-width, since every other staff page relies on that narrower,
-    // centered column.
-    <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4 sm:px-8">
-      <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
-        <div className="space-y-6">
-          <PageHeader eyebrow="Admin" title="Permission matrix" />
-          <p className="max-w-2xl text-sm text-mist">
-            Toggle checkboxes below, then press &quot;Save changes&quot; to apply them -- nothing is written until
-            you save. SUPERADMIN itself never appears here -- it&apos;s a fixed, permanent role that can never be
-            edited or locked out of the system.
-          </p>
-          <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
-        </div>
-      </SidebarShell>
-    </div>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+      <div className="space-y-6">
+        <PageHeader eyebrow="Admin" title="Permission matrix" />
+        <p className="max-w-2xl text-sm text-mist">
+          Toggle checkboxes below, then press &quot;Save changes&quot; to apply them -- nothing is written until
+          you save. SUPERADMIN itself never appears here -- it&apos;s a fixed, permanent role that can never be
+          edited or locked out of the system.
+        </p>
+        <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
+      </div>
+    </SidebarShell>
   );
 }

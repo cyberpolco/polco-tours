@@ -26,7 +26,12 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           <SignOutButton />
         </div>
       </nav>
-      <main className="mx-auto max-w-5xl px-8 py-10">
+      {/* Full-width, not a centered max-w-5xl column -- explicit user
+          direction ("let it fill the entire screen, like permission
+          matrix"), which previously had to break out of this layout's own
+          column with a one-off full-bleed hack (now removed, since there's
+          nothing left to break out of). */}
+      <main className="px-8 py-10">
         <BackButton />
         {children}
       </main>
