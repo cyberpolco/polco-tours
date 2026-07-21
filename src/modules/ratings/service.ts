@@ -9,9 +9,10 @@ import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
 import { invoicingService } from '@modules/invoicing';
 import { notificationsService } from '@modules/notifications';
-import { audit, countRecentAuditEvents } from '@lib/audit';
+import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { getPrimaryOrgId } from '@lib/primary-org';
+import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
 import { assertCan } from '@lib/rbac';
 import {
   canIssueRatingCode,
@@ -34,8 +35,8 @@ function requireOrg(ctx: AuthContext): string {
 }
 
 // Same threshold/window as booking's own guest-lookup rate limit
-// (lookupByBookingReference) -- no real rate-limiting infra exists yet
-// (crude audit-log-backed counter, DR-016).
+// (lookupByBookingReference) -- real Redis-backed once Upstash is
+// configured (DR-066), the original audit-log-backed counter otherwise.
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
 
@@ -51,15 +52,13 @@ async function resolveEligibleBooking(
   ip: string | undefined,
 ) {
   if (ip) {
-    const recentFailures = await countRecentAuditEvents({
+    await assertLookupNotRateLimited({
       organizationId,
       action: 'rating.lookup_failed',
       ip,
-      sinceMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+      windowMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+      maxAttempts: LOOKUP_RATE_LIMIT_MAX_ATTEMPTS,
     });
-    if (recentFailures >= LOOKUP_RATE_LIMIT_MAX_ATTEMPTS) {
-      throw Errors.rateLimited('Too many attempts -- try again later');
-    }
   }
 
   const booking = await bookingService.getBookingForRating(organizationId, input.bookingReference);
@@ -68,6 +67,14 @@ async function resolveEligibleBooking(
 
   if (!booking || !ratingCode || ratingCode.bookingId !== booking.id || !isRatingCodeUsable(ratingCode, now)) {
     await audit({ action: 'rating.lookup_failed', resourceType: 'RatingCode', organizationId, ip });
+    if (ip) {
+      await recordLookupFailure({
+        organizationId,
+        action: 'rating.lookup_failed',
+        ip,
+        windowMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+      });
+    }
     throw Errors.notFound('No matching booking found');
   }
 

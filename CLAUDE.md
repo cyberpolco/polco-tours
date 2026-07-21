@@ -1166,16 +1166,21 @@ review that killed an insecure design before code was written** — do that.
 - Tenant business data — organization-scoped, RLS-isolated.
 
 **STRIDE → controls already in place (or the plan):**
-- **Spoofing** → better-auth + email verification; add auth rate-limit/lockout.
+- **Spoofing** → better-auth + email verification; auth sign-in/sign-up now
+  rate-limited (`/sign-in/email` 5/min, `/sign-up/email` 3/min, DR-066), real
+  Redis-backed once Upstash is configured (OI-10 still open — degrades to
+  better-auth's own in-memory limiter until then, per-instance only).
 - **Tampering** → prices/tax/state computed server-side only (charter rule 1);
   `verifyToken` authority for payments once DPO is live.
 - **Repudiation** → append-only `audit_logs` (UPDATE/DELETE denied at the DB);
   log payments, document access, role changes, assignments, visa decisions.
 - **Information disclosure** → RLS (FORCE) + anti-BOLA object-ownership checks
   (404-not-403 convention) + private Blob; problem+json leaks no internals.
-- **Denial of service** → per-class rate limiting is **not yet built** (only the
-  crude audit-log-backed limiter on booking lookup, DR-016); real Upstash
-  rate-limiting is a known gap.
+- **Denial of service** → the public guest lookups (find-booking, rating-code)
+  are rate-limited via `src/lib/rate-limit.ts` (DR-066) — real Redis-backed
+  once Upstash is configured, falling back to the original audit-log-backed
+  counter (DR-016) otherwise. Per-class rate limiting beyond these two lookups
+  and the auth endpoints above is still not built.
 - **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes denied;
   `SUPERADMIN`/`admin.all` actions are audited. Since DR-035 the permission
   matrix itself is a runtime-editable, SUPERADMIN-only attack surface — a
@@ -3569,9 +3574,28 @@ tradeoff, and the Rating Code's raw value is deliberately never exposed ·
 DR-065 links Country Regulations into `/staff/visa-queue` (processing time +
 a link to `/staff/country-regulations/{country}` on the Country column) and
 adds a Reference column falling back package-reference-then-booking-
-reference, both composed directly in the page.
+reference, both composed directly in the page · DR-066 adds real Upstash
+Redis-backed rate limiting (`src/lib/rate-limit.ts`), closing the STRIDE
+"Denial of service"/"Spoofing" gaps this doc had flagged since Phase 1.
+Upstash was already the approved tech-stack choice (DR-001) but had never
+been implemented; no account exists yet (new OI-10). Same "real adapter,
+env-gated graceful degradation" precedent as the notification gateways
+(DR-013) -- everything falls back to its pre-existing infra-free behavior
+(better-auth's own in-memory limiter for sign-in/sign-up; the original
+audit-log-backed counter, DR-016, for the guest find-booking/rating-code
+lookups) until OI-10 is resolved. Wired into `authConfig.rateLimit` (new
+`customRules` tightening `/sign-in/email`/`/sign-up/email`,
+`customStorage` implementing better-auth's native `BetterAuthRateLimitStorage`)
+and into `bookingService.lookupByBookingReference`/`ratingsService`'s
+`resolveEligibleBooking` (a real Redis counter replacing the audit-log table
+scan, deliberately preserving the exact prior "count recent FAILED attempts
+only" semantics rather than switching to a naive per-call sliding window,
+which would have penalized a guest correcting their own typo). No schema/RLS
+change; new `@upstash/redis` dependency only (no `@upstash/ratelimit` --
+unneeded for this design). New `tests/lib/rate-limit.test.ts` (15 tests, pure,
+mocks `@upstash/redis`).
 
-## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
+## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09..10; OI-04/08 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -3627,8 +3651,18 @@ reference, both composed directly in the page.
 - **OI-09** Real Starlink API/account access (live kit location feed).
   `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now
   (DR-029). Blocks real-time fleet location tracking.
+- **OI-10** Upstash Redis account + `UPSTASH_REDIS_REST_URL`/
+  `UPSTASH_REDIS_REST_TOKEN` (DR-066, 2026-07-21). The real Redis-backed rate
+  limiting (auth sign-in/sign-up + the public find-booking/rating-code
+  lookups, `src/lib/rate-limit.ts`) is fully built and env-gated, following
+  the exact same "real adapter, graceful degradation" precedent as
+  OI-05/06/07's notification gateways — everything still works today,
+  just via the pre-existing in-memory (auth) or audit-log-backed (guest
+  lookups) fallback, which doesn't hold up across Vercel's multiple
+  serverless instances the way real Redis would. Blocks real, consistent
+  rate limiting in production.
 
-Surface OI-01..03/05..07/09 to the human — don't invent answers.
+Surface OI-01..03/05..07/09..10 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —

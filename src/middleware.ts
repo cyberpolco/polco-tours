@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Edge middleware: attaches a trace id and seeds the `locale` cookie. The
- * rate-limit pre-check and session hydration hook in here in Phase 1
- * (Upstash + Better Auth). Business logic never lives here — the backend
+ * Edge middleware: attaches a trace id and seeds the `locale` cookie.
+ * Real Upstash Redis-backed rate limiting landed DR-066, but not here —
+ * better-auth's own request pipeline enforces it for sign-in/sign-up
+ * (`src/lib/auth.ts`'s `rateLimit.customStorage`, see `src/lib/rate-limit.ts`),
+ * and the public guest lookups (find-booking, rating-code) enforce it in
+ * their own service methods. Business logic never lives here — the backend
  * decides (Vol. 5).
  *
  * Locale resolution (cookie, else Accept-Language) used to only get written

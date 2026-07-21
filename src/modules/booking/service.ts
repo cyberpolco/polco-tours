@@ -4,10 +4,11 @@ import type { BookingStatus, Locale, PaymentKind } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
-import { audit, countRecentAuditEvents } from '@lib/audit';
+import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { add, money, scale, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
+import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
 import { assertCan } from '@lib/rbac';
 import {
   canAddTraveler,
@@ -698,24 +699,23 @@ export const bookingService = {
    * non-privately everywhere -- staff pages, invoices, this same page).
    * Practical effect: anyone who's seen a booking's reference (e.g. on a
    * shared screen, an emailed receipt) and can guess/know the tour lead's
-   * last name can pull up the manifest here. The crude audit-log-backed
-   * rate limit below is the only remaining defense against automated
-   * guessing, since no real rate-limiting infra exists yet. Read-only by
-   * design regardless -- no mutating action reachable from here (staff
-   * handle guest-requested changes from the staff dashboard). */
+   * last name can pull up the manifest here. The rate limit below (real
+   * Redis-backed once Upstash is configured, DR-066; the original
+   * audit-log-backed counter otherwise) is the only remaining defense
+   * against automated guessing. Read-only by design regardless -- no
+   * mutating action reachable from here (staff handle guest-requested
+   * changes from the staff dashboard). */
   async lookupByBookingReference(input: LookupBookingInput, ip: string | undefined): Promise<BookingLookupResult> {
     const organizationId = await getPrimaryOrgId();
 
     if (ip) {
-      const recentFailures = await countRecentAuditEvents({
+      await assertLookupNotRateLimited({
         organizationId,
         action: 'booking.lookup_failed',
         ip,
-        sinceMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+        windowMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+        maxAttempts: LOOKUP_RATE_LIMIT_MAX_ATTEMPTS,
       });
-      if (recentFailures >= LOOKUP_RATE_LIMIT_MAX_ATTEMPTS) {
-        throw Errors.rateLimited('Too many attempts -- try again later');
-      }
     }
 
     const found = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
@@ -741,6 +741,14 @@ export const bookingService = {
       // Never reveal which part was wrong -- same anti-enumeration posture
       // as getOwnedBooking's 404-not-403 elsewhere in this module.
       await audit({ action: 'booking.lookup_failed', resourceType: 'Booking', organizationId, ip });
+      if (ip) {
+        await recordLookupFailure({
+          organizationId,
+          action: 'booking.lookup_failed',
+          ip,
+          windowMinutes: LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+        });
+      }
       throw Errors.notFound('No matching booking found');
     }
 

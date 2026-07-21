@@ -3,6 +3,7 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { anonymous } from 'better-auth/plugins';
 import { prisma } from './db';
 import { getPrimaryOrgId } from './primary-org';
+import { getAuthRateLimitStorage } from './rate-limit';
 
 /**
  * Authentication (Vol. 5 / Vol. 7): Better Auth, self-hosted, data in our own
@@ -68,6 +69,20 @@ export const authConfig = {
   session: {
     expiresIn: 60 * 30,
     updateAge: 60 * 30,
+  },
+  // DR-066: closes the STRIDE "Spoofing -> add auth rate-limit/lockout"
+  // gap. customRules tightens the default well below better-auth's own
+  // 100-req/10s baseline for the two credential-guessing-relevant
+  // endpoints; every other endpoint keeps that default. customStorage is
+  // undefined (falls back to better-auth's own in-memory storage, per-
+  // instance only) until UPSTASH_REDIS_REST_URL/TOKEN are set (OI-10) --
+  // see src/lib/rate-limit.ts for the real Redis-backed implementation.
+  rateLimit: {
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/sign-up/email': { window: 60, max: 3 },
+    },
+    customStorage: getAuthRateLimitStorage(),
   },
   advanced: {
     cookiePrefix: 'polco',

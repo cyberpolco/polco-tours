@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
+    "@upstash/redis": "1.38.0",
     "@vercel/blob": "2.6.1",
     "@visx/event": "4.0.0",
     "@visx/geo": "4.0.0",
