@@ -9,13 +9,12 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-21, against repo HEAD `0495c81` (DR-062 itinerary
-> template + DR-063 session timeout/lastLoginAt), pushed but CI not yet
-> confirmed for this exact commit -- both DB-backed test suites hit the
-> documented Prisma-to-Neon connectivity gotcha locally this session (see
-> each DR's own paragraph below). The prior push, `efcb5f7`, was
-> CI-confirmed fully green (Lint/Typecheck/Test/Build, Dependency audit,
-> E2E all passing). `9d8d08c`
+> Last updated: 2026-07-21, against repo HEAD `2fd3d05` (DR-064
+> `/find-booking` lifecycle status, on top of DR-062 itinerary template +
+> DR-063 session timeout/lastLoginAt), pushed but CI not yet confirmed for
+> this exact commit -- every DB-backed test suite this session hit the
+> documented Prisma-to-Neon connectivity gotcha locally (see each DR's own
+> paragraph below). The prior CI-confirmed-green push was `efcb5f7`. `9d8d08c`
 > (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
 > fully green on real CI. **DR-053** (hide cancelled/refunded bookings from
 > both the guest `/find-booking` lookup and the staff `/staff/bookings`
@@ -403,6 +402,41 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > hook, and `signUpEmail` alone doesn't reach it either since
 > `requireEmailVerification: true` skips auto-sign-in-on-signup) confirmed
 > passing live against the real Neon DB.
+> **DR-064 (2026-07-21): `/find-booking` now surfaces booking-lifecycle
+> status** -- explicit user instruction: also show itinerary approval,
+> driver/vehicle/guide assignment, Starlink kit tracking, visa status, and
+> rating-code availability, not just the bare `Booking.status` it showed
+> before. **Real security-relevant tradeoff, explicitly accepted after being
+> flagged**: this no-login page (reachable via only `bookingReference` +
+> last name) now shows real driver names and vehicle details ("Show real
+> driver name/vehicle details too") -- do not silently reverse this; visa
+> status is scoped to surface only when `Booking.requiresPassportUpload` is
+> true ("Just the visa status if it was ticked by the client"), not a
+> broader country-regulation dump. New no-ctx service methods, all
+> following the established "caller already gates" convention (the page
+> has already independently verified the guest's two-factor lookup before
+> calling any of them): `itineraryService.getStatusForBookingLookup` (bare
+> status only), `fleetService.listVehiclesForBookingLookup`/
+> `listStarlinkKitsByVehicleIdsForBookingLookup`,
+> `visaService.getStatusForBookingLookup` (bare status only, never
+> `rejectionReason`/`documentId`), `ratingsService
+> .getRatingCodeStatusForBookingLookup` -- **deliberately redacted**,
+> returns `{available, expiresAt, usedAt}` and never the raw `RatingCode
+> .code`, since that's this module's own genuine single-use second factor
+> for the separate `/rate` flow, delivered via its own notification;
+> exposing it here would make that second factor recoverable from the same
+> single lookup it's meant to be independent of -- this design principle
+> was not contested by the user and must be preserved in any future work
+> touching this page. Composed directly in the guest page's Server
+> Component (module-boundary rule prevents `booking` itself from importing
+> `itinerary`/`fleet`/`visa`/`ratings`, since `itinerary` already depends on
+> `booking`), sequential `await`s throughout per the documented connection-
+> pool-exhaustion precedent (DR-038/041/060/062). No schema/RLS change.
+> `lint`/`typecheck` clean; new `tests/find-booking-lifecycle.test.ts`
+> (5 tests) hit the documented Prisma-to-Neon connectivity gotcha across 3
+> retries this session (confirmed the DB itself stayed reachable via direct
+> `psql` checks throughout; cleaned up two orphaned test orgs left by the
+> failed attempts) -- needs a real CI run to confirm.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
@@ -2921,6 +2955,14 @@ ink, rule. Keep product surfaces visually coherent with the documents.
   shown as a new "Last login" column on `/staff/admin/users`. Pushed
   (`0495c81`); its own DB-backed test (a real `signInEmail` call)
   confirmed passing live.
+- **DR-064 (2026-07-21): `/find-booking` surfaces booking-lifecycle
+  status** -- itinerary approval, real driver/vehicle/guide assignment
+  details, Starlink kit tracking, visa status (only when `Booking
+  .requiresPassportUpload`), and rating-code availability (redacted --
+  never the raw code). Explicit, informed user tradeoff to show real
+  driver/vehicle details on this no-login page. Pushed (`2fd3d05`); its
+  new DB-backed test hit the connectivity gotcha across 3 retries and
+  needs a real CI run to confirm.
 - **Phase 2 (remaining):** WhatsApp fallback real wiring (OI-06), real
   Starlink API integration (OI-09), and CRM. Email (Resend) has real
   credentials but is sandboxed to one recipient until a domain is verified
@@ -3456,7 +3498,14 @@ a genuine 30-minute sliding-window inactivity timeout
 (`{expiresIn: 30m, updateAge: 30m}`), applied globally including
 anonymous guest-checkout sessions per explicit, informed user choice, and
 adds `User.lastLoginAt` (set via a `session.create.after` hook) as a new
-"Last login" column on `/staff/admin/users`.
+"Last login" column on `/staff/admin/users` · DR-064 extends `/find-booking`
+with real booking-lifecycle status (itinerary approval, driver/vehicle/guide
+assignment, Starlink kit, visa status gated on `requiresPassportUpload`,
+redacted rating-code availability) via new no-ctx "caller already gates"
+service methods across the itinerary/fleet/visa/ratings modules, composed
+directly in the guest page's Server Component; real driver names/vehicle
+details are shown on this no-login page as an explicit, informed user
+tradeoff, and the Rating Code's raw value is deliberately never exposed.
 
 ## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08 resolved)
 
