@@ -16,8 +16,10 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > real CI run also caught and required a same-session e2e-locator fix, see
 > its own paragraph), DR-065 (Country Regulations + reference column in the
 > visa queue), plus two small uncommitted-until-now UI fixes: the staff
-> dashboard now fills the full screen width (previously only the
-> permission-matrix page did, via a page-local hack), and the standalone
+> dashboard now uses a wider `max-w-7xl` column instead of the original
+> `max-w-5xl` (two rounds of user feedback -- "fill the entire screen" was
+> too far, so it settled on wider-with-margin rather than fully
+> edge-to-edge), and the standalone
 > "Change Password" Settings-sidebar entry -- a real gap in an earlier
 > same-session "merge into My Profile" change that never actually removed
 > it -- is gone. `9d8d08c`
@@ -471,12 +473,16 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > narrowed to the full, unique text, same disambiguation precedent this
 > file already used once. Confirmed CI-green afterward.
 > **Two small UI fixes, same session (no schema/permission change, no new
-> DR):** per direct user feedback, (1) every staff dashboard page now
-> fills the full screen width -- previously only `/staff/admin/permissions`
-> did, via a page-local full-bleed hack working around the shared
-> layout's own `mx-auto max-w-5xl`; removed that constraint from
-> `layout.tsx` instead (now every page benefits) and simplified the
-> permissions page's now-redundant wrapper. (2) The standalone "Change
+> DR):** per direct user feedback, (1) every staff dashboard page's
+> centered column widened from `max-w-5xl` to `max-w-7xl` -- previously
+> only `/staff/admin/permissions` broke out to full edge-to-edge width, via
+> a page-local full-bleed hack working around the shared layout's own
+> `mx-auto max-w-5xl`; a first pass removed that constraint entirely
+> (matching the permissions page's full-bleed look) but a follow-up
+> correction ("Too wide just leave some margin") settled on a wider,
+> still-bounded `max-w-7xl` column instead -- simplified the permissions
+> page's now-redundant full-bleed wrapper either way, since it no longer
+> needs to break out of anything. (2) The standalone "Change
 > Password" entry in the Settings sidebar is gone -- a real gap in an
 > earlier same-session "merge Change Password into My Profile" change
 > that added the inline `PasswordSection` to `/staff/profile` and the
