@@ -9,7 +9,9 @@ management (tourists, operators, guides, drivers, vehicle owners, hotels,
 restaurants, visa facilitators). Web platform first;
 native apps later. Brand: **polcotours** (`polcotours.com`).
 
-> Last updated: 2026-07-20, against repo HEAD `949dd91`, pushed. `9d8d08c`
+> Last updated: 2026-07-20, against repo HEAD `efcb5f7`, pushed and
+> CI-confirmed fully green (Lint/Typecheck/Test/Build, Dependency audit,
+> E2E all passing). `9d8d08c`
 > (DR-052, removing `Booking.confirmationCode` entirely) was last confirmed
 > fully green on real CI. **DR-053** (hide cancelled/refunded bookings from
 > both the guest `/find-booking` lookup and the staff `/staff/bookings`
@@ -101,7 +103,7 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > page for any staff role to edit their own name/phone. Retroactively
 > logged in `docs/decisions/DECISION_LOG.md` as DR-059 this session (it had
 > only ever been recorded in this narrative, not the formal table).
-> **DR-060** (this session, HEAD `2713a17` before this push): closes a real
+> **DR-060** (commit `efcb5f7`, pushed): closes a real
 > gap a user-requested "plan the Visa Queue" discussion surfaced through
 > research, not assumption -- `visaService.submitApplication` (the only
 > code path that ever creates a `VisaApplication`) had **no UI anywhere
@@ -131,6 +133,8 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > against the real Neon DB (both intermittently slow/failing at first from
 > the documented Prisma-to-Neon connectivity gotcha before passing
 > cleanly) -- see DR-060's own `docs/decisions/DECISION_LOG.md` entry.
+> CI confirmed fully green on this commit (Lint/Typecheck/Test/Build,
+> Dependency audit, E2E all passing).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
