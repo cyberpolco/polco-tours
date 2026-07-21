@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { bookingService } from '@modules/booking';
 import { documentsService } from '@modules/documents';
+import { visaService } from '@modules/visa';
 
 export async function uploadPassportAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
   const ctx = await requireGuestContext();
@@ -20,6 +21,15 @@ export async function uploadPassportAction(bookingId: string, travelerId: string
     bytes,
   });
   await bookingService.setTravelerPassport(ctx, bookingId, travelerId, doc.id);
+
+  // DR-060: best-effort -- never let a visa-application hiccup fail the
+  // passport upload itself (see autoSubmitOnPassportUpload's own comment).
+  try {
+    await visaService.autoSubmitOnPassportUpload(ctx, bookingId, travelerId);
+  } catch {
+    // Falls back to the /staff/visa-queue "Needs application" reconciliation
+    // view, which a facilitator can act on manually.
+  }
 
   // Every traveler needs one when this step applies at all -- loop back
   // here for the next one still missing a passport, or move on once none

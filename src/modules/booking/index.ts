@@ -19,4 +19,5 @@ export type {
   TravelerDutyGroup,
   TravelerDutyView,
   TravelerView,
+  VisaCandidateTravelerView,
 } from './domain';

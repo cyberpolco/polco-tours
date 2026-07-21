@@ -28,6 +28,7 @@ import {
   type SetAddonsInput,
   type TravelerDutyGroup,
   type TravelerView,
+  type VisaCandidateTravelerView,
 } from './domain';
 import { bookingRepository, InvalidTransitionError, SoldOutError } from './repository';
 
@@ -534,6 +535,16 @@ export const bookingService = {
     const traveler = await bookingRepository.findTravelerById(organizationId, travelerId);
     if (!traveler) return null;
     return bookingRepository.findById(organizationId, traveler.bookingId);
+  },
+
+  /** DR-060: feeds the visa module's "needs application" reconciliation
+   * view -- gated on visa.process directly (not booking.read), matching
+   * assignmentService.listAllAssignments' precedent of checking the calling
+   * module's own permission rather than a narrower booking-specific one. */
+  async listTravelersRequiringVisa(ctx: AuthContext): Promise<VisaCandidateTravelerView[]> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    return bookingRepository.listTravelersRequiringVisa(organizationId);
   },
 
   /** Attaches an uploaded passport Document to the booking's tour lead. The

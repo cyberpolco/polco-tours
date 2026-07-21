@@ -4,6 +4,7 @@ import { Errors, problemResponse } from '@lib/errors';
 import type { AuthContext } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { documentsService } from '@modules/documents';
+import { visaService } from '@modules/visa';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,5 +49,13 @@ export const POST = withAuth<Params>('documents.write', async (ctx, req: NextReq
   const bytes = Buffer.from(await file.arrayBuffer());
   const doc = await documentsService.uploadPassport(ctx, { contentType: file.type, sizeBytes: file.size, bytes });
   await bookingService.setTravelerPassport(ctx, bookingId, travelerId, doc.id);
+
+  // DR-060: best-effort -- never let a visa-application hiccup fail the
+  // passport upload response itself.
+  try {
+    await visaService.autoSubmitOnPassportUpload(ctx, bookingId, travelerId);
+  } catch {
+    // Falls back to the /staff/visa-queue "Needs application" view.
+  }
   return NextResponse.json({ document: doc }, { status: 201 });
 });

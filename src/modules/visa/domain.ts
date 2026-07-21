@@ -1,5 +1,5 @@
 // visa module — domain types & rules. Pure; no framework or DB imports.
-import type { VisaStatus } from '@prisma/client';
+import type { BookingOrigin, VisaStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VisaApplicationView {
@@ -37,6 +37,10 @@ export interface FacilitatorVisaView {
   // anti-BOLA check). Null only if the reverse booking lookup itself fails
   // (same rare case travelStartDate already tolerates).
   bookingId: string | null;
+  // Resolved live alongside bookingId/travelStartDate (DR-060) -- null in
+  // the same rare case those are (the reverse booking lookup itself
+  // failing), so a facilitator can filter/scan by source at a glance.
+  origin: BookingOrigin | null;
   travelerFirstName: string;
   travelerLastName: string;
   travelerNationality: string;
@@ -49,6 +53,22 @@ export interface FacilitatorVisaView {
   submittedAt: Date;
   decidedAt: Date | null;
   travelStartDate: Date | null;
+}
+
+// DR-060: a traveler with an uploaded passport on a booking that requires
+// one, but no VisaApplication yet -- the "needs application" reconciliation
+// view on /staff/visa-queue. Now that submitApplication is auto-triggered
+// right after passport upload (see visaService.autoSubmitOnPassportUpload),
+// this list should normally be small/empty -- it exists as a safety net for
+// data that predates the automatic trigger, or for the rare case that
+// trigger silently skipped (e.g. an unresolvable destination country).
+export interface PendingVisaApplicationView {
+  travelerId: string;
+  bookingId: string;
+  origin: BookingOrigin;
+  travelerFirstName: string;
+  travelerLastName: string;
+  travelerNationality: string;
 }
 
 // Immigration Module (DR-034): "contact travellers" -- a staff-authored

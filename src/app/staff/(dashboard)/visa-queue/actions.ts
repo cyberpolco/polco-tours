@@ -16,3 +16,12 @@ export async function requestMissingDocumentsAction(bookingId: string, travelerI
   await visaService.requestMissingDocuments(ctx, bookingId, travelerId);
   revalidatePath('/staff/visa-queue');
 }
+
+// DR-060: manually starts an application for a row in the "Needs
+// application" reconciliation section -- the same visaService.submitApplication
+// that already existed but, before this DR, had no UI anywhere calling it.
+export async function startApplicationAction(bookingId: string, travelerId: string): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  await visaService.submitApplication(ctx, bookingId, travelerId);
+  revalidatePath('/staff/visa-queue');
+}

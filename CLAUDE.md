@@ -84,15 +84,53 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > outage) -- needs a real CI run to fully confirm.
 > Also pushed this session, HEAD now `f47cc0b`: a staff "Confirm & Pay"
 > trip-summary section on `/staff/bookings/[bookingId]`.
-> **Not yet committed on top of that**: **DR-058**, real booking deletion
-> for the staff dashboard -- see DR-058's own Phase-status entry and
-> `docs/decisions/DECISION_LOG.md` for the full spec (soft-delete +
-> 90-day retention purge, SUPERADMIN-only, any status, after two design
-> corrections mid-conversation from an initial "hard delete" choice).
-> Schema (`Booking.deletedAt` + index) applied to the shared Neon DB;
-> `lint`/`typecheck` clean, pure-domain/rbac tests green; the new
-> DB-backed test needs a real CI run (Prisma's engine, not just `vitest`,
-> couldn't reach the DB this time -- confirmed `psql` still could).
+> **DR-058** (commit `891142e`, CI-confirmed green after a follow-up fix in
+> `74ed217`) shipped real booking deletion for the staff dashboard --
+> soft-delete + 90-day retention purge, SUPERADMIN-only, any status, after
+> two design corrections mid-conversation from an initial "hard delete"
+> choice -- see DR-058's own `docs/decisions/DECISION_LOG.md` entry.
+> **DR-059** (commits `5fcb30e`/`2713a17`, CI-confirmed fully green) added
+> SUPERADMIN-only fleet deletion (`Vehicle`/`DriverProfile`/`GuideProfile`
+> soft-deleted, `StarlinkKit` genuinely hard-deleted -- schema-confirmed no
+> FK anywhere points at it), 10 seeded vehicles/drivers/guides/unassigned
+> Starlink kits, 10 seeded hotels + 10 restaurants across NA/CD/ZM/ZW,
+> itinerary auto-removal when its booking is deleted
+> (`itineraryService.deleteForBooking`, orchestrated at the staff Server
+> Action layer since `itinerary` already depends on `booking` and the
+> reverse call would be circular), and a new `/staff/profile` self-service
+> page for any staff role to edit their own name/phone. Retroactively
+> logged in `docs/decisions/DECISION_LOG.md` as DR-059 this session (it had
+> only ever been recorded in this narrative, not the formal table).
+> **DR-060** (this session, HEAD `2713a17` before this push): closes a real
+> gap a user-requested "plan the Visa Queue" discussion surfaced through
+> research, not assumption -- `visaService.submitApplication` (the only
+> code path that ever creates a `VisaApplication`) had **no UI anywhere
+> calling it at all**, so no visa application could ever be started through
+> the app, for any of the 3 booking sources; `/staff/visa-queue` only ever
+> showed rows that already existed, with no way to surface who needed one
+> started. New `visaService.autoSubmitOnPassportUpload`, called (best-
+> effort, try/catch) right after passport upload from all 3 call sites
+> (guest wizard, staff wizard, raw API route) -- deliberately skips the
+> `visa.process` check, since the caller already has legitimate access to
+> that exact traveler via `setTravelerPassport`'s own anti-BOLA check. New
+> `bookingService.listTravelersRequiringVisa` +
+> `visaService.listNeedingApplication` power a "Needs application"
+> reconciliation section on `/staff/visa-queue` (a safety net now that (1)
+> handles the common case), with a manual "Start application" button
+> finally giving the previously-dangling `submitApplication` route a real
+> UI trigger. `FacilitatorVisaView` gained a live-resolved `origin` field +
+> a Source column/filter-pills on the queue page -- purely for staff
+> triage, no behavioral branching by origin (confirmed none was warranted).
+> Found and fixed a real bug while testing, not just a test issue: the
+> first draft of `listNeedingApplication` composed two calls via
+> `Promise.all`, reproducing the exact connection-pool-exhaustion pattern
+> Insights (DR-038)/Tracking (DR-041) already diagnosed -- fixed to
+> sequential `await`s. No schema/RLS change. `lint`/`typecheck` clean; new
+> `tests/visa-auto-submit.test.ts` (5/5) and the existing
+> `tests/api/visa-facilitator-queue.api.test.ts` (3/3) confirmed green live
+> against the real Neon DB (both intermittently slow/failing at first from
+> the documented Prisma-to-Neon connectivity gotcha before passing
+> cleanly) -- see DR-060's own `docs/decisions/DECISION_LOG.md` entry.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

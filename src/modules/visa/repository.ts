@@ -3,7 +3,7 @@ import type { VisaApplication, VisaStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type { FacilitatorVisaView, VisaApplicationView } from './domain';
 
-type FacilitatorVisaRow = Omit<FacilitatorVisaView, 'travelStartDate' | 'bookingId'>;
+type FacilitatorVisaRow = Omit<FacilitatorVisaView, 'travelStartDate' | 'bookingId' | 'origin'>;
 
 export interface CreateVisaApplicationParams {
   travelerId: string;
@@ -119,6 +119,16 @@ export const visaRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.visaApplication.findMany({ orderBy: { submittedAt: 'desc' } });
       return rows.map(toFacilitatorRow);
+    });
+  },
+
+  /** DR-060: every travelerId that already has a VisaApplication -- used to
+   * diff against booking's whole-org "requires visa" candidate list for the
+   * "needs application" reconciliation view. */
+  async listExistingTravelerIds(organizationId: string): Promise<Set<string>> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.visaApplication.findMany({ select: { travelerId: true } });
+      return new Set(rows.map((r) => r.travelerId));
     });
   },
 };

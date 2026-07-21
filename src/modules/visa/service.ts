@@ -14,6 +14,7 @@ import {
   type ContactTravelerInput,
   type DecideVisaInput,
   type FacilitatorVisaView,
+  type PendingVisaApplicationView,
   type VisaApplicationView,
 } from './domain';
 import { visaRepository } from './repository';
@@ -244,10 +245,12 @@ export const visaService = {
       rows.map(async (row) => {
         let travelStartDate: Date | null = null;
         let bookingId: string | null = null;
+        let origin: FacilitatorVisaView['origin'] = null;
         try {
           const booking = await bookingService.getBookingForTraveler(ctx, row.travelerId);
           if (booking) {
             bookingId = booking.id;
+            origin = booking.origin;
             if (booking.departureId) {
               const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
               travelStartDate = departure.startDate;
@@ -257,10 +260,10 @@ export const visaService = {
           }
         } catch {
           // Booking/departure no longer resolvable for this role (e.g. a
-          // COMPLETED trip) -- leave travelStartDate/bookingId null rather
-          // than fail the whole queue over one unresolvable row.
+          // COMPLETED trip) -- leave travelStartDate/bookingId/origin null
+          // rather than fail the whole queue over one unresolvable row.
         }
-        return { ...row, bookingId, travelStartDate };
+        return { ...row, bookingId, origin, travelStartDate };
       }),
     );
 
@@ -271,5 +274,90 @@ export const visaService = {
       return 0;
     });
     return withDates;
+  },
+
+  /** DR-060: "needs application" reconciliation view for /staff/visa-queue --
+   * primarily a safety net now that autoSubmitOnPassportUpload handles the
+   * common case, so this should normally return few or zero rows. Composes
+   * booking's whole-org candidate list (every traveler with a passport
+   * uploaded on a visa-requiring booking) against this module's own
+   * existing-application set, diffed here rather than via a direct
+   * cross-table join (module boundary -- booking doesn't know about
+   * VisaApplication). Sequential awaits, not Promise.all -- the same
+   * connection-pool-exhaustion fix Insights (DR-038) and Tracking (DR-041)
+   * already established for composing two concurrent withOrg transactions. */
+  async listNeedingApplication(ctx: AuthContext): Promise<PendingVisaApplicationView[]> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    const candidates = await bookingService.listTravelersRequiringVisa(ctx);
+    const existingTravelerIds = await visaRepository.listExistingTravelerIds(organizationId);
+    return candidates
+      .filter((c) => !existingTravelerIds.has(c.travelerId))
+      .map((c) => ({
+        travelerId: c.travelerId,
+        bookingId: c.bookingId,
+        origin: c.origin,
+        travelerFirstName: c.firstName,
+        travelerLastName: c.lastName,
+        travelerNationality: c.nationality,
+      }));
+  },
+
+  /** DR-060: auto-triggered right after a traveler's passport is uploaded
+   * (guest wizard, staff wizard, and the raw API route) -- replaces what was
+   * previously a fully manual, UI-less action (nothing in this app ever
+   * called POST .../visa/submit; the only reachable trigger was a direct API
+   * call by someone holding visa.process). A visa application should exist
+   * the moment its one real precondition -- an uploaded passport, on a
+   * booking that actually needs one -- is met, rather than waiting on a
+   * facilitator to separately notice and start it.
+   *
+   * Deliberately does NOT assertCan(ctx, 'visa.process') -- the caller here
+   * is whoever just uploaded the passport (a guest or a staff member without
+   * that permission), and this doesn't expose them to any new data or
+   * capability: they already have legitimate write access to this exact
+   * traveler via setTravelerPassport's own anti-BOLA check. It also never
+   * throws -- every non-eligible case (no requiresPassportUpload, an
+   * application already exists, country unresolvable) is a silent no-op,
+   * and every call site additionally wraps this in try/catch so a failure
+   * here can never fail the passport upload itself (same charter-rule-8
+   * "must not crash the triggering action" precedent as the Add-ons
+   * currency-mismatch fix earlier this session). */
+  async autoSubmitOnPassportUpload(ctx: AuthContext, bookingId: string, travelerId: string): Promise<void> {
+    const organizationId = requireOrg(ctx);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (existing) return;
+
+    const booking = await bookingService.getById(ctx, bookingId);
+    if (!booking.requiresPassportUpload) return;
+
+    let country: string | null = null;
+    if (booking.departureId) {
+      ({ packageCountry: country } = await catalogService.getDepartureDetail(ctx, booking.departureId));
+    } else if (booking.customCountry) {
+      country = booking.customCountry;
+    }
+    if (!country) return;
+
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
+    const application = await visaRepository.create(organizationId, {
+      travelerId,
+      country,
+      travelerFirstName: traveler.firstName,
+      travelerLastName: traveler.lastName,
+      travelerNationality: traveler.nationality,
+      travelerIdOrPassportNumber: traveler.idOrPassportNumber,
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.auto_submitted',
+      resourceType: 'VisaApplication',
+      resourceId: application.id,
+      organizationId,
+      metadata: { trigger: 'passport_upload' },
+    });
   },
 };

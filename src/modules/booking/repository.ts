@@ -2,7 +2,7 @@
 import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
 import { withOrg, type TenantTx } from '@lib/db';
 import { BOOKING_DELETION_RETENTION_DAYS, canTransition, generateBookingReference, holdExpiryFrom } from './domain';
-import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView } from './domain';
+import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView, VisaCandidateTravelerView } from './domain';
 
 export class SoldOutError extends Error {}
 
@@ -473,6 +473,35 @@ export const bookingRepository = {
 
   async setTravelerPassport(organizationId: string, travelerId: string, documentId: string): Promise<void> {
     await withOrg(organizationId, (tx) => tx.traveler.update({ where: { id: travelerId }, data: { passportDocumentId: documentId } }));
+  },
+
+  /** DR-060: whole-org candidate list for the visa module's "needs
+   * application" reconciliation view -- every traveler with a passport
+   * already uploaded on a booking that requires one. Deliberately doesn't
+   * know or care whether a VisaApplication already exists for any of them
+   * (that's the visa module's own table); the caller diffs against its own
+   * `visaApplication` set. Excludes soft-deleted bookings (DR-058). */
+  async listTravelersRequiringVisa(organizationId: string): Promise<VisaCandidateTravelerView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.traveler.findMany({
+        where: {
+          organizationId,
+          passportDocumentId: { not: null },
+          booking: { requiresPassportUpload: true, deletedAt: null },
+        },
+        include: { booking: { select: { id: true, origin: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      return rows.map((t) => ({
+        travelerId: t.id,
+        bookingId: t.booking.id,
+        origin: t.booking.origin,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        nationality: t.nationality,
+        idOrPassportNumber: t.idOrPassportNumber,
+      }));
+    });
   },
 
   async listAddonsForBooking(organizationId: string, bookingId: string): Promise<BookingAddonView[]> {

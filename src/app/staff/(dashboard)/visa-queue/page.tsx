@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import type { BookingOrigin } from '@prisma/client';
 import { requireStaffContext } from '@lib/staff-guard';
 import { visaService } from '@modules/visa';
 import { Badge } from '@/components/ui/Badge';
@@ -5,12 +7,21 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { VISA_STATUS_TONE } from '@lib/status-tones';
-import { contactTravelerAction, requestMissingDocumentsAction } from './actions';
+import { contactTravelerAction, requestMissingDocumentsAction, startApplicationAction } from './actions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+const ORIGIN_LABEL: Record<string, string> = {
+  PREDEFINED_PACKAGE: 'Package',
+  TAILOR_MADE: 'Plan my trip',
+};
+
 function daysUntil(date: Date, now: Date): number {
   return Math.ceil((date.getTime() - now.getTime()) / MS_PER_DAY);
+}
+
+interface Props {
+  searchParams: Promise<{ origin?: string }>;
 }
 
 // VISA_FACILITATOR's "My Schedule" (DR-031) -- whole-org queue, no country
@@ -19,100 +30,179 @@ function daysUntil(date: Date, now: Date): number {
 // Mostly read-only -- decide/resubmit/upload stay API-only (this page is the
 // discovery/overview surface the spec calls "immigration tasks / missing
 // documents / visa deadlines", not a new decision-making UI) -- except the
-// two new DR-034 actions below (contact traveller / request missing
-// documents), which real notification-triggering actions make simple enough
-// to surface directly here. (IMMIGRATION_OFFICER and its own separate
-// country-scoped /staff/immigration page were removed entirely in DR-032.)
-export default async function VisaQueuePage() {
+// two DR-034 actions (contact traveller / request missing documents) and,
+// since DR-060, starting an application from the "Needs application"
+// section below. (IMMIGRATION_OFFICER and its own separate country-scoped
+// /staff/immigration page were removed entirely in DR-032.)
+export default async function VisaQueuePage({ searchParams }: Props) {
   const ctx = await requireStaffContext('visa.process');
-  const applications = await visaService.listForFacilitator(ctx);
+  const { origin } = await searchParams;
+  const [allApplications, needingApplication] = await Promise.all([
+    visaService.listForFacilitator(ctx),
+    visaService.listNeedingApplication(ctx),
+  ]);
   const now = new Date();
 
+  const applications = origin ? allApplications.filter((a) => a.origin === origin) : allApplications;
   const pendingCount = applications.filter((a) => a.status === 'SUBMITTED').length;
   const missingDocCount = applications.filter((a) => !a.hasDocument).length;
 
-  return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="My schedule" title="Visa queue" />
-      <div className="flex gap-6 text-sm text-mist">
-        <p>
-          <span className="font-semibold text-navy">{pendingCount}</span> immigration task{pendingCount === 1 ? '' : 's'} awaiting decision
-        </p>
-        <p>
-          <span className="font-semibold text-navy">{missingDocCount}</span> missing document{missingDocCount === 1 ? '' : 's'}
-        </p>
-      </div>
+  function pillHref(nextOrigin?: string): string {
+    return nextOrigin ? `/staff/visa-queue?origin=${nextOrigin}` : '/staff/visa-queue';
+  }
 
-      {applications.length === 0 ? (
-        <p className="text-mist">No visa applications to show.</p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>Traveler</Th>
-              <Th>Nationality</Th>
-              <Th>Country</Th>
-              <Th>Status</Th>
-              <Th>Travel date</Th>
-              <Th>Document</Th>
-              <Th>Rejection reason</Th>
-              <Th>Actions</Th>
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {applications.map((a) => (
-              <Tr key={a.id}>
-                <Td>
-                  {a.travelerFirstName} {a.travelerLastName}
-                </Td>
-                <Td>{a.travelerNationality}</Td>
-                <Td>{a.country}</Td>
-                <Td>
-                  <Badge tone={VISA_STATUS_TONE[a.status]}>{a.status}</Badge>
-                </Td>
-                <Td>
-                  {a.travelStartDate ? (
-                    <>
-                      {a.travelStartDate.toLocaleDateString()}{' '}
-                      <span className="text-xs text-mist">({daysUntil(a.travelStartDate, now)}d)</span>
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </Td>
-                <Td>
-                  {a.hasDocument ? 'Yes' : <Badge tone="warning">Missing</Badge>}
-                </Td>
-                <Td>{a.rejectionReason ?? '—'}</Td>
-                <Td>
-                  {a.bookingId && (
-                    <div className="space-y-2">
-                      <form action={contactTravelerAction.bind(null, a.bookingId, a.travelerId)} className="flex gap-2">
-                        <input
-                          name="message"
-                          required
-                          placeholder="Message…"
-                          className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
-                        />
-                        <SubmitButton size="compact" pendingLabel="Sending…">
-                          Contact
+  return (
+    <div className="space-y-8">
+      <div className="space-y-6">
+        <PageHeader eyebrow="My schedule" title="Visa queue" />
+        <div className="flex flex-wrap gap-6 text-sm text-mist">
+          <p>
+            <span className="font-semibold text-navy">{pendingCount}</span> immigration task{pendingCount === 1 ? '' : 's'} awaiting decision
+          </p>
+          <p>
+            <span className="font-semibold text-navy">{missingDocCount}</span> missing document{missingDocCount === 1 ? '' : 's'}
+          </p>
+          <p>
+            <span className="font-semibold text-navy">{needingApplication.length}</span> traveler{needingApplication.length === 1 ? '' : 's'} needing an application started
+          </p>
+        </div>
+
+        {needingApplication.length > 0 && (
+          <div>
+            <h2 className="mb-2 text-sm font-semibold text-navy">Needs application</h2>
+            <p className="mb-3 text-xs text-mist">
+              These travelers have an uploaded passport on a booking that requires visa assistance, but no application
+              exists yet -- normally this is automatic on passport upload, so this list should stay empty; it&apos;s a
+              safety net for anything that predates or slipped past that.
+            </p>
+            <Table>
+              <thead>
+                <TableHeaderRow>
+                  <Th>Traveler</Th>
+                  <Th>Nationality</Th>
+                  <Th>Source</Th>
+                  <Th>Actions</Th>
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {needingApplication.map((n) => (
+                  <Tr key={n.travelerId}>
+                    <Td>
+                      {n.travelerFirstName} {n.travelerLastName}
+                    </Td>
+                    <Td>{n.travelerNationality}</Td>
+                    <Td className="text-xs text-mist">{ORIGIN_LABEL[n.origin] ?? n.origin}</Td>
+                    <Td>
+                      <form action={startApplicationAction.bind(null, n.bookingId, n.travelerId)}>
+                        <SubmitButton size="compact" pendingLabel="Starting…">
+                          Start application
                         </SubmitButton>
                       </form>
-                      {!a.hasDocument && (
-                        <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
-                          <SubmitButton size="compact" variant="secondary" pendingLabel="Sending…">
-                            Request documents
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="mb-3 flex flex-wrap gap-2 text-sm">
+          <Link
+            href={pillHref(undefined)}
+            className={`rounded-survey border border-rule px-3 py-1 ${!origin ? 'bg-navy text-bone' : 'text-ink'}`}
+          >
+            All ({allApplications.length})
+          </Link>
+          {(['PREDEFINED_PACKAGE', 'TAILOR_MADE'] satisfies BookingOrigin[]).map((o) => {
+            const count = allApplications.filter((a) => a.origin === o).length;
+            if (count === 0) return null;
+            return (
+              <Link
+                key={o}
+                href={pillHref(o)}
+                className={`rounded-survey border border-rule px-3 py-1 ${origin === o ? 'bg-navy text-bone' : 'text-ink'}`}
+              >
+                {ORIGIN_LABEL[o]} ({count})
+              </Link>
+            );
+          })}
+        </div>
+
+        {applications.length === 0 ? (
+          <p className="text-mist">No visa applications match that filter.</p>
+        ) : (
+          <Table>
+            <thead>
+              <TableHeaderRow>
+                <Th>Traveler</Th>
+                <Th>Nationality</Th>
+                <Th>Source</Th>
+                <Th>Country</Th>
+                <Th>Status</Th>
+                <Th>Travel date</Th>
+                <Th>Document</Th>
+                <Th>Rejection reason</Th>
+                <Th>Actions</Th>
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {applications.map((a) => (
+                <Tr key={a.id}>
+                  <Td>
+                    {a.travelerFirstName} {a.travelerLastName}
+                  </Td>
+                  <Td>{a.travelerNationality}</Td>
+                  <Td className="text-xs text-mist">{a.origin ? (ORIGIN_LABEL[a.origin] ?? a.origin) : '—'}</Td>
+                  <Td>{a.country}</Td>
+                  <Td>
+                    <Badge tone={VISA_STATUS_TONE[a.status]}>{a.status}</Badge>
+                  </Td>
+                  <Td>
+                    {a.travelStartDate ? (
+                      <>
+                        {a.travelStartDate.toLocaleDateString()}{' '}
+                        <span className="text-xs text-mist">({daysUntil(a.travelStartDate, now)}d)</span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </Td>
+                  <Td>
+                    {a.hasDocument ? 'Yes' : <Badge tone="warning">Missing</Badge>}
+                  </Td>
+                  <Td>{a.rejectionReason ?? '—'}</Td>
+                  <Td>
+                    {a.bookingId && (
+                      <div className="space-y-2">
+                        <form action={contactTravelerAction.bind(null, a.bookingId, a.travelerId)} className="flex gap-2">
+                          <input
+                            name="message"
+                            required
+                            placeholder="Message…"
+                            className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
+                          />
+                          <SubmitButton size="compact" pendingLabel="Sending…">
+                            Contact
                           </SubmitButton>
                         </form>
-                      )}
-                    </div>
-                  )}
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+                        {!a.hasDocument && (
+                          <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
+                            <SubmitButton size="compact" variant="secondary" pendingLabel="Sending…">
+                              Request documents
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </div>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </div>
     </div>
   );
 }

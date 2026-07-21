@@ -24,6 +24,21 @@ export function isBookingDeleter(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN');
 }
 
+// DR-060: a whole-org candidate list for the visa module's "needs
+// application" reconciliation view -- travelers with an uploaded passport on
+// a booking that requires one, regardless of whether a VisaApplication has
+// been created for them yet (that check lives in the visa module, which owns
+// that table; booking only knows about its own Traveler/Booking data).
+export interface VisaCandidateTravelerView {
+  travelerId: string;
+  bookingId: string;
+  origin: BookingOrigin;
+  firstName: string;
+  lastName: string;
+  nationality: string;
+  idOrPassportNumber: string;
+}
+
 // Mirrors the Prisma AddonCode enum -- defined locally rather than imported
 // (unlike PACKAGE_TAGS) since catalog/domain.ts doesn't itself export a
 // zod-validating constant for AddonCode yet (AddonService.code is only ever
