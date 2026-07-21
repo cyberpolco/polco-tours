@@ -81,6 +81,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                   <Th>Traveler</Th>
                   <Th>Nationality</Th>
                   <Th>Source</Th>
+                  <Th>Passport</Th>
                   <Th>Actions</Th>
                 </TableHeaderRow>
               </thead>
@@ -92,6 +93,19 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                     </Td>
                     <Td>{n.travelerNationality}</Td>
                     <Td className="text-xs text-mist">{ORIGIN_LABEL[n.origin] ?? n.origin}</Td>
+                    <Td>
+                      {/* Every row here has an uploaded passport by definition
+                          (that's exactly what "needs application" means) --
+                          worth surfacing so staff can check it before starting. */}
+                      <a
+                        href={`/api/v1/bookings/${n.bookingId}/travelers/${n.travelerId}/passport`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-forest hover:underline"
+                      >
+                        View
+                      </a>
+                    </Td>
                     <Td>
                       <form action={startApplicationAction.bind(null, n.bookingId, n.travelerId)}>
                         <SubmitButton size="compact" pendingLabel="Starting…">
@@ -143,6 +157,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                 <Th>Status</Th>
                 <Th>Travel date</Th>
                 <Th>Document</Th>
+                <Th>Passport</Th>
                 <Th>Rejection reason</Th>
                 <Th>Actions</Th>
               </TableHeaderRow>
@@ -171,6 +186,20 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                   </Td>
                   <Td>
                     {a.hasDocument ? 'Yes' : <Badge tone="warning">Missing</Badge>}
+                  </Td>
+                  <Td>
+                    {a.bookingId && a.hasPassport ? (
+                      <a
+                        href={`/api/v1/bookings/${a.bookingId}/travelers/${a.travelerId}/passport`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-forest hover:underline"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="text-xs text-mist">Not uploaded</span>
+                    )}
                   </Td>
                   <Td>{a.rejectionReason ?? '—'}</Td>
                   <Td>

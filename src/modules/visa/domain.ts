@@ -53,6 +53,12 @@ export interface FacilitatorVisaView {
   submittedAt: Date;
   decidedAt: Date | null;
   travelStartDate: Date | null;
+  // Resolved live alongside origin/bookingId -- whether the traveler's own
+  // passport (uploaded during the booking-setup wizard, distinct from
+  // hasDocument's visa-decision document above) is on file, so the queue can
+  // offer a "view passport" link. False, not null, in the rare case the
+  // reverse lookup itself fails (same convention as hasDocument).
+  hasPassport: boolean;
 }
 
 // DR-060: a traveler with an uploaded passport on a booking that requires

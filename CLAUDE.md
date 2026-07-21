@@ -230,6 +230,29 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > `/staff/itineraries/{id}` instead (DR-061), keeping this page a pure
 > assignment overview. `lint`/`typecheck` clean; no e2e spec references
 > this page at all (confirmed by grep) so nothing needed updating there.
+> **Visa facilitator can now view/download a traveler's passport (same
+> session, 2026-07-21, uncommitted at time of writing):** the passport-
+> streaming route (`GET .../bookings/{id}/travelers/{id}/passport`,
+> `documents.read`-gated, already existed) had no UI link pointing at it
+> from `/staff/visa-queue` -- a facilitator could see visa-application
+> status but never actually look at the uploaded passport itself. New
+> `FacilitatorVisaView.hasPassport` (resolved via new
+> `bookingService.getTravelerById`, same "caller already gates"
+> convention as `getBookingForTraveler`) + a "Passport" column with a
+> `target="_blank"` view/download link on both the main queue table and
+> the "Needs application" section (where a passport is guaranteed to
+> exist by definition). Distinct from the existing `hasDocument` column,
+> which is the visa APPLICATION's own decision document (a different
+> upload, DR-019), not the traveler's passport. `lint`/`typecheck` clean;
+> the existing `tests/api/visa-facilitator-queue.api.test.ts` hit the
+> documented Prisma-to-Neon connectivity gotcha on every retry this
+> session and couldn't be re-confirmed locally -- needs a real CI run
+> (the new field is purely additive, so no reason to expect a regression).
+> Also fixed a small pre-existing text bug on the guest booking
+> confirmation screen: "...look your booking up again later at
+> /find-booking" showed the raw path instead of a real link -- now a
+> proper `Link` labeled "Find my booking", matching the label used
+> everywhere else on the site (nav/footer).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

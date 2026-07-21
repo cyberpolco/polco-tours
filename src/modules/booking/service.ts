@@ -537,6 +537,17 @@ export const bookingService = {
     return bookingRepository.findById(organizationId, traveler.bookingId);
   },
 
+  /** Reverse lookup by travelerId alone, same "caller already gates"
+   * convention as getBookingForTraveler above -- built for
+   * visaService.listForFacilitator to resolve whether a traveler's passport
+   * has been uploaded (Traveler.passportDocumentId), so the facilitator
+   * queue can offer a "view passport" link only when one actually exists. */
+  async getTravelerById(ctx: AuthContext, travelerId: string): Promise<TravelerView | null> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    return bookingRepository.findTravelerById(organizationId, travelerId);
+  },
+
   /** DR-060: feeds the visa module's "needs application" reconciliation
    * view -- gated on visa.process directly (not booking.read), matching
    * assignmentService.listAllAssignments' precedent of checking the calling

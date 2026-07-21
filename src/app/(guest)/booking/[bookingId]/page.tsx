@@ -149,7 +149,11 @@ export default async function BookingHomePage({ params }: Props) {
         <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>
         <p className="mt-2 text-sm text-mist">
           Keep your last name and this reference handy -- we&apos;ll ask for both any time you contact us, and you can
-          look your booking up again later at /find-booking.
+          look your booking up again later at{' '}
+          <Link href="/find-booking" className="text-forest hover:underline">
+            Find my booking
+          </Link>
+          .
         </p>
         <p className="mt-3 flex items-center gap-2 text-mist">
           {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}

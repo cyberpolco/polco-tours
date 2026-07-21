@@ -246,6 +246,7 @@ export const visaService = {
         let travelStartDate: Date | null = null;
         let bookingId: string | null = null;
         let origin: FacilitatorVisaView['origin'] = null;
+        let hasPassport = false;
         try {
           const booking = await bookingService.getBookingForTraveler(ctx, row.travelerId);
           if (booking) {
@@ -263,7 +264,14 @@ export const visaService = {
           // COMPLETED trip) -- leave travelStartDate/bookingId/origin null
           // rather than fail the whole queue over one unresolvable row.
         }
-        return { ...row, bookingId, origin, travelStartDate };
+        try {
+          const traveler = await bookingService.getTravelerById(ctx, row.travelerId);
+          hasPassport = traveler?.passportDocumentId != null;
+        } catch {
+          // Same tolerance as above -- leave hasPassport false rather than
+          // fail the whole queue over one unresolvable row.
+        }
+        return { ...row, bookingId, origin, travelStartDate, hasPassport };
       }),
     );
 
