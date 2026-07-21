@@ -207,11 +207,29 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > slow/failing at first from the documented Prisma-to-Neon connectivity
 > gotcha before passing cleanly); `tests/rbac.test.ts` (33/33, new
 > assertion for the permission's seed set) green. `tests/api/
-> itinerary.security.test.ts` (pre-existing, untouched by this work) could
-> not be run to completion this session -- persistently hit the same
-> connectivity gotcha across several retries -- needs a real CI run to
-> confirm it's still green (no reason to expect otherwise, since nothing
-> in this change touches that file or its code paths).
+> itinerary.security.test.ts` (pre-existing, untouched by this work) hit
+> the same connectivity gotcha across several retries this session and
+> couldn't be confirmed locally -- CI confirmed it (and everything else)
+> fully green on push, Lint/Typecheck/Test/Build + Dependency audit + E2E
+> all passing.
+> **My Schedule review shipped 2026-07-21** (the third planning topic from
+> the same discussion, UI-only, no schema/service/test change since it's
+> pure composition of already-tested service methods): `/staff/schedule`'s
+> assignments table was one flat list sorted only by start date, colored
+> by status badge -- now split into three grouped sections (In progress /
+> Upcoming / Completed, each rendering only when non-empty) via a new
+> shared `AssignmentsSection` component, same status-grouping instinct as
+> `/staff/bookings`' filter pills. The trip-progress badge's
+> `percentComplete` (from `tracking/domain.ts`'s `resolveTripProgress`) was
+> already being computed but never rendered -- added a small progress bar
+> under the existing "Day X of Y" text for an in-progress trip. Also fixed
+> a stale code comment claiming `TOUR_GUIDE` lacks `fleet.read` (it's held
+> it since DR-030) -- the `canReadFleet` guard itself was already correct,
+> only the comment's rationale was wrong. Per explicit user choice, did
+> NOT add a hotel/restaurant rating widget to this page -- that lives on
+> `/staff/itineraries/{id}` instead (DR-061), keeping this page a pure
+> assignment overview. `lint`/`typecheck` clean; no e2e spec references
+> this page at all (confirmed by grep) so nothing needed updating there.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into
