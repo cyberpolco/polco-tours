@@ -13,9 +13,13 @@ import {
   type CreateHotelInput,
   type CreateItineraryInput,
   type CreateRestaurantInput,
+  type HotelRatingView,
   type HotelView,
   type ItineraryDayView,
   type ItineraryView,
+  type RateHotelInput,
+  type RateRestaurantInput,
+  type RestaurantRatingView,
   type RestaurantView,
   type UpdateHotelInput,
   type UpdateItineraryDayInput,
@@ -341,6 +345,80 @@ export const itineraryService = {
     await getOwnedItinerary(ctx, organizationId, itineraryId);
     const ids = await itineraryRepository.listAssignedRestaurantIds(organizationId, itineraryId);
     return itineraryRepository.findRestaurantsByIds(organizationId, ids);
+  },
+
+  // ------------------------------------------------------------ hotel / restaurant ratings
+
+  /** Staff-only 5-star rating, scoped to a hotel actually assigned to the
+   * given itinerary (re-verified here, not trusted from the client) --
+   * getOwnedItinerary's existing anti-BOLA check is what actually restricts
+   * TOUR_GUIDE/DRIVER to only their own toured itineraries; a manager
+   * (itinerary.write holder) can reach any itinerary and so effectively any
+   * assigned hotel, matching the explicit "operators can rate any" design. */
+  async rateHotel(ctx: AuthContext, itineraryId: string, hotelId: string, input: RateHotelInput): Promise<HotelRatingView> {
+    assertCan(ctx, 'hotel_restaurant_rating.write');
+    const organizationId = requireOrg(ctx);
+    await getOwnedItinerary(ctx, organizationId, itineraryId);
+    const assignedIds = await itineraryRepository.listAssignedHotelIds(organizationId, itineraryId);
+    if (!assignedIds.includes(hotelId)) throw Errors.notFound('Hotel is not assigned to this itinerary');
+
+    const rating = await itineraryRepository.upsertHotelRating(organizationId, hotelId, ctx.userId, input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'hotel.rated',
+      resourceType: 'Hotel',
+      resourceId: hotelId,
+      organizationId,
+      metadata: { itineraryId, rating: input.rating },
+    });
+    return rating;
+  },
+
+  /** The caller's own rating for a hotel, in the context of one of their
+   * itineraries -- same anti-BOLA gate as rateHotel, read-only. */
+  async getMyHotelRating(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<HotelRatingView | null> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    await getOwnedItinerary(ctx, organizationId, itineraryId);
+    return itineraryRepository.getMyHotelRating(organizationId, hotelId, ctx.userId);
+  },
+
+  /** Restaurant counterpart to rateHotel -- identical shape/rules. */
+  async rateRestaurant(
+    ctx: AuthContext,
+    itineraryId: string,
+    restaurantId: string,
+    input: RateRestaurantInput,
+  ): Promise<RestaurantRatingView> {
+    assertCan(ctx, 'hotel_restaurant_rating.write');
+    const organizationId = requireOrg(ctx);
+    await getOwnedItinerary(ctx, organizationId, itineraryId);
+    const assignedIds = await itineraryRepository.listAssignedRestaurantIds(organizationId, itineraryId);
+    if (!assignedIds.includes(restaurantId)) throw Errors.notFound('Restaurant is not assigned to this itinerary');
+
+    const rating = await itineraryRepository.upsertRestaurantRating(organizationId, restaurantId, ctx.userId, input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'restaurant.rated',
+      resourceType: 'Restaurant',
+      resourceId: restaurantId,
+      organizationId,
+      metadata: { itineraryId, rating: input.rating },
+    });
+    return rating;
+  },
+
+  async getMyRestaurantRating(
+    ctx: AuthContext,
+    itineraryId: string,
+    restaurantId: string,
+  ): Promise<RestaurantRatingView | null> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    await getOwnedItinerary(ctx, organizationId, itineraryId);
+    return itineraryRepository.getMyRestaurantRating(organizationId, restaurantId, ctx.userId);
   },
 };
 

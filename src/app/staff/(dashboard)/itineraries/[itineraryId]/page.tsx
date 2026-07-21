@@ -16,6 +16,8 @@ import {
   approveItineraryAction,
   assignHotelAction,
   assignRestaurantAction,
+  rateHotelAction,
+  rateRestaurantAction,
   removeDayAction,
   sendBackToDraftAction,
   submitForReviewAction,
@@ -51,6 +53,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
   const canWrite = can(ctx, 'itinerary.write');
   const canApprove = can(ctx, 'itinerary.approve');
+  const canRate = can(ctx, 'hotel_restaurant_rating.write');
 
   // DR-058: a soft-deleted Booking isn't hard-deleted until the retention
   // purge, so this itinerary's own bookingId can point at one for up to 90
@@ -71,6 +74,23 @@ export default async function ItineraryDetailPage({ params }: Props) {
     itineraryService.listAssignedHotels(ctx, itineraryId),
     itineraryService.listAssignedRestaurants(ctx, itineraryId),
   ]);
+
+  // Staff-only hotel/restaurant ratings (only fetched for a role that can
+  // actually submit one -- read-only average ratings render regardless).
+  // Sequential awaits, not Promise.all -- same connection-pool-exhaustion
+  // avoidance as Insights (DR-038)/Tracking (DR-041)/Visa Queue (DR-060).
+  const myHotelRatings = new Map<string, Awaited<ReturnType<typeof itineraryService.getMyHotelRating>>>();
+  if (canRate) {
+    for (const h of assignedHotels) {
+      myHotelRatings.set(h.id, await itineraryService.getMyHotelRating(ctx, itineraryId, h.id));
+    }
+  }
+  const myRestaurantRatings = new Map<string, Awaited<ReturnType<typeof itineraryService.getMyRestaurantRating>>>();
+  if (canRate) {
+    for (const r of assignedRestaurants) {
+      myRestaurantRatings.set(r.id, await itineraryService.getMyRestaurantRating(ctx, itineraryId, r.id));
+    }
+  }
 
   let travelDates = 'Not scheduled yet';
   if (booking.departureId) {
@@ -409,26 +429,57 @@ export default async function ItineraryDetailPage({ params }: Props) {
                 <Th>Name</Th>
                 <Th>Country</Th>
                 <Th>Contact</Th>
+                <Th>Rating</Th>
+                {canRate && <Th>My rating</Th>}
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
-              {assignedHotels.map((h) => (
-                <Tr key={h.id}>
-                  <Td>{h.name}</Td>
-                  <Td>{h.country}</Td>
-                  <Td>{h.contactPhone ?? h.contactEmail ?? '—'}</Td>
-                  <Td>
-                    {canWrite && (
-                      <form action={unassignHotelAction.bind(null, itineraryId, h.id)}>
-                        <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
-                          Remove
-                        </SubmitButton>
-                      </form>
+              {assignedHotels.map((h) => {
+                const mine = myHotelRatings.get(h.id);
+                return (
+                  <Tr key={h.id}>
+                    <Td>{h.name}</Td>
+                    <Td>{h.country}</Td>
+                    <Td>{h.contactPhone ?? h.contactEmail ?? '—'}</Td>
+                    <Td>{h.averageRating != null ? `${h.averageRating.toFixed(1)} ★ (${h.ratingCount})` : '—'}</Td>
+                    {canRate && (
+                      <Td>
+                        <form action={rateHotelAction.bind(null, itineraryId, h.id)} className="flex items-center gap-2">
+                          <select name="rating" defaultValue={mine?.rating ?? ''} required className="rounded-survey border border-rule px-2 py-1 text-xs">
+                            <option value="" disabled>
+                              Rate…
+                            </option>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <option key={n} value={n}>
+                                {n} ★
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            name="comment"
+                            defaultValue={mine?.comment ?? ''}
+                            placeholder="Comment (optional)"
+                            className="w-32 rounded-survey border border-rule px-2 py-1 text-xs"
+                          />
+                          <SubmitButton size="compact" pendingLabel="Saving…">
+                            {mine ? 'Update' : 'Rate'}
+                          </SubmitButton>
+                        </form>
+                      </Td>
                     )}
-                  </Td>
-                </Tr>
-              ))}
+                    <Td>
+                      {canWrite && (
+                        <form action={unassignHotelAction.bind(null, itineraryId, h.id)}>
+                          <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                            Remove
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </Td>
+                  </Tr>
+                );
+              })}
             </tbody>
           </Table>
         )}
@@ -462,26 +513,57 @@ export default async function ItineraryDetailPage({ params }: Props) {
                 <Th>Name</Th>
                 <Th>Country</Th>
                 <Th>Contact</Th>
+                <Th>Rating</Th>
+                {canRate && <Th>My rating</Th>}
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
-              {assignedRestaurants.map((r) => (
-                <Tr key={r.id}>
-                  <Td>{r.name}</Td>
-                  <Td>{r.country}</Td>
-                  <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
-                  <Td>
-                    {canWrite && (
-                      <form action={unassignRestaurantAction.bind(null, itineraryId, r.id)}>
-                        <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
-                          Remove
-                        </SubmitButton>
-                      </form>
+              {assignedRestaurants.map((r) => {
+                const mine = myRestaurantRatings.get(r.id);
+                return (
+                  <Tr key={r.id}>
+                    <Td>{r.name}</Td>
+                    <Td>{r.country}</Td>
+                    <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
+                    <Td>{r.averageRating != null ? `${r.averageRating.toFixed(1)} ★ (${r.ratingCount})` : '—'}</Td>
+                    {canRate && (
+                      <Td>
+                        <form action={rateRestaurantAction.bind(null, itineraryId, r.id)} className="flex items-center gap-2">
+                          <select name="rating" defaultValue={mine?.rating ?? ''} required className="rounded-survey border border-rule px-2 py-1 text-xs">
+                            <option value="" disabled>
+                              Rate…
+                            </option>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <option key={n} value={n}>
+                                {n} ★
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            name="comment"
+                            defaultValue={mine?.comment ?? ''}
+                            placeholder="Comment (optional)"
+                            className="w-32 rounded-survey border border-rule px-2 py-1 text-xs"
+                          />
+                          <SubmitButton size="compact" pendingLabel="Saving…">
+                            {mine ? 'Update' : 'Rate'}
+                          </SubmitButton>
+                        </form>
+                      </Td>
                     )}
-                  </Td>
-                </Tr>
-              ))}
+                    <Td>
+                      {canWrite && (
+                        <form action={unassignRestaurantAction.bind(null, itineraryId, r.id)}>
+                          <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                            Remove
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </Td>
+                  </Tr>
+                );
+              })}
             </tbody>
           </Table>
         )}

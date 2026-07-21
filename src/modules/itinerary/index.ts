@@ -5,10 +5,19 @@ export {
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
+  RateHotelInput,
+  RateRestaurantInput,
   UpdateHotelInput,
   UpdateItineraryDayInput,
   UpdateItineraryInput,
   UpdateRestaurantInput,
   canTransition,
 } from './domain';
-export type { HotelView, ItineraryDayView, ItineraryView, RestaurantView } from './domain';
+export type {
+  HotelRatingView,
+  HotelView,
+  ItineraryDayView,
+  ItineraryView,
+  RestaurantRatingView,
+  RestaurantView,
+} from './domain';

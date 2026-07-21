@@ -27,6 +27,7 @@ export default async function HotelsPage() {
               <Th>Country</Th>
               <Th>Address</Th>
               <Th>Contact</Th>
+              <Th>Rating</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -37,6 +38,7 @@ export default async function HotelsPage() {
                 <Td>{h.country}</Td>
                 <Td>{h.address ?? '—'}</Td>
                 <Td>{h.contactPhone ?? h.contactEmail ?? '—'}</Td>
+                <Td>{h.averageRating != null ? `${h.averageRating.toFixed(1)} ★ (${h.ratingCount})` : '—'}</Td>
                 <Td>
                   <Link href={`/staff/hotels/${h.id}`} className="text-forest hover:underline">
                     Edit

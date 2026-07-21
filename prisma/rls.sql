@@ -272,6 +272,24 @@ CREATE POLICY tenant_isolation ON itinerary_restaurants
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
+-- --------------------------------------------------------------- hotel_ratings
+ALTER TABLE hotel_ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hotel_ratings FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON hotel_ratings;
+CREATE POLICY tenant_isolation ON hotel_ratings
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ----------------------------------------------------------- restaurant_ratings
+ALTER TABLE restaurant_ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE restaurant_ratings FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON restaurant_ratings;
+CREATE POLICY tenant_isolation ON restaurant_ratings
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
 -- ------------------------------------------------------------- rating_codes (DR-037)
 ALTER TABLE rating_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rating_codes FORCE ROW LEVEL SECURITY;

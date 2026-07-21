@@ -163,6 +163,55 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > `/staff/profile`/`/staff/change-password`, so it never highlighted as
 > active while on either page. `lint`/`typecheck` clean; no existing test
 > referenced `/staff/profile` at all (grepped `tests/`/`e2e/` to confirm).
+> **DR-061 (2026-07-21): staff-only hotel/restaurant 5-star ratings** --
+> extends the existing `itinerary` module rather than introducing a new
+> one. Closes a gap surfaced during a planning discussion the user
+> explicitly requested (also covering booking
+> source-of-truth/reference generation -- no gap found there, `DRAFT`
+> stays in `BookingStatus` unreachable-but-harmless after an attempted
+> cleanup was blocked by 9 leftover DRAFT-status test bookings across the
+> shared DB, including one in the real "Lam" org, which the user chose not
+> to purge -- and a My Schedule review, tracked as a separate follow-up
+> task). New `HotelRating`/`RestaurantRating` (one row per (hotel-or-
+> restaurant, staff rater), 1-5 stars + optional comment, **overwritten on
+> each revisit rather than accumulating a new row per visit**, per explicit
+> user choice) + new `averageRating`/`ratingCount` on `Hotel`/`Restaurant`,
+> live-recomputed on every submission -- same precedent as `DriverProfile`/
+> `GuideProfile`/`Organization`'s own aggregate fields. New
+> `hotel_restaurant_rating.write` permission, seeded to `TOUR_GUIDE`/
+> `DRIVER` (anti-BOLA-scoped in `itinerary/service.ts`'s new `rateHotel`/
+> `rateRestaurant` to only a hotel/restaurant actually assigned to one of
+> their own toured itineraries, reusing the existing `getOwnedItinerary`
+> anti-BOLA check) and `TOUR_OPERATOR`/`PLATFORM_ADMIN` (unscoped, matching
+> their existing org-wide `itinerary.write`). New rating widget on
+> `/staff/itineraries/{id}`'s existing assigned-hotels/assigned-restaurants
+> sections, plus a read-only Rating column on `/staff/hotels`/
+> `/staff/restaurants`. New `POST/GET .../rating` routes under both
+> `/api/v1/itineraries/{id}/hotels/{hotelId}` and `.../restaurants/
+> {restaurantId}`, matching this module's existing REST-completeness
+> convention. **Found a real gap during testing, not a bug in the new
+> code**: since DR-035 made permissions DB-backed (`RolePermission` table,
+> seeded once from `DEFAULT_PERMISSIONS`), adding a brand-new permission to
+> `rbac.ts` alone does NOT grant it live -- the new tests all 403'd until
+> `npm run db:seed` was re-run (safe, `create-if-missing` upsert, confirmed
+> via the seed's own `rolePermissions: 94` count, +4 for the four newly
+> seeded roles) to actually insert the missing `RolePermission` rows;
+> anyone adding a new permission in a future session needs the same
+> re-seed step, not just the code change. Schema (`hotel_ratings`/
+> `restaurant_ratings` tables + the two new `Hotel`/`Restaurant` columns)
+> + their RLS policies applied to the shared Neon DB via a user-pasted
+> `neondb_owner` credential, verified via `psql \d`. `lint`/`typecheck`
+> clean; new `tests/api/hotel-restaurant-rating.api.test.ts` (10/10) and
+> `tests/rls.cross-tenant.{hotel,restaurant}-ratings.test.ts` (4/4 each)
+> all confirmed green live against the real Neon DB (all intermittently
+> slow/failing at first from the documented Prisma-to-Neon connectivity
+> gotcha before passing cleanly); `tests/rbac.test.ts` (33/33, new
+> assertion for the permission's seed set) green. `tests/api/
+> itinerary.security.test.ts` (pre-existing, untouched by this work) could
+> not be run to completion this session -- persistently hit the same
+> connectivity gotcha across several retries -- needs a real CI run to
+> confirm it's still green (no reason to expect otherwise, since nothing
+> in this change touches that file or its code paths).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

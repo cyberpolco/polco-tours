@@ -98,7 +98,14 @@ export type Permission =
   // every non-SUPERADMIN role unconditionally, same layering as
   // isFinanceConfigWriter/isCountryRegulationWriter.
   | 'platform_settings.read'
-  | 'platform_settings.write';
+  | 'platform_settings.write'
+  // Staff-only 5-star hotel/restaurant rating -- distinct from `rating.issue`/
+  // `rating.read` (the tourist-facing DRIVER/GUIDE reviews module). Held by
+  // TOUR_GUIDE/DRIVER (anti-BOLA-scoped in itinerary/service.ts to only a
+  // hotel/restaurant actually assigned to one of their own toured
+  // itineraries) and by TOUR_OPERATOR/PLATFORM_ADMIN (unscoped, matching
+  // their existing org-wide itinerary.write access).
+  | 'hotel_restaurant_rating.write';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -141,6 +148,7 @@ export const ALL_PERMISSIONS = [
   'tracking.read',
   'platform_settings.read',
   'platform_settings.write',
+  'hotel_restaurant_rating.write',
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -216,6 +224,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // platform_settings.write is deliberately never seeded to any role,
     // same layering as finance_config.write.
     'platform_settings.read',
+    // Staff-only hotel/restaurant rating -- unscoped, matching itinerary.write above.
+    'hotel_restaurant_rating.write',
   ],
   TOUR_OPERATOR: [
     'catalog.read',
@@ -265,6 +275,8 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     // Settings (DR-042): read-only visibility into tax/platform rates that
     // affect their own invoicing -- not platform_settings.write.
     'platform_settings.read',
+    // Staff-only hotel/restaurant rating -- unscoped, matching itinerary.write above.
+    'hotel_restaurant_rating.write',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to
@@ -284,9 +296,21 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'assignment.read',
     'fleet.read',
     'itinerary.read',
+    // Staff-only hotel/restaurant rating -- anti-BOLA-scoped in
+    // itinerary/service.ts to only a hotel/restaurant assigned to one of
+    // their own toured itineraries.
+    'hotel_restaurant_rating.write',
   ],
   // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
-  DRIVER: ['catalog.read', 'booking.read', 'profile.write', 'fleet.read', 'assignment.read', 'itinerary.read'],
+  DRIVER: [
+    'catalog.read',
+    'booking.read',
+    'profile.write',
+    'fleet.read',
+    'assignment.read',
+    'itinerary.read',
+    'hotel_restaurant_rating.write',
+  ],
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
   VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // booking.read is needed to resolve a traveler by bookingId+travelerId

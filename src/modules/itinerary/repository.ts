@@ -1,14 +1,18 @@
 // itinerary module — repository. The only place that touches the DB for this module.
-import type { Hotel, Itinerary, ItineraryDay, ItineraryStatus, Restaurant } from '@prisma/client';
+import type { Hotel, HotelRating, Itinerary, ItineraryDay, ItineraryStatus, Restaurant, RestaurantRating } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
   AddItineraryDayInput,
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
+  HotelRatingView,
   HotelView,
   ItineraryDayView,
   ItineraryView,
+  RateHotelInput,
+  RateRestaurantInput,
+  RestaurantRatingView,
   RestaurantView,
   UpdateHotelInput,
   UpdateItineraryDayInput,
@@ -63,6 +67,8 @@ function toHotelView(h: Hotel): HotelView {
     contactName: h.contactName,
     contactPhone: h.contactPhone,
     contactEmail: h.contactEmail,
+    averageRating: h.averageRating,
+    ratingCount: h.ratingCount,
     createdAt: h.createdAt,
     updatedAt: h.updatedAt,
   };
@@ -78,6 +84,32 @@ function toRestaurantView(r: Restaurant): RestaurantView {
     contactName: r.contactName,
     contactPhone: r.contactPhone,
     contactEmail: r.contactEmail,
+    averageRating: r.averageRating,
+    ratingCount: r.ratingCount,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+function toHotelRatingView(r: HotelRating): HotelRatingView {
+  return {
+    id: r.id,
+    hotelId: r.hotelId,
+    raterUserId: r.raterUserId,
+    rating: r.rating,
+    comment: r.comment,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+function toRestaurantRatingView(r: RestaurantRating): RestaurantRatingView {
+  return {
+    id: r.id,
+    restaurantId: r.restaurantId,
+    raterUserId: r.raterUserId,
+    rating: r.rating,
+    comment: r.comment,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -346,6 +378,74 @@ export const itineraryRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.itineraryRestaurant.findMany({ where: { itineraryId }, select: { restaurantId: true } });
       return rows.map((r) => r.restaurantId);
+    });
+  },
+
+  // ------------------------------------------------------------ hotel / restaurant ratings
+
+  /** One row per (hotel, rater) -- overwritten on each revisit, not
+   * accumulated. Recomputes Hotel.averageRating/ratingCount in the same
+   * transaction so the aggregate is never momentarily stale. */
+  async upsertHotelRating(
+    organizationId: string,
+    hotelId: string,
+    raterUserId: string,
+    input: RateHotelInput,
+  ): Promise<HotelRatingView> {
+    return withOrg(organizationId, async (tx) => {
+      const r = await tx.hotelRating.upsert({
+        where: { hotelId_raterUserId: { hotelId, raterUserId } },
+        create: { organizationId, hotelId, raterUserId, ...input },
+        update: { rating: input.rating, comment: input.comment },
+      });
+      const agg = await tx.hotelRating.aggregate({ where: { hotelId }, _avg: { rating: true }, _count: true });
+      await tx.hotel.update({
+        where: { id: hotelId },
+        data: { averageRating: agg._avg.rating, ratingCount: agg._count },
+      });
+      return toHotelRatingView(r);
+    });
+  },
+
+  async getMyHotelRating(organizationId: string, hotelId: string, raterUserId: string): Promise<HotelRatingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const r = await tx.hotelRating.findUnique({ where: { hotelId_raterUserId: { hotelId, raterUserId } } });
+      return r ? toHotelRatingView(r) : null;
+    });
+  },
+
+  /** Restaurant counterpart to upsertHotelRating -- identical shape. */
+  async upsertRestaurantRating(
+    organizationId: string,
+    restaurantId: string,
+    raterUserId: string,
+    input: RateRestaurantInput,
+  ): Promise<RestaurantRatingView> {
+    return withOrg(organizationId, async (tx) => {
+      const r = await tx.restaurantRating.upsert({
+        where: { restaurantId_raterUserId: { restaurantId, raterUserId } },
+        create: { organizationId, restaurantId, raterUserId, ...input },
+        update: { rating: input.rating, comment: input.comment },
+      });
+      const agg = await tx.restaurantRating.aggregate({ where: { restaurantId }, _avg: { rating: true }, _count: true });
+      await tx.restaurant.update({
+        where: { id: restaurantId },
+        data: { averageRating: agg._avg.rating, ratingCount: agg._count },
+      });
+      return toRestaurantRatingView(r);
+    });
+  },
+
+  async getMyRestaurantRating(
+    organizationId: string,
+    restaurantId: string,
+    raterUserId: string,
+  ): Promise<RestaurantRatingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const r = await tx.restaurantRating.findUnique({
+        where: { restaurantId_raterUserId: { restaurantId, raterUserId } },
+      });
+      return r ? toRestaurantRatingView(r) : null;
     });
   },
 };

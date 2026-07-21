@@ -261,4 +261,14 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('VEHICLE_OWNER', 'fleet.delete')).toBe(false);
     expect(hasDefault('TOUR_GUIDE', 'fleet.delete')).toBe(false);
   });
+
+  it('hotel_restaurant_rating.write is seeded to TOUR_GUIDE, DRIVER, TOUR_OPERATOR, and PLATFORM_ADMIN, but not VEHICLE_OWNER/VISA_FACILITATOR/TOURIST (DR-060 follow-up)', () => {
+    expect(hasDefault('TOUR_GUIDE', 'hotel_restaurant_rating.write')).toBe(true);
+    expect(hasDefault('DRIVER', 'hotel_restaurant_rating.write')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'hotel_restaurant_rating.write')).toBe(true);
+    expect(hasDefault('PLATFORM_ADMIN', 'hotel_restaurant_rating.write')).toBe(true);
+    expect(hasDefault('VEHICLE_OWNER', 'hotel_restaurant_rating.write')).toBe(false);
+    expect(hasDefault('VISA_FACILITATOR', 'hotel_restaurant_rating.write')).toBe(false);
+    expect(hasDefault('TOURIST', 'hotel_restaurant_rating.write')).toBe(false);
+  });
 });

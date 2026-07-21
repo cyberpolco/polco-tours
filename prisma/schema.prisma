@@ -192,6 +192,8 @@ model Organization {
   reviewSubjectRatings  ReviewSubjectRating[]
   packageCostBreakdowns PackageCostBreakdown[]
   packageCostLineItems  PackageCostLineItem[]
+  hotelRatings          HotelRating[]
+  restaurantRatings     RestaurantRating[]
 
   @@map("organizations")
 }
@@ -221,6 +223,8 @@ model User {
   guideProfile         GuideProfile?
   guideAssignments     Assignment[]
   reviewSubjectRatings ReviewSubjectRating[]
+  hotelRatings         HotelRating[]
+  restaurantRatings    RestaurantRating[]
 
   @@index([organizationId])
   @@map("users")
@@ -1001,12 +1005,18 @@ model Hotel {
   contactName    String?
   contactPhone   String?
   contactEmail   String?
+  // Staff-only 5-star rating (not a tourist-facing concept) -- live-
+  // recomputed on every HotelRating submission, same pattern as
+  // DriverProfile/GuideProfile/Organization's own averageRating/ratingCount.
+  averageRating  Float?
+  ratingCount    Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   itineraries  ItineraryHotel[]
+  ratings      HotelRating[]
 
   @@index([organizationId])
   @@map("hotels")
@@ -1021,15 +1031,66 @@ model Restaurant {
   contactName    String?
   contactPhone   String?
   contactEmail   String?
+  // Staff-only 5-star rating -- same precedent as Hotel.averageRating above.
+  averageRating  Float?
+  ratingCount    Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   itineraries  ItineraryRestaurant[]
+  ratings      RestaurantRating[]
 
   @@index([organizationId])
   @@map("restaurants")
+}
+
+// Staff-only hotel rating (distinct from the tourist-facing ratings module's
+// DRIVER/GUIDE reviews) -- one row per (hotel, staff rater), overwritten on
+// each revisit rather than accumulating a new row per visit, per explicit
+// user choice. TOUR_GUIDE/DRIVER are scoped in itinerary/service.ts to only
+// rate a hotel actually assigned to one of their own toured itineraries;
+// TOUR_OPERATOR/PLATFORM_ADMIN (unscoped itinerary managers) can rate any.
+model HotelRating {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  hotelId        String   @db.Uuid
+  raterUserId    String   @db.Uuid
+  rating         Int
+  comment        String?  @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  hotel        Hotel        @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  rater        User         @relation(fields: [raterUserId], references: [id], onDelete: Cascade)
+
+  @@unique([hotelId, raterUserId])
+  @@index([organizationId])
+  @@index([hotelId])
+  @@map("hotel_ratings")
+}
+
+// Restaurant counterpart to HotelRating -- identical shape/rules.
+model RestaurantRating {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  restaurantId   String   @db.Uuid
+  raterUserId    String   @db.Uuid
+  rating         Int
+  comment        String?  @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  rater        User         @relation(fields: [raterUserId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, raterUserId])
+  @@index([organizationId])
+  @@index([restaurantId])
+  @@map("restaurant_ratings")
 }
 
 model ItineraryHotel {

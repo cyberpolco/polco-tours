@@ -44,6 +44,10 @@ export interface HotelView {
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  // Staff-only 5-star rating, live-recomputed from HotelRating on every
+  // submission -- null/0 until the first rating exists.
+  averageRating: number | null;
+  ratingCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,9 +61,44 @@ export interface RestaurantView {
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  averageRating: number | null;
+  ratingCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Staff-only hotel/restaurant rating -- one row per (hotel-or-restaurant,
+// staff rater), overwritten on each revisit rather than accumulating a new
+// row per visit (explicit user choice). Distinct from the tourist-facing
+// ratings module's Review/ReviewSubjectRating (DRIVER/GUIDE only).
+export interface HotelRatingView {
+  id: string;
+  hotelId: string;
+  raterUserId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RestaurantRatingView {
+  id: string;
+  restaurantId: string;
+  raterUserId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const RateHotelInput = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().max(1000).optional(),
+});
+export type RateHotelInput = z.infer<typeof RateHotelInput>;
+
+export const RateRestaurantInput = RateHotelInput;
+export type RateRestaurantInput = z.infer<typeof RateRestaurantInput>;
 
 export const CreateItineraryInput = z.object({
   notes: z.string().max(2000).optional(),

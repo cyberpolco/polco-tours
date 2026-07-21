@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
-import { AddItineraryDayInput, UpdateItineraryDayInput, UpdateItineraryInput, itineraryService } from '@modules/itinerary';
+import {
+  AddItineraryDayInput,
+  RateHotelInput,
+  RateRestaurantInput,
+  UpdateItineraryDayInput,
+  UpdateItineraryInput,
+  itineraryService,
+} from '@modules/itinerary';
 
 function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
   const s = v ? String(v).trim() : '';
@@ -107,5 +114,25 @@ export async function assignRestaurantAction(itineraryId: string, formData: Form
 export async function unassignRestaurantAction(itineraryId: string, restaurantId: string) {
   const ctx = await requireStaffContext('itinerary.write');
   await itineraryService.unassignRestaurant(ctx, itineraryId, restaurantId);
+  revalidatePath(`/staff/itineraries/${itineraryId}`);
+}
+
+export async function rateHotelAction(itineraryId: string, hotelId: string, formData: FormData) {
+  const ctx = await requireStaffContext('hotel_restaurant_rating.write');
+  const input = RateHotelInput.parse({
+    rating: Number(formData.get('rating')),
+    comment: emptyToUndefined(formData.get('comment')),
+  });
+  await itineraryService.rateHotel(ctx, itineraryId, hotelId, input);
+  revalidatePath(`/staff/itineraries/${itineraryId}`);
+}
+
+export async function rateRestaurantAction(itineraryId: string, restaurantId: string, formData: FormData) {
+  const ctx = await requireStaffContext('hotel_restaurant_rating.write');
+  const input = RateRestaurantInput.parse({
+    rating: Number(formData.get('rating')),
+    comment: emptyToUndefined(formData.get('comment')),
+  });
+  await itineraryService.rateRestaurant(ctx, itineraryId, restaurantId, input);
   revalidatePath(`/staff/itineraries/${itineraryId}`);
 }
