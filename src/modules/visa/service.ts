@@ -1,5 +1,6 @@
 // visa module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
+import type { VisaStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -213,6 +214,17 @@ export const visaService = {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!application) throw Errors.notFound('Visa application not found');
     return application;
+  },
+
+  /** Guest `/find-booking` lookup: just the bare status (never the full
+   * VisaApplicationView -- no rejectionReason/documentId exposure to an
+   * unauthenticated caller), no ctx -- same "caller already gates"
+   * convention as fleetService.listVehiclesForBookingLookup. Only ever
+   * called when Booking.requiresPassportUpload is true, per explicit user
+   * scoping ("just the visa status if it was ticked by the client"). */
+  async getStatusForBookingLookup(organizationId: string, travelerId: string): Promise<VisaStatus | null> {
+    const application = await visaRepository.findByTravelerId(organizationId, travelerId);
+    return application?.status ?? null;
   },
 
   async streamDocument(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {

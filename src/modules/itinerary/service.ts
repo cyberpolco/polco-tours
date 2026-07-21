@@ -1,6 +1,6 @@
 // itinerary module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { Role } from '@prisma/client';
+import type { ItineraryStatus, Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
 import { bookingService } from '@modules/booking';
@@ -171,6 +171,19 @@ export const itineraryService = {
       organizationId,
       metadata: { bookingId },
     });
+  },
+
+  /** Guest `/find-booking` lookup (no session at all): the page has already
+   * independently verified the guest's two-factor bookingReference+last-name
+   * match before reaching here, same "caller already gates" convention as
+   * bookingService.listTravelersForDeparture (DR-030) and
+   * assignmentService.listAssignmentsForRating (DR-037) -- deliberately not
+   * a public REST route for the same reason. Returns just the bare status
+   * (null when no itinerary exists yet), never the full ItineraryView (no
+   * emergency-contact/notes exposure to an unauthenticated caller). */
+  async getStatusForBookingLookup(organizationId: string, bookingId: string): Promise<ItineraryStatus | null> {
+    const itinerary = await itineraryRepository.findByBookingId(organizationId, bookingId);
+    return itinerary?.status ?? null;
   },
 
   /** TOUR_GUIDE/DRIVER: itineraries for their own assigned departures --

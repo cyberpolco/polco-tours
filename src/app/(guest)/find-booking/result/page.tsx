@@ -1,12 +1,18 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
+import { assignmentService } from '@modules/assignment';
+import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
+import { fleetService } from '@modules/fleet';
+import { itineraryService } from '@modules/itinerary';
+import { ratingsService } from '@modules/ratings';
+import { visaService, type VisaStatus } from '@modules/visa';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { COUNTRY_CODES_BY_ALPHA2, flagEmoji } from '@lib/country-codes';
 import { formatOrPending } from '@lib/money';
-import { BOOKING_STATUS_TONE } from '@lib/status-tones';
+import { BOOKING_STATUS_TONE, ITINERARY_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 
 function countryLabel(alpha2: string): string {
   const name = COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
@@ -61,6 +67,66 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   const { booking, travelers } = result;
   const isTailorMadeInquiry =
     booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT');
+
+  // Lifecycle status composition for the "Trip status" section below --
+  // guest, no-session lookup (the page has already verified the guest's
+  // two-factor bookingReference+last-name match above, same trust boundary
+  // every no-ctx "*ForBookingLookup" service method below relies on).
+  // Sequential awaits throughout, not Promise.all -- this codebase's
+  // documented connection-pool-exhaustion precedent (DR-038/041/060).
+  let itineraryStatus: Awaited<ReturnType<typeof itineraryService.getStatusForBookingLookup>> = null;
+  let vehicles: Awaited<ReturnType<typeof fleetService.listVehiclesForBookingLookup>> = [];
+  let starlinkKits: Awaited<ReturnType<typeof fleetService.listStarlinkKitsByVehicleIdsForBookingLookup>> = new Map();
+  const driverNames: string[] = [];
+  const guideNames: string[] = [];
+
+  if (!isTailorMadeInquiry && booking.departureId) {
+    itineraryStatus = await itineraryService.getStatusForBookingLookup(booking.organizationId, booking.id);
+
+    const assignments = await assignmentService.listAssignmentsForRating(booking.organizationId, booking.departureId);
+    const vehicleIds = [...new Set(assignments.map((a) => a.vehicleId))];
+    const driverProfileIds = [...new Set(assignments.map((a) => a.driverProfileId))];
+    const guideUserIds = [...new Set(assignments.map((a) => a.guideUserId).filter((id): id is string => id !== null))];
+
+    vehicles = await fleetService.listVehiclesForBookingLookup(booking.organizationId, vehicleIds);
+    const drivers = await fleetService.listDriverProfilesForRating(booking.organizationId, driverProfileIds);
+    starlinkKits = await fleetService.listStarlinkKitsByVehicleIdsForBookingLookup(booking.organizationId, vehicleIds);
+
+    for (const d of drivers) {
+      const user = await authService.getUser(d.userId);
+      if (user?.name) driverNames.push(user.name);
+    }
+    for (const guideUserId of guideUserIds) {
+      const user = await authService.getUser(guideUserId);
+      if (user?.name) guideNames.push(user.name);
+    }
+  }
+
+  // Explicit user scoping: visa status only surfaces when the finalized
+  // add-ons included Visa Assistance in the first place -- never a bare
+  // country-regulation dump.
+  const visaStatuses = new Map<string, VisaStatus>();
+  if (!isTailorMadeInquiry && booking.requiresPassportUpload) {
+    for (const traveler of travelers) {
+      const status = await visaService.getStatusForBookingLookup(booking.organizationId, traveler.id);
+      if (status) visaStatuses.set(traveler.id, status);
+    }
+  }
+
+  // Deliberately redacted -- never the raw RatingCode.code (see
+  // ratingsService.getRatingCodeStatusForBookingLookup's own comment).
+  const ratingCodeStatus = isTailorMadeInquiry
+    ? null
+    : await ratingsService.getRatingCodeStatusForBookingLookup(booking.organizationId, booking.id);
+
+  const hasTripStatus =
+    itineraryStatus !== null ||
+    vehicles.length > 0 ||
+    driverNames.length > 0 ||
+    guideNames.length > 0 ||
+    starlinkKits.size > 0 ||
+    visaStatuses.size > 0 ||
+    ratingCodeStatus !== null;
 
   return (
     <div className="max-w-md">
@@ -123,6 +189,80 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                 </li>
               ))}
             </ul>
+          </div>
+        </>
+      )}
+
+      {hasTripStatus && (
+        <>
+          <div className="survey-rule mt-6" />
+          <div className="pt-6">
+            <p className="eyebrow text-mist">Trip status</p>
+            <dl className="mt-2 space-y-3 text-sm">
+              {itineraryStatus && (
+                <div>
+                  <dt className="text-xs text-mist">Itinerary</dt>
+                  <dd>
+                    <Badge tone={ITINERARY_STATUS_TONE[itineraryStatus]}>{itineraryStatus}</Badge>
+                  </dd>
+                </div>
+              )}
+              {vehicles.length > 0 && (
+                <div>
+                  <dt className="text-xs text-mist">Vehicle{vehicles.length > 1 ? 's' : ''}</dt>
+                  <dd>
+                    {vehicles
+                      .map((v) => `${v.make} ${v.model} (${v.plateNumber})`)
+                      .join(', ')}
+                  </dd>
+                </div>
+              )}
+              {driverNames.length > 0 && (
+                <div>
+                  <dt className="text-xs text-mist">Driver{driverNames.length > 1 ? 's' : ''}</dt>
+                  <dd>{driverNames.join(', ')}</dd>
+                </div>
+              )}
+              {guideNames.length > 0 && (
+                <div>
+                  <dt className="text-xs text-mist">Guide{guideNames.length > 1 ? 's' : ''}</dt>
+                  <dd>{guideNames.join(', ')}</dd>
+                </div>
+              )}
+              {starlinkKits.size > 0 && (
+                <div>
+                  <dt className="text-xs text-mist">Vehicle tracking</dt>
+                  <dd>Starlink kit assigned to your vehicle{starlinkKits.size > 1 ? 's' : ''}.</dd>
+                </div>
+              )}
+              {visaStatuses.size > 0 && (
+                <div>
+                  <dt className="text-xs text-mist">Visa status</dt>
+                  <dd className="space-y-1">
+                    {travelers
+                      .filter((t) => visaStatuses.has(t.id))
+                      .map((t) => (
+                        <div key={t.id} className="flex items-center gap-2">
+                          <span>
+                            {t.firstName} {t.lastName}
+                          </span>
+                          <Badge tone={VISA_STATUS_TONE[visaStatuses.get(t.id)!]}>{visaStatuses.get(t.id)}</Badge>
+                        </div>
+                      ))}
+                  </dd>
+                </div>
+              )}
+              {ratingCodeStatus && (
+                <div>
+                  <dt className="text-xs text-mist">Feedback</dt>
+                  <dd>
+                    {ratingCodeStatus.available
+                      ? 'A rating code has been issued for your trip -- check your confirmation email or contact our team for it.'
+                      : 'Your rating code has already been used or has expired.'}
+                  </dd>
+                </div>
+              )}
+            </dl>
           </div>
         </>
       )}

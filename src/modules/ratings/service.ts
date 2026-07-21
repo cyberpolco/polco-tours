@@ -166,6 +166,27 @@ export const ratingsService = {
     return ratingsRepository.findRatingCodeByBookingId(requireOrg(ctx), bookingId);
   },
 
+  /** Guest `/find-booking` lookup: whether a Rating Code has been issued and
+   * its usable-ness, with no ctx (same "caller already gates" convention as
+   * fleetService.listVehiclesForBookingLookup) -- deliberately REDACTED,
+   * never the raw `code` itself. A Rating Code is this module's own genuine
+   * single-use second factor for the separate /rate flow, delivered to the
+   * guest via its own notification -- showing it back on this page would
+   * make the second factor recoverable from the same single lookup it's
+   * meant to be independent of. */
+  async getRatingCodeStatusForBookingLookup(
+    organizationId: string,
+    bookingId: string,
+  ): Promise<{ available: boolean; expiresAt: Date; usedAt: Date | null } | null> {
+    const ratingCode = await ratingsRepository.findRatingCodeByBookingId(organizationId, bookingId);
+    if (!ratingCode) return null;
+    return {
+      available: isRatingCodeUsable(ratingCode, new Date()),
+      expiresAt: ratingCode.expiresAt,
+      usedAt: ratingCode.usedAt,
+    };
+  },
+
   async listReviews(ctx: AuthContext): Promise<ReviewView[]> {
     assertCan(ctx, 'rating.read');
     return ratingsRepository.listReviews(requireOrg(ctx));

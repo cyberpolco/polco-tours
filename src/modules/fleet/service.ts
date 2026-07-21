@@ -196,6 +196,25 @@ export const fleetService = {
     return fleetRepository.findDriverProfilesByIds(organizationId, ids);
   },
 
+  /** Guest `/find-booking` lookup: resolves the vehicle(s)/Starlink kit(s)
+   * assigned to a booking's departure, with no ctx -- same "caller already
+   * gates" convention as listDriverProfilesForRating above (the page has
+   * already independently verified the guest's two-factor lookup before
+   * reaching here). Explicit, informed user choice to show real vehicle
+   * details (plate/make/model) on this no-login page. */
+  async listVehiclesForBookingLookup(organizationId: string, ids: string[]): Promise<VehicleView[]> {
+    if (ids.length === 0) return [];
+    return fleetRepository.findVehiclesByIds(organizationId, ids);
+  },
+
+  async listStarlinkKitsByVehicleIdsForBookingLookup(
+    organizationId: string,
+    vehicleIds: string[],
+  ): Promise<Map<string, StarlinkKitView>> {
+    if (vehicleIds.length === 0) return new Map();
+    return fleetRepository.findStarlinkKitsByVehicleIds(organizationId, vehicleIds);
+  },
+
   /** Ratings module (DR-037) -- this codebase's first no-ctx cross-module
    * WRITE (every prior "caller already gates" method, e.g. the read above,
    * only ever reads). Deliberately narrow: it can only ever set

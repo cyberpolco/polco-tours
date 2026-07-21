@@ -21,3 +21,4 @@ export type {
   RestaurantRatingView,
   RestaurantView,
 } from './domain';
+export type { ItineraryStatus } from '@prisma/client';
