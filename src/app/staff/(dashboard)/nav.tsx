@@ -15,6 +15,12 @@ interface NavLink {
   permission?: Permission;
   anyOfPermissions?: Permission[];
   superadminOnly?: boolean;
+  // New Booking (manual staff-entered bookings): narrower than
+  // `booking.create` itself, which TOURIST/PLATFORM_ADMIN also hold for
+  // unrelated reasons (guest checkout; general staff grants) -- per
+  // explicit user direction, only SUPERADMIN and TOUR_OPERATOR should see
+  // or use this page at all.
+  requiresAnyRole?: Role[];
   // For an aggregate link: which pathname prefixes count as "active" here,
   // since its own href is just the first sub-page (its own href wouldn't
   // otherwise match while viewing e.g. /staff/insights).
@@ -24,7 +30,7 @@ interface NavLink {
 const LINKS: NavLink[] = [
   { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
   { href: '/staff/bookings', label: 'Bookings', permission: 'booking.read' },
-  { href: '/staff/bookings/new', label: 'New booking', permission: 'booking.create' },
+  { href: '/staff/bookings/new', label: 'New booking', requiresAnyRole: ['TOUR_OPERATOR'] },
   { href: '/staff/packages', label: 'Packages', permission: 'catalog.read' },
   { href: '/staff/fleet', label: 'Fleet', permission: 'fleet.read' },
   { href: '/staff/itineraries', label: 'Itineraries', permission: 'itinerary.write' },
@@ -81,6 +87,7 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
   const permissionSet = new Set(permissions);
   const visibleLinks = LINKS.filter((l) => {
     if (l.superadminOnly) return isSuperadmin;
+    if (l.requiresAnyRole) return isSuperadmin || l.requiresAnyRole.some((r) => roles.includes(r));
     if (l.anyOfPermissions) return isSuperadmin || l.anyOfPermissions.some((p) => permissionSet.has(p));
     return isSuperadmin || (l.permission != null && permissionSet.has(l.permission));
   });

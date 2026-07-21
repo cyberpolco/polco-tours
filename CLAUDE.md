@@ -253,6 +253,49 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > /find-booking" showed the raw path instead of a real link -- now a
 > proper `Link` labeled "Find my booking", matching the label used
 > everywhere else on the site (nav/footer).
+> **Global back button + staff New Booking rewrite (2026-07-21, same
+> session, uncommitted at time of writing):** per explicit user direction.
+> **(1)** New `BackButton` (browser-history `router.back()`, not a
+> hardcoded parent route) rendered once in the staff dashboard
+> `layout.tsx`, so every page gets a consistent back affordance uniformly
+> instead of each of the 41 pages hand-rolling its own. **(2)**
+> `/staff/bookings/new` fully rewritten to reuse the exact guest-facing
+> forms instead of its own custom ones: the package path now mirrors
+> `(guest)/book-package/[packageId]` verbatim (start date only, no
+> departure picker at all -- DR-054 creates a fresh `Departure` from that
+> date; the old departure-list step is gone entirely, per explicit user
+> correction after seeing the package list still showed departures to
+> pick from) with only a client-email field added (DR-036's
+> `findOrCreateTouristByEmail`); the tailor-made path is a new
+> `StaffPlanMyTripForm`, a close copy of `(guest)/plan-my-trip`'s 9-step
+> wizard (same fields, same labels, same validation) minus the anonymous-
+> session-establish step (staff already have a real session) -- the
+> wizard's own email field doubles as the staff lookup key, so no extra
+> field was needed for tailor-made at all. Deliberately dropped the guest
+> form's phone/dial-code field from both staff variants: there's no
+> permission-safe way for `TOUR_OPERATOR` (who doesn't hold `admin.all`)
+> to write a phone number onto the resolved client's account the way the
+> guest's own self-service `authService.updateProfile` call does, and the
+> traveler's real contact details get collected properly later in the
+> booking-setup wizard's Travelers step regardless -- flagging this as a
+> deliberate, permission-driven deviation from "identical," not an
+> oversight. **(3)** New `requiresAnyRole` field on `nav.tsx`'s `NavLink`
+> + a `requireNewBookingAccess` check on both the page and its two Server
+> Actions restricts this specific flow to `SUPERADMIN`/`TOUR_OPERATOR`
+> only (explicit user instruction) -- narrower than `booking.create`
+> itself, which stays untouched everywhere else (`TOURIST` still needs it
+> for guest checkout, `PLATFORM_ADMIN` still holds it for other reasons),
+> same "route/page narrows beyond the base permission" layering as
+> `/staff/admin/permissions`. Both booking-creation paths keep redirecting
+> to `/staff/bookings/{id}` on success, same as the old flow -- the
+> booking reference is generated automatically at creation regardless
+> (unchanged) and is prominently shown there. `lint`/`typecheck` clean;
+> grepped `tests/`/`e2e/` for the two removed old action names and for any
+> reference to the old departure-picker flow -- zero hits, nothing to
+> update; no dedicated test exists for this page-level restriction, same
+> gap `/staff/admin/permissions`' own SUPERADMIN check already has (no
+> established pattern in this codebase for unit-testing a page-level
+> Next.js `redirect()` check outside of a real browser).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

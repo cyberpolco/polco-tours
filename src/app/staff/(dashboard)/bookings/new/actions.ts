@@ -3,57 +3,116 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
-import { bookingService, CreateBookingInput, CreateTailorMadeInput } from '@modules/booking';
+import { CreateBookingWithDatesInput, CreateTailorMadeInput, bookingService } from '@modules/booking';
+import { ApiError } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
+
+// Explicit user direction: only SUPERADMIN and TOUR_OPERATOR may create a
+// booking manually here -- see page.tsx's requireNewBookingAccess for the
+// full reasoning; re-checked here too since a Server Action is a real
+// network entry point of its own, not just reachable through this page.
+function requireNewBookingAccess(roles: string[]): void {
+  if (!roles.includes('SUPERADMIN') && !roles.includes('TOUR_OPERATOR')) redirect('/staff/forbidden');
+}
 
 function optionalString(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-// DR-036: clients never sign up (DR-016) -- staff just type the client's (or,
-// for a group, the tour lead's) email, and the system resolves-or-creates a
-// login-less tourist record behind the scenes. No account, no signup gate.
-export async function createBookingForClientAction(formData: FormData): Promise<void> {
+// Mirrors (guest)/book-package/[packageId]'s own createGuestPackageBookingAction
+// (same createHoldWithDates call, same start-date-only/no-departure-picker
+// shape, DR-054) -- the one difference is identifying which client the
+// booking is for: DR-036's findOrCreateTouristByEmail resolves-or-creates a
+// login-less tourist record from the staff-typed email, same as this
+// codebase's existing staff booking actions already did.
+export async function createStaffPackageBookingAction(packageId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('booking.create');
-  const departureId = String(formData.get('departureId'));
-  const email = String(formData.get('email')).trim();
+  requireNewBookingAccess(ctx.roles);
 
+  const email = String(formData.get('email') ?? '').trim();
   const client = await authService.findOrCreateTouristByEmail(ctx, email);
 
-  const input = CreateBookingInput.parse({
-    departureId,
+  const input = CreateBookingWithDatesInput.parse({
+    packageId,
+    startDate: String(formData.get('startDate') ?? ''),
     seats: Number(formData.get('seats')),
     touristUserId: client.id,
     specialRequests: optionalString(formData, 'specialRequests'),
   });
-  const booking = await bookingService.createHold(ctx, input);
+  const booking = await bookingService.createHoldWithDates(ctx, input);
   redirect(`/staff/bookings/${booking.id}`);
 }
 
-// Same no-account-needed behavior as createBookingForClientAction.
-export async function createTailorMadeBookingAction(formData: FormData): Promise<void> {
+export type CreateStaffTailorMadeResult = { bookingId: string } | { error: string };
+
+export interface CreateStaffTailorMadePayload {
+  countries: string[];
+  customTravelStart: string;
+  customTravelEnd: string;
+  seats: number;
+  preferredTags: string[];
+  preferredSites: string[];
+  customDescription?: string;
+  preferredAddons?: string[];
+  countryOfResidence?: string;
+  citizenship?: string;
+  specialRequests?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+// Mirrors (guest)/plan-my-trip's own createPlanMyTripRequestAction --
+// identical CreateTailorMadeInput shape/validation, same
+// bookingService.createTailorMadeRequest call (so the same confirmation
+// email/SMS fire, DR-055/056). Two real differences: (1) no anonymous-
+// session dance -- ctx is already a real staff session; (2) the wizard's
+// own `email` field doubles as the staff lookup key (DR-036's
+// findOrCreateTouristByEmail) instead of just a booking-scoped contact
+// field, so no separate "which client" field is needed at all. Returns a
+// result rather than calling redirect() -- invoked from a plain client
+// button handler (the wizard's own multi-step state), not a <form action>.
+export async function createStaffTailorMadeBookingAction(
+  payload: CreateStaffTailorMadePayload,
+): Promise<CreateStaffTailorMadeResult> {
+  // Outside the try/catch deliberately -- both of these can call Next's
+  // redirect() (unauthenticated session, or wrong role), which throws a
+  // special signal that must propagate, not get swallowed as an "error"
+  // result by the catch block below.
   const ctx = await requireStaffContext('booking.create');
-  const email = String(formData.get('email')).trim();
+  requireNewBookingAccess(ctx.roles);
 
-  const client = await authService.findOrCreateTouristByEmail(ctx, email);
+  const traceId = newTraceId();
+  try {
+    const client = await authService.findOrCreateTouristByEmail(ctx, payload.email.trim());
 
-  const input = CreateTailorMadeInput.parse({
-    // DR-047 widened this to countries[] for the guest-facing multi-select
-    // form -- this staff form stays a single free-text country code, just
-    // wrapped as a one-element array. `email` is the same address already
-    // used above to resolve/create the client's account -- no separate
-    // "contact email" field needed for a staff-entered booking.
-    countries: [String(formData.get('customCountry')).trim().toUpperCase()],
-    customTravelStart: String(formData.get('customTravelStart')),
-    customTravelEnd: String(formData.get('customTravelEnd')),
-    seats: Number(formData.get('seats')),
-    customDescription: String(formData.get('customDescription')),
-    touristUserId: client.id,
-    specialRequests: optionalString(formData, 'specialRequests'),
-    email,
-    firstName: String(formData.get('firstName')).trim(),
-    lastName: String(formData.get('lastName')).trim(),
-  });
-  const booking = await bookingService.createTailorMadeRequest(ctx, input);
-  redirect(`/staff/bookings/${booking.id}`);
+    const input = CreateTailorMadeInput.parse({
+      countries: payload.countries.map((c) => c.trim().toUpperCase()),
+      customTravelStart: payload.customTravelStart,
+      customTravelEnd: payload.customTravelEnd,
+      seats: payload.seats,
+      customDescription: payload.customDescription?.trim() || undefined,
+      specialRequests: payload.specialRequests?.trim() || undefined,
+      preferredTags: payload.preferredTags,
+      preferredSites: payload.preferredSites,
+      touristUserId: client.id,
+      email: payload.email.trim(),
+      firstName: payload.firstName.trim(),
+      lastName: payload.lastName.trim(),
+      preferredAddons: payload.preferredAddons,
+      countryOfResidence: payload.countryOfResidence?.trim().toUpperCase() || undefined,
+      citizenship: payload.citizenship?.trim().toUpperCase() || undefined,
+    });
+    const booking = await bookingService.createTailorMadeRequest(ctx, input);
+    return { bookingId: booking.id };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return { error: err.detail ?? err.title };
+    }
+    logger(traceId).error('staff tailor-made booking failed unexpectedly', {
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return { error: 'Something went wrong creating this request -- please try again.' };
+  }
 }

@@ -1,93 +1,76 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
-import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
-import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
-import { createBookingForClientAction, createTailorMadeBookingAction } from './actions';
+import { createStaffPackageBookingAction } from './actions';
+import StaffPlanMyTripForm from './staff-plan-my-trip-form';
 
 interface Props {
-  searchParams: Promise<{ packageId?: string; departureId?: string; tailorMade?: string }>;
+  searchParams: Promise<{ packageId?: string; tailorMade?: string }>;
 }
 
+// Explicit user direction: only SUPERADMIN and TOUR_OPERATOR may create a
+// booking manually on a client's behalf here -- narrower than booking.create
+// itself (also held by TOURIST for guest checkout, and PLATFORM_ADMIN for
+// unrelated reasons), same "route/page narrows beyond the base permission"
+// pattern as /staff/admin/permissions.
+function requireNewBookingAccess(roles: string[]): void {
+  if (!roles.includes('SUPERADMIN') && !roles.includes('TOUR_OPERATOR')) redirect('/staff/forbidden');
+}
+
+// Two entry points, each reusing the EXACT SAME form a guest fills out --
+// "from an existing package" mirrors (guest)/book-package/[packageId]
+// (start date only, no departure picker -- DR-054 creates a fresh Departure
+// from that date, trip length is the package's own staff-set durationDays);
+// "tailor-made request" mirrors (guest)/plan-my-trip's 9-step wizard
+// verbatim. The only staff-specific addition is identifying which client the
+// booking is for (email, resolved/created via authService
+// .findOrCreateTouristByEmail, DR-036) -- for the tailor-made path this is
+// already one of the wizard's own fields, no extra step needed.
 export default async function NewBookingPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
-  const { packageId, departureId, tailorMade } = await searchParams;
+  requireNewBookingAccess(ctx.roles);
+  const { packageId, tailorMade } = await searchParams;
 
   if (tailorMade) {
     return (
       <div className="max-w-md">
         <PageHeader eyebrow="New booking" title="Tailor-made request" />
-        <form action={createTailorMadeBookingAction} className="mt-6 space-y-4">
-          <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
-            <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Client first name" htmlFor="firstName">
-              <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label="Client last name" htmlFor="lastName">
-              <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-          </div>
-          <FormField label="Destination country (ISO-3166 alpha-2, e.g. NA or CD)" htmlFor="customCountry">
-            <input
-              name="customCountry"
-              maxLength={2}
-              minLength={2}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
-            />
-          </FormField>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Travel start" htmlFor="customTravelStart">
-              <input name="customTravelStart" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label="Travel end" htmlFor="customTravelEnd">
-              <input name="customTravelEnd" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-          </div>
-          <FormField label="Seats" htmlFor="seats">
-            <input
-              name="seats"
-              type="number"
-              min={1}
-              defaultValue={1}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label="Trip description" htmlFor="customDescription">
-            <textarea name="customDescription" required rows={4} className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label="Special requests" htmlFor="specialRequests" optional>
-            <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <SubmitButton>Create request</SubmitButton>
-        </form>
-        <Link href="/staff/bookings/new" className="mt-4 inline-block text-sm text-forest hover:underline">
-          ← back
-        </Link>
+        <StaffPlanMyTripForm />
       </div>
     );
   }
 
-  if (departureId) {
-    const detail = await catalogService.getDepartureDetail(ctx, departureId);
+  if (packageId) {
+    const pkg = await catalogService.getPackage(ctx, packageId);
+    // Same bookable gate the guest page itself enforces (DR-054) --
+    // catalogService.createDepartureForBooking would otherwise 409.
+    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) redirect('/staff/bookings/new');
+
     return (
       <div className="max-w-md">
         <PageHeader
           eyebrow="New booking"
-          title={`${detail.departure.startDate.toLocaleDateString()} · ${formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null, 'Not yet priced')}/seat`}
+          title={`${pkg.title} · ${formatOrPending(pkg.priceMinor, pkg.currency)}/seat`}
         />
-        <form action={createBookingForClientAction} className="mt-6 space-y-4">
-          <input type="hidden" name="departureId" value={departureId} />
+        <p className="mt-1 text-sm text-mist">{pkg.durationDays}-day trip</p>
+        <form action={createStaffPackageBookingAction.bind(null, packageId)} className="mt-6 space-y-4">
           <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
             <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label="Travel start" htmlFor="startDate">
+            <input
+              name="startDate"
+              type="date"
+              min={new Date().toISOString().slice(0, 10)}
+              required
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
           <FormField label="Seats" htmlFor="seats">
             <input
@@ -104,40 +87,6 @@ export default async function NewBookingPage({ searchParams }: Props) {
           </FormField>
           <SubmitButton>Create booking</SubmitButton>
         </form>
-        <Link
-          href={packageId ? `/staff/bookings/new?packageId=${packageId}` : '/staff/bookings/new'}
-          className="mt-4 inline-block text-sm text-forest hover:underline"
-        >
-          ← back
-        </Link>
-      </div>
-    );
-  }
-
-  if (packageId) {
-    const departures = await catalogService.listDepartures(ctx, packageId);
-    return (
-      <div>
-        <PageHeader eyebrow="New booking" title="Choose a departure" />
-        {departures.length === 0 ? (
-          <p className="mt-4 text-mist">No departures scheduled for this package.</p>
-        ) : (
-          <ul className="mt-4 space-y-2">
-            {departures.map((d) => (
-              <Card as="li" key={d.id}>
-                <Link
-                  href={`/staff/bookings/new?packageId=${packageId}&departureId=${d.id}`}
-                  className="flex items-center justify-between text-forest hover:underline"
-                >
-                  <span>
-                    {d.startDate.toLocaleDateString()} · capacity {d.capacity}
-                  </span>
-                  <Badge tone={DEPARTURE_STATUS_TONE[d.status]}>{d.status}</Badge>
-                </Link>
-              </Card>
-            ))}
-          </ul>
-        )}
         <Link href="/staff/bookings/new" className="mt-4 inline-block text-sm text-forest hover:underline">
           ← back
         </Link>
@@ -146,6 +95,8 @@ export default async function NewBookingPage({ searchParams }: Props) {
   }
 
   const packages = await catalogService.listPackages(ctx);
+  const bookablePackages = packages.filter((p) => p.status === 'PUBLISHED' && p.priceMinor != null && p.durationDays != null);
+
   return (
     <div>
       <PageHeader eyebrow="New booking" title="Choose a package" />
@@ -156,11 +107,11 @@ export default async function NewBookingPage({ searchParams }: Props) {
         </Link>
         .
       </p>
-      {packages.length === 0 ? (
-        <p className="mt-4 text-mist">No packages yet.</p>
+      {bookablePackages.length === 0 ? (
+        <p className="mt-4 text-mist">No bookable packages yet.</p>
       ) : (
         <ul className="mt-4 space-y-2">
-          {packages.map((p) => (
+          {bookablePackages.map((p) => (
             <Card as="li" key={p.id}>
               <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
                 {p.title} · {p.country} · {formatOrPending(p.priceMinor, p.currency)}
