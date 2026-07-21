@@ -211,6 +211,13 @@ model User {
   isAnonymous        Boolean?  @default(false) // better-auth `anonymous` plugin (DR-016 guest checkout)
   organizationId     String?   @db.Uuid
   mustChangePassword Boolean   @default(false) // set true for admin-created accounts with a generated temp password (DR-026)
+  // Set via a databaseHooks.session.create.after hook in src/lib/auth.ts
+  // (a plain prisma.user.update, not part of better-auth's own managed
+  // payload -- no additionalFields registration needed) -- the moment a
+  // new Session row is created, i.e. an actual sign-in, not just any
+  // authenticated request. Powers the "Last login" column on
+  // /staff/admin/users.
+  lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?

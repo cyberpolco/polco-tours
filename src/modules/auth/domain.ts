@@ -39,6 +39,7 @@ export interface PublicUser {
   preferredLocale: Locale;
   deletedAt: Date | null; // DR-026: null = active, set = soft-deleted/deactivated
   mustChangePassword: boolean; // DR-026
+  lastLoginAt: Date | null; // set via databaseHooks.session.create.after in lib/auth.ts
 }
 
 // E.164: optional leading +, 1-15 digits, first digit non-zero.

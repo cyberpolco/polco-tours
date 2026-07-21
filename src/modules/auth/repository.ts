@@ -15,6 +15,7 @@ interface RawUser {
   preferredLocale: PublicUser['preferredLocale'];
   deletedAt: Date | null;
   mustChangePassword: boolean;
+  lastLoginAt: Date | null;
 }
 
 function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
@@ -30,6 +31,7 @@ function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
     preferredLocale: u.preferredLocale,
     deletedAt: u.deletedAt,
     mustChangePassword: u.mustChangePassword,
+    lastLoginAt: u.lastLoginAt,
   };
 }
 

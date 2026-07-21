@@ -47,9 +47,27 @@ export const authConfig = {
   // "delete the anonymous user once they sign in for real" behavior must not
   // run, or a guest's booking history would vanish under them.
   plugins: [anonymous({ disableDeleteAnonymousUser: true })],
+  // Explicit user direction: no session -- staff or guest/anonymous alike
+  // -- may sit inactive for more than 30 minutes before requiring a fresh
+  // sign-in. better-auth's session model is a sliding window, not a
+  // separate "inactivity" concept: expiresIn is how long a session stays
+  // valid since its last refresh, and updateAge is how often using the
+  // session actually pushes that expiry forward. Setting both to the same
+  // 30-minute value makes them work together as a real inactivity timeout
+  // -- any request at least updateAge since the last refresh extends the
+  // session another expiresIn from now, so genuinely active use (requests
+  // less than 30m apart) never gets logged out, while 30+ consecutive
+  // minutes of no requests lets the session lapse. This intentionally
+  // replaces the previous 12h-absolute/30m-refresh-cadence pair (which
+  // actually allowed up to 12h of inactivity, not 30m -- the old "30m"
+  // comment there described the refresh cadence, not a real timeout).
+  // Applies globally, including anonymous guest-checkout sessions (a real,
+  // accepted tradeoff: a guest who pauses 30+ minutes mid-wizard has to
+  // restart as a new anonymous identity, since there's no credential to
+  // "sign back into" the same one).
   session: {
-    expiresIn: 60 * 60 * 12, // 12h absolute
-    updateAge: 60 * 30, // refresh idle window (30m)
+    expiresIn: 60 * 30,
+    updateAge: 60 * 30,
   },
   advanced: {
     cookiePrefix: 'polco',
@@ -79,6 +97,24 @@ export const authConfig = {
             // No primary org configured -- leave organizationId null.
           }
           return { data: { organizationId } };
+        },
+      },
+    },
+    // "Last login" column on /staff/admin/users -- a plain direct write
+    // (not part of better-auth's own managed create payload, so no
+    // additionalFields registration is needed, unlike organizationId
+    // above), run right after a new Session row is actually created, i.e.
+    // a real sign-in -- not on every authenticated request, which is what
+    // updateAge's own sliding-window refresh would otherwise conflate this
+    // with. Best-effort: a failure here must never block sign-in itself.
+    session: {
+      create: {
+        async after(session: { userId: string }) {
+          try {
+            await prisma.user.update({ where: { id: session.userId }, data: { lastLoginAt: new Date() } });
+          } catch {
+            // Never block sign-in over a lastLoginAt write failing.
+          }
         },
       },
     },

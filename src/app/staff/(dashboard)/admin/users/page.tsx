@@ -30,6 +30,7 @@ export default async function UsersPage() {
             <Th>Phone</Th>
             <Th>Roles</Th>
             <Th>Status</Th>
+            <Th>Last login</Th>
             <Th />
           </TableHeaderRow>
         </thead>
@@ -51,6 +52,7 @@ export default async function UsersPage() {
               <Td>
                 <Badge tone={u.deletedAt ? 'danger' : 'success'}>{u.deletedAt ? 'Deactivated' : 'Active'}</Badge>
               </Td>
+              <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : 'Never'}</Td>
               <Td>
                 <div className="flex items-center gap-3">
                   {u.id !== ctx.userId && (
