@@ -135,6 +135,34 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > cleanly) -- see DR-060's own `docs/decisions/DECISION_LOG.md` entry.
 > CI confirmed fully green on this commit (Lint/Typecheck/Test/Build,
 > Dependency audit, E2E all passing).
+> **Real bug found and fixed via a live user report (uncommitted at the time
+> of writing, no DR -- pure permission-scoping correction + a dead-end
+> redirect fix, no schema change):** the actual bootstrap SUPERADMIN
+> (`cyberpolco@gmail.com`, `User.name` = "Hanna Mayuma") reported being
+> unable to edit her own name. Root cause: `/staff/admin/users/{userId}`
+> (SUPERADMIN editing someone else's row) has always deliberately blocked
+> self-edit (`if (userId === ctx.userId) notFound()`) -- clicking your own
+> row in the Users list, the natural place to look, dead-ended with a bare
+> 404 and no pointer to DR-059's newer `/staff/profile` self-service page.
+> Verified the underlying `authService.updateProfile` write itself works
+> correctly (tested directly against the real account) -- this was a
+> discoverability dead end, not a broken save. Fixed two ways, plus one
+> explicit user-requested scope change: **(1)** that page now redirects a
+> SUPERADMIN's own row to `/staff/profile` instead of 404ing (a non-
+> SUPERADMIN `admin.all` holder, e.g. `PLATFORM_ADMIN`, still 404s rather
+> than bouncing through a page that would just redirect them again).
+> **(2)** Per explicit user correction, **`/staff/profile` is now
+> SUPERADMIN-only**, reversing DR-059's original "any staff role" design --
+> every other role's name/phone is still edited by an admin via
+> `/staff/admin/users/{userId}`, same "route/service still hold the
+> broader `profile.write` check, the page itself narrows to SUPERADMIN"
+> layering as `/staff/admin/permissions`. `settings-items.ts`'s entry
+> gained `superadminOnly: true` (same convention as the Permissions entry).
+> **(3)** Also fixed a related, independently-discovered cosmetic bug: the
+> "Settings" top-nav link's `activeHrefPrefixes` never included
+> `/staff/profile`/`/staff/change-password`, so it never highlighted as
+> active while on either page. `lint`/`typecheck` clean; no existing test
+> referenced `/staff/profile` at all (grepped `tests/`/`e2e/` to confirm).
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

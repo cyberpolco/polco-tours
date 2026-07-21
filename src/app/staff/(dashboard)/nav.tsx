@@ -54,6 +54,8 @@ const LINKS: NavLink[] = [
       '/staff/insights',
       '/staff/admin/users',
       '/staff/admin/permissions',
+      '/staff/change-password',
+      '/staff/profile',
     ],
   },
 ];

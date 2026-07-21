@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService } from '@modules/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -17,7 +17,18 @@ export default async function EditUserPage({ params }: Props) {
   const { userId } = await params;
   const ctx = await requireStaffContext('admin.all');
 
-  if (userId === ctx.userId) notFound(); // updateUser/resetPassword both block self-edit
+  // updateUser/resetPassword both block self-edit here -- this used to be a
+  // bare notFound(), a real dead end: an admin clicking their own row in the
+  // Users list (the natural place to look for "edit my name") got a plain
+  // 404 with no pointer to where self-editing actually lives. A SUPERADMIN
+  // gets redirected to the real place (self-service /staff/profile,
+  // SUPERADMIN-only); any other admin.all holder (e.g. PLATFORM_ADMIN)
+  // viewing their own row still 404s rather than bouncing through a page
+  // that would just redirect them again to /staff/forbidden.
+  if (userId === ctx.userId) {
+    if (ctx.roles.includes('SUPERADMIN')) redirect('/staff/profile');
+    notFound();
+  }
 
   const user = await authService.getUser(userId);
   if (!user) notFound();

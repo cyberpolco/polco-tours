@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { FormField } from '@/components/ui/FormField';
@@ -8,13 +9,19 @@ import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
 import { updateMyProfileAction } from './actions';
 
-// Any staff role's own self-service "edit my name/phone" page -- reached via
-// the Settings sidebar (settings-items.ts), no permission gate beyond
-// ordinary staff-session access, same convention as /staff/change-password.
-// Distinct from /staff/admin/users/{userId} (SUPERADMIN editing SOMEONE
-// ELSE'S row) -- this is always the signed-in user's own row.
+// SUPERADMIN's own self-service "edit my name/phone" page -- reached via the
+// Settings sidebar (settings-items.ts). Explicit user correction: this was
+// originally "any staff role" (DR-059); every other staff role's name/phone
+// is instead edited by an admin via /staff/admin/users/{userId}. Same
+// "route passes a broad gate, service/page still narrows to SUPERADMIN"
+// pattern as /staff/admin/permissions -- profile.write itself is still held
+// by every role (authService.updateProfile's own check), so the narrowing
+// happens here, not in rbac.ts. Distinct from /staff/admin/users/{userId}
+// (SUPERADMIN editing SOMEONE ELSE'S row) -- this is always the signed-in
+// user's own row, and that page now redirects here for a SUPERADMIN's own.
 export default async function MyProfilePage() {
   const ctx = await requireStaffContext('profile.write');
+  if (!ctx.roles.includes('SUPERADMIN')) redirect('/staff/forbidden');
   const user = await authService.getUser(ctx.userId);
   const parsedPhone = user?.phone ? parseE164(user.phone) : null;
 

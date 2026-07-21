@@ -21,8 +21,10 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // reset-password panel on their own row) needs a way to change their own
   // password.
   { href: '/staff/change-password', label: 'Change Password' },
-  // Same "no permission gate" convention as Change Password above -- every
-  // staff role holds profile.write already (rbac.ts), and self-editing your
-  // own name/phone needs no narrower gate than "signed in as staff."
-  { href: '/staff/profile', label: 'My Profile' },
+  // SUPERADMIN-only (explicit user correction to DR-059's original "any
+  // staff role" design) -- every other role's name/phone is instead edited
+  // by an admin via /staff/admin/users/{userId}. `permission` is left unset
+  // (profile.write is still held by every role) since the real narrowing
+  // happens on the page itself, same layering as Permissions below.
+  { href: '/staff/profile', label: 'My Profile', superadminOnly: true },
 ];
