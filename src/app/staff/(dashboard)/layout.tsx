@@ -26,12 +26,13 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           <SignOutButton />
         </div>
       </nav>
-      {/* Wider than the original centered max-w-5xl column, but still a
-          bounded column with margin on very wide screens -- explicit user
-          feedback, in two steps: "fill the entire screen" (max-w-5xl was
-          too narrow) then "too wide, just leave some margin" (fully
-          unbounded was too wide). max-w-7xl splits the difference. */}
-      <main className="mx-auto max-w-7xl px-8 py-10">
+      {/* Bounded column, wider than max-w-7xl (Tailwind's largest named
+          size) but well short of the full viewport -- three rounds of
+          user feedback: max-w-5xl was too narrow, fully unbounded/
+          edge-to-edge was too wide, and max-w-7xl still too small. A
+          custom arbitrary value since Tailwind has nothing named wider
+          than 7xl out of the box. */}
+      <main className="mx-auto max-w-[100rem] px-8 py-10">
         <BackButton />
         {children}
       </main>
