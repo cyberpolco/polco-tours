@@ -75,11 +75,30 @@ export const authRepository = {
     return toPublicUser(u, await resolveRoles(u));
   },
 
-  /** DR-026: every non-deleted user in the org, for the admin user-management
-   * page (authService.listUsers). */
-  async listAll(organizationId: string): Promise<PublicUser[]> {
+  /** DR-026: every non-deleted STAFF account in the org (i.e. everyone
+   * except TOURIST, which is exclusively the bare-client-record role -- see
+   * createBareTourist above and listClients below) for the admin
+   * user-management page (authService.listUsers). Explicitly excludes
+   * TOURIST since staff-created client records and guest anonymous-session
+   * accounts would otherwise clutter a page meant for managing staff
+   * roles/passwords, neither of which apply to a client at all. */
+  async listStaff(organizationId: string): Promise<PublicUser[]> {
     const users = await withOrg(organizationId, (tx) =>
-      tx.user.findMany({ where: { organizationId, deletedAt: null }, orderBy: { email: 'asc' } }),
+      tx.user.findMany({ where: { organizationId, deletedAt: null, role: { not: 'TOURIST' } }, orderBy: { email: 'asc' } }),
+    );
+    return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
+  },
+
+  /** The "Clients" directory -- every TOURIST-role record in the org,
+   * whichever of the 3 booking-creation paths brought them in (guest
+   * package browse, guest /plan-my-trip, or staff-created via
+   * findOrCreateTouristByEmail). None of these can ever sign in (no
+   * Account/credential row for a staff-created one; better-auth's own
+   * anonymous-session mechanism for a guest one), so this is a read-only
+   * contact directory, not a user-management surface. */
+  async listClients(organizationId: string): Promise<PublicUser[]> {
+    const users = await withOrg(organizationId, (tx) =>
+      tx.user.findMany({ where: { organizationId, deletedAt: null, role: 'TOURIST' }, orderBy: { email: 'asc' } }),
     );
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },

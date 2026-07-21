@@ -14,6 +14,11 @@ export interface SidebarItem {
   // role" convention as staff-guard.ts's requireStaffContext.
   permission?: Permission;
   superadminOnly?: boolean;
+  // Same role-based narrowing as nav.tsx's NavLink.requiresAnyRole --
+  // for an item whose real gate isn't expressible as a single permission
+  // (e.g. Clients: SUPERADMIN + TOUR_OPERATOR only, not everyone who
+  // happens to hold booking.read).
+  requiresAnyRole?: Role[];
 }
 
 // Settings (DR-042): a left-vertical sub-nav for a
@@ -42,6 +47,7 @@ export function SidebarShell({
   const permissionSet = new Set(permissions);
   const visibleItems = items.filter((item) => {
     if (item.superadminOnly) return isSuperadmin;
+    if (item.requiresAnyRole) return isSuperadmin || item.requiresAnyRole.some((r) => roles.includes(r));
     if (!item.permission) return true;
     return isSuperadmin || permissionSet.has(item.permission);
   });

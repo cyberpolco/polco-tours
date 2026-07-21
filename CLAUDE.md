@@ -296,6 +296,40 @@ native apps later. Brand: **polcotours** (`polcotours.com`).
 > gap `/staff/admin/permissions`' own SUPERADMIN check already has (no
 > established pattern in this codebase for unit-testing a page-level
 > Next.js `redirect()` check outside of a real browser).
+> **New "Clients" directory, same session (2026-07-21, uncommitted at time
+> of writing):** the previous paragraph's `findOrCreateTouristByEmail`
+> (DR-036) already creates a login-less `User` row for a staff-typed
+> client email -- explicit user follow-up confirmed this is fine
+> precisely *because* it can never sign in (no `Account`/credential row,
+> and `TOURIST` holds zero staff permissions even hypothetically), but
+> asked for these records to live in their own dedicated place rather
+> than clutter `/staff/admin/users` (which mixed real staff accounts with
+> every client contact record, `TOURIST`-role or not, including guest
+> anonymous-session ones). `authRepository.listAll` renamed to
+> `listStaff` and now excludes `role: 'TOURIST'`; new sibling
+> `listClients` (`role: 'TOURIST'` only) backs a new
+> `/staff/admin/clients` page -- name/email/phone only, no role/password
+> management UI at all, since neither concept applies to a login-less
+> record. New `isClientDirectoryViewer` role check (`auth/domain.ts`,
+> same shape as `isSuperAdmin`) restricts this to `SUPERADMIN`/
+> `TOUR_OPERATOR` -- explicit user choice, matching `/staff/bookings/new`'s
+> own boundary, since those are the roles that actually create these
+> records. New `requiresAnyRole` field added to both `nav.tsx`'s
+> `NavLink` and `sidebar-shell.tsx`'s `SidebarItem` (this is the second
+> use of that pattern, after New Booking's nav entry) so the "Clients"
+> Settings-sidebar entry can express the same non-permission role
+> boundary. `lint`/`typecheck` clean; new
+> `tests/auth-clients-directory.test.ts` (3/3, confirmed live against the
+> real Neon DB after the documented connectivity gotcha's usual couple of
+> retries) covers the listClients/listStaff split both ways plus the
+> role-rejection case; re-ran the pre-existing
+> `tests/api/users-admin.{api,security}.test.ts` to check for a
+> regression -- both hit the same well-documented intermittent
+> Prisma-to-Neon connectivity gotcha across several retries (traced the
+> failures to `better-auth`'s own internal `loginAs`/`findUserById` calls
+> and confirmed `authService.deactivateUser` has zero dependency on the
+> renamed methods), so this needs a real CI run to fully confirm, but
+> there's no code-level reason to expect a regression.
 > Also records the DR-034 Immigration Module/Country
 > Regulations/Zambia+Zimbabwe expansion, and a
 > systemic test-fixture bug (undefined-id fixtures silently turning into

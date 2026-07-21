@@ -12,6 +12,12 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   { href: '/staff/finance/rates', label: 'Operational Rates', permission: 'finance_config.read' },
   { href: '/staff/insights', label: 'Insights', permission: 'insights.read' },
   { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
+  // Contact directory for bare/anonymous TOURIST records (DR-036) --
+  // SUPERADMIN/TOUR_OPERATOR-only, the roles that actually create/interact
+  // with these via /staff/bookings/new. Deliberately not gated on
+  // admin.all like Users above -- these aren't staff accounts at all, and
+  // TOUR_OPERATOR (who creates most of them) doesn't hold admin.all.
+  { href: '/staff/admin/clients', label: 'Clients', requiresAnyRole: ['TOUR_OPERATOR'] },
   // DR-035: SUPERADMIN-only regardless of who else holds admin.all --
   // PLATFORM_ADMIN is seeded with admin.all by default but must NOT see
   // this link, matching the page's own explicit SUPERADMIN-only gate.

@@ -6,7 +6,7 @@ import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
-import { isSuperAdmin } from './domain';
+import { isClientDirectoryViewer, isSuperAdmin } from './domain';
 import type { AuthContext, CreateUserInput, PublicUser, UpdateProfileInput, UpdateUserInput } from './domain';
 
 export const authService = {
@@ -82,11 +82,26 @@ export const authService = {
   },
 
   /** Admin-only: powers the general user-management page (DR-026) -- every
-   * non-deleted user in the org, with their full role set. */
+   * non-deleted STAFF account in the org (excludes TOURIST -- see
+   * listClients below), with their full role set. */
   async listUsers(ctx: AuthContext): Promise<PublicUser[]> {
     assertCan(ctx, 'admin.all');
     if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
-    return authRepository.listAll(ctx.organizationId);
+    return authRepository.listStaff(ctx.organizationId);
+  },
+
+  /** The "Clients" directory -- every bare/anonymous TOURIST contact record
+   * in the org (none of which can ever sign in, see createBareTourist's own
+   * comment). SUPERADMIN/TOUR_OPERATOR-only, same boundary as manual staff
+   * booking creation -- gated on booking.create (the permission those two
+   * roles already hold for exactly this reason) plus an explicit role check,
+   * same "route/service passes a broader gate, service narrows further"
+   * layering as isCountryRegulationWriter/isFleetDeleter. */
+  async listClients(ctx: AuthContext): Promise<PublicUser[]> {
+    assertCan(ctx, 'booking.create');
+    if (!isClientDirectoryViewer(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN/TOUR_OPERATOR may view the client directory');
+    if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+    return authRepository.listClients(ctx.organizationId);
   },
 
   /** Admin-only: creates a staff account with one or more simultaneous roles

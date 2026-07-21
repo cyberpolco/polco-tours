@@ -106,6 +106,16 @@ export function isSuperAdmin(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN');
 }
 
+/** The "Clients" directory (bare-tourist contact records, DR-036) is
+ * SUPERADMIN/TOUR_OPERATOR-only, same access boundary as manual staff
+ * booking creation (/staff/bookings/new) -- explicit user choice, since
+ * those are exactly the roles that create/interact with these records.
+ * Direct role-identity check, not a Permission literal, same layering as
+ * isSuperAdmin above. */
+export function isClientDirectoryViewer(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
+}
+
 // Permission-matrix editor (DR-035). `role` reuses rbac.ts's EDITABLE_ROLES
 // (SUPERADMIN excluded -- it's a fixed wildcard, never a DB row) instead of
 // duplicating the role list. `permission` isn't validated against the full
