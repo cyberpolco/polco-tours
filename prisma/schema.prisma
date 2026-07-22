@@ -306,35 +306,46 @@ model PlatformRate {
   @@map("platform_rates")
 }
 
-// Content module (DR-043): staff-editable guest-site content, replacing what
-// used to be hardcoded JSX/TS literals in src/app/(guest)/{about,faq}. No
+// Content module (DR-071): staff-editable guest-site content, replacing what
+// used to be hardcoded JSX/TS literals in src/app/(guest)/{about,faq}. Added
+// as an unused scaffold in DR-042 (the "(DR-043)" citation this comment used
+// to carry was a stale mislabel -- DR-042 is the actual origin, see its row
+// in DECISION_LOG.md); DR-071 is what actually builds the module. No
 // organizationId/RLS -- same precedent as TaxRate/CountryRegulation, and
 // consistent with the guest site's existing single-primary-org convention
 // (getPrimaryOrgId() already resolves one global org for every guest page,
 // so there's no per-tenant guest-content story to preserve). Write is
 // SUPERADMIN-only (content.write, enforced in content/service.ts).
+// `locale` (DR-071) lets About/FAQ carry real, independently-written French
+// content rather than a literal translation bolted on later -- one row per
+// key+locale, mirroring next-intl's per-locale-file convention.
 model SiteContent {
   id              String   @id @default(uuid()) @db.Uuid
-  key             String   @unique // e.g. "about"
+  key             String // e.g. "about"
+  locale          String   @default("en")
   title           String
   body            String   @db.Text
   updatedAt       DateTime @updatedAt
   updatedByUserId String?  @db.Uuid
 
+  @@unique([key, locale])
   @@map("site_content")
 }
 
 // Same precedent as SiteContent, but repeated rows (one per Q&A) instead of
-// a single-row-per-key blob.
+// a single-row-per-key blob. `locale` (DR-071): each FAQ entry is one
+// question+answer in one language -- EN and FR entries are independent rows
+// with their own sortOrder, not a shared row with two body columns.
 model FaqEntry {
   id        String   @id @default(uuid()) @db.Uuid
   question  String
   answer    String   @db.Text
+  locale    String   @default("en")
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([sortOrder])
+  @@index([locale, sortOrder])
   @@map("faq_entries")
 }
 

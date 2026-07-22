@@ -1,31 +1,32 @@
+import { cookies } from 'next/headers';
+import { contentService, type ContentLocale } from '@modules/content';
 import { Reveal } from '@/components/ui/Reveal';
 
-export default function AboutPage() {
+// DR-071: content is now DB-backed (SiteContent, key="about") instead of
+// hardcoded JSX -- edited at /staff/content. Reads the same `locale` cookie
+// src/i18n/request.ts does directly, rather than pulling in next-intl's
+// machinery for content that isn't a next-intl namespace.
+async function resolveLocale(): Promise<ContentLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+export default async function AboutPage() {
+  const locale = await resolveLocale();
+  const about = await contentService.getPublicSiteContent('about', locale);
+
   return (
     <Reveal>
-      <div className="max-w-2xl">
+      <div className="max-w-3xl">
         <p className="eyebrow text-mist">About</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">
-          A tourism operating system for Visit Kasai &amp; Mufasa Safaris and Tours
-        </h1>
-        <p className="mt-4 text-mist">
-          Polco Tours is a Tourism Operating System for Visit Kasai &amp; Mufasa Safaris and
-          Tours -- a solution Cyber PolCo built with the aim of having a presence in every
-          African country, starting here with Namibia, the Democratic Republic of Congo,
-          Zambia, and Zimbabwe.
-        </p>
-        <p className="mt-4 text-mist">
-          It brings tour package sales and the operations behind them -- guides, drivers,
-          vehicles, hotels, and visa paperwork -- into one platform. For travelers, that means
-          browsing real packages and departures, or answering a few questions to get matched to
-          one, then booking as a guest -- no account, no password. Everything from adding your
-          fellow travelers to uploading a passport happens in one sitting, and you walk away with
-          a reference code to check on your trip any time.
-        </p>
-        <p className="mt-4 text-mist">
-          We&apos;re early. The platform is actively growing, and we&apos;d rather be upfront about
-          that than overstate where things stand.
-        </p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{about?.title ?? 'About Polco Tours'}</h1>
+        {about
+          ? about.body.split('\n\n').map((paragraph, i) => (
+              <p key={i} className="mt-4 text-mist">
+                {paragraph}
+              </p>
+            ))
+          : <p className="mt-4 text-mist">Content coming soon.</p>}
       </div>
     </Reveal>
   );

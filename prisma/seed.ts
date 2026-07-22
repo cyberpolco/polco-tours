@@ -436,6 +436,76 @@ async function main() {
     });
   }
 
+  // --- Content module (DR-071): About page + FAQ list, EN + FR, seeded so
+  // the guest /about and /faq pages have real content the moment the module
+  // ships instead of rendering empty until a SUPERADMIN fills them in by
+  // hand. French is a genuine, independently-worded translation (not a
+  // literal port of the English) -- same bar the pre-existing Nav/Footer/
+  // HomePage French already meets. ---
+  const siteContent: Array<{ key: string; locale: string; title: string; body: string }> = [
+    {
+      key: 'about',
+      locale: 'en',
+      title: 'Built for real trips across four countries',
+      body: [
+        "Polco Tours runs the booking and operations side of Visit Kasai & Mufasa Safaris and Tours -- a platform Cyber PolCo built to eventually work in every African country, starting right here in Namibia, the Democratic Republic of Congo, Zambia, and Zimbabwe.",
+        "One system handles both sides of a trip: the packages you browse, and everything behind them -- guides, drivers, vehicles, hotels, visa paperwork. As a traveler, that means you can browse real departures or answer a few quick questions to get matched to one, then book as a guest, no account and no password required. Add your fellow travelers, upload a passport, and you're done in one sitting -- with a reference code to check on things whenever you like.",
+        "We're still early days. The platform keeps growing week by week, and we'd rather tell you that plainly than oversell where things stand.",
+      ].join('\n\n'),
+    },
+    {
+      key: 'about',
+      locale: 'fr',
+      title: 'Pensé pour de vrais voyages, dans quatre pays',
+      body: [
+        "Polco Tours gère la réservation et les opérations de Visit Kasai & Mufasa Safaris and Tours -- une plateforme conçue par Cyber PolCo avec l'ambition de couvrir, un jour, tout le continent africain. On commence ici : la Namibie, la République démocratique du Congo, la Zambie et le Zimbabwe.",
+        "Un seul système pour les deux faces du voyage : les circuits que vous parcourez, et tout ce qui les fait fonctionner -- guides, chauffeurs, véhicules, hôtels, démarches de visa. Côté voyageur, cela veut dire parcourir de vrais départs ou répondre à quelques questions pour qu'on vous propose le bon circuit, puis réserver en tant qu'invité, sans compte ni mot de passe. Ajoutez vos compagnons de voyage, téléversez un passeport, et c'est réglé en une seule fois -- avec un code de référence pour suivre votre dossier quand vous le souhaitez.",
+        "On est encore au tout début. La plateforme grandit de semaine en semaine, et on préfère vous le dire franchement plutôt que d'en faire trop.",
+      ].join('\n\n'),
+    },
+  ];
+  for (const c of siteContent) {
+    await prisma.siteContent.upsert({
+      where: { key_locale: { key: c.key, locale: c.locale } },
+      update: {},
+      create: { key: c.key, locale: c.locale, title: c.title, body: c.body },
+    });
+  }
+
+  // Same 10 questions as the pre-migration hardcoded FAQS array, tone-
+  // polished, plus a creative (not literal) French translation. The
+  // visa/safety/health answers (6-9) keep every hedge/disclaimer from the
+  // original wording -- see CLAUDE.md's repeated caution that this content
+  // is orientation, not verified legal fact.
+  const faqEntries: Array<{ locale: string; sortOrder: number; question: string; answer: string }> = [
+    { locale: 'en', sortOrder: 0, question: 'Do I need to create an account?', answer: 'Nope -- you book as a guest. Pick a departure, add your travelers, pay a deposit, no password involved. Afterward you\'ll get a reference code so you can check on your booking whenever you want.' },
+    { locale: 'en', sortOrder: 1, question: 'How do I pay?', answer: 'Your booking page shows a deposit (40%) and a balance (60%). Click "Pay deposit" or "Pay balance" when you\'re ready. Right now our team confirms each payment by hand, so give it a little time to show as complete.' },
+    { locale: 'en', sortOrder: 2, question: "I lost my booking's page -- how do I find it again?", answer: 'Head to "Find my booking" and enter your reference code plus the tour lead\'s last name.' },
+    { locale: 'en', sortOrder: 3, question: 'What do I need to have ready to book?', answer: "Each traveler's name, age, sex, and nationality, plus the tour lead's passport. You'll pick any add-on services in the same flow." },
+    { locale: 'en', sortOrder: 4, question: 'What currency will I pay in?', answer: "Whatever currency the package is listed in -- USD, EUR, NAD, or CDF. We don't convert between currencies, so double-check the listing before you book." },
+    { locale: 'en', sortOrder: 5, question: 'Do I need a visa to enter Namibia?', answer: "It depends on your nationality -- and the rules shifted twice in 2025, so a number of nationalities that used to be visa-exempt now need an e-visa or visa-on-arrival. Always confirm your specific requirement with the Namibian Ministry of Home Affairs/Immigration or your nearest Namibian embassy before you travel. We'll flag anything we can confirm on your booking, but this isn't legal guidance." },
+    { locale: 'en', sortOrder: 6, question: 'Do I need a visa to enter the DRC?', answer: "Most visitors do, arranged in advance -- typically through a licensed local operator (a DMC) working with DRC immigration (DGM). Requirements vary by nationality and purpose of visit, so confirm directly with your nearest DRC embassy or your booking's operator well ahead of travel." },
+    { locale: 'en', sortOrder: 7, question: 'Is it safe to travel in the DRC?', answer: "It really depends on the region. Kinshasa and western DRC are generally accessible to visitors; some areas further east carry an elevated risk or call for specialist arrangements, and a few provinces aren't currently recommended for tourism at all. We only sell packages into areas our operators consider appropriate, and advisory details can change -- always check your own government's official travel advisory too." },
+    { locale: 'en', sortOrder: 8, question: 'Do I need proof of yellow fever vaccination?', answer: "If you're arriving from -- or recently passed through -- a country with yellow fever risk, Namibia, the DRC, Zambia, and Zimbabwe may all ask for proof of vaccination at the border. Malaria risk is also present in parts of each country. Check current requirements with your travel clinic or the relevant embassy before you go." },
+    { locale: 'en', sortOrder: 9, question: 'Do I need a visa to enter Zambia or Zimbabwe?', answer: "Most visitors can get a visa on arrival or apply for an e-visa beforehand, and some nationalities are visa-exempt for short stays. Where available, the joint KAZA UniVisa covers both countries plus day trips across the border into Botswana. Requirements vary by nationality, so confirm directly with Zambia's or Zimbabwe's Department of Immigration, or your nearest embassy, before you travel." },
+    { locale: 'fr', sortOrder: 0, question: 'Faut-il créer un compte ?', answer: "Non -- vous réservez en tant qu'invité. Choisissez un départ, ajoutez vos voyageurs, réglez un acompte, sans mot de passe. Vous recevrez ensuite un code de référence pour suivre votre réservation à tout moment." },
+    { locale: 'fr', sortOrder: 1, question: 'Comment puis-je payer ?', answer: 'Votre page de réservation indique un acompte (40 %) et un solde (60 %). Cliquez sur « Payer l\'acompte » ou « Payer le solde » quand vous êtes prêt. Pour l\'instant, notre équipe valide chaque paiement manuellement, donc laissez-lui un peu de temps avant qu\'il n\'apparaisse comme réglé.' },
+    { locale: 'fr', sortOrder: 2, question: 'J\'ai perdu la page de ma réservation, comment la retrouver ?', answer: "Utilisez « Retrouver ma réservation » avec votre code de référence et le nom de famille du responsable du groupe." },
+    { locale: 'fr', sortOrder: 3, question: 'De quoi ai-je besoin pour réserver ?', answer: "Le nom, l'âge, le sexe et la nationalité de chaque voyageur, ainsi que le passeport du responsable du groupe. Les services complémentaires se choisissent dans la même démarche." },
+    { locale: 'fr', sortOrder: 4, question: 'Dans quelle devise vais-je payer ?', answer: "Dans la devise indiquée sur le circuit -- USD, EUR, NAD ou CDF. Nous ne convertissons pas les devises entre elles, alors vérifiez bien l'annonce avant de réserver." },
+    { locale: 'fr', sortOrder: 5, question: 'Ai-je besoin d\'un visa pour entrer en Namibie ?', answer: "Cela dépend de votre nationalité -- et les règles ont changé deux fois en 2025 : plusieurs nationalités auparavant exemptées doivent désormais obtenir un e-visa ou un visa à l'arrivée. Vérifiez toujours votre situation exacte auprès du ministère namibien de l'Intérieur/de l'Immigration ou de l'ambassade de Namibie la plus proche avant de partir. Nous signalons ce que nous pouvons confirmer sur votre réservation, mais ceci ne constitue pas un avis juridique." },
+    { locale: 'fr', sortOrder: 6, question: 'Ai-je besoin d\'un visa pour entrer en RDC ?', answer: "La plupart des visiteurs en ont besoin, à organiser à l'avance -- généralement via un opérateur local agréé (un DMC) en lien avec l'immigration congolaise (DGM). Les conditions varient selon la nationalité et le motif du séjour ; confirmez directement auprès de l'ambassade de RDC la plus proche ou de l'opérateur de votre réservation, bien avant le départ." },
+    { locale: 'fr', sortOrder: 7, question: 'Est-il sûr de voyager en RDC ?', answer: "Cela dépend vraiment de la région. Kinshasa et l'ouest du pays restent globalement accessibles aux visiteurs ; certaines zones plus à l'est présentent un risque élevé ou nécessitent des dispositions particulières, et quelques provinces ne sont actuellement pas recommandées pour le tourisme. Nous ne vendons des circuits que dans les zones jugées appropriées par nos opérateurs, et les recommandations peuvent évoluer -- vérifiez toujours aussi les avis officiels de votre propre gouvernement." },
+    { locale: 'fr', sortOrder: 8, question: 'Faut-il un certificat de vaccination contre la fièvre jaune ?', answer: "Si vous arrivez d'un pays à risque de fièvre jaune -- ou que vous y avez récemment transité -- la Namibie, la RDC, la Zambie et le Zimbabwe peuvent tous exiger un certificat de vaccination à la frontière. Le risque de paludisme est également présent dans certaines régions de chacun de ces pays. Vérifiez les exigences en vigueur auprès de votre centre de vaccination ou de l'ambassade concernée avant de partir." },
+    { locale: 'fr', sortOrder: 9, question: 'Ai-je besoin d\'un visa pour la Zambie ou le Zimbabwe ?', answer: "La plupart des visiteurs peuvent obtenir un visa à l'arrivée ou demander un e-visa au préalable, et certaines nationalités sont exemptées pour les courts séjours. Là où il est proposé, le visa conjoint KAZA UniVisa couvre les deux pays ainsi que les excursions d'une journée vers le Botswana. Les conditions varient selon la nationalité ; confirmez directement auprès du service de l'Immigration zambien ou zimbabwéen, ou de l'ambassade la plus proche, avant de voyager." },
+  ];
+  for (const f of faqEntries) {
+    const existing = await prisma.faqEntry.findFirst({ where: { locale: f.locale, question: f.question } });
+    if (!existing) {
+      await prisma.faqEntry.create({ data: f });
+    }
+  }
+
   // --- Role permissions (User Management / permission-matrix editor,
   // DR-035) -- one-time seed of the historical DEFAULT_PERMISSIONS map into
   // the DB-backed RolePermission table. SUPERADMIN deliberately excluded:
@@ -469,6 +539,8 @@ async function main() {
     starlinkKits: starlinkKitIds.length,
     hotels: hotels.length,
     restaurants: restaurants.length,
+    siteContent: siteContent.length,
+    faqEntries: faqEntries.length,
     rolePermissions: rolePermissionCount,
   });
 }

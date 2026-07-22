@@ -105,7 +105,19 @@ export type Permission =
   // hotel/restaurant actually assigned to one of their own toured
   // itineraries) and by TOUR_OPERATOR/PLATFORM_ADMIN (unscoped, matching
   // their existing org-wide itinerary.write access).
-  | 'hotel_restaurant_rating.write';
+  | 'hotel_restaurant_rating.write'
+  // Content (DR-071): SiteContent (About page)/FaqEntry CRUD, replacing the
+  // hardcoded guest About/FAQ pages. Both content.read and content.write are
+  // SUPERADMIN-only for v1 (explicit user choice) -- neither is seeded to
+  // any role including PLATFORM_ADMIN; contentService's requireContentWriter
+  // additionally hardcodes a SUPERADMIN role check on every write, same
+  // layering as isFinanceConfigWriter/isCountryRegulationWriter/
+  // requireSettingsWriter. The public /about and /faq guest pages don't go
+  // through this gate at all -- they call contentService's separate
+  // no-ctx public methods (getPublicSiteContent/listPublicFaqEntries),
+  // mirroring catalogService.listPublicPackages.
+  | 'content.read'
+  | 'content.write';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -149,6 +161,8 @@ export const ALL_PERMISSIONS = [
   'platform_settings.read',
   'platform_settings.write',
   'hotel_restaurant_rating.write',
+  'content.read', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts (write) and the same hardcoded-role convention for read (explicit user choice)
+  'content.write', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts, same layering as booking.delete/fleet.delete/country_regulation.write/finance_config.write/platform_settings.write
 ] as const satisfies readonly Permission[];
 
 export type RoleName =

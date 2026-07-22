@@ -8,6 +8,10 @@ import type { SidebarItem } from './sidebar-shell';
 export const SETTINGS_ITEMS: SidebarItem[] = [
   { href: '/staff/settings/tax-rates', label: 'Tax Rates', permission: 'platform_settings.read' },
   { href: '/staff/settings/platform-rate', label: 'Platform Rate', permission: 'platform_settings.read' },
+  // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
+  // any role (explicit user choice) -- superadminOnly here is belt-and-
+  // suspenders with that, matching Permissions/My Profile below.
+  { href: '/staff/content', label: 'Site Content', permission: 'content.read', superadminOnly: true },
   { href: '/staff/country-regulations', label: 'Country Regulations', permission: 'country_regulation.read' },
   { href: '/staff/finance/rates', label: 'Operational Rates', permission: 'finance_config.read' },
   { href: '/staff/insights', label: 'Insights', permission: 'insights.read' },

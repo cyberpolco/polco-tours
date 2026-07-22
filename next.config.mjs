@@ -10,10 +10,18 @@ const nextConfig = {
   // for now -- no external host is allowlisted, deliberately, since no
   // photo licensing/rights have been sourced yet (see CLAUDE.md Open
   // Items). Local files under /public/images/packages/ need no
-  // remotePatterns entry; this is a placeholder for the day a real,
-  // rights-cleared external host (e.g. a CDN) is approved.
+  // remotePatterns entry.
+  //
+  // DR-071 adds one narrow exception: Vercel Blob's public-storage host, so
+  // next/image can render images uploaded through the new content module's
+  // uploadImage primitive. This is staff-uploaded/staff-controlled content
+  // (a SUPERADMIN choosing what to upload), not third-party/scraped
+  // photography, so it doesn't reopen the "no unlicensed photography" concern
+  // DR-068/069 were guarding against -- but it IS a real loosening of this
+  // config's prior "no external image host at all" stance, called out
+  // explicitly here and in DR-071 rather than added silently.
   images: {
-    remotePatterns: [],
+    remotePatterns: [{ protocol: 'https', hostname: '*.public.blob.vercel-storage.com' }],
   },
   // Security headers applied to every response (Vol. 8 §8.3, A05 Misconfiguration).
   async headers() {

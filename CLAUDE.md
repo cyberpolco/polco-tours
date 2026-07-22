@@ -13,24 +13,29 @@ operators, guides, drivers, vehicle owners, hotels, restaurants, visa
 facilitators). Web platform first; native apps later. Brand: **polcotours**
 (`polcotours.com`).
 
-> Last updated: 2026-07-22, HEAD `fdcd0ca` (+ an uncommitted guest-site
-> UI/UX modernization effort, DR-068/DR-069/DR-070 — new Framer Motion
-> dependency, a repalette to a "Horizon" sunset identity across shared
-> `Button`/`Card`/`Badge`/`Table` primitives, and an optional
-> `TourPackage.imageUrl` column, applied to the shared Neon DB. The
-> Horizon treatment now covers the full guest site, not just the
-> homepage/catalog — every remaining page (package listing, both
-> booking-start pages, the full booking-management flow, find-booking,
-> rate, and the static content pages) carries the same Reveal/Card/Badge
-> pattern, and `AvailabilityBadge` is wired onto `/book/[departureId]`).
-> DR-070 rounds this out: shared `BackLink`/`BackAction`/`Select` primitives
-> replace every hand-copied `← Back` link and ad hoc `<select>`, a new
-> `/gallery` page reuses `PackageImage`'s illustrated placeholders, the
-> homepage `AfricaMap` deep-links a country click into `/plan-my-trip`
-> with that destination pre-selected, and `/policies` is merged into
-> `/terms` and removed. Decision log current through DR-070. Both Upstash
-> integrations (Redis rate limiting, QStash scheduled jobs) are live in
-> production — see Open Items.
+> Last updated: 2026-07-22, HEAD `fdcd0ca` (+ an uncommitted follow-on pass
+> over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
+> pill chip, the guest container widened `max-w-5xl`→`max-w-7xl` to sit
+> closer to the staff dashboard's scale, a mobile hamburger nav +
+> responsive padding/wizard-grid/map-height fixes, and a homepage
+> perceived-performance pass — `getPrimaryOrgId` deduped via React
+> `cache()`, `TrustSummary` streamed behind `Suspense`, `loading.tsx`
+> skeletons on `/` and `/packages`, `AfricaMap` deferred via
+> `next/dynamic`. None of that needed a DR entry, same "UI/perf-only, no
+> DR-007 trigger" precedent as DR-070. **DR-071 does**: it builds the
+> `content` module around the `SiteContent`/`FaqEntry` tables DR-042 left
+> as an unused scaffold — SUPERADMIN-only About/FAQ CRUD at
+> `/staff/content`, a `locale` column on both tables (real French, not a
+> literal translation), a new `access: 'public'` Vercel Blob upload
+> variant + one matching `next.config.mjs` `remotePatterns` entry, and the
+> guest `/about`/`/faq` pages now read through it. **DR-071's schema push,
+> `db:seed` re-run, and its one DB-backed test could not be run this
+> session — this sandbox had no outbound network path to the Neon pooler
+> at all (confirmed independently of Vitest/Prisma) — so treat the
+> `content` module as code-complete but not yet applied to the shared DB
+> or verified end-to-end until that happens.** Decision log current
+> through DR-071. Both Upstash integrations (Redis rate limiting, QStash
+> scheduled jobs) are live in production — see Open Items.
 
 ---
 
@@ -118,7 +123,7 @@ gaps a fresh Postgres would hit).
 | Database | Neon PostgreSQL (EU region, `eu-central-1`), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB) |
 | Validation | zod `4.4.3` |
-| Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2 |
+| Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`) |
@@ -180,8 +185,11 @@ src/
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
     finance/       # Cost-plus pricing engine — 6 rate tables + PackageCostBreakdown
     tracking/      # Fleet location + trip-progress composition, no repository.ts
-    settings/      # TaxRate + PlatformRate CRUD, SiteContent/FaqEntry (schema-only,
-                   #   unbuilt — reserved for a future Content module)
+    settings/      # TaxRate + PlatformRate CRUD
+    content/       # SiteContent (About page) + FaqEntry CRUD (DR-071),
+                   #   SUPERADMIN-only; public no-ctx read path powers the
+                   #   guest /about and /faq pages, mirroring catalog's
+                   #   listPublicPackages convention
   middleware.ts    # trace id + locale
 prisma/
   schema.prisma        # data model
@@ -429,10 +437,13 @@ DSAR/erasure workflow are still TODO.
 
 ## Design system
 
-Identity is **"Meridian Cartography"** (survey-line precision, expedition
-palette). Tokens in `tailwind.config.ts`: navy `#152238`, dune amber
-`#C97B2D`, forest `#2E5B41`, bone `#F7F4EE`, mist, ink, rule. Keep product
-surfaces visually coherent with the design package.
+Identity is **"Horizon"** (sunset palette, DR-068 — replaced the original
+"Meridian Cartography" survey-line identity). Tokens in `tailwind.config.ts`:
+navy `#3B1F3A` (dusk plum), amber `#D65B2E` (ember, primary CTA/accent),
+forest `#2F6E4F` (dusk forest, secondary/success), gold `#F2B441` (low-sun
+gold, gradients/badges/stars), bone `#F6EFE4` (warm sand), mist `#8C7D78`
+(warm taupe-gray), ink `#211A1D`, rule `#E3D6C8`. Keep product surfaces
+visually coherent with the design package.
 
 ---
 
@@ -500,9 +511,7 @@ surfaces visually coherent with the design package.
   retention/DSAR-erasure workflow, BR-07 security-zone enforcement (needs a
   departure region field first).
 - **Phase 4:** native Android/iOS, additional countries.
-- **Deliberately deferred, not forgotten:** a Content module for the
-  schema-only `SiteContent`/`FaqEntry` tables (would replace the hardcoded
-  guest About/FAQ pages); deduplicating the hand-copied
+- **Deliberately deferred, not forgotten:** deduplicating the hand-copied
   `CANCELLABLE_STATUSES` arrays across booking-detail pages; removing the
   unreachable `DRAFT` `BookingStatus` value (blocked on cleaning up leftover
   `DRAFT` test-fixture rows in the shared DB, including one in the real
@@ -542,7 +551,10 @@ Surface these to the human — don't invent answers.
   is licensed. `TourPackage.imageUrl` ships with every package `null` and an
   illustrated gradient fallback (`PackageImage`) until real photos are
   sourced — either operator-supplied or a licensed stock budget. Don't
-  fabricate or scrape images to fill this.
+  fabricate or scrape images to fill this. DR-071's `content` module adds a
+  general-purpose image-upload primitive (public Vercel Blob URL) but
+  deliberately leaves it unwired to `/gallery` or `TourPackage.imageUrl` for
+  the same reason — nothing real to upload yet.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
