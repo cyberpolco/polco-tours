@@ -1167,9 +1167,8 @@ review that killed an insecure design before code was written** — do that.
 
 **STRIDE → controls already in place (or the plan):**
 - **Spoofing** → better-auth + email verification; auth sign-in/sign-up now
-  rate-limited (`/sign-in/email` 5/min, `/sign-up/email` 3/min, DR-066), real
-  Redis-backed once Upstash is configured (OI-10 still open — degrades to
-  better-auth's own in-memory limiter until then, per-instance only).
+  rate-limited (`/sign-in/email` 5/min, `/sign-up/email` 3/min, DR-066),
+  real Redis-backed in production since OI-10 was resolved 2026-07-22.
 - **Tampering** → prices/tax/state computed server-side only (charter rule 1);
   `verifyToken` authority for payments once DPO is live.
 - **Repudiation** → append-only `audit_logs` (UPDATE/DELETE denied at the DB);
@@ -1178,9 +1177,8 @@ review that killed an insecure design before code was written** — do that.
   (404-not-403 convention) + private Blob; problem+json leaks no internals.
 - **Denial of service** → the public guest lookups (find-booking, rating-code)
   are rate-limited via `src/lib/rate-limit.ts` (DR-066) — real Redis-backed
-  once Upstash is configured, falling back to the original audit-log-backed
-  counter (DR-016) otherwise. Per-class rate limiting beyond these two lookups
-  and the auth endpoints above is still not built.
+  in production since OI-10 was resolved 2026-07-22. Per-class rate limiting
+  beyond these two lookups and the auth endpoints above is still not built.
 - **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes denied;
   `SUPERADMIN`/`admin.all` actions are audited. Since DR-035 the permission
   matrix itself is a runtime-editable, SUPERADMIN-only attack surface — a
@@ -3578,15 +3576,15 @@ reference, both composed directly in the page · DR-066 adds real Upstash
 Redis-backed rate limiting (`src/lib/rate-limit.ts`), closing the STRIDE
 "Denial of service"/"Spoofing" gaps this doc had flagged since Phase 1.
 Upstash was already the approved tech-stack choice (DR-001) but had never
-been implemented; no account exists yet (new OI-10). Same "real adapter,
-env-gated graceful degradation" precedent as the notification gateways
-(DR-013) -- everything falls back to its pre-existing infra-free behavior
-(better-auth's own in-memory limiter for sign-in/sign-up; the original
-audit-log-backed counter, DR-016, for the guest find-booking/rating-code
-lookups) until OI-10 is resolved. Wired into `authConfig.rateLimit` (new
-`customRules` tightening `/sign-in/email`/`/sign-up/email`,
-`customStorage` implementing better-auth's native `BetterAuthRateLimitStorage`)
-and into `bookingService.lookupByBookingReference`/`ratingsService`'s
+been implemented. Same "real adapter, env-gated graceful degradation"
+precedent as the notification gateways (DR-013) -- everything falls back
+to its pre-existing infra-free behavior (better-auth's own in-memory
+limiter for sign-in/sign-up; the original audit-log-backed counter,
+DR-016, for the guest find-booking/rating-code lookups) when unconfigured.
+Wired into `authConfig.rateLimit` (new `customRules` tightening
+`/sign-in/email`/`/sign-up/email`, `customStorage` implementing
+better-auth's native `BetterAuthRateLimitStorage`) and into
+`bookingService.lookupByBookingReference`/`ratingsService`'s
 `resolveEligibleBooking` (a real Redis counter replacing the audit-log table
 scan, deliberately preserving the exact prior "count recent FAILED attempts
 only" semantics rather than switching to a naive per-call sliding window,
@@ -3594,8 +3592,40 @@ which would have penalized a guest correcting their own typo). No schema/RLS
 change; new `@upstash/redis` dependency only (no `@upstash/ratelimit` --
 unneeded for this design). New `tests/lib/rate-limit.test.ts` (15 tests, pure,
 mocks `@upstash/redis`).
+**DR-067 (2026-07-21) adds real Upstash QStash-backed scheduled jobs**,
+closing the other half of DR-001's "Upstash Redis + QStash" choice DR-066
+left unbuilt, and turning the booking module's lazy "sweep on next read"
+convention (DR-016/027/058) into a real periodic job. New
+`bookingService.runScheduledSweep()` sweeps every organization's booking
+lifecycle sequentially (same connection-pool-exhaustion precedent as
+Insights/Tracking/etc.), triggered via a QStash-signature-verified `POST
+/api/jobs/sweep-bookings` (outside `/api/v1`, same "infra not a versioned
+REST resource" precedent as `/api/auth`). Deliberately hand-rolls signature
+verification via `@upstash/qstash`'s `Receiver` class rather than its
+`verifySignatureAppRouter` Next.js helper, which throws synchronously at
+module-load time when unconfigured -- unlike DR-066's Redis piece, there's
+no safe "run anyway" fallback for a route that bulk-mutates every org, so
+unconfigured must mean a clean 401, never a crash. New
+`scripts/register-qstash-schedule.ts` (`npm run qstash:register-schedule`)
+idempotently registers the real cron schedule once credentials exist --
+an external Upstash account action, same category as verifying a Resend
+domain. New `@upstash/qstash` dependency (`2.11.2`).
+**Both OI-10 and OI-11 were resolved same-session, 2026-07-22**: the user
+provided real Upstash Redis credentials and real Upstash QStash credentials
+(EU region, `qstash-eu-central-1` -- chosen for consistency with this app's
+Neon/Blob EU residency, not QStash's US default). Both confirmed working via
+direct live calls (a Redis set/get round-trip + a live `consume()` call, a
+QStash `client.schedules.list()` auth check) before being wired in anywhere.
+Added to `.env`/`.env.local` (gitignored, never committed) and to Vercel
+Production/Preview (Upstash also to Development) via `vercel env add`;
+Production redeployed (`vercel deploy --prod`) to actually pick up the new
+vars, since Vercel env vars only apply to deployments created after they're
+set. `npm run qstash:register-schedule` then registered the real
+`polco-sweep-bookings` schedule against the live production URL (every 15
+minutes), confirmed active via the QStash API. Both integrations are now
+genuinely live in production, not just built-and-gated.
 
-## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09..10; OI-04/08 resolved)
+## Open items — cannot be decided in code (see log OI-01..03, 05..07, 09; OI-04/08/10/11 resolved)
 
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia mobile
   money, settlement SLA, rolling-reserve %). Blocks Phase 1 finance.
@@ -3651,30 +3681,30 @@ mocks `@upstash/redis`).
 - **OI-09** Real Starlink API/account access (live kit location feed).
   `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now
   (DR-029). Blocks real-time fleet location tracking.
-- **OI-10** Upstash Redis account + `UPSTASH_REDIS_REST_URL`/
-  `UPSTASH_REDIS_REST_TOKEN` (DR-066, 2026-07-21). The real Redis-backed rate
-  limiting (auth sign-in/sign-up + the public find-booking/rating-code
-  lookups, `src/lib/rate-limit.ts`) is fully built and env-gated, following
-  the exact same "real adapter, graceful degradation" precedent as
-  OI-05/06/07's notification gateways — everything still works today,
-  just via the pre-existing in-memory (auth) or audit-log-backed (guest
-  lookups) fallback, which doesn't hold up across Vercel's multiple
-  serverless instances the way real Redis would. Blocks real, consistent
-  rate limiting in production.
-- **OI-11** Upstash QStash account + `QSTASH_CURRENT_SIGNING_KEY`/
+- ~~**OI-10** Upstash Redis account + `UPSTASH_REDIS_REST_URL`/
+  `UPSTASH_REDIS_REST_TOKEN` (DR-066, 2026-07-21).~~ Resolved 2026-07-22:
+  real credentials provided, confirmed working via a direct set/get
+  round-trip and a live `getAuthRateLimitStorage().consume()` call against
+  the actual Upstash instance, added to `.env`/`.env.local` (never
+  committed) and to Vercel Production/Preview/Development via `vercel env
+  add`, Production redeployed (`vercel deploy --prod`) to pick them up.
+  Real Redis-backed rate limiting (auth sign-in/sign-up + the public
+  find-booking/rating-code lookups, `src/lib/rate-limit.ts`) is now live.
+- ~~**OI-11** Upstash QStash account + `QSTASH_CURRENT_SIGNING_KEY`/
   `QSTASH_NEXT_SIGNING_KEY` on the deployed app, plus `QSTASH_TOKEN`/
   `APP_URL` locally to run `npm run qstash:register-schedule` once
-  (DR-067, 2026-07-21). The real periodic booking-lifecycle sweep across
-  every organization (`POST /api/jobs/sweep-bookings`,
-  `src/lib/qstash.ts`) is fully built, but unlike OI-05/06/07/10 there is
-  no safe fallback *behavior* for an unauthenticated request to a route
-  that bulk-mutates every org's bookings — unconfigured, the route always
-  401s rather than running unverified. The pre-existing lazy "sweep on
-  next read" convention (DR-016/027/058) is completely unaffected either
-  way, so nothing user-facing is blocked; this only blocks the *periodic,
-  traffic-independent* version of that same sweep.
+  (DR-067, 2026-07-21).~~ Resolved 2026-07-22: real credentials provided
+  (EU region, `qstash-eu-central-1` -- matches this app's Neon/Blob EU
+  residency, not QStash's US default), confirmed working via a live
+  `client.schedules.list()` call, signing keys added to Vercel
+  Production/Preview, Production redeployed, then `npm run
+  qstash:register-schedule` registered the real `polco-sweep-bookings`
+  schedule (every 15 minutes -> `https://polco-tours.vercel.app/api/jobs/
+  sweep-bookings`), confirmed active (`isPaused: false`) via the QStash
+  API. The real periodic booking-lifecycle sweep is now live in
+  production, not just built-and-gated.
 
-Surface OI-01..03/05..07/09..11 to the human — don't invent answers.
+Surface OI-01..03/05..07/09 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —
