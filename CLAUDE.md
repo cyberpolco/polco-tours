@@ -3661,8 +3661,20 @@ mocks `@upstash/redis`).
   lookups) fallback, which doesn't hold up across Vercel's multiple
   serverless instances the way real Redis would. Blocks real, consistent
   rate limiting in production.
+- **OI-11** Upstash QStash account + `QSTASH_CURRENT_SIGNING_KEY`/
+  `QSTASH_NEXT_SIGNING_KEY` on the deployed app, plus `QSTASH_TOKEN`/
+  `APP_URL` locally to run `npm run qstash:register-schedule` once
+  (DR-067, 2026-07-21). The real periodic booking-lifecycle sweep across
+  every organization (`POST /api/jobs/sweep-bookings`,
+  `src/lib/qstash.ts`) is fully built, but unlike OI-05/06/07/10 there is
+  no safe fallback *behavior* for an unauthenticated request to a route
+  that bulk-mutates every org's bookings — unconfigured, the route always
+  401s rather than running unverified. The pre-existing lazy "sweep on
+  next read" convention (DR-016/027/058) is completely unaffected either
+  way, so nothing user-facing is blocked; this only blocks the *periodic,
+  traffic-independent* version of that same sweep.
 
-Surface OI-01..03/05..07/09..10 to the human — don't invent answers.
+Surface OI-01..03/05..07/09..11 to the human — don't invent answers.
 
 **Note:** `docs/design-package/` (the 11-volume spec DR-007 says every
 structural/integration decision must update) does not exist in the repo yet —

@@ -1,6 +1,6 @@
 // booking module — repository. The only place that touches the DB for this module.
 import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
-import { withOrg, type TenantTx } from '@lib/db';
+import { prisma, withOrg, type TenantTx } from '@lib/db';
 import { BOOKING_DELETION_RETENTION_DAYS, canTransition, generateBookingReference, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView, VisaCandidateTravelerView } from './domain';
 
@@ -200,6 +200,25 @@ async function sumSeatsTaken(tx: TenantTx, departureId: string): Promise<number>
 }
 
 export const bookingRepository = {
+  /** DR-067: runs sweepLifecycle for every organization, not just whichever
+   * one happens to be touched by an incoming request. Called only from the
+   * QStash-signature-verified scheduled job route (never user-facing) --
+   * this is what turns the lazy "sweep on next read" convention above into
+   * a real periodic job, so an expired hold/retention-purge/status
+   * transition fires even for an org nobody happens to be actively using
+   * right now. `organizations` has no RLS (it's the tenant boundary
+   * itself, same precedent as every other org-enumerating admin script in
+   * this codebase), so this plain findMany needs no withOrg wrapper.
+   * Sequential per-org, not Promise.all -- same connection-pool-exhaustion
+   * precedent as Insights/Tracking/DR-060/062/064/065. */
+  async sweepAllOrganizations(): Promise<{ organizationsSwept: number }> {
+    const orgs = await prisma.organization.findMany({ select: { id: true } });
+    for (const org of orgs) {
+      await withOrg(org.id, (tx) => sweepLifecycle(tx));
+    }
+    return { organizationsSwept: orgs.length };
+  },
+
   async seatsTakenFor(organizationId: string, departureId: string): Promise<number> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);

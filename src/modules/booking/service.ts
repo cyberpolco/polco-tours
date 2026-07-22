@@ -140,6 +140,16 @@ async function finalizeHold(
 }
 
 export const bookingService = {
+  /** DR-067: no-ctx, deliberately -- there is no user/permission concept for
+   * "the platform's own scheduler." Call only from the QStash-signature-
+   * verified job route (src/app/api/jobs/sweep-bookings/route.ts), never
+   * from user-facing code. Turns the existing lazy "sweep on next read"
+   * sweepLifecycle convention into a real periodic job that runs even for
+   * an organization nobody happens to be actively using right now. */
+  async runScheduledSweep(): Promise<{ organizationsSwept: number }> {
+    return bookingRepository.sweepAllOrganizations();
+  },
+
   async getAvailability(ctx: AuthContext, departureId: string): Promise<Availability> {
     assertCan(ctx, 'catalog.read');
     const organizationId = requireOrg(ctx);
