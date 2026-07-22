@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createStarlinkKitAction } from './actions';
 
@@ -17,14 +18,14 @@ export default async function NewStarlinkKitPage() {
           <input name="kitId" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label="Assign to vehicle" htmlFor="vehicleId" optional>
-          <select name="vehicleId" className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="vehicleId">
             <option value="">Unassigned</option>
             {vehicles.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.make} {v.model} ({v.plateNumber})
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
         <SubmitButton>Register kit</SubmitButton>
       </form>

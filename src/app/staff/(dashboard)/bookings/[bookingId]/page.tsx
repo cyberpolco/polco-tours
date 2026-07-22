@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Currency } from '@prisma/client';
 import { requireStaffContext } from '@lib/staff-guard';
@@ -8,11 +7,13 @@ import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService } from '@modules/visa';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
 import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
@@ -196,9 +197,7 @@ export default async function BookingDetailPage({ params }: Props) {
             actually succeeded avoids inviting an edit that can no longer
             affect what was billed. */}
         {booking.status === 'AWAITING_DEPOSIT' && (
-          <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
-            ← review setup details
-          </Link>
+          <BackLink href={`/staff/bookings/${bookingId}/addons`}>review setup details</BackLink>
         )}
         <PageHeader eyebrow="Booking" title={booking.bookingReference} />
         <p className="mt-1 text-xs text-mist">{booking.origin === 'TAILOR_MADE' ? 'Tailor-made request' : 'Predefined package'}</p>
@@ -267,12 +266,12 @@ export default async function BookingDetailPage({ params }: Props) {
               />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2">
+              <Select name="currency" required>
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
                 <option value="NAD">NAD</option>
                 <option value="CDF">CDF</option>
-              </select>
+              </Select>
             </FormField>
             <SubmitButton pendingLabel="Sending…">Send quotation</SubmitButton>
           </form>

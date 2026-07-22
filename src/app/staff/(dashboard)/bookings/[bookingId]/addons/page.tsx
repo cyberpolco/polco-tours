@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -33,9 +33,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   if (!booking.currency) {
     return (
       <div className="max-w-md">
-        <Link href={`/staff/bookings/${bookingId}`} className="text-sm text-forest hover:underline">
-          ← back to booking
-        </Link>
+        <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
         <PageHeader eyebrow="Booking setup · Add-ons" title="Waiting on a quotation" />
         <p className="mt-1 text-sm text-mist">Send a quotation for this booking before selecting add-ons.</p>
       </div>
@@ -58,9 +56,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <Link href={`/staff/bookings/${bookingId}`} className="text-sm text-forest hover:underline">
-        ← back to booking
-      </Link>
+      <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
       <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add traveler details next.</p>
       {error && (

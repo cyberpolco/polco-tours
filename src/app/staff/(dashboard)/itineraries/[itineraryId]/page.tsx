@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
@@ -446,7 +447,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                     {canRate && (
                       <Td>
                         <form action={rateHotelAction.bind(null, itineraryId, h.id)} className="flex items-center gap-2">
-                          <select name="rating" defaultValue={mine?.rating ?? ''} required className="rounded-survey border border-rule px-2 py-1 text-xs">
+                          <Select name="rating" defaultValue={mine?.rating ?? ''} required className="px-2 py-1 text-xs">
                             <option value="" disabled>
                               Rate…
                             </option>
@@ -455,7 +456,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                                 {n} ★
                               </option>
                             ))}
-                          </select>
+                          </Select>
                           <input
                             name="comment"
                             defaultValue={mine?.comment ?? ''}
@@ -486,13 +487,13 @@ export default async function ItineraryDetailPage({ params }: Props) {
         {canWrite && availableHotels.length > 0 && (
           <form action={assignHotelAction.bind(null, itineraryId)} className="mt-4 flex items-end gap-3">
             <FormField label="Assign a hotel" htmlFor="hotelId">
-              <select name="hotelId" required className="w-full rounded-survey border border-rule px-3 py-2">
+              <Select name="hotelId" required>
                 {availableHotels.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.name} ({h.country})
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton variant="secondary" size="compact" pendingLabel="Assigning…">
               Assign
@@ -530,7 +531,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                     {canRate && (
                       <Td>
                         <form action={rateRestaurantAction.bind(null, itineraryId, r.id)} className="flex items-center gap-2">
-                          <select name="rating" defaultValue={mine?.rating ?? ''} required className="rounded-survey border border-rule px-2 py-1 text-xs">
+                          <Select name="rating" defaultValue={mine?.rating ?? ''} required className="px-2 py-1 text-xs">
                             <option value="" disabled>
                               Rate…
                             </option>
@@ -539,7 +540,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                                 {n} ★
                               </option>
                             ))}
-                          </select>
+                          </Select>
                           <input
                             name="comment"
                             defaultValue={mine?.comment ?? ''}
@@ -570,13 +571,13 @@ export default async function ItineraryDetailPage({ params }: Props) {
         {canWrite && availableRestaurants.length > 0 && (
           <form action={assignRestaurantAction.bind(null, itineraryId)} className="mt-4 flex items-end gap-3">
             <FormField label="Assign a restaurant" htmlFor="restaurantId">
-              <select name="restaurantId" required className="w-full rounded-survey border border-rule px-3 py-2">
+              <Select name="restaurantId" required>
                 {availableRestaurants.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name} ({r.country})
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton variant="secondary" size="compact" pendingLabel="Assigning…">
               Assign

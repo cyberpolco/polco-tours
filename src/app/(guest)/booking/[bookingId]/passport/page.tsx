@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
@@ -45,9 +45,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
   return (
     <Reveal>
       <div className="max-w-md">
-        <Link href={`/booking/${bookingId}/travelers/new`} className="text-sm text-forest hover:underline">
-          ← back to travelers
-        </Link>
+        <BackLink href={`/booking/${bookingId}/travelers/new`}>back to travelers</BackLink>
         <StepIndicator steps={getBookingWizardSteps(true)} currentIndex={3} />
         <p className="eyebrow mt-4 text-mist">Booking setup · Passport</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">

@@ -30,7 +30,7 @@ export function LanguageSwitcher() {
       <button type="button" disabled={isPending} className="text-sm hover:text-amber disabled:opacity-50">
         {locale.toUpperCase()}
       </button>
-      <div className="absolute right-0 top-full z-10 hidden min-w-20 rounded-survey border border-rule bg-navy py-1 group-hover:block">
+      <div className="absolute right-0 top-full z-10 hidden min-w-20 rounded-card border border-rule bg-navy py-1 shadow-lift group-hover:block">
         {OPTIONS.map(({ code, label }) => (
           <button
             key={code}

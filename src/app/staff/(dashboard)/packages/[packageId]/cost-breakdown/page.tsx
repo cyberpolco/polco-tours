@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
 import { saveCostBreakdownAction } from './actions';
@@ -56,9 +57,7 @@ export default async function CostBreakdownPage({ params }: Props) {
       <div>
         <PageHeader eyebrow={`Packages · ${pkg.packageReference}`} title={`${pkg.title} — Cost breakdown`} />
         <p className="mt-1 text-sm text-mist">
-          <Link href={`/staff/packages/${packageId}`} className="text-forest hover:underline">
-            ← back to package
-          </Link>
+          <BackLink href={`/staff/packages/${packageId}`}>back to package</BackLink>
         </p>
       </div>
 
@@ -131,14 +130,14 @@ export default async function CostBreakdownPage({ params }: Props) {
           <p className="eyebrow text-mist">Accommodation</p>
           <div className="mt-2 grid grid-cols-2 gap-4">
             <FormField label="Hotel / room category" htmlFor="hotelRateId" optional>
-              <select name="hotelRateId" defaultValue={breakdown?.hotelRateId ?? ''} className="w-full rounded-survey border border-rule px-3 py-2">
+              <Select name="hotelRateId" defaultValue={breakdown?.hotelRateId ?? ''}>
                 <option value="">None</option>
                 {countryHotelRates.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.roomCategory} — {format(money(r.nightlyRateMinor, r.currency))}/night
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Rooms needed" htmlFor="roomsNeeded">
               <input name="roomsNeeded" type="number" min={1} defaultValue={breakdown?.roomsNeeded ?? 1} className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -184,14 +183,14 @@ export default async function CostBreakdownPage({ params }: Props) {
           <p className="eyebrow text-mist">Transportation</p>
           <div className="mt-2 grid grid-cols-2 gap-4">
             <FormField label="Transport rate" htmlFor="transportRateId" optional>
-              <select name="transportRateId" defaultValue={breakdown?.transportRateId ?? ''} className="w-full rounded-survey border border-rule px-3 py-2">
+              <Select name="transportRateId" defaultValue={breakdown?.transportRateId ?? ''}>
                 <option value="">None</option>
                 {countryTransportRates.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.country} — {format(money(r.fuelEstimateMinor + r.tollFeesMinor + r.parkingFeesMinor + r.vehicleOperatingCostMinor, r.currency))}/day
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Transport days" htmlFor="transportDays">
               <input name="transportDays" type="number" min={0} defaultValue={breakdown?.transportDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -229,11 +228,7 @@ export default async function CostBreakdownPage({ params }: Props) {
           {countryImmigrationRates.length > 0 && (
             <div className="mt-2">
               <FormField label="Immigration cost rate" htmlFor="immigrationCostRateId" optional>
-                <select
-                  name="immigrationCostRateId"
-                  defaultValue={breakdown?.immigrationCostRateId ?? ''}
-                  className="w-full rounded-survey border border-rule px-3 py-2"
-                >
+                <Select name="immigrationCostRateId" defaultValue={breakdown?.immigrationCostRateId ?? ''}>
                   <option value="">None</option>
                   {countryImmigrationRates.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -242,7 +237,7 @@ export default async function CostBreakdownPage({ params }: Props) {
                       /person
                     </option>
                   ))}
-                </select>
+                </Select>
               </FormField>
             </div>
           )}

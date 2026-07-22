@@ -3,6 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { SETTINGS_ITEMS } from '../settings-items';
@@ -43,17 +44,13 @@ export default async function MyProfilePage() {
           <div>
             <p className="mb-1 text-sm text-mist">Phone</p>
             <div className="flex gap-2">
-              <select
-                name="dialCode"
-                defaultValue={parsedPhone?.dialCode ?? '264'}
-                className="rounded-survey border border-rule px-2 py-2"
-              >
+              <Select name="dialCode" defaultValue={parsedPhone?.dialCode ?? '264'}>
                 {COUNTRY_CODES.map((c) => (
                   <option key={c.alpha2} value={c.dialCode}>
                     {flagEmoji(c.alpha2)} +{c.dialCode}
                   </option>
                 ))}
-              </select>
+              </Select>
               <input
                 name="localNumber"
                 type="tel"

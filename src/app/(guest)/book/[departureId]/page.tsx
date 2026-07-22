@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
 import { AvailabilityBadge } from '@/components/ui/AvailabilityBadge';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
@@ -26,9 +26,7 @@ export default async function BookDeparturePage({ params }: Props) {
   return (
     <div className="max-w-md">
       {detail.departure.tourPackageId && (
-        <Link href={`/packages/${detail.departure.tourPackageId}`} className="text-sm text-forest hover:underline">
-          ← back to package
-        </Link>
+        <BackLink href={`/packages/${detail.departure.tourPackageId}`}>back to package</BackLink>
       )}
       <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
 

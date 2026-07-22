@@ -1,11 +1,12 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { bookingService } from '@modules/booking';
+import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { addTravelerAction } from './actions';
@@ -35,9 +36,7 @@ export default async function NewTravelerPage({ params }: Props) {
   if (travelers.length >= booking.seats) {
     return (
       <div className="max-w-lg">
-        <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
-          ← back to add-ons
-        </Link>
+        <BackLink href={`/staff/bookings/${bookingId}/addons`}>back to add-ons</BackLink>
         <PageHeader eyebrow="Booking setup · Travelers" title={`Travelers (${travelers.length} of ${booking.seats})`} />
         <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
         <ul className="mt-4 space-y-2">
@@ -70,9 +69,7 @@ export default async function NewTravelerPage({ params }: Props) {
 
   return (
     <div className="max-w-lg">
-      <Link href={`/staff/bookings/${bookingId}/addons`} className="text-sm text-forest hover:underline">
-        ← back to add-ons
-      </Link>
+      <BackLink href={`/staff/bookings/${bookingId}/addons`}>back to add-ons</BackLink>
       <PageHeader eyebrow="Booking setup · Travelers" title={`Traveler ${travelerNumber} of ${booking.seats}`} />
       <p className="mt-1 text-sm text-mist">
         {travelers.length} of {booking.seats} entered
@@ -93,22 +90,22 @@ export default async function NewTravelerPage({ params }: Props) {
             <input name="age" type="number" min={0} max={120} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Sex" htmlFor="sex">
-            <select name="sex" required className="w-full rounded-survey border border-rule px-3 py-2">
+            <Select name="sex" required>
               <option value="M">M</option>
               <option value="F">F</option>
               <option value="X">X</option>
-            </select>
+            </Select>
           </FormField>
         </div>
 
         <FormField label="Nationality" htmlFor="nationality">
-          <select name="nationality" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="nationality" required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
 
         <FormField label="ID / passport number" htmlFor="idOrPassportNumber">
@@ -121,13 +118,13 @@ export default async function NewTravelerPage({ params }: Props) {
             <div>
               <p className="mb-1 block text-sm text-mist">Phone</p>
               <div className="flex gap-2">
-                <select name="dialCode" defaultValue="264" className="rounded-survey border border-rule px-2 py-2">
+                <Select name="dialCode" defaultValue="264">
                   {COUNTRY_CODES.map((c) => (
                     <option key={c.alpha2} value={c.dialCode}>
                       {flagEmoji(c.alpha2)} +{c.dialCode}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <input
                   name="localNumber"
                   type="tel"
@@ -141,13 +138,13 @@ export default async function NewTravelerPage({ params }: Props) {
               <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
             <FormField label="Country of residence" htmlFor="countryOfResidence">
-              <select name="countryOfResidence" required className="w-full rounded-survey border border-rule px-3 py-2">
+              <Select name="countryOfResidence" required>
                 {COUNTRY_CODES.map((c) => (
                   <option key={c.alpha2} value={c.alpha2}>
                     {flagEmoji(c.alpha2)} {c.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FormField>
           </div>
         )}

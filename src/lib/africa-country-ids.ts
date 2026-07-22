@@ -68,3 +68,14 @@ export const NAMIBIA_ID = '516';
 export const DRC_ID = '180';
 export const ZAMBIA_ID = '894';
 export const ZIMBABWE_ID = '716';
+
+// Maps each operating country's numeric-3 id (above, keyed off the
+// topojson feature's `id`) to the alpha-2 code plan-my-trip's DESTINATIONS
+// list uses -- lets the homepage map deep-link a click straight into a
+// pre-selected destination (see AfricaMap.tsx).
+export const OPERATING_ID_TO_ALPHA2: Readonly<Record<string, string>> = {
+  [NAMIBIA_ID]: 'NA',
+  [DRC_ID]: 'CD',
+  [ZAMBIA_ID]: 'ZM',
+  [ZIMBABWE_ID]: 'ZW',
+};

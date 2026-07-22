@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { BackAction } from '@/components/ui/BackLink';
 
 // Rendered once, in layout.tsx, so every staff dashboard page gets a
 // consistent "go to the previous page" affordance without each page having
@@ -11,11 +12,8 @@ export function BackButton() {
   const router = useRouter();
 
   return (
-    <button
-      onClick={() => router.back()}
-      className="mb-4 flex items-center gap-1 text-sm text-forest hover:underline"
-    >
-      ← Back
-    </button>
+    <BackAction onClick={() => router.back()} className="mb-4">
+      Back
+    </BackAction>
   );
 }

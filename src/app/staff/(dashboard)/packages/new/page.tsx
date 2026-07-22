@@ -1,6 +1,7 @@
 import { requireStaffContext } from '@lib/staff-guard';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createPackageAction } from './actions';
@@ -21,20 +22,20 @@ export default async function NewPackagePage() {
           <textarea name="description" required rows={4} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label="Country" htmlFor="country">
-          <select name="country" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="country" required>
             <option value="NA">🇳🇦 Namibia</option>
             <option value="CD">🇨🇩 DR Congo</option>
             <option value="ZM">🇿🇲 Zambia</option>
             <option value="ZW">🇿🇼 Zimbabwe</option>
-          </select>
+          </Select>
         </FormField>
         <FormField label="Currency" htmlFor="currency">
-          <select name="currency" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="currency" required>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
             <option value="NAD">NAD</option>
             <option value="CDF">CDF</option>
-          </select>
+          </Select>
         </FormField>
         <p className="text-xs text-mist">
           No price yet -- a new package starts unpriced. Set one up via its cost breakdown (finance module, DR-039)

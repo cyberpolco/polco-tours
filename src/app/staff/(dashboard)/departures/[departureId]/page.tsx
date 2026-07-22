@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
 import { DEPARTURE_STATUS_TONE } from '@lib/status-tones';
@@ -165,12 +166,7 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
             are pre-selected below -- a simple rules-based suggestion, not real AI. Pick anything else to override.
           </p>
           <FormField label="Vehicle" htmlFor="vehicleId">
-            <select
-              name="vehicleId"
-              required
-              defaultValue={recommendation.recommendedVehicleId ?? ''}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select name="vehicleId" required defaultValue={recommendation.recommendedVehicleId ?? ''}>
               <option value="">Select a vehicle</option>
               {sortedVehicles.map((v) => {
                 const score = vehicleScoreById.get(v.id);
@@ -183,15 +179,10 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                   </option>
                 );
               })}
-            </select>
+            </Select>
           </FormField>
           <FormField label="Driver" htmlFor="driverProfileId">
-            <select
-              name="driverProfileId"
-              required
-              defaultValue={recommendation.recommendedDriverId ?? ''}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select name="driverProfileId" required defaultValue={recommendation.recommendedDriverId ?? ''}>
               <option value="">Select a driver</option>
               {sortedDrivers.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -200,7 +191,7 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                   {!eligibleDriverIds.has(d.id) ? ' · already booked these dates' : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           <FormField label="Guide email (optional -- existing TOUR_GUIDE account)" htmlFor="guideEmail" optional>
             <input name="guideEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />

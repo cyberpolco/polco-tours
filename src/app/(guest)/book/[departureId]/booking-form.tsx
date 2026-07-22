@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { createGuestBookingAction } from './actions';
@@ -90,13 +91,13 @@ export default function BookingForm({ departureId, capacity }: Props) {
       <div>
         <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your booking)</p>
         <div className="flex gap-2">
-          <select name="dialCode" defaultValue="264" className="rounded-survey border border-rule px-2 py-2">
+          <Select name="dialCode" defaultValue="264">
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.dialCode}>
                 {flagEmoji(c.alpha2)} +{c.dialCode}
               </option>
             ))}
-          </select>
+          </Select>
           <input
             name="localNumber"
             type="tel"

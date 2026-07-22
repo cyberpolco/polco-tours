@@ -5,6 +5,7 @@ import { format, formatOrPending, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -155,9 +156,7 @@ export default async function BookingHomePage({ params }: Props) {
             actually succeeded avoids inviting an edit that can no longer
             affect what was billed. */}
         {booking.status === 'AWAITING_DEPOSIT' && (
-          <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
-            ← review setup details
-          </Link>
+          <BackLink href={`/booking/${bookingId}/addons`}>review setup details</BackLink>
         )}
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>

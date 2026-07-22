@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
@@ -35,9 +35,7 @@ export default async function BookPackagePage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <Link href={`/packages/${packageId}`} className="text-sm text-forest hover:underline">
-        ← back to package
-      </Link>
+      <BackLink href={`/packages/${packageId}`}>back to package</BackLink>
       <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
 
       <Card className="mt-4">

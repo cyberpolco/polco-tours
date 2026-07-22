@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Reveal } from '@/components/ui/Reveal';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
@@ -38,9 +38,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
     return (
       <Reveal>
         <div className="max-w-md">
-          <Link href={`/booking/${bookingId}`} className="text-sm text-forest hover:underline">
-            ← back to your booking
-          </Link>
+          <BackLink href={`/booking/${bookingId}`}>back to your booking</BackLink>
           <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
           <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">Waiting on your quotation</h1>
@@ -69,9 +67,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   return (
     <Reveal>
       <div className="max-w-md">
-        <Link href={`/booking/${bookingId}`} className="text-sm text-forest hover:underline">
-          ← back to your booking
-        </Link>
+        <BackLink href={`/booking/${bookingId}`}>back to your booking</BackLink>
         <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
         <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>

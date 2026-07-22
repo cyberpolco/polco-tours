@@ -3,8 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
+import { BackChevron } from '@/components/ui/BackLink';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
@@ -244,32 +246,24 @@ export default function StaffPlanMyTripForm() {
             </div>
           </div>
           <FormField label="Country of residence" htmlFor="countryOfResidence" optional>
-            <select
-              value={countryOfResidence}
-              onChange={(e) => setCountryOfResidence(e.target.value)}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)}>
               <option value="">Prefer not to say</option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           <FormField label="Citizenship" htmlFor="citizenship" optional>
-            <select
-              value={citizenship}
-              onChange={(e) => setCitizenship(e.target.value)}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)}>
               <option value="">Prefer not to say</option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           {preferredAddons.includes('VISA_ASSISTANCE') && (
             <p className="text-xs text-mist">
@@ -323,8 +317,9 @@ export default function StaffPlanMyTripForm() {
 
       <div className="flex items-center gap-3">
         {step > 0 && (
-          <Button type="button" variant="secondary" onClick={back} disabled={pending}>
-            ← Back
+          <Button type="button" variant="secondary" onClick={back} disabled={pending} className="gap-1.5">
+            <BackChevron />
+            Back
           </Button>
         )}
         {step < STEPS.length - 1 ? (

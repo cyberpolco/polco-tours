@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -87,9 +88,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
           </FormField>
           <SubmitButton>Create booking</SubmitButton>
         </form>
-        <Link href="/staff/bookings/new" className="mt-4 inline-block text-sm text-forest hover:underline">
-          ← back
-        </Link>
+        <BackLink href="/staff/bookings/new" className="mt-4">back</BackLink>
       </div>
     );
   }

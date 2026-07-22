@@ -4,6 +4,7 @@ import { fleetService } from '@modules/fleet';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { STARLINK_STATUS_TONE } from '@lib/status-tones';
 import { deleteStarlinkKitAction, setStarlinkLocationAction, updateStarlinkKitAction } from './actions';
@@ -35,21 +36,21 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
       <form action={updateStarlinkKitAction.bind(null, kitId)} className="space-y-4">
         <div className="survey-rule mb-2" />
         <FormField label="Status" htmlFor="status">
-          <select name="status" defaultValue={kit.status} className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="status" defaultValue={kit.status}>
             <option value="ACTIVE">ACTIVE</option>
             <option value="INACTIVE">INACTIVE</option>
             <option value="MAINTENANCE">MAINTENANCE</option>
-          </select>
+          </Select>
         </FormField>
         <FormField label="Assigned vehicle" htmlFor="vehicleId" optional>
-          <select name="vehicleId" defaultValue={kit.vehicleId ?? ''} className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="vehicleId" defaultValue={kit.vehicleId ?? ''}>
             <option value="">Unassigned</option>
             {vehicles.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.make} {v.model} ({v.plateNumber})
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
         <SubmitButton>Save changes</SubmitButton>
       </form>

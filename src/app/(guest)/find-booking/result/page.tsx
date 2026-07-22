@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { assignmentService } from '@modules/assignment';
 import { authService } from '@modules/auth';
@@ -9,6 +8,7 @@ import { ratingsService } from '@modules/ratings';
 import { visaService, type VisaStatus } from '@modules/visa';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
@@ -37,9 +37,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       <Reveal>
         <div className="max-w-sm">
           <Alert tone="info">Enter a booking reference and last name.</Alert>
-          <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
-            ← try again
-          </Link>
+          <BackLink href="/find-booking" className="mt-4">try again</BackLink>
         </div>
       </Reveal>
     );
@@ -62,9 +60,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       <Reveal>
         <div className="max-w-sm">
           <Alert tone="error">{message}</Alert>
-          <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
-            ← try again
-          </Link>
+          <BackLink href="/find-booking" className="mt-4">try again</BackLink>
         </div>
       </Reveal>
     );

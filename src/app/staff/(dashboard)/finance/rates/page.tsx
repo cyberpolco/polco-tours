@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { financeService } from '@modules/finance';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
@@ -109,25 +110,25 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createStaffRateAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Role" htmlFor="role">
-              <select name="role" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="role" required className="text-sm">
                 <option value="DRIVER">Driver</option>
                 <option value="GUIDE">Tour Guide</option>
                 <option value="PHOTOGRAPHER">Photographer</option>
                 <option value="VIDEOGRAPHER">Videographer</option>
-              </select>
+              </Select>
             </FormField>
             <FormField label="Daily rate" htmlFor="dailyRate">
               <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add
@@ -166,9 +167,9 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createHotelRateAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Room category" htmlFor="roomCategory">
               <input name="roomCategory" placeholder="Standard" required className="w-36 rounded-survey border border-rule px-2 py-2 text-sm" />
@@ -177,9 +178,9 @@ export default async function FinanceRatesPage() {
               <input name="nightlyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add
@@ -222,9 +223,9 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createTransportRateAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Fuel/day" htmlFor="fuelEstimate">
               <input name="fuelEstimate" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
@@ -239,9 +240,9 @@ export default async function FinanceRatesPage() {
               <input name="vehicleOperatingCost" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add
@@ -280,12 +281,12 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createFoodBeverageRateAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Category" htmlFor="category">
-              <select name="category" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="category" required className="text-sm">
                 <option value="BREAKFAST">Breakfast</option>
                 <option value="LUNCH">Lunch</option>
                 <option value="DINNER">Dinner</option>
@@ -294,15 +295,15 @@ export default async function FinanceRatesPage() {
                 <option value="JUICE">Juice</option>
                 <option value="LOCAL_BEVERAGE">Local beverage</option>
                 <option value="ALCOHOLIC">Alcoholic beverage</option>
-              </select>
+              </Select>
             </FormField>
             <FormField label="Per unit" htmlFor="perUnit">
               <input name="perUnit" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add
@@ -341,9 +342,9 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createActivityFeeAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Activity name" htmlFor="name">
               <input name="name" placeholder="Etosha entrance" required className="w-48 rounded-survey border border-rule px-2 py-2 text-sm" />
@@ -352,9 +353,9 @@ export default async function FinanceRatesPage() {
               <input name="fee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add
@@ -397,9 +398,9 @@ export default async function FinanceRatesPage() {
         {canWrite && (
           <form action={createImmigrationCostRateAction} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Visa fee" htmlFor="visaFee">
               <input name="visaFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
@@ -414,9 +415,9 @@ export default async function FinanceRatesPage() {
               <input name="borderPermitFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <select name="currency" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <SubmitButton size="compact" pendingLabel="Adding…">
               Add

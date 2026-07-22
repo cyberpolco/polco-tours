@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { deleteGuideProfileAction, updateGuideProfileAction, uploadGuideDocumentAction } from './actions';
@@ -45,10 +46,10 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
       <form action={updateGuideProfileAction.bind(null, guideProfileId)} className="space-y-4">
         <div className="survey-rule mb-2" />
         <FormField label="Status" htmlFor="status">
-          <select name="status" defaultValue={guide.status} className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="status" defaultValue={guide.status}>
             <option value="ACTIVE">ACTIVE</option>
             <option value="SUSPENDED">SUSPENDED</option>
-          </select>
+          </Select>
         </FormField>
         <FormField label="Languages (ISO-639-1 codes, comma-separated, e.g. en, fr)" htmlFor="languages" optional>
           <input

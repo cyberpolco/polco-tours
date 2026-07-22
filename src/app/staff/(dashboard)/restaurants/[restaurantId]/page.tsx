@@ -4,6 +4,7 @@ import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { deleteRestaurantAction, updateRestaurantAction } from './actions';
 
@@ -30,13 +31,13 @@ export default async function RestaurantDetailPage({ params }: Props) {
           <input name="name" defaultValue={restaurant.name} required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label="Country" htmlFor="country">
-          <select name="country" defaultValue={restaurant.country} required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="country" defaultValue={restaurant.country} required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
         <FormField label="Address" htmlFor="address" optional>
           <input name="address" defaultValue={restaurant.address ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />

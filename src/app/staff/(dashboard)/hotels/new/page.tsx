@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createHotelAction } from './actions';
 
@@ -16,13 +17,13 @@ export default async function NewHotelPage() {
           <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label="Country" htmlFor="country">
-          <select name="country" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="country" required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
         <FormField label="Address" htmlFor="address" optional>
           <input name="address" className="w-full rounded-survey border border-rule px-3 py-2" />

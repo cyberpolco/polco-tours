@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { SETTINGS_ITEMS } from '../../settings-items';
@@ -77,9 +78,9 @@ export default async function TaxRatesPage() {
         {canWrite && (
           <form action={createTaxRateAction} className="flex flex-wrap items-end gap-3">
             <FormField label="Country" htmlFor="country">
-              <select name="country" required className="rounded-survey border border-rule px-2 py-2 text-sm">
+              <Select name="country" required className="text-sm">
                 {COUNTRY_OPTIONS}
-              </select>
+              </Select>
             </FormField>
             <FormField label="Tax type" htmlFor="taxType" optional>
               <input name="taxType" placeholder="VAT" className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />

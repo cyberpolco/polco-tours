@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
@@ -89,20 +90,20 @@ export default async function PackageDetailPage({ params }: Props) {
           />
         </FormField>
         <FormField label="Country" htmlFor="country">
-          <select name="country" defaultValue={pkg.country} required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="country" defaultValue={pkg.country} required>
             <option value="NA">🇳🇦 Namibia</option>
             <option value="CD">🇨🇩 DR Congo</option>
             <option value="ZM">🇿🇲 Zambia</option>
             <option value="ZW">🇿🇼 Zimbabwe</option>
-          </select>
+          </Select>
         </FormField>
         <FormField label="Currency" htmlFor="currency">
-          <select name="currency" defaultValue={pkg.currency} required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="currency" defaultValue={pkg.currency} required>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
             <option value="NAD">NAD</option>
             <option value="CDF">CDF</option>
-          </select>
+          </Select>
         </FormField>
         <FormField label="Duration (days)" htmlFor="durationDays" optional>
           <input
@@ -139,11 +140,11 @@ export default async function PackageDetailPage({ params }: Props) {
           </div>
         </div>
         <FormField label="Status" htmlFor="status">
-          <select name="status" defaultValue={pkg.status} required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="status" defaultValue={pkg.status} required>
             <option value="DRAFT">DRAFT</option>
             <option value="PUBLISHED">PUBLISHED</option>
             <option value="ARCHIVED">ARCHIVED</option>
-          </select>
+          </Select>
         </FormField>
         <SubmitButton>Save changes</SubmitButton>
       </form>

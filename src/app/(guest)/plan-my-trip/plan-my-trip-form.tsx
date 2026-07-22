@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
+import { BackChevron, BackLink } from '@/components/ui/BackLink';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
+import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { authClient } from '@lib/auth-client';
@@ -48,13 +49,19 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export default function PlanMyTripForm() {
+interface PlanMyTripFormProps {
+  /** Pre-selected from the homepage map's country click (AfricaMap.tsx),
+   * via plan-my-trip/page.tsx's ?destination= query param. */
+  initialDestination?: string;
+}
+
+export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [countries, setCountries] = useState<string[]>([]);
+  const [countries, setCountries] = useState<string[]>(initialDestination ? [initialDestination] : []);
   const [customTravelStart, setCustomTravelStart] = useState('');
   const [customTravelEnd, setCustomTravelEnd] = useState('');
   const [seats, setSeats] = useState(1);
@@ -147,15 +154,11 @@ export default function PlanMyTripForm() {
 
   return (
     <div className="mt-6 space-y-6">
-      {/* Every later step already has a "← Back" button (below, client-side
+      {/* Every later step already has a Back button (below, client-side
           state, nothing lost); step 0 has nowhere in-wizard to go back to,
           so it gets a real link out instead, same convention as the other
           wizards' entry-point back links. */}
-      {step === 0 && (
-        <Link href="/" className="text-sm text-forest hover:underline">
-          ← back to homepage
-        </Link>
-      )}
+      {step === 0 && <BackLink href="/">back to homepage</BackLink>}
       <StepIndicator steps={STEPS} currentIndex={step} />
 
       {step === 0 && (
@@ -270,32 +273,24 @@ export default function PlanMyTripForm() {
             </div>
           </div>
           <FormField label="Country of residence" htmlFor="countryOfResidence" optional>
-            <select
-              value={countryOfResidence}
-              onChange={(e) => setCountryOfResidence(e.target.value)}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)}>
               <option value="">Prefer not to say</option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           <FormField label="Citizenship" htmlFor="citizenship" optional>
-            <select
-              value={citizenship}
-              onChange={(e) => setCitizenship(e.target.value)}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            >
+            <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)}>
               <option value="">Prefer not to say</option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
           {preferredAddons.includes('VISA_ASSISTANCE') && (
             <p className="text-xs text-mist">
@@ -349,17 +344,13 @@ export default function PlanMyTripForm() {
           <div>
             <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your trip)</p>
             <div className="flex gap-2">
-              <select
-                value={dialCode}
-                onChange={(e) => setDialCode(e.target.value)}
-                className="rounded-survey border border-rule px-2 py-2"
-              >
+              <Select value={dialCode} onChange={(e) => setDialCode(e.target.value)}>
                 {COUNTRY_CODES.map((c) => (
                   <option key={c.alpha2} value={c.dialCode}>
                     {flagEmoji(c.alpha2)} +{c.dialCode}
                   </option>
                 ))}
-              </select>
+              </Select>
               <input
                 type="tel"
                 value={localNumber}
@@ -376,8 +367,9 @@ export default function PlanMyTripForm() {
 
       <div className="flex items-center gap-3">
         {step > 0 && (
-          <Button type="button" variant="secondary" onClick={back} disabled={pending}>
-            ← Back
+          <Button type="button" variant="secondary" onClick={back} disabled={pending} className="gap-1.5">
+            <BackChevron />
+            Back
           </Button>
         )}
         {step < STEPS.length - 1 ? (

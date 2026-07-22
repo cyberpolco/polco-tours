@@ -2,6 +2,7 @@
   "Nav": {
     "browse": "Browse",
     "planMyTrip": "Plan my trip",
+    "gallery": "Gallery",
     "findBooking": "Find my booking",
     "rateMyTrip": "Rate my trip",
     "about": "About",
@@ -13,11 +14,11 @@
     "browse": "Browse",
     "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
+    "rateMyTrip": "Rate my trip",
     "about": "About",
     "faq": "FAQ",
     "contact": "Contact",
-    "terms": "Terms",
-    "policies": "Policies",
+    "terms": "Terms & Policies",
     "adminAccess": "Admin Access"
   },
   "HomePage": {

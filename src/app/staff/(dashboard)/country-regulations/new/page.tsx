@@ -3,6 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createCountryRegulationAction } from './actions';
 
@@ -15,13 +16,13 @@ export default async function NewCountryRegulationPage() {
       <PageHeader eyebrow="Immigration · New country" title="Add country regulations" />
       <form action={createCountryRegulationAction} className="mt-6 space-y-4">
         <FormField label="Country" htmlFor="country">
-          <select name="country" required className="w-full rounded-survey border border-rule px-3 py-2">
+          <Select name="country" required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </FormField>
         <FormField label="Visa requirements" htmlFor="visaRequirements">
           <textarea name="visaRequirements" required rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -40,13 +41,13 @@ export default async function NewCountryRegulationPage() {
             <input name="fee" type="number" step="0.01" min="0" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Fee currency" htmlFor="feeCurrency" optional>
-            <select name="feeCurrency" className="w-full rounded-survey border border-rule px-3 py-2">
+            <Select name="feeCurrency">
               <option value="">—</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
               <option value="NAD">NAD</option>
               <option value="CDF">CDF</option>
-            </select>
+            </Select>
           </FormField>
         </div>
         <FormField label="Embassy name" htmlFor="embassyName" optional>

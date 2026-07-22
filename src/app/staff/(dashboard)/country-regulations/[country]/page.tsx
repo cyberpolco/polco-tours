@@ -3,6 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { deleteCountryRegulationAction, updateCountryRegulationAction } from './actions';
 
@@ -135,13 +136,13 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             />
           </FormField>
           <FormField label="Fee currency" htmlFor="feeCurrency" optional>
-            <select name="feeCurrency" defaultValue={regulation.feeCurrency ?? ''} className="w-full rounded-survey border border-rule px-3 py-2">
+            <Select name="feeCurrency" defaultValue={regulation.feeCurrency ?? ''}>
               <option value="">—</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
               <option value="NAD">NAD</option>
               <option value="CDF">CDF</option>
-            </select>
+            </Select>
           </FormField>
         </div>
         <FormField label="Embassy name" htmlFor="embassyName" optional>

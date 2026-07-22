@@ -14,7 +14,7 @@ facilitators). Web platform first; native apps later. Brand: **polcotours**
 (`polcotours.com`).
 
 > Last updated: 2026-07-22, HEAD `fdcd0ca` (+ an uncommitted guest-site
-> UI/UX modernization effort, DR-068/DR-069 — new Framer Motion
+> UI/UX modernization effort, DR-068/DR-069/DR-070 — new Framer Motion
 > dependency, a repalette to a "Horizon" sunset identity across shared
 > `Button`/`Card`/`Badge`/`Table` primitives, and an optional
 > `TourPackage.imageUrl` column, applied to the shared Neon DB. The
@@ -23,8 +23,14 @@ facilitators). Web platform first; native apps later. Brand: **polcotours**
 > booking-start pages, the full booking-management flow, find-booking,
 > rate, and the static content pages) carries the same Reveal/Card/Badge
 > pattern, and `AvailabilityBadge` is wired onto `/book/[departureId]`).
-> Decision log current through DR-069. Both Upstash integrations (Redis rate
-> limiting, QStash scheduled jobs) are live in production — see Open Items.
+> DR-070 rounds this out: shared `BackLink`/`BackAction`/`Select` primitives
+> replace every hand-copied `← Back` link and ad hoc `<select>`, a new
+> `/gallery` page reuses `PackageImage`'s illustrated placeholders, the
+> homepage `AfricaMap` deep-links a country click into `/plan-my-trip`
+> with that destination pre-selected, and `/policies` is merged into
+> `/terms` and removed. Decision log current through DR-070. Both Upstash
+> integrations (Redis rate limiting, QStash scheduled jobs) are live in
+> production — see Open Items.
 
 ---
 
@@ -146,8 +152,8 @@ src/
         settings/ (tax-rates, platform-rate), admin/ (users, clients, permissions)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
-      booking/[bookingId]/, plan-my-trip/, find-booking/, rate/,
-      about/, faq/, contact/, terms/, policies/
+      booking/[bookingId]/, plan-my-trip/, find-booking/, rate/, gallery/,
+      about/, faq/, contact/, terms/
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
                               #   guest-guard, primary-org, country-codes, tax,

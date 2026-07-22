@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { uploadPassportAction } from './actions';
@@ -39,9 +39,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <Link href={`/staff/bookings/${bookingId}/travelers/new`} className="text-sm text-forest hover:underline">
-        ← back to travelers
-      </Link>
+      <BackLink href={`/staff/bookings/${bookingId}/travelers/new`}>back to travelers</BackLink>
       <PageHeader eyebrow="Booking setup · Passport" title={`${nextTraveler.firstName} ${nextTraveler.lastName}'s passport`} />
       <p className="mt-1 text-sm text-mist">
         Upload a PDF passport for every traveler (required for visa assistance) -- {remaining} of {travelers.length} left.

@@ -1,10 +1,11 @@
-import Link from 'next/link';
 import { headers } from 'next/headers';
 import { ratingsService } from '@modules/ratings';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { FormField } from '@/components/ui/FormField';
 import { submitRatingAction } from './actions';
@@ -15,14 +16,14 @@ interface Props {
 
 function StarSelect({ name }: { name: string }) {
   return (
-    <select name={name} defaultValue="" className="rounded-survey border border-rule px-3 py-2">
+    <Select name={name} defaultValue="">
       <option value="">Skip</option>
       <option value="1">1 star</option>
       <option value="2">2 stars</option>
       <option value="3">3 stars</option>
       <option value="4">4 stars</option>
       <option value="5">5 stars</option>
-    </select>
+    </Select>
   );
 }
 
@@ -34,9 +35,7 @@ export default async function RateResultPage({ searchParams }: Props) {
       <Reveal>
         <div className="max-w-sm">
           <Alert tone="info">Enter your booking reference and Rating Code.</Alert>
-          <Link href="/rate" className="mt-4 inline-block text-sm text-forest hover:underline">
-            ← try again
-          </Link>
+          <BackLink href="/rate" className="mt-4">try again</BackLink>
         </div>
       </Reveal>
     );
@@ -59,9 +58,7 @@ export default async function RateResultPage({ searchParams }: Props) {
       <Reveal>
         <div className="max-w-sm">
           <Alert tone="error">{message}</Alert>
-          <Link href="/rate" className="mt-4 inline-block text-sm text-forest hover:underline">
-            ← try again
-          </Link>
+          <BackLink href="/rate" className="mt-4">try again</BackLink>
         </div>
       </Reveal>
     );
@@ -83,7 +80,7 @@ export default async function RateResultPage({ searchParams }: Props) {
             <p className="eyebrow text-mist">Overall experience</p>
             <div className="mt-2 flex items-end gap-3">
               <FormField label="Rating" htmlFor="overallRating">
-                <select name="overallRating" required defaultValue="" className="rounded-survey border border-rule px-3 py-2">
+                <Select name="overallRating" required defaultValue="">
                   <option value="" disabled>
                     Select
                   </option>
@@ -92,7 +89,7 @@ export default async function RateResultPage({ searchParams }: Props) {
                   <option value="3">3 stars</option>
                   <option value="4">4 stars</option>
                   <option value="5">5 stars</option>
-                </select>
+                </Select>
               </FormField>
             </div>
             <FormField label="Comments" htmlFor="overallComment" optional>

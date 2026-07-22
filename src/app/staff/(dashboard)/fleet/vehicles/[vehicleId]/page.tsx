@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, money } from '@lib/money';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
@@ -63,11 +64,11 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
         </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Status" htmlFor="status">
-            <select name="status" defaultValue={vehicle.status} className="w-full rounded-survey border border-rule px-3 py-2">
+            <Select name="status" defaultValue={vehicle.status}>
               <option value="ACTIVE">ACTIVE</option>
               <option value="MAINTENANCE">MAINTENANCE</option>
               <option value="RETIRED">RETIRED</option>
-            </select>
+            </Select>
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -182,13 +183,13 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             <input name="amount" type="number" step="0.01" min="0" className="w-28 rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Currency" htmlFor="currency" optional>
-            <select name="currency" className="rounded-survey border border-rule px-2 py-2">
+            <Select name="currency">
               <option value="">—</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>
               <option value="NAD">NAD</option>
               <option value="CDF">CDF</option>
-            </select>
+            </Select>
           </FormField>
           <SubmitButton size="compact" pendingLabel="Logging…">
             Log maintenance

@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { deleteDriverProfileAction, updateDriverProfileAction, uploadDriverDocumentAction } from './actions';
@@ -49,10 +50,10 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
             <input name="licenseNumber" defaultValue={driver.licenseNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label="Status" htmlFor="status">
-            <select name="status" defaultValue={driver.status} className="w-full rounded-survey border border-rule px-3 py-2">
+            <Select name="status" defaultValue={driver.status}>
               <option value="ACTIVE">ACTIVE</option>
               <option value="SUSPENDED">SUSPENDED</option>
-            </select>
+            </Select>
           </FormField>
         </div>
         <FormField label="License expires on" htmlFor="licenseExpiresAt" optional>

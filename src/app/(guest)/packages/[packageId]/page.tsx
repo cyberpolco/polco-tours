@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
 import { PackageImage } from '@/components/ui/PackageImage';
@@ -31,9 +31,7 @@ export default async function PackageDetailPage({ params }: Props) {
 
   return (
     <div>
-      <Link href="/packages" className="text-sm text-forest hover:underline">
-        ← all packages
-      </Link>
+      <BackLink href="/packages">all packages</BackLink>
       <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 max-h-96" />
       <p className="eyebrow mt-4 text-mist">{pkg.country}</p>
       <h1 className="mt-1 text-3xl font-bold text-navy">{pkg.title}</h1>
