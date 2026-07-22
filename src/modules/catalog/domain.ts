@@ -16,6 +16,10 @@ export interface TourPackageView {
   priceMinor: number | null;
   currency: Currency;
   durationDays: number | null;
+  // DR-068: optional hero image (local /public/images/packages/... path
+  // only, see next.config.mjs). Nullable/additive -- no photography is
+  // sourced yet, so this is null for every existing package.
+  imageUrl: string | null;
   tags: PackageTag[];
   status: PackageStatus;
   createdAt: Date;
@@ -58,6 +62,11 @@ export const CreatePackageInput = z.object({
   priceMinor: z.number().int().nonnegative().optional(),
   currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
   durationDays: z.number().int().positive().optional(),
+  // DR-068: staff-entered local asset path, e.g. /images/packages/xyz.jpg --
+  // never an arbitrary external URL (next.config.mjs allowlists no remote
+  // image host). Empty string treated as "no image" by the staff form, not
+  // passed through as "".
+  imageUrl: z.string().max(500).optional(),
   tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
 });
 export type CreatePackageInput = z.infer<typeof CreatePackageInput>;

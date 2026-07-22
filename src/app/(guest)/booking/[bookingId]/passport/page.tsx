@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
+import { FormField } from '@/components/ui/FormField';
+import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { getBookingWizardSteps } from '../../../booking-wizard-steps';
@@ -41,33 +43,37 @@ export default async function PassportPage({ params, searchParams }: Props) {
   const remaining = travelers.filter((t) => !t.passportDocumentId).length;
 
   return (
-    <div className="max-w-md">
-      <Link href={`/booking/${bookingId}/travelers/new`} className="text-sm text-forest hover:underline">
-        ← back to travelers
-      </Link>
-      <StepIndicator steps={getBookingWizardSteps(true)} currentIndex={3} />
-      <p className="eyebrow mt-4 text-mist">Booking setup · Passport</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">
-        {nextTraveler.firstName} {nextTraveler.lastName}&apos;s passport
-      </h1>
-      <p className="mt-1 text-sm text-mist">
-        Upload a PDF passport for every traveler (required for visa assistance) -- {remaining} of {travelers.length} left.
-      </p>
-      {error === 'missing_file' && (
-        <div className="mt-3">
-          <Alert tone="error">Choose a PDF file to upload.</Alert>
-        </div>
-      )}
-      <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
-        <input
-          type="file"
-          name="passport"
-          accept="application/pdf"
-          required
-          className="w-full rounded-survey border border-rule px-3 py-2"
-        />
-        <SubmitButton pendingLabel="Uploading…">Upload &amp; continue</SubmitButton>
-      </form>
-    </div>
+    <Reveal>
+      <div className="max-w-md">
+        <Link href={`/booking/${bookingId}/travelers/new`} className="text-sm text-forest hover:underline">
+          ← back to travelers
+        </Link>
+        <StepIndicator steps={getBookingWizardSteps(true)} currentIndex={3} />
+        <p className="eyebrow mt-4 text-mist">Booking setup · Passport</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">
+          {nextTraveler.firstName} {nextTraveler.lastName}&apos;s passport
+        </h1>
+        <p className="mt-1 text-sm text-mist">
+          Upload a PDF passport for every traveler (required for visa assistance) -- {remaining} of {travelers.length} left.
+        </p>
+        {error === 'missing_file' && (
+          <div className="mt-3">
+            <Alert tone="error">Choose a PDF file to upload.</Alert>
+          </div>
+        )}
+        <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
+          <FormField label="Passport (PDF)" htmlFor="passport">
+            <input
+              type="file"
+              name="passport"
+              accept="application/pdf"
+              required
+              className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-amber/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-navy"
+            />
+          </FormField>
+          <SubmitButton pendingLabel="Uploading…">Upload &amp; continue</SubmitButton>
+        </form>
+      </div>
+    </Reveal>
   );
 }

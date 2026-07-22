@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
+import { Reveal } from '@/components/ui/Reveal';
 
 const FAQS = [
   {
@@ -46,24 +47,26 @@ const FAQS = [
 
 export default function FaqPage() {
   return (
-    <div className="max-w-2xl">
-      <p className="eyebrow text-mist">FAQ</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">Frequently asked questions</h1>
-      <dl className="mt-6 space-y-4">
-        {FAQS.map(({ q, a }) => (
-          <Card as="div" key={q}>
-            <dt className="font-semibold text-navy">{q}</dt>
-            <dd className="mt-2 text-sm text-mist">{a}</dd>
-          </Card>
-        ))}
-      </dl>
-      <p className="mt-6 text-sm text-mist">
-        Still have a question?{' '}
-        <Link href="/contact" className="text-forest hover:underline">
-          Get in touch
-        </Link>
-        .
-      </p>
-    </div>
+    <Reveal>
+      <div className="max-w-2xl">
+        <p className="eyebrow text-mist">FAQ</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">Frequently asked questions</h1>
+        <dl className="mt-6 space-y-4">
+          {FAQS.map(({ q, a }) => (
+            <Card as="div" key={q}>
+              <dt className="font-semibold text-navy">{q}</dt>
+              <dd className="mt-2 text-sm text-mist">{a}</dd>
+            </Card>
+          ))}
+        </dl>
+        <p className="mt-6 text-sm text-mist">
+          Still have a question?{' '}
+          <Link href="/contact" className="text-forest hover:underline">
+            Get in touch
+          </Link>
+          .
+        </p>
+      </div>
+    </Reveal>
   );
 }

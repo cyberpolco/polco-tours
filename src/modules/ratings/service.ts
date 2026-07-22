@@ -21,6 +21,7 @@ import {
   ratingCodeExpiryFrom,
   type RatableDriver,
   type RatableGuide,
+  type OrganizationRatingSummary,
   type RatingCodeLookupInput,
   type RatingCodeView,
   type RatingLookupResult,
@@ -212,6 +213,15 @@ export const ratingsService = {
       fleetService.listGuideProfiles(ctx),
     ]);
     return { organization, drivers, guides };
+  },
+
+  /** DR-068: public, no-ctx -- the org-wide average rating + review count is
+   * genuine public marketing data (staff already see it unscoped at
+   * /staff/ratings), same "no ctx needed for public data" convention as
+   * catalogService.listPublicPackages. Powers the guest homepage trust bar. */
+  async getPublicAggregateSummary(): Promise<OrganizationRatingSummary> {
+    const organizationId = await getPrimaryOrgId();
+    return ratingsRepository.getOrganizationRatingSummary(organizationId);
   },
 
   /** Public, no-ctx -- mirrors bookingService.lookupByBookingReference. */

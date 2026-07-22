@@ -15,15 +15,15 @@
   body {
     @apply bg-bone text-ink;
     font-family: var(--font-sans);
-    /* Graticule — a barely-there map-grid texture reinforcing the
-       "Meridian Cartography" identity site-wide (guest + staff, both read
-       the same tokens). Pure CSS, no image asset. rgba(201,207,216,...) is
-       the `rule` token (#C9CFD8) at low alpha -- a literal value, not
+    /* Graticule — a barely-there map-grid texture carried over from the
+       prior "Meridian Cartography" identity, re-tinted to the new Horizon
+       palette (DR-068). Pure CSS, no image asset. rgba(227,214,200,...) is
+       the `rule` token (#E3D6C8) at low alpha -- a literal value, not
        theme(), since theme()'s slash-opacity modifier support varies by
        Tailwind minor version. */
     background-image:
-      repeating-linear-gradient(to right, rgba(201, 207, 216, 0.06) 0 1px, transparent 1px 96px),
-      repeating-linear-gradient(to bottom, rgba(201, 207, 216, 0.06) 0 1px, transparent 1px 96px);
+      repeating-linear-gradient(to right, rgba(227, 214, 200, 0.08) 0 1px, transparent 1px 96px),
+      repeating-linear-gradient(to bottom, rgba(227, 214, 200, 0.08) 0 1px, transparent 1px 96px);
   }
   h1,
   h2,
@@ -48,4 +48,20 @@
 .survey-rule {
   height: 1px;
   background: theme('colors.rule');
+}
+
+/* DR-068: a global safety net for every CSS transition/keyframe animation
+   site-wide (the fade-up/fade-in utilities above, Card/Button hover
+   transitions, etc.) -- framer-motion components additionally check
+   `useReducedMotion()` themselves (see HeroCarousel), this covers every
+   plain-CSS animation that doesn't. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

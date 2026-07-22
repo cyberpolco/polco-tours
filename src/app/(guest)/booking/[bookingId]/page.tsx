@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
@@ -48,36 +49,38 @@ export default async function BookingHomePage({ params }: Props) {
   // origin can currently land here in both ways).
   if (booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT')) {
     return (
-      <div className="max-w-md space-y-6">
-        <div>
-          <p className="eyebrow mt-4 text-mist">Your trip request</p>
-          <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>
-          <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>
-          <p className="mt-2 text-sm text-mist">
-            Keep your last name and this reference handy -- we&apos;ll ask for both any time you contact us about this trip.
-          </p>
-          <p className="mt-3 flex items-center gap-2 text-mist">
-            {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge>
-          </p>
-        </div>
-        {booking.status === 'AWAITING_QUOTATION' && (
-          <Alert tone="success">We&apos;ve received your trip request -- our team will be in touch soon with a quotation.</Alert>
-        )}
-        {booking.status === 'QUOTATION_SENT' && (
-          <div className="space-y-3">
-            <Alert tone="success">
-              Your quotation is ready: {formatOrPending(booking.priceMinor, booking.currency)}. Accept it to continue with booking
-              setup and payment.
-            </Alert>
-            <form action={acceptQuotationAction.bind(null, booking.id)}>
-              <SubmitButton pendingLabel="Accepting…">Accept quotation</SubmitButton>
-            </form>
+      <Reveal>
+        <div className="max-w-md space-y-6">
+          <div>
+            <p className="eyebrow mt-4 text-mist">Your trip request</p>
+            <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>
+            <p className="mt-1 font-mono text-3xl font-bold text-navy">{booking.bookingReference}</p>
+            <p className="mt-2 text-sm text-mist">
+              Keep your last name and this reference handy -- we&apos;ll ask for both any time you contact us about this trip.
+            </p>
+            <p className="mt-3 flex items-center gap-2 text-mist">
+              {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge>
+            </p>
           </div>
-        )}
-        {CANCELLABLE_STATUSES.includes(booking.status) && (
-          <CancelRequestButton bookingId={booking.id} createdAt={booking.createdAt.toISOString()} />
-        )}
-      </div>
+          {booking.status === 'AWAITING_QUOTATION' && (
+            <Alert tone="success">We&apos;ve received your trip request -- our team will be in touch soon with a quotation.</Alert>
+          )}
+          {booking.status === 'QUOTATION_SENT' && (
+            <div className="space-y-3">
+              <Alert tone="success">
+                Your quotation is ready: {formatOrPending(booking.priceMinor, booking.currency)}. Accept it to continue with booking
+                setup and payment.
+              </Alert>
+              <form action={acceptQuotationAction.bind(null, booking.id)}>
+                <SubmitButton pendingLabel="Accepting…">Accept quotation</SubmitButton>
+              </form>
+            </div>
+          )}
+          {CANCELLABLE_STATUSES.includes(booking.status) && (
+            <CancelRequestButton bookingId={booking.id} createdAt={booking.createdAt.toISOString()} />
+          )}
+        </div>
+      </Reveal>
     );
   }
 
@@ -99,29 +102,40 @@ export default async function BookingHomePage({ params }: Props) {
     const currentStepIndex = !addonsDone ? 1 : !travelersDone ? 2 : 3;
 
     return (
-      <div className="max-w-md space-y-6">
-        <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={currentStepIndex} />
-        <div>
-          <p className="eyebrow mt-4 text-mist">Booking setup</p>
-          <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
-          <p className="mt-1 flex items-center gap-2 text-mist">
-            {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
-            {formatOrPending(booking.priceMinor, booking.currency)}
-          </p>
+      <Reveal>
+        <div className="max-w-md space-y-6">
+          <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={currentStepIndex} />
+          <div>
+            <p className="eyebrow mt-4 text-mist">Booking setup</p>
+            <p className="mt-1 text-xs text-mist">Reference: <span className="font-mono">{booking.bookingReference}</span></p>
+            <p className="mt-1 flex items-center gap-2 text-mist">
+              {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+              {formatOrPending(booking.priceMinor, booking.currency)}
+            </p>
+          </div>
+          <Card className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>Add-ons</span>
+              <Badge tone={addonsDone ? 'success' : 'neutral'}>{addonsDone ? 'Done' : 'Pending'}</Badge>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>
+                Travelers ({travelers.length}/{booking.seats})
+              </span>
+              <Badge tone={travelersDone ? 'success' : 'neutral'}>{travelersDone ? 'Done' : 'Pending'}</Badge>
+            </div>
+            {booking.requiresPassportUpload && (
+              <div className="flex items-center justify-between text-sm">
+                <span>
+                  Passports ({travelers.filter((t) => !!t.passportDocumentId).length}/{travelers.length})
+                </span>
+                <Badge tone={passportDone ? 'success' : 'neutral'}>{passportDone ? 'Done' : 'Pending'}</Badge>
+              </div>
+            )}
+          </Card>
+          <LinkButton href={nextHref}>Continue setup</LinkButton>
         </div>
-        <ul className="space-y-2 text-sm">
-          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
-          <li className={travelersDone ? 'text-forest' : 'text-ink'}>
-            {travelersDone ? '✓' : '○'} Travelers ({travelers.length}/{booking.seats})
-          </li>
-          {booking.requiresPassportUpload && (
-            <li className={passportDone ? 'text-forest' : 'text-ink'}>
-              {passportDone ? '✓' : '○'} Passports ({travelers.filter((t) => !!t.passportDocumentId).length}/{travelers.length})
-            </li>
-          )}
-        </ul>
-        <LinkButton href={nextHref}>Continue setup</LinkButton>
-      </div>
+      </Reveal>
     );
   }
 
@@ -133,6 +147,7 @@ export default async function BookingHomePage({ params }: Props) {
   return (
     <div className="space-y-8">
       <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={booking.requiresPassportUpload ? 4 : 3} />
+      <Reveal>
       <div>
         {/* Add-ons/travelers/passport stay re-editable up to first payment
             (setAddons has no status gate) -- the invoice snapshot below is
@@ -182,7 +197,9 @@ export default async function BookingHomePage({ params }: Props) {
           </div>
         )}
       </div>
+      </Reveal>
 
+      <Reveal delay={0.1}>
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">Invoice</p>
@@ -205,7 +222,9 @@ export default async function BookingHomePage({ params }: Props) {
           </div>
         </Card>
       </div>
+      </Reveal>
 
+      <Reveal delay={0.2}>
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">Payment</p>
@@ -247,6 +266,7 @@ export default async function BookingHomePage({ params }: Props) {
           )}
         </div>
       </div>
+      </Reveal>
     </div>
   );
 }

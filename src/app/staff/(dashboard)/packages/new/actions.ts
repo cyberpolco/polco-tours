@@ -18,6 +18,7 @@ export async function createPackageAction(formData: FormData): Promise<void> {
     country: String(formData.get('country') ?? ''),
     currency: String(formData.get('currency') ?? ''),
     durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
+    imageUrl: String(formData.get('imageUrl') ?? '').trim() || undefined,
     tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
   });
 

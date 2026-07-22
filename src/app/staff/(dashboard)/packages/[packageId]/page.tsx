@@ -113,6 +113,17 @@ export default async function PackageDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
+        {/* DR-068: local asset path only -- see next.config.mjs, no remote
+            image host is allowlisted. */}
+        <FormField label="Image URL" htmlFor="imageUrl" optional>
+          <input
+            name="imageUrl"
+            type="text"
+            defaultValue={pkg.imageUrl ?? ''}
+            placeholder="/images/packages/example.jpg"
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <p className="text-xs text-mist">
           Trip length -- guests pick their own travel start date but not how many days the trip runs; a package
           needs this set (along with a price) before it can be booked.

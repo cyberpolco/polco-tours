@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
+import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { formatOrPending } from '@lib/money';
@@ -38,9 +39,12 @@ export default async function BookPackagePage({ params }: Props) {
         ← back to package
       </Link>
       <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
-      <p className="eyebrow mt-4 text-mist">New booking</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency)}/seat</h1>
-      <p className="mt-1 text-sm text-mist">{pkg.durationDays}-day trip</p>
+
+      <Card className="mt-4">
+        <p className="eyebrow text-mist">New booking</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency)}/seat</h1>
+        <p className="mt-1 text-sm text-mist">{pkg.durationDays}-day trip</p>
+      </Card>
 
       <BookingForm packageId={packageId} durationDays={pkg.durationDays} />
     </div>

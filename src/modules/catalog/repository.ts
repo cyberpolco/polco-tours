@@ -26,6 +26,7 @@ function toPackageView(p: TourPackage): TourPackageView {
     priceMinor: p.priceMinor,
     currency: p.currency,
     durationDays: p.durationDays,
+    imageUrl: p.imageUrl,
     tags: p.tags,
     status: p.status,
     createdAt: p.createdAt,
@@ -123,7 +124,7 @@ export const catalogRepository = {
   },
 
   /** Clones the package definition only (title/description/country/price/
-   * currency/durationDays/tags) as a new DRAFT package with a fresh
+   * currency/durationDays/imageUrl/tags) as a new DRAFT package with a fresh
    * packageReference -- deliberately no departures (DR-028). */
   async duplicatePackage(organizationId: string, id: string): Promise<TourPackageView | null> {
     return withOrg(organizationId, async (tx) => {
@@ -139,6 +140,7 @@ export const catalogRepository = {
           priceMinor: existing.priceMinor,
           currency: existing.currency,
           durationDays: existing.durationDays,
+          imageUrl: existing.imageUrl,
           tags: existing.tags,
           status: 'DRAFT',
         },

@@ -445,6 +445,13 @@ model TourPackage {
   priceMinor       Int?
   currency         Currency
   durationDays     Int?
+  // DR-068: optional hero image for the guest package card/detail page.
+  // Nullable/additive -- no photography is sourced yet (see CLAUDE.md Open
+  // Items), so every existing package stays imageless until staff set one;
+  // the guest UI renders an illustrated gradient fallback in the meantime.
+  // A local /public/images/packages/... path, never an arbitrary external
+  // URL (see next.config.mjs's images config -- no remote host is allowlisted).
+  imageUrl         String?
   tags             PackageTag[] // interest-matching for the public quiz (DR-016)
   status           PackageStatus @default(DRAFT)
   createdAt        DateTime      @default(now())

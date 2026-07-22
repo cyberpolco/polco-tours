@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
-import { TopographicPattern } from '@/components/TopographicPattern';
 import { AfricaMap } from '@/components/AfricaMap';
+import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
+import { StickyMobileCta } from '@/components/StickyMobileCta';
+import { TrustSummary } from '@/components/TrustSummary';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
+import { Reveal } from '@/components/ui/Reveal';
 import { PackageCard } from './package-card';
 
 // Fetches from the DB (listPublicPackages), and unlike packages/page.tsx
@@ -15,8 +18,34 @@ export const dynamic = 'force-dynamic';
 
 // Replaces the Phase-0 placeholder that used to live at src/app/page.tsx --
 // this route group (DR-016) is the real product surface it deferred to.
+// DR-068: hero rebuilt as a rotating 3-slide HeroCarousel (real destinations,
+// not a static banner), a real "trusted by travelers" bar added (TrustSummary
+// -- renders nothing until there's at least one real review), scroll-reveal
+// motion (Reveal) added section-by-section, and a mobile sticky CTA (the
+// hero's own CTAs scroll out of view fast on a small screen).
 export default async function HomePage() {
   const t = await getTranslations('HomePage');
+
+  const HERO_SLIDES: HeroSlide[] = [
+    {
+      eyebrow: t('heroSlide1Eyebrow'),
+      headline: t('heroSlide1Headline'),
+      lede: t('heroSlide1Lede'),
+      gradient: 'linear-gradient(180deg, #3b1f3a 0%, #d65b2e 62%, #f2b441 100%)',
+    },
+    {
+      eyebrow: t('heroSlide2Eyebrow'),
+      headline: t('heroSlide2Headline'),
+      lede: t('heroSlide2Lede'),
+      gradient: 'linear-gradient(180deg, #122b2c 0%, #2f6e4f 60%, #f2b441 100%)',
+    },
+    {
+      eyebrow: t('heroSlide3Eyebrow'),
+      headline: t('heroSlide3Headline'),
+      lede: t('heroSlide3Lede'),
+      gradient: 'linear-gradient(180deg, #12222f 0%, #2a6b78 58%, #e8c46a 100%)',
+    },
+  ];
 
   const STEPS = [
     { mark: '01', title: t('step1Title'), body: t('step1Body') },
@@ -36,22 +65,19 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="space-y-16 pb-8">
-      <div className="relative overflow-hidden pt-8">
-        <TopographicPattern className="pointer-events-none absolute inset-0 -z-10 h-full w-full text-navy/[0.06]" />
-        <p className="eyebrow mb-4 text-amber">{t('heroEyebrow')}</p>
-        <h1 className="max-w-2xl text-4xl font-semibold leading-tight text-navy sm:text-5xl">{t('heroTitle')}</h1>
-        <p className="mt-6 max-w-xl text-mist">{t('heroSubhead')}</p>
-        <div className="mt-8 flex gap-4">
-          <LinkButton href="/packages">{t('browsePackages')}</LinkButton>
-          <LinkButton href="/plan-my-trip" variant="secondary">
-            {t('planMyTrip')}
-          </LinkButton>
-        </div>
-      </div>
+    <div className="space-y-16 pb-24 sm:pb-8">
+      <HeroCarousel
+        slides={HERO_SLIDES}
+        browseHref="/packages"
+        browseLabel={t('browsePackages')}
+        planHref="/plan-my-trip"
+        planLabel={t('planMyTrip')}
+      />
+
+      <TrustSummary />
 
       {featured.length > 0 && (
-        <div>
+        <Reveal>
           <div className="survey-rule mb-8" />
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -62,29 +88,38 @@ export default async function HomePage() {
               {t('viewAllPackages')}
             </Link>
           </div>
-          <ul className="mt-6 grid gap-4 sm:grid-cols-3">
+          <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((p) => (
               <PackageCard key={p.id} pkg={p} />
             ))}
           </ul>
-        </div>
+        </Reveal>
       )}
 
       <div>
-        <div className="survey-rule mb-8" />
-        <p className="eyebrow text-mist">{t('mapEyebrow')}</p>
-        <h2 className="mt-1 text-2xl font-bold text-navy">{t('mapTitle')}</h2>
-        <p className="mt-2 max-w-xl text-mist">{t('mapSubhead')}</p>
+        {/* AfricaMap is deliberately NOT inside Reveal: nesting it inside
+            Reveal's motion.div made @visx/responsive's ParentSize
+            (AfricaMap's own width/height measurement) intermittently render
+            the whole map blank during manual testing -- not fully isolated
+            to a single root cause, but reliably avoided by keeping any
+            ParentSize-based component outside a framer-motion viewport-
+            tracking wrapper. Animate the surrounding copy only. */}
+        <Reveal>
+          <div className="survey-rule mb-8" />
+          <p className="eyebrow text-mist">{t('mapEyebrow')}</p>
+          <h2 className="mt-1 text-2xl font-bold text-navy">{t('mapTitle')}</h2>
+          <p className="mt-2 max-w-xl text-mist">{t('mapSubhead')}</p>
+        </Reveal>
         <div className="mt-6">
           <AfricaMap />
         </div>
       </div>
 
-      <div>
+      <Reveal>
         <div className="survey-rule mb-8" />
         <p className="eyebrow text-mist">{t('howItWorksEyebrow')}</p>
         <h2 className="mt-1 text-2xl font-bold text-navy">{t('howItWorksTitle')}</h2>
-        <ul className="mt-6 grid gap-6 sm:grid-cols-3">
+        <ul className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {STEPS.map((step) => (
             <Card as="li" key={step.mark}>
               <p className="font-serif text-3xl text-amber">{step.mark}</p>
@@ -93,21 +128,22 @@ export default async function HomePage() {
             </Card>
           ))}
         </ul>
-      </div>
+      </Reveal>
 
-      <div className="rounded-survey bg-navy px-8 py-10 text-bone">
-        <p className="eyebrow text-amber">{t('ctaEyebrow')}</p>
-        <h2 className="mt-2 text-2xl font-bold">{t('ctaTitle')}</h2>
-        <div className="mt-6 flex flex-wrap gap-4">
-          <LinkButton href="/packages">{t('browsePackages')}</LinkButton>
-          <Link
-            href="/plan-my-trip"
-            className="inline-flex items-center justify-center rounded-survey border border-bone px-5 py-3 text-sm font-semibold text-bone"
-          >
-            {t('planMyTrip')}
-          </Link>
+      <Reveal>
+        <div className="rounded-card bg-navy px-6 py-10 text-bone sm:px-8">
+          <p className="eyebrow text-amber">{t('ctaEyebrow')}</p>
+          <h2 className="mt-2 text-2xl font-bold">{t('ctaTitle')}</h2>
+          <div className="mt-6 flex flex-wrap gap-4">
+            <LinkButton href="/packages">{t('browsePackages')}</LinkButton>
+            <LinkButton href="/plan-my-trip" variant="invertOutline">
+              {t('planMyTrip')}
+            </LinkButton>
+          </div>
         </div>
-      </div>
+      </Reveal>
+
+      <StickyMobileCta href="/packages" label={t('stickyMobileCta')} />
     </div>
   );
 }

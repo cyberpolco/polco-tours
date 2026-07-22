@@ -139,3 +139,15 @@ export interface RatingLookupResult {
   drivers: RatableDriver[];
   guides: RatableGuide[];
 }
+
+/** DR-068: the org-wide rating aggregate, surfaced publicly (no ctx) for the
+ * guest homepage trust bar -- genuinely public marketing data (an average
+ * star rating + review count), same "no ctx needed for public data"
+ * convention as catalogService.listPublicPackages. Structurally identical
+ * to repository.ts's internal RatingAggregate, kept as a separate exported
+ * type since that one is a repository-internal computation shape, not a
+ * public view contract. */
+export interface OrganizationRatingSummary {
+  averageRating: number;
+  ratingCount: number;
+}

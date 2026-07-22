@@ -13,9 +13,18 @@ operators, guides, drivers, vehicle owners, hotels, restaurants, visa
 facilitators). Web platform first; native apps later. Brand: **polcotours**
 (`polcotours.com`).
 
-> Last updated: 2026-07-22, HEAD `fdcd0ca`. Decision log current through
-> DR-067. Both Upstash integrations (Redis rate limiting, QStash scheduled
-> jobs) are live in production — see Open Items.
+> Last updated: 2026-07-22, HEAD `fdcd0ca` (+ an uncommitted guest-site
+> UI/UX modernization effort, DR-068/DR-069 — new Framer Motion
+> dependency, a repalette to a "Horizon" sunset identity across shared
+> `Button`/`Card`/`Badge`/`Table` primitives, and an optional
+> `TourPackage.imageUrl` column, applied to the shared Neon DB. The
+> Horizon treatment now covers the full guest site, not just the
+> homepage/catalog — every remaining page (package listing, both
+> booking-start pages, the full booking-management flow, find-booking,
+> rate, and the static content pages) carries the same Reveal/Card/Badge
+> pattern, and `AvailabilityBadge` is wired onto `/book/[departureId]`).
+> Decision log current through DR-069. Both Upstash integrations (Redis rate
+> limiting, QStash scheduled jobs) are live in production — see Open Items.
 
 ---
 
@@ -112,6 +121,7 @@ gaps a fresh Postgres would hit).
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing; guest site only, partial coverage (Nav/Footer/HomePage) |
+| Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
 Do not swap any of these without a DR entry.
 
@@ -522,6 +532,11 @@ Surface these to the human — don't invent answers.
 - **OI-09** Real Starlink API/account access (live kit location feed).
   `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now.
   Blocks real-time fleet location tracking.
+- **OI-12** (new, DR-069) No destination/hotel/package photography exists or
+  is licensed. `TourPackage.imageUrl` ships with every package `null` and an
+  illustrated gradient fallback (`PackageImage`) until real photos are
+  sourced — either operator-supplied or a licensed stock budget. Don't
+  fabricate or scrape images to fill this.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real

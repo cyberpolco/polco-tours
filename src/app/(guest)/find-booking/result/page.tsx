@@ -10,6 +10,8 @@ import { visaService, type VisaStatus } from '@modules/visa';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
+import { Reveal } from '@/components/ui/Reveal';
 import { COUNTRY_CODES_BY_ALPHA2, flagEmoji } from '@lib/country-codes';
 import { formatOrPending } from '@lib/money';
 import { BOOKING_STATUS_TONE, ITINERARY_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
@@ -32,12 +34,14 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
 
   if (!bookingReference || !lastName) {
     return (
-      <div className="max-w-sm">
-        <Alert tone="info">Enter a booking reference and last name.</Alert>
-        <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
-          ← try again
-        </Link>
-      </div>
+      <Reveal>
+        <div className="max-w-sm">
+          <Alert tone="info">Enter a booking reference and last name.</Alert>
+          <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
+            ← try again
+          </Link>
+        </div>
+      </Reveal>
     );
   }
 
@@ -55,12 +59,14 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         ? 'Too many attempts -- please try again later.'
         : "We couldn't find a booking matching that code and last name.";
     return (
-      <div className="max-w-sm">
-        <Alert tone="error">{message}</Alert>
-        <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
-          ← try again
-        </Link>
-      </div>
+      <Reveal>
+        <div className="max-w-sm">
+          <Alert tone="error">{message}</Alert>
+          <Link href="/find-booking" className="mt-4 inline-block text-sm text-forest hover:underline">
+            ← try again
+          </Link>
+        </div>
+      </Reveal>
     );
   }
 
@@ -130,14 +136,17 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <p className="eyebrow text-mist">{isTailorMadeInquiry ? 'Your trip request' : 'Your booking'}</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">{booking.bookingReference}</h1>
-      <p className="mt-1 flex items-center gap-2 text-mist">
-        {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
-        {formatOrPending(booking.priceMinor, booking.currency)}
-      </p>
+      <Reveal>
+        <p className="eyebrow text-mist">{isTailorMadeInquiry ? 'Your trip request' : 'Your booking'}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{booking.bookingReference}</h1>
+        <p className="mt-1 flex items-center gap-2 text-mist">
+          {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+          {formatOrPending(booking.priceMinor, booking.currency)}
+        </p>
+      </Reveal>
 
       {isTailorMadeInquiry && (
+        <Reveal delay={0.1}>
         <div className="pt-4">
           {booking.status === 'AWAITING_QUOTATION' && (
             <Alert tone="success">We&apos;ve received your trip request -- our team will be in touch soon with a quotation.</Alert>
@@ -151,54 +160,60 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
           <div className="survey-rule mt-6" />
           <div className="pt-6">
             <p className="eyebrow text-mist">Request summary</p>
-            <dl className="mt-2 space-y-2 text-sm">
-              {booking.preferredCountries.length > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">Destination(s)</dt>
-                  <dd>{booking.preferredCountries.map(countryLabel).join(', ')}</dd>
-                </div>
-              )}
-              {booking.customTravelStart && booking.customTravelEnd && (
-                <div>
-                  <dt className="text-xs text-mist">Travel dates</dt>
-                  <dd>
-                    {formatDate(booking.customTravelStart)} to {formatDate(booking.customTravelEnd)}
-                  </dd>
-                </div>
-              )}
-              {booking.customDescription && (
-                <div>
-                  <dt className="text-xs text-mist">Trip description</dt>
-                  <dd>{booking.customDescription}</dd>
-                </div>
-              )}
-            </dl>
+            <Card className="mt-2">
+              <dl className="space-y-2 text-sm">
+                {booking.preferredCountries.length > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">Destination(s)</dt>
+                    <dd>{booking.preferredCountries.map(countryLabel).join(', ')}</dd>
+                  </div>
+                )}
+                {booking.customTravelStart && booking.customTravelEnd && (
+                  <div>
+                    <dt className="text-xs text-mist">Travel dates</dt>
+                    <dd>
+                      {formatDate(booking.customTravelStart)} to {formatDate(booking.customTravelEnd)}
+                    </dd>
+                  </div>
+                )}
+                {booking.customDescription && (
+                  <div>
+                    <dt className="text-xs text-mist">Trip description</dt>
+                    <dd>{booking.customDescription}</dd>
+                  </div>
+                )}
+              </dl>
+            </Card>
           </div>
         </div>
+        </Reveal>
       )}
 
       {travelers.length > 0 && (
-        <>
+        <Reveal delay={0.2}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
             <p className="eyebrow text-mist">Travelers</p>
-            <ul className="mt-2 space-y-1 text-sm">
-              {travelers.map((t) => (
-                <li key={t.id}>
-                  {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
-                </li>
-              ))}
-            </ul>
+            <Card className="mt-2">
+              <ul className="space-y-1 text-sm">
+                {travelers.map((t) => (
+                  <li key={t.id}>
+                    {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
+                  </li>
+                ))}
+              </ul>
+            </Card>
           </div>
-        </>
+        </Reveal>
       )}
 
       {hasTripStatus && (
-        <>
+        <Reveal delay={0.3}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
             <p className="eyebrow text-mist">Trip status</p>
-            <dl className="mt-2 space-y-3 text-sm">
+            <Card className="mt-2">
+            <dl className="space-y-3 text-sm">
               {itineraryStatus && (
                 <div>
                   <dt className="text-xs text-mist">Itinerary</dt>
@@ -263,8 +278,9 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                 </div>
               )}
             </dl>
+            </Card>
           </div>
-        </>
+        </Reveal>
       )}
 
       <p className="mt-6 text-sm text-mist">

@@ -20,6 +20,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
     priceMinor: 10000,
     currency: 'USD',
     durationDays: 3,
+    imageUrl: null,
     tags: [],
     status: 'PUBLISHED',
     createdAt: new Date('2026-01-01'),

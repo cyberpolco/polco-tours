@@ -21,9 +21,15 @@
     "adminAccess": "Accès administrateur"
   },
   "HomePage": {
-    "heroEyebrow": "Namibie et RDC",
-    "heroTitle": "Des voyages qui valent la peine de traverser une frontière.",
-    "heroSubhead": "Découvrez safaris, randonnées et voyages culturels en Namibie et en République démocratique du Congo -- sans compte. Réservez en tant qu'invité et recevez un code de référence pour suivre votre voyage à tout moment.",
+    "heroSlide1Eyebrow": "Namibie · Sossusvlei",
+    "heroSlide1Headline": "Défiez les dunes les plus hautes du monde au lever du jour.",
+    "heroSlide1Lede": "Réservez un vrai voyage en quelques minutes -- sans compte, sans attente au téléphone. Une vraie personne planifie votre voyage avec vous.",
+    "heroSlide2Eyebrow": "RD Congo · Virunga",
+    "heroSlide2Headline": "Approchez les gorilles des montagnes dans le plus ancien parc d'Afrique.",
+    "heroSlide2Lede": "Guides locaux agréés, permis obtenus pour vous, et un briefing complet avant le départ.",
+    "heroSlide3Eyebrow": "Zambie et Zimbabwe · Chutes Victoria",
+    "heroSlide3Headline": "Tenez-vous là où le Zambèze se change en fumée et en tonnerre.",
+    "heroSlide3Lede": "Mosi-oa-Tunya de près -- et tout ce que la région des chutes offre sur les deux rives.",
     "browsePackages": "Découvrir les circuits",
     "planMyTrip": "Planifier mon voyage",
     "featuredEyebrow": "À la une",
@@ -41,6 +47,10 @@
     "step3Title": "Conservez votre code de référence",
     "step3Body": "Chaque réservation reçoit un code court pour la retrouver et suivre son statut à tout moment, depuis n'importe quel appareil.",
     "ctaEyebrow": "Quand vous serez prêt",
-    "ctaTitle": "Commencez à planifier votre voyage dès aujourd'hui."
+    "ctaTitle": "Commencez à planifier votre voyage dès aujourd'hui.",
+    "stickyMobileCta": "Découvrir les circuits"
+  },
+  "TrustSummary": {
+    "reviews": "d'après {count, plural, one {# avis vérifié de voyageur} other {# avis vérifiés de voyageurs}}"
   }
 }

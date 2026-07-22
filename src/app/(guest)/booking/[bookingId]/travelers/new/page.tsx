@@ -5,7 +5,9 @@ import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { LinkButton } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
+import { Reveal } from '@/components/ui/Reveal';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -39,32 +41,34 @@ export default async function NewTravelerPage({ params }: Props) {
   // edited, or lost by landing here.
   if (travelers.length >= booking.seats) {
     return (
-      <div className="max-w-lg">
-        <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
-          ← back to add-ons
-        </Link>
-        <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
-        <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">
-          Travelers ({travelers.length} of {booking.seats})
-        </h1>
-        <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
-        <ul className="mt-4 space-y-2">
-          {travelers.map((t) => (
-            <li key={t.id} className="rounded-survey border border-rule p-3 text-sm">
-              <span className="font-medium text-navy">
-                {t.firstName} {t.lastName}
-              </span>
-              {t.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">Tour lead</span>}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-6">
-          <LinkButton href={booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`}>
-            Continue
-          </LinkButton>
+      <Reveal>
+        <div className="max-w-lg">
+          <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
+            ← back to add-ons
+          </Link>
+          <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
+          <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
+          <h1 className="mt-1 text-2xl font-bold text-navy">
+            Travelers ({travelers.length} of {booking.seats})
+          </h1>
+          <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
+          <ul className="mt-4 space-y-2">
+            {travelers.map((t) => (
+              <Card as="li" key={t.id} className="text-sm">
+                <span className="font-medium text-navy">
+                  {t.firstName} {t.lastName}
+                </span>
+                {t.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">Tour lead</span>}
+              </Card>
+            ))}
+          </ul>
+          <div className="mt-6">
+            <LinkButton href={booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`}>
+              Continue
+            </LinkButton>
+          </div>
         </div>
-      </div>
+      </Reveal>
     );
   }
 
@@ -103,6 +107,7 @@ export default async function NewTravelerPage({ params }: Props) {
   }
 
   return (
+    <Reveal>
     <div className="max-w-lg">
       <Link href={`/booking/${bookingId}/addons`} className="text-sm text-forest hover:underline">
         ← back to add-ons
@@ -224,5 +229,6 @@ export default async function NewTravelerPage({ params }: Props) {
         <SubmitButton>{travelerNumber === booking.seats ? 'Finish travelers' : 'Add traveler & continue'}</SubmitButton>
       </form>
     </div>
+    </Reveal>
   );
 }

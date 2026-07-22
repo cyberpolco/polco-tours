@@ -4,6 +4,7 @@ import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
+import { PackageImage } from '@/components/ui/PackageImage';
 import { formatOrPending } from '@lib/money';
 
 interface Props {
@@ -33,6 +34,7 @@ export default async function PackageDetailPage({ params }: Props) {
       <Link href="/packages" className="text-sm text-forest hover:underline">
         ← all packages
       </Link>
+      <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 max-h-96" />
       <p className="eyebrow mt-4 text-mist">{pkg.country}</p>
       <h1 className="mt-1 text-3xl font-bold text-navy">{pkg.title}</h1>
       <p className="mt-3 max-w-2xl text-mist">{pkg.description}</p>

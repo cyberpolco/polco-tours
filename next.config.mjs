@@ -6,6 +6,15 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // DR-068: package photography (TourPackage.imageUrl) is local-asset-only
+  // for now -- no external host is allowlisted, deliberately, since no
+  // photo licensing/rights have been sourced yet (see CLAUDE.md Open
+  // Items). Local files under /public/images/packages/ need no
+  // remotePatterns entry; this is a placeholder for the day a real,
+  // rights-cleared external host (e.g. a CDN) is approved.
+  images: {
+    remotePatterns: [],
+  },
   // Security headers applied to every response (Vol. 8 §8.3, A05 Misconfiguration).
   async headers() {
     return [

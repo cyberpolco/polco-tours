@@ -13,9 +13,10 @@ export function SelectableCard({ type, children, className, ...inputProps }: Sel
   return (
     <label
       className={[
-        'flex cursor-pointer items-center gap-3 rounded-survey border border-rule px-3 py-2 text-sm',
+        'flex cursor-pointer items-center gap-3 rounded-survey border border-rule px-3 py-2 text-sm transition-all duration-200',
         'has-[:checked]:border-amber has-[:checked]:bg-amber/10',
-        'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50',
+        'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:disabled]:hover:translate-y-0',
+        'hover:-translate-y-0.5 hover:shadow-card',
         className,
       ]
         .filter(Boolean)

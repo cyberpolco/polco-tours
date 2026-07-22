@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { catalogService } from '@modules/catalog';
+import { AvailabilityBadge } from '@/components/ui/AvailabilityBadge';
+import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { formatOrPending } from '@lib/money';
@@ -29,12 +31,18 @@ export default async function BookDeparturePage({ params }: Props) {
         </Link>
       )}
       <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
-      <p className="eyebrow mt-4 text-mist">New booking</p>
-      {/* Departure dates are staff-only information (visible in the staff
-          dashboard) -- only the price is shown here. */}
-      <h1 className="mt-1 text-2xl font-bold text-navy">
-        {formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null)}/seat
-      </h1>
+
+      <Card className="mt-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow text-mist">New booking</p>
+          <AvailabilityBadge bookable={detail.bookable} />
+        </div>
+        {/* Departure dates are staff-only information (visible in the staff
+            dashboard) -- only the price is shown here. */}
+        <h1 className="mt-1 text-2xl font-bold text-navy">
+          {formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null)}/seat
+        </h1>
+      </Card>
 
       <BookingForm departureId={departureId} capacity={detail.departure.capacity} />
     </div>

@@ -43,6 +43,18 @@ export default async function NewPackagePage() {
         <FormField label="Duration (days)" htmlFor="durationDays" optional>
           <input name="durationDays" type="number" min={1} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        {/* DR-068: local asset path only (e.g. /images/packages/etosha.jpg) --
+            no photography is sourced yet, so this stays empty for every
+            existing package until staff add one; the guest UI falls back to
+            an illustrated placeholder in the meantime. */}
+        <FormField label="Image URL" htmlFor="imageUrl" optional>
+          <input
+            name="imageUrl"
+            type="text"
+            placeholder="/images/packages/example.jpg"
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <p className="text-xs text-mist">
           Trip length -- guests pick their own travel start date but not how many days the trip runs; a package
           needs this set (along with a price) before it can be booked.

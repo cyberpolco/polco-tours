@@ -21,9 +21,15 @@
     "adminAccess": "Admin Access"
   },
   "HomePage": {
-    "heroEyebrow": "Namibia & the DRC",
-    "heroTitle": "Tours worth crossing a border for.",
-    "heroSubhead": "Browse safaris, treks, and cultural trips across Namibia and the Democratic Republic of Congo -- no account needed. Book as a guest and you'll get a reference code to check on your trip any time.",
+    "heroSlide1Eyebrow": "Namibia · Sossusvlei",
+    "heroSlide1Headline": "Chase the tallest dunes on Earth at first light.",
+    "heroSlide1Lede": "Book a real trip in minutes — no account, no hold music. A person on our end plans it with you.",
+    "heroSlide2Eyebrow": "DR Congo · Virunga",
+    "heroSlide2Headline": "Sit with mountain gorillas in Africa's oldest park.",
+    "heroSlide2Lede": "Licensed local guides, permits arranged for you, and a briefing on exactly what to expect.",
+    "heroSlide3Eyebrow": "Zambia & Zimbabwe · Victoria Falls",
+    "heroSlide3Headline": "Stand where the Zambezi turns to smoke and thunder.",
+    "heroSlide3Lede": "Mosi-oa-Tunya up close — plus everything else the Falls region has on either bank.",
     "browsePackages": "Browse packages",
     "planMyTrip": "Plan my trip",
     "featuredEyebrow": "Featured",
@@ -41,6 +47,10 @@
     "step3Title": "Keep your reference code",
     "step3Body": "Every booking gets a short code so you can look it up and check its status any time, from any device.",
     "ctaEyebrow": "Ready when you are",
-    "ctaTitle": "Start planning your trip today."
+    "ctaTitle": "Start planning your trip today.",
+    "stickyMobileCta": "Browse packages"
+  },
+  "TrustSummary": {
+    "reviews": "from {count, plural, one {# verified traveler review} other {# verified traveler reviews}}"
   }
 }
