@@ -53,5 +53,30 @@
   },
   "TrustSummary": {
     "reviews": "d'après {count, plural, one {# avis vérifié de voyageur} other {# avis vérifiés de voyageurs}}"
+  },
+  "Contact": {
+    "eyebrow": "Contact",
+    "title": "Contactez-nous",
+    "intro": "Nos deux bureaux sont indiqués ci-dessous — les coordonnées complètes arrivent bientôt, merci de votre patience.",
+    "namibiaOffice": "Bureau de Namibie",
+    "drcOffice": "Bureau de RDC",
+    "addressPending": "Adresse — à venir",
+    "emailPending": "E-mail — à venir",
+    "phonePending": "Téléphone — à venir",
+    "closingLead": "Nos réseaux sociaux arrivent bientôt aussi. Une question sur une réservation en cours ? Essayez plutôt",
+    "closingLinkLabel": "Retrouver ma réservation",
+    "closingTrail": "."
+  },
+  "Terms": {
+    "eyebrow": "Conditions et politiques",
+    "title": "Conditions d'utilisation et politiques",
+    "body": "Nous mettons encore la dernière main à nos conditions d'utilisation ainsi qu'à nos politiques de confidentialité, d'annulation et de remboursement — repassez bientôt.",
+    "questionsLead": "Une question avant ça ?",
+    "linkLabel": "Contactez-nous"
+  },
+  "Gallery": {
+    "eyebrow": "Galerie",
+    "title": "Vos prochaines destinations",
+    "subhead": "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur un lieu pour commencer à planifier votre voyage."
   }
 }

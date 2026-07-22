@@ -53,5 +53,30 @@
   },
   "TrustSummary": {
     "reviews": "from {count, plural, one {# verified traveler review} other {# verified traveler reviews}}"
+  },
+  "Contact": {
+    "eyebrow": "Contact",
+    "title": "Get in touch",
+    "intro": "Both our offices are listed below — we're still filling in the details, so bear with us.",
+    "namibiaOffice": "Namibia office",
+    "drcOffice": "DR Congo office",
+    "addressPending": "Address — on its way",
+    "emailPending": "Email — on its way",
+    "phonePending": "Phone — on its way",
+    "closingLead": "We'll have social channels up soon too. Got a question about an existing booking? Try",
+    "closingLinkLabel": "Find my booking",
+    "closingTrail": " instead."
+  },
+  "Terms": {
+    "eyebrow": "Terms & Policies",
+    "title": "Terms of service & policies",
+    "body": "We're still putting the finishing touches on our terms of service and our privacy, cancellation, and refund policies — check back soon.",
+    "questionsLead": "Got a question before then?",
+    "linkLabel": "Get in touch"
+  },
+  "Gallery": {
+    "eyebrow": "Gallery",
+    "title": "Where you could be headed",
+    "subhead": "Real destination photography is still on our to-do list, so what you're seeing here are illustrated stand-ins, not photos — tap a place to start planning a trip there."
   }
 }

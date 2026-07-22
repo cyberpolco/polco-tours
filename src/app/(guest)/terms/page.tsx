@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { Reveal } from '@/components/ui/Reveal';
 
 // Honest placeholder -- no trademark/business registration cleared yet
@@ -8,20 +9,19 @@ import { Reveal } from '@/components/ui/Reveal';
 // page, since both were placeholders with nothing to actually keep separate
 // yet -- /policies is removed entirely, not redirected (nothing else in the
 // app linked to it besides the footer, updated in the same change).
-export default function TermsPage() {
+export default async function TermsPage() {
+  const t = await getTranslations('Terms');
+
   return (
     <Reveal>
       <div className="max-w-2xl">
-        <p className="eyebrow text-mist">Terms &amp; Policies</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">Terms of service &amp; policies</h1>
+        <p className="eyebrow text-mist">{t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
+        <p className="mt-4 text-mist">{t('body')}</p>
         <p className="mt-4 text-mist">
-          We&apos;re still finalizing our terms of service and our privacy, cancellation, and refund policies --
-          check back soon.
-        </p>
-        <p className="mt-4 text-mist">
-          Questions in the meantime?{' '}
+          {t('questionsLead')}{' '}
           <Link href="/contact" className="text-forest hover:underline">
-            Get in touch
+            {t('linkLabel')}
           </Link>
           .
         </p>
