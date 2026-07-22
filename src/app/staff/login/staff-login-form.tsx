@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { authClient } from '@lib/auth-client';
 import { BrandMark } from '@/components/BrandMark';
+import { BackLink } from '@/components/ui/BackLink';
 
 // First Client Component in the repo (DR-014). Deliberately outside the
 // (dashboard) route group so it never inherits its auth-gating layout --
@@ -33,16 +33,9 @@ export function StaffLoginForm() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
-      <Link
-        href="/"
-        aria-label="Back to homepage"
-        className="absolute left-8 top-8 flex items-center gap-1 text-sm text-mist hover:text-amber"
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <BackLink href="/" tone="dark" className="absolute left-8 top-8">
         Back
-      </Link>
+      </BackLink>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <BrandMark className="h-8 w-8 text-amber" />

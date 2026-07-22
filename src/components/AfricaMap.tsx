@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mercator } from '@visx/geo';
 import { ParentSize } from '@visx/responsive';
@@ -28,6 +28,25 @@ function useWorldFeatures() {
   }, []);
 }
 
+// ParentSize needs an explicit height passed in via `style` (a bare Tailwind
+// height class collapses to 0 -- see the comment below), which rules out a
+// continuous function of measured width. Two fixed breakpoint heights,
+// swapped via a resize listener, is the simplest fix that still shrinks the
+// map on a phone instead of showing a tall, mostly-empty Mercator projection.
+function useMapHeight(): number {
+  const [height, setHeight] = useState(420);
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 640px)');
+    const update = () => setHeight(query.matches ? 420 : 260);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return height;
+}
+
 const OPERATING_IDS = new Set([NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID]);
 
 function isOperatingCountry(id: string | number | undefined): boolean {
@@ -52,6 +71,7 @@ export function AfricaMap() {
   const router = useRouter();
   const [zoomedIn, setZoomedIn] = useState(false);
   const features = useWorldFeatures();
+  const mapHeight = useMapHeight();
   const { tooltipOpen, tooltipLeft, tooltipTop, tooltipData, showTooltip, hideTooltip } = useTooltip<CountryFact>();
 
   return (
@@ -61,7 +81,7 @@ export function AfricaMap() {
           itself (inline styles win over classes) -- pass `style` so this
           height actually applies instead of collapsing to 0 against this
           non-flow parent. */}
-      <ParentSize style={{ height: 420 }} className="w-full">
+      <ParentSize style={{ height: mapHeight }} className="w-full">
         {({ width, height }) => {
           if (width === 0 || height === 0) return null;
           const scale = width / 6.3;

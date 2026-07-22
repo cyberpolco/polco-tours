@@ -164,7 +164,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       {step === 0 && (
         <div>
           <p className="mb-2 text-sm text-mist">Which countries? (pick at least one)</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {DESTINATIONS.map(({ code, label }) => (
               <SelectableCard
                 key={code}
@@ -180,7 +180,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       )}
 
       {step === 1 && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label="Travel start" htmlFor="customTravelStart">
             <input
               type="date"
@@ -218,7 +218,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       {step === 3 && (
         <div>
           <p className="mb-2 text-sm text-mist">What matters most? (pick any)</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {TAGS.map((tag) => (
               <SelectableCard key={tag} type="checkbox" checked={tags.includes(tag)} onChange={() => setTags((t) => toggle(t, tag))}>
                 {titleCase(tag)}
@@ -234,7 +234,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
             Sites you&apos;d like to visit (pick any)
             {availableSites.length === 0 && ' -- go back and pick a country to see options here'}
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {availableSites.map(({ name }) => (
               <SelectableCard key={name} type="checkbox" checked={sites.includes(name)} onChange={() => setSites((s) => toggle(s, name))}>
                 {name}
@@ -259,7 +259,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
         <div className="space-y-4">
           <div>
             <p className="mb-2 text-sm text-mist">Add-ons you might want (pick any)</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ADDONS.map((code) => (
                 <SelectableCard
                   key={code}
@@ -313,7 +313,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
 
       {step === 8 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField label="First name" htmlFor="firstName">
               <input
                 value={firstName}

@@ -1,13 +1,15 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
-import { AfricaMap } from '@/components/AfricaMap';
+import { AfricaMapLazy as AfricaMap } from '@/components/AfricaMapLazy';
 import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
 import { StickyMobileCta } from '@/components/StickyMobileCta';
 import { TrustSummary } from '@/components/TrustSummary';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
 import { Reveal } from '@/components/ui/Reveal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { PackageCard } from './package-card';
 
 // Fetches from the DB (listPublicPackages), and unlike packages/page.tsx
@@ -74,7 +76,9 @@ export default async function HomePage() {
         planLabel={t('planMyTrip')}
       />
 
-      <TrustSummary />
+      <Suspense fallback={<Skeleton className="h-[70px] w-full" />}>
+        <TrustSummary />
+      </Suspense>
 
       {featured.length > 0 && (
         <Reveal>

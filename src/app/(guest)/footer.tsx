@@ -37,7 +37,7 @@ export async function GuestFooter() {
 
   return (
     <footer className="border-t border-rule bg-navy text-bone">
-      <div className="mx-auto max-w-5xl px-8 py-10">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8">
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div>
             <div className="flex items-center gap-2 text-amber">

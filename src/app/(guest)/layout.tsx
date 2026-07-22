@@ -19,8 +19,8 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
   return (
     <NextIntlClientProvider>
       <div className="flex min-h-screen flex-col bg-bone text-ink">
-        <header className="border-b border-rule bg-navy text-bone">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-8 py-4">
+        <header className="relative border-b border-rule bg-navy text-bone">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8">
             <Link href="/" className="eyebrow flex items-center gap-2 text-amber">
               <BrandMark className="h-5 w-5" />
               Polco Tours
@@ -31,7 +31,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-8 py-10">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-8">{children}</main>
         <GuestFooter />
       </div>
     </NextIntlClientProvider>
