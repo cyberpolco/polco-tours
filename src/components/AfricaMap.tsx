@@ -8,13 +8,17 @@ import { localPoint } from '@visx/event';
 import { useTooltip, TooltipWithBounds } from '@visx/tooltip';
 import { feature } from 'topojson-client';
 import type { Topology, GeometryCollection } from 'topojson-specification';
-import type { FeatureCollection, Geometry } from 'geojson';
+import type { Feature, FeatureCollection, Geometry } from 'geojson';
+// Re-exported from the real `d3-geo` package (@visx/vendor's own dependency,
+// already installed as part of the approved @visx/geo/@visx/responsive stack
+// -- not a new dependency) -- gives proper fit-to-box projection math instead
+// of a hand-rolled CSS scale/translate trick.
+import { geoBounds, geoMercator } from '@visx/vendor/d3-geo';
 import worldTopology from 'world-atlas/countries-110m.json';
 import { AFRICA_COUNTRY_IDS, NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID, OPERATING_ID_TO_ALPHA2 } from '@lib/africa-country-ids';
 import { COUNTRY_FACTS, type CountryFact } from '@lib/country-facts';
 
 const ANTARCTICA_ID = '010';
-const ZOOM_FACTOR = 4;
 
 // world-atlas ships a compact topojson topology (~100KB) -- expanding it to
 // GeoJSON client-side via topojson-client keeps the shipped payload small;
@@ -47,6 +51,23 @@ function useMapHeight(): number {
   return height;
 }
 
+// Fits a fresh Mercator projection's scale/translate so the given feature
+// collection's bounding box exactly fills `height` (d3-geo's fitHeight) --
+// scale is uniform on both axes so the continent's shape is never distorted,
+// only its size changes. fitHeight left-aligns horizontally (bbox x0 lands
+// at pixel 0), so the projected bbox is re-measured afterward and the
+// translate nudged to center it within `width` instead.
+function fitAfricaProjection(width: number, height: number, africa: FeatureCollection<Geometry>) {
+  const projection = geoMercator();
+  projection.fitHeight(height, africa);
+  const [[minLon, lat], [maxLon]] = geoBounds(africa);
+  const x0 = projection([minLon, lat])?.[0] ?? 0;
+  const x1 = projection([maxLon, lat])?.[0] ?? width;
+  const [tx, ty] = projection.translate();
+  const centeredTx = tx + (width - (x1 - x0)) / 2 - x0;
+  return { scale: projection.scale(), translate: [centeredTx, ty] as [number, number] };
+}
+
 const OPERATING_IDS = new Set([NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID]);
 
 function isOperatingCountry(id: string | number | undefined): boolean {
@@ -60,17 +81,24 @@ function fillFor(id: string | number | undefined, zoomedIn: boolean): string {
 }
 
 // Homepage decorative map (between the Featured and How-it-works sections):
-// world map with Africa highlighted; a "zoom" toggle centers on and
-// distinctly re-colors Namibia/DRC/Zambia/Zimbabwe (DR-034), with a hover
-// tooltip on those four showing capital/language/currency/population/area
-// (src/lib/country-facts.ts). Clicking one of those four now deep-links into
-// Plan My Trip with that destination pre-selected (see plan-my-trip/page.tsx
-// and plan-my-trip-form.tsx's initialDestination prop) -- the rest of Africa
+// world map with Africa highlighted; a "zoom" toggle re-projects to just the
+// African continent (fitted to fill the box height, see fitAfricaProjection
+// above -- not the rest of the world) and distinctly re-colors Namibia/DRC/
+// Zambia/Zimbabwe (DR-034), with a hover tooltip on those four showing
+// capital/language/currency/population/area (src/lib/country-facts.ts).
+// Clicking one of those four now deep-links into Plan My Trip with that
+// destination pre-selected (see plan-my-trip/page.tsx and
+// plan-my-trip-form.tsx's initialDestination prop) -- the rest of Africa
 // stays decorative/non-interactive since we don't operate there yet.
 export function AfricaMap() {
   const router = useRouter();
   const [zoomedIn, setZoomedIn] = useState(false);
   const features = useWorldFeatures();
+  const africaFeatures = useMemo(() => features.filter((f) => AFRICA_COUNTRY_IDS.has(String(f.id))), [features]);
+  const africaFeatureCollection = useMemo(
+    (): FeatureCollection<Geometry> => ({ type: 'FeatureCollection', features: africaFeatures as Feature<Geometry>[] }),
+    [africaFeatures],
+  );
   const mapHeight = useMapHeight();
   const { tooltipOpen, tooltipLeft, tooltipTop, tooltipData, showTooltip, hideTooltip } = useTooltip<CountryFact>();
 
@@ -84,51 +112,44 @@ export function AfricaMap() {
       <ParentSize style={{ height: mapHeight }} className="w-full">
         {({ width, height }) => {
           if (width === 0 || height === 0) return null;
-          const scale = width / 6.3;
-          const translate: [number, number] = [width / 2, height / 1.7];
+          const { scale, translate } = zoomedIn
+            ? fitAfricaProjection(width, height, africaFeatureCollection)
+            : { scale: width / 6.3, translate: [width / 2, height / 1.7] as [number, number] };
 
           return (
             <svg width={width} height={height} role="img" aria-label="Map of Africa with Namibia, DR Congo, Zambia, and Zimbabwe highlighted">
-              <Mercator data={features} scale={scale} translate={translate}>
-                {(mercator) => {
-                  const highlighted = mercator.features.filter((f) => isOperatingCountry(f.feature.id));
-                  const cx = highlighted.reduce((sum, f) => sum + f.centroid[0], 0) / (highlighted.length || 1);
-                  const cy = highlighted.reduce((sum, f) => sum + f.centroid[1], 0) / (highlighted.length || 1);
-                  const k = zoomedIn ? ZOOM_FACTOR : 1;
-                  const groupTransform = `translate(${cx * (1 - k)}, ${cy * (1 - k)}) scale(${k})`;
-
-                  return (
-                    <g style={{ transform: groupTransform, transformOrigin: '0 0', transition: 'transform 700ms ease-in-out' }}>
-                      {mercator.features.map(({ feature: f, path, index }) => {
-                        const id = String(f.id);
-                        const isHighlightCountry = isOperatingCountry(id);
-                        const fact = COUNTRY_FACTS[id];
-                        const destination = OPERATING_ID_TO_ALPHA2[id];
-                        return (
-                          <path
-                            key={`map-feature-${index}`}
-                            d={path || ''}
-                            vectorEffect="non-scaling-stroke"
-                            role={destination ? 'link' : undefined}
-                            aria-label={destination ? `Plan a trip to ${fact?.name ?? destination}` : undefined}
-                            className={`stroke-bone ${fillFor(f.id, zoomedIn)} ${isHighlightCountry ? 'cursor-pointer' : ''}`}
-                            strokeWidth={0.5}
-                            onClick={destination ? () => router.push(`/plan-my-trip?destination=${destination}`) : undefined}
-                            onMouseMove={
-                              isHighlightCountry && fact
-                                ? (event) => {
-                                    const point = localPoint(event) ?? { x: 0, y: 0 };
-                                    showTooltip({ tooltipLeft: point.x, tooltipTop: point.y, tooltipData: fact });
-                                  }
-                                : undefined
-                            }
-                            onMouseLeave={isHighlightCountry ? hideTooltip : undefined}
-                          />
-                        );
-                      })}
-                    </g>
-                  );
-                }}
+              <Mercator data={zoomedIn ? africaFeatures : features} scale={scale} translate={translate}>
+                {(mercator) => (
+                  <>
+                    {mercator.features.map(({ feature: f, path, index }) => {
+                      const id = String(f.id);
+                      const isHighlightCountry = isOperatingCountry(id);
+                      const fact = COUNTRY_FACTS[id];
+                      const destination = OPERATING_ID_TO_ALPHA2[id];
+                      return (
+                        <path
+                          key={`map-feature-${index}`}
+                          d={path || ''}
+                          vectorEffect="non-scaling-stroke"
+                          role={destination ? 'link' : undefined}
+                          aria-label={destination ? `Plan a trip to ${fact?.name ?? destination}` : undefined}
+                          className={`stroke-bone ${fillFor(f.id, zoomedIn)} ${isHighlightCountry ? 'cursor-pointer' : ''}`}
+                          strokeWidth={0.5}
+                          onClick={destination ? () => router.push(`/plan-my-trip?destination=${destination}`) : undefined}
+                          onMouseMove={
+                            isHighlightCountry && fact
+                              ? (event) => {
+                                  const point = localPoint(event) ?? { x: 0, y: 0 };
+                                  showTooltip({ tooltipLeft: point.x, tooltipTop: point.y, tooltipData: fact });
+                                }
+                              : undefined
+                          }
+                          onMouseLeave={isHighlightCountry ? hideTooltip : undefined}
+                        />
+                      );
+                    })}
+                  </>
+                )}
               </Mercator>
             </svg>
           );
