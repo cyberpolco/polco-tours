@@ -11,9 +11,15 @@ POLCO TOURS is a **Tourism Operating System** for **Namibia** and the
 **Zimbabwe**) — tour package sales plus operations management (tourists,
 operators, guides, drivers, vehicle owners, hotels, restaurants, visa
 facilitators). Web platform first; native apps later. Brand: **polcotours**
-(`polcotours.com`).
+(`polcotours.com`) — **but `polcotours.com` itself does not resolve yet**
+(OI-02, trademark clearance still open). Production is currently reachable
+on two real domains instead: the Vercel default
+(`polco-tours.vercel.app`) and a second custom domain, `mufasasafaris.com`
+/ `www.mufasasafaris.com` (added DR-072). This is a domain/infra state, not
+a rebrand — don't rename the brand or module names off "Mufasa" without an
+explicit decision to do so.
 
-> Last updated: 2026-07-22, HEAD `fdcd0ca` (+ an uncommitted follow-on pass
+> Last updated: 2026-08-01, HEAD `fdcd0ca` (+ an uncommitted follow-on pass
 > over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
 > pill chip, the guest container widened `max-w-5xl`→`max-w-7xl` to sit
 > closer to the staff dashboard's scale, a mobile hamburger nav +
@@ -22,20 +28,35 @@ facilitators). Web platform first; native apps later. Brand: **polcotours**
 > `cache()`, `TrustSummary` streamed behind `Suspense`, `loading.tsx`
 > skeletons on `/` and `/packages`, `AfricaMap` deferred via
 > `next/dynamic`. None of that needed a DR entry, same "UI/perf-only, no
-> DR-007 trigger" precedent as DR-070. **DR-071 does**: it builds the
-> `content` module around the `SiteContent`/`FaqEntry` tables DR-042 left
-> as an unused scaffold — SUPERADMIN-only About/FAQ CRUD at
-> `/staff/content`, a `locale` column on both tables (real French, not a
-> literal translation), a new `access: 'public'` Vercel Blob upload
-> variant + one matching `next.config.mjs` `remotePatterns` entry, and the
-> guest `/about`/`/faq` pages now read through it. **DR-071's schema push,
-> `db:seed` re-run, and its one DB-backed test could not be run this
-> session — this sandbox had no outbound network path to the Neon pooler
-> at all (confirmed independently of Vitest/Prisma) — so treat the
-> `content` module as code-complete but not yet applied to the shared DB
-> or verified end-to-end until that happens.** Decision log current
-> through DR-071. Both Upstash integrations (Redis rate limiting, QStash
-> scheduled jobs) are live in production — see Open Items.
+> DR-007 trigger" precedent as DR-070. DR-071 builds the `content` module
+> around the `SiteContent`/`FaqEntry` tables DR-042 left as an unused
+> scaffold — SUPERADMIN-only About/FAQ CRUD at `/staff/content`, a
+> `locale` column on both tables (real French, not a literal
+> translation), a new `access: 'public'` Vercel Blob upload variant + one
+> matching `next.config.mjs` `remotePatterns` entry, and the guest
+> `/about`/`/faq` pages now read through it. **DR-071's schema push,
+> `db:seed` re-run, and its one DB-backed test still haven't been applied
+> to the shared Neon DB** — the sandbox that authored it had no outbound
+> network path to the Neon pooler at all — so treat the `content` module
+> as code-complete but not yet verified end-to-end until that happens.
+> **DR-072 (this session) fixes sign-in hanging on a newly-added
+> production custom domain, `mufasasafaris.com`** — root cause was
+> `src/lib/auth-client.ts` hardcoding `NEXT_PUBLIC_APP_URL` (a Next.js
+> public env var baked into the client bundle at *build* time) as the
+> auth client's `baseURL`, so every domain other than whichever one was
+> live when the app was last built was making a cross-origin, silently-
+> blocked sign-in call. Fixed by dropping the explicit `baseURL` (falls
+> back to `window.location.origin`, correct for any number of domains
+> going forward) and adding the new domain to `trustedOrigins` in
+> `src/lib/auth.ts`. **This app is currently live in production on two
+> real domains — `polco-tours.vercel.app` and
+> `mufasasafaris.com`/`www.mufasasafaris.com` — while `polcotours.com`,
+> the brand domain this file otherwise documents, does not resolve at
+> all yet** (consistent with OI-02, trademark clearance still open); this
+> was a config bug, not a rebrand — see Brand line below and DR-072.
+> Decision log current through DR-072. Both Upstash integrations (Redis
+> rate limiting, QStash scheduled jobs) are live in production — see Open
+> Items.
 
 ---
 
@@ -121,7 +142,7 @@ gaps a fresh Postgres would hit).
 | Framework | Next.js `15.5.20` (App Router, TypeScript), React 19 |
 | Hosting / CI | Vercel, deployed from GitHub. Region `fra1` (near EU data) |
 | Database | Neon PostgreSQL (EU region, `eu-central-1`), Prisma `5.22.0` |
-| Auth | better-auth `1.6.23`, self-hosted (data in our DB) |
+| Auth | better-auth `1.6.23`, self-hosted (data in our DB). Multi-domain in production (DR-072) — `src/lib/auth-client.ts` has no hardcoded `baseURL` (falls back to `window.location.origin`); `src/lib/auth.ts`'s `trustedOrigins` allowlists every additional live custom domain beyond `BETTER_AUTH_URL`'s own origin, e.g. `mufasasafaris.com` |
 | Validation | zod `4.4.3` |
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
@@ -656,3 +677,16 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
 - e2e fixtures for tenant-scoped tables **must** be seeded through
   `withOrg(...)`, never a raw unscoped `prisma.create` — RLS is live for the
   app under test in CI.
+- **A `NEXT_PUBLIC_*` env var is inlined into the client JS bundle at build
+  time, not read at request time** — one value gets baked in and served to
+  every domain the deployment answers to. Adding a new custom domain in
+  Vercel's Domains tab does nothing about this by itself; if any client
+  code uses a `NEXT_PUBLIC_*` var to construct an absolute same-app URL
+  (e.g. an API `baseURL`), every domain other than the one live at build
+  time silently breaks (cross-origin call, no visible error — see DR-072,
+  where this made sign-in spin forever from a second production domain).
+  Prefer relative/same-origin URLs (or a runtime-read server value) over a
+  baked-in absolute one for anything that must work across domains; if a
+  `NEXT_PUBLIC_*` absolute URL is genuinely unavoidable, remember a Vercel
+  env var change alone doesn't fix already-built output — it needs a fresh
+  deploy.

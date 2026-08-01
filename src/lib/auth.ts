@@ -41,6 +41,16 @@ export const authConfig = {
     enabled: true,
     requireEmailVerification: true,
   },
+  // DR-072: BETTER_AUTH_URL's own origin is trusted implicitly, but this
+  // app is now live on more than one production custom domain
+  // (mufasasafaris.com, alongside the polco-tours.vercel.app default and
+  // the still-unregistered polcotours.com brand domain, OI-02) -- without
+  // an explicit allowlist here, better-auth's origin-check middleware
+  // rejects a sign-in request whose Origin header doesn't match
+  // BETTER_AUTH_URL, which is exactly what was silently happening from
+  // mufasasafaris.com before this. Add each additional live domain here as
+  // it's DNS-verified; do not wildcard this.
+  trustedOrigins: ['https://mufasasafaris.com', 'https://www.mufasasafaris.com'],
   // Guest checkout (DR-016): a real, cookie-backed session with zero
   // password/email UX -- the tourist self-serve site's whole trust model.
   // disableDeleteAnonymousUser is true because our guests never "convert" to
