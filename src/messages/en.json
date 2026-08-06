@@ -10,7 +10,7 @@
     "contact": "Contact"
   },
   "Footer": {
-    "tagline": "Tourism Operating System for Visit Kasai & Mufasa Safaris and Tours",
+    "tagline": "Tourism OS for Mufasa Safaris and Tours powered by Cyber PolCo",
     "browse": "Browse",
     "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
@@ -77,6 +77,8 @@
   "Gallery": {
     "eyebrow": "Gallery",
     "title": "Where you could be headed",
-    "subhead": "Real destination photography is still on our to-do list, so what you're seeing here are illustrated stand-ins, not photos — tap a place to start planning a trip there."
+    "subhead": "Real destination photography is still on our to-do list, so what you're seeing here are illustrated stand-ins, not photos — tap a picture for a closer look, or a destination's name to start planning a trip there.",
+    "planTripCta": "Plan a trip here",
+    "close": "Close"
   }
 }

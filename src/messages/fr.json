@@ -10,7 +10,7 @@
     "contact": "Contact"
   },
   "Footer": {
-    "tagline": "Système de gestion touristique pour Visit Kasai & Mufasa Safaris and Tours",
+    "tagline": "Système de gestion touristique pour Mufasa Safaris and Tours, propulsé par Cyber PolCo",
     "browse": "Découvrir",
     "planMyTrip": "Planifier mon voyage",
     "findBooking": "Retrouver ma réservation",
@@ -77,6 +77,8 @@
   "Gallery": {
     "eyebrow": "Galerie",
     "title": "Vos prochaines destinations",
-    "subhead": "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur un lieu pour commencer à planifier votre voyage."
+    "subhead": "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur une image pour l'agrandir, ou sur le nom d'une destination pour commencer à planifier votre voyage.",
+    "planTripCta": "Planifier un voyage ici",
+    "close": "Fermer"
   }
 }

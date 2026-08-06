@@ -19,9 +19,18 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Last updated: 2026-08-05, HEAD `8456274` (+ an uncommitted follow-on
-> pass: this DR-073/decision-log doc update itself). Earlier in this same
-> pass over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
+> Last updated: 2026-08-05, HEAD `4fca43c` (+ an uncommitted follow-on
+> pass, UI-only, no DR-007 trigger: `/gallery` picture tiles now open an
+> in-page lightbox on click instead of navigating to `/plan-my-trip` — the
+> destination name/flag stays a real `Link` there, only the picture itself
+> changed (new `src/app/(guest)/gallery/gallery-grid.tsx`, split out of
+> `page.tsx` since a click handler needs a client component); the guest
+> footer's "Cyber PolCo" credit is now a real link to
+> `https://www.cyberpolco.com` (bold, no underline, amber on hover); the
+> footer tagline changed to "Tourism OS for Mufasa Safaris and Tours
+> powered by Cyber PolCo"; and the homepage map's DRC area figure
+> (`src/lib/country-facts.ts`) corrected to `~2,345,410 km²`). An earlier,
+> separate pass over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
 > pill chip, the guest container widened `max-w-5xl`→`max-w-7xl` to sit
 > closer to the staff dashboard's scale, a mobile hamburger nav +
 > responsive padding/wizard-grid/map-height fixes, and a homepage

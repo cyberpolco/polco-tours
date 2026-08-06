@@ -82,7 +82,18 @@ export async function GuestFooter() {
         </div>
         <div className="survey-rule mt-8 opacity-20" />
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-xs text-mist">&copy; {year} PolCo Tours, a Cyber PolCo Product.</p>
+          <p className="text-xs text-mist">
+            &copy; {year} PolCo Tours, a{' '}
+            <a
+              href="https://www.cyberpolco.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-mist no-underline transition-colors duration-200 hover:text-amber"
+            >
+              Cyber PolCo
+            </a>{' '}
+            Product.
+          </p>
           <div className="flex items-center gap-4 text-xs text-mist">
             <Link href="/terms" className="hover:text-amber">
               {t('terms')}

@@ -34,7 +34,7 @@ export const COUNTRY_FACTS: Record<string, CountryFact> = {
     languages: 'French (official); Lingala, Kikongo, Swahili, Tshiluba',
     currency: 'Congolese Franc (CDF)',
     population: '~102 million (est.)',
-    areaKm2: '~2,344,858 km²',
+    areaKm2: '~2,345,410 km²',
   },
   '894': {
     id: '894',
