@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { LinkButton } from '@/components/ui/Button';
 
@@ -8,11 +9,17 @@ import { LinkButton } from '@/components/ui/Button';
 // the approved "Horizon" concept mockup -- one real destination per slide
 // (Namibia/Sossusvlei, DR Congo/Virunga, Zambia+Zimbabwe/Victoria Falls),
 // each with its own real color mood, not one gradient recolored three times.
-// Nav/CTAs/dots stay fixed; only the background gradient + headline
-// crossfade. Autoplay pauses on hover/focus and is fully disabled under
-// `prefers-reduced-motion` (framer-motion's useReducedMotion, in addition to
-// the global CSS-transition safety net in globals.css, which doesn't cover
-// framer-motion's own transform/opacity animations).
+// Nav/CTAs/dots stay fixed; only the background photo + gradient scrim +
+// headline crossfade. Autoplay pauses on hover/focus and is fully disabled
+// under `prefers-reduced-motion` (framer-motion's useReducedMotion, in
+// addition to the global CSS-transition safety net in globals.css, which
+// doesn't cover framer-motion's own transform/opacity animations).
+//
+// `image` is a real destination photo (`public/images/hero/`); `gradient`
+// is now a translucent scrim over it (not an opaque background) -- dark
+// enough on the left for the headline to stay legible, fading out toward
+// the right so the photo itself reads clearly. Keeps each slide's own
+// color mood (DR-068) while showing a real place instead of a flat gradient.
 //
 // Data-driven (slides/CTA copy passed in, not hardcoded) so the calling
 // Server Component can supply next-intl-translated content -- this
@@ -22,6 +29,7 @@ export interface HeroSlide {
   eyebrow: string;
   headline: string;
   lede: string;
+  image: string;
   gradient: string;
 }
 
@@ -74,12 +82,21 @@ export function HeroCarousel({ slides, browseHref, browseLabel, planHref, planLa
           <motion.div
             key={index}
             className="absolute inset-0"
-            style={{ backgroundImage: slide.gradient }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={transition}
-          />
+          >
+            <Image
+              src={slide.image}
+              alt=""
+              fill
+              priority={index === 0}
+              sizes="100vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-0" style={{ backgroundImage: slide.gradient }} />
+          </motion.div>
         </AnimatePresence>
       </div>
 

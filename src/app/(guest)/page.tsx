@@ -33,19 +33,22 @@ export default async function HomePage() {
       eyebrow: t('heroSlide1Eyebrow'),
       headline: t('heroSlide1Headline'),
       lede: t('heroSlide1Lede'),
-      gradient: 'linear-gradient(180deg, #3b1f3a 0%, #d65b2e 62%, #f2b441 100%)',
+      image: '/images/hero/sossusvlei.png',
+      gradient: 'linear-gradient(100deg, rgba(59,31,58,0.92) 0%, rgba(59,31,58,0.6) 32%, rgba(214,91,46,0.28) 56%, rgba(214,91,46,0) 80%)',
     },
     {
       eyebrow: t('heroSlide2Eyebrow'),
       headline: t('heroSlide2Headline'),
       lede: t('heroSlide2Lede'),
-      gradient: 'linear-gradient(180deg, #122b2c 0%, #2f6e4f 60%, #f2b441 100%)',
+      image: '/images/hero/virunga.png',
+      gradient: 'linear-gradient(100deg, rgba(15,25,20,0.94) 0%, rgba(15,25,20,0.75) 40%, rgba(18,43,44,0.4) 62%, rgba(47,110,79,0) 85%)',
     },
     {
       eyebrow: t('heroSlide3Eyebrow'),
       headline: t('heroSlide3Headline'),
       lede: t('heroSlide3Lede'),
-      gradient: 'linear-gradient(180deg, #12222f 0%, #2a6b78 58%, #e8c46a 100%)',
+      image: '/images/hero/victoria-falls.png',
+      gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
     },
   ];
 
