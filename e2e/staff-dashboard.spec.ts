@@ -13,7 +13,7 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.goto('/staff/login');
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByLabel('Email')).toBeVisible();
-    await expect(page.getByLabel('Password')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
 
   // Exercises the real mounted /api/auth/[...all] route and password
@@ -25,7 +25,7 @@ test.describe('staff dashboard (DR-014)', () => {
 
     await page.goto('/staff/login');
     await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Password').fill(password);
+    await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/staff\/bookings/);
