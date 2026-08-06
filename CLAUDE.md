@@ -19,8 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Last updated: 2026-08-05, HEAD `4fca43c` (+ an uncommitted follow-on
-> pass, UI-only, no DR-007 trigger: `/gallery` picture tiles now open an
+> Last updated: 2026-08-06, HEAD `f82e1df` (+ a follow-on UI/i18n-only
+> pass, no DR-007 trigger: a bilingual sitewide `MaintenanceBanner`
+> (`src/app/(guest)/maintenance-banner.tsx`) now renders above the header
+> on every guest page while the site is mid-rebuild — pure announcement,
+> nothing gated behind it). Prior pass, same "no DR-007 trigger"
+> precedent: `/gallery` picture tiles now open an
 > in-page lightbox on click instead of navigating to `/plan-my-trip` — the
 > destination name/flag stays a real `Link` there, only the picture itself
 > changed (new `src/app/(guest)/gallery/gallery-grid.tsx`, split out of
