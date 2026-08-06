@@ -19,8 +19,9 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Last updated: 2026-08-01, HEAD `fdcd0ca` (+ an uncommitted follow-on pass
-> over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
+> Last updated: 2026-08-05, HEAD `8456274` (+ an uncommitted follow-on
+> pass: this DR-073/decision-log doc update itself). Earlier in this same
+> pass over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
 > pill chip, the guest container widened `max-w-5xl`→`max-w-7xl` to sit
 > closer to the staff dashboard's scale, a mobile hamburger nav +
 > responsive padding/wizard-grid/map-height fixes, and a homepage
@@ -54,9 +55,20 @@ explicit decision to do so.
 > the brand domain this file otherwise documents, does not resolve at
 > all yet** (consistent with OI-02, trademark clearance still open); this
 > was a config bug, not a rebrand — see Brand line below and DR-072.
-> Decision log current through DR-072. Both Upstash integrations (Redis
-> rate limiting, QStash scheduled jobs) are live in production — see Open
-> Items.
+> **DR-073 (this session) puts the app's first-ever real, licensed
+> destination photography on the homepage hero** — three licensed stock
+> photos (Sossusvlei/Namibia, Virunga/DRC, Victoria Falls/Zambia+Zimbabwe),
+> one per existing `HeroCarousel` slide, sourced by the founder. New
+> `public/images/hero/` convention (the first file ever placed under
+> `public/` in this repo — local static assets there need no
+> `next.config.mjs` `remotePatterns` entry). `HeroSlide.gradient` is now a
+> translucent left-to-right scrim over a `next/image` layer instead of an
+> opaque background, so each destination's existing brand-color mood
+> stays intact while the photo reads through. Advances but doesn't close
+> OI-12 — `TourPackage.imageUrl`/`/gallery` still have no real photos; see
+> Open Items. Decision log current through DR-073. Both Upstash
+> integrations (Redis rate limiting, QStash scheduled jobs) are live in
+> production — see Open Items.
 
 ---
 
@@ -568,14 +580,17 @@ Surface these to the human — don't invent answers.
 - **OI-09** Real Starlink API/account access (live kit location feed).
   `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now.
   Blocks real-time fleet location tracking.
-- **OI-12** (new, DR-069) No destination/hotel/package photography exists or
-  is licensed. `TourPackage.imageUrl` ships with every package `null` and an
-  illustrated gradient fallback (`PackageImage`) until real photos are
-  sourced — either operator-supplied or a licensed stock budget. Don't
-  fabricate or scrape images to fill this. DR-071's `content` module adds a
-  general-purpose image-upload primitive (public Vercel Blob URL) but
-  deliberately leaves it unwired to `/gallery` or `TourPackage.imageUrl` for
-  the same reason — nothing real to upload yet.
+- **OI-12** (DR-069; partially resolved DR-073) `TourPackage.imageUrl`
+  still ships `null` on every package, and `/gallery` still uses
+  `PackageImage`'s illustrated gradient fallback — no real photos, don't
+  fabricate or scrape images to fill this. DR-073 (2026-08-05) closes the
+  narrower "nothing real exists anywhere" gap for the homepage hero only:
+  three licensed stock photos (Sossusvlei/Namibia, Virunga/DRC, Victoria
+  Falls/Zambia+Zimbabwe) now render in `HeroCarousel`. DR-071's `content`
+  module image-upload primitive (public Vercel Blob URL) remains unwired
+  to `/gallery` or `TourPackage.imageUrl` — still nothing real to attach
+  there; would need operator-supplied photos or a licensed stock budget
+  for that broader scope.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
