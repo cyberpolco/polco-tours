@@ -1,4 +1,7 @@
 {
+  "MaintenanceBanner": {
+    "message": "This site is currently undergoing maintenance and major updates — nothing shown here is operational yet."
+  },
   "Nav": {
     "browse": "Browse",
     "planMyTrip": "Plan my trip",

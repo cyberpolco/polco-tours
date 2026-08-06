@@ -1,4 +1,7 @@
 {
+  "MaintenanceBanner": {
+    "message": "Ce site est actuellement en maintenance et fait l'objet de mises à jour majeures — rien de ce qui est présenté ici n'est encore opérationnel."
+  },
   "Nav": {
     "browse": "Découvrir",
     "planMyTrip": "Planifier mon voyage",

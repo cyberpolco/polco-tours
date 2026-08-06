@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { NextIntlClientProvider } from 'next-intl';
 import { BrandMark } from '@/components/BrandMark';
 import { GuestFooter } from './footer';
+import { MaintenanceBanner } from './maintenance-banner';
 import { GuestNav } from './nav';
 import { LanguageSwitcher } from './language-switcher';
 
@@ -19,6 +20,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
   return (
     <NextIntlClientProvider>
       <div className="flex min-h-screen flex-col bg-bone text-ink">
+        <MaintenanceBanner />
         <header className="relative border-b border-rule bg-navy text-bone">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8">
             <Link href="/" className="eyebrow flex items-center gap-2 text-amber">
