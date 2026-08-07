@@ -37,11 +37,15 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await expect(page.getByText('No assignments yet.')).toBeVisible();
   });
 
-  // DR-078: the guide field is now a searchable picker over the
+  // DR-078/079: the guide field is a searchable picker over the
   // recommendation's own eligible-guide list, not a free-text email --
   // there's no "unknown guide" error path anymore (unmatched search text
-  // just means no guide gets selected, since guide stays optional).
-  test('guide picker searches by email; leaving it unselected still creates an assignment with no guide', async ({ page }) => {
+  // just leaves nothing selected). Guide is now mandatory (DR-079): the
+  // hidden input can't use the native `required` attribute (it's excluded
+  // from constraint validation by spec), so SearchableSelect enforces it
+  // via setCustomValidity -- submitting with nothing selected must block,
+  // not silently create a guide-less assignment.
+  test('guide picker searches by name/email and is required to submit', async ({ page }) => {
     const { staffUserId, departureId, guideEmail } = await seedStaffWithDepartureAndFleet();
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
@@ -55,6 +59,13 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await guideInput.fill('no-such-guide-anywhere');
     await expect(page.getByText('No matches')).toBeVisible();
 
+    // Leaving it unselected blocks native form submission -- no navigation.
+    await page.getByRole('button', { name: 'Add assignment' }).click();
+    await expect(page.getByText('No assignments yet.')).toBeVisible();
+
+    // Picking a real guide from the search results lets the assignment through.
+    await guideInput.fill(guideEmail);
+    await page.getByRole('option', { name: new RegExp(guideEmail) }).click();
     await page.getByRole('button', { name: 'Add assignment' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/departures/${departureId}$`));

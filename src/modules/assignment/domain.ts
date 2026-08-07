@@ -15,7 +15,8 @@ export interface AssignmentView {
 export const CreateAssignmentInput = z.object({
   vehicleId: z.string().uuid(),
   driverProfileId: z.string().uuid(),
-  guideUserId: z.string().uuid().optional(),
+  // DR-079: mandatory, not optional -- every assignment must name a guide.
+  guideUserId: z.string().uuid(),
 });
 export type CreateAssignmentInput = z.infer<typeof CreateAssignmentInput>;
 

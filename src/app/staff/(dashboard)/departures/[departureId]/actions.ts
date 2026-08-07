@@ -9,18 +9,16 @@ import { SetDeparturePickupLocationInput, catalogService } from '@modules/catalo
 export async function createAssignmentAction(departureId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
 
-  // DR-078: the guide field is now a SearchableSelect over the
-  // recommendation's own eligible-guide list, so this is always either a
-  // real userId from that pre-vetted list or empty (never a raw email to
-  // resolve) -- assignmentService.createAssignment still independently
-  // re-validates role/org/status, this is just no longer doing that lookup
-  // twice.
-  const guideUserId = String(formData.get('guideUserId') ?? '').trim() || undefined;
-
+  // DR-078/079: the guide field is a SearchableSelect over the
+  // recommendation's own eligible-guide list, so this is always a real
+  // userId from that pre-vetted list (never a raw email to resolve) --
+  // mandatory now, same "let zod reject a blank one" posture as
+  // vehicleId/driverProfileId below. assignmentService.createAssignment
+  // still independently re-validates role/org/status.
   const input = CreateAssignmentInput.parse({
     vehicleId: String(formData.get('vehicleId') ?? ''),
     driverProfileId: String(formData.get('driverProfileId') ?? ''),
-    guideUserId,
+    guideUserId: String(formData.get('guideUserId') ?? ''),
   });
 
   try {

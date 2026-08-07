@@ -32,6 +32,7 @@ let operatorId: string;
 let touristId: string;
 let vehicleId: string;
 let driverProfileId: string;
+let guideId: string;
 
 function jsonRequest(url: string, headers: Headers, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -64,6 +65,11 @@ beforeAll(async () => {
       data: { organizationId: orgId, userId: driverUser.id, licenseNumber: 'PKGV2-DL', status: 'ACTIVE' },
     });
     driverProfileId = driverProfile.id;
+    // DR-079: guideUserId is now mandatory on CreateAssignmentInput.
+    const guideUser = await tx.user.create({
+      data: { email: `pkgv2-guide-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId },
+    });
+    guideId = guideUser.id;
   });
 }, 30_000);
 
@@ -143,6 +149,8 @@ describe('tailor-made booking -> operational itinerary -> resource assignment (D
       customTravelEnd: '2027-04-05',
       seats: 2,
       customDescription: 'Itinerary-bridge fixture trip.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const createRes = await createTailorMade(createReq, { params: Promise.resolve({}) });
     expect(createRes.status).toBe(201);
@@ -165,7 +173,7 @@ describe('tailor-made booking -> operational itinerary -> resource assignment (D
     const assignReq = jsonRequest(
       `http://localhost/api/v1/departures/${converted.departureId}/assignments`,
       opHeaders,
-      { vehicleId, driverProfileId },
+      { vehicleId, driverProfileId, guideUserId: guideId },
     );
     const assignRes = await createAssignment(assignReq, { params: Promise.resolve({ departureId: converted.departureId }) });
     expect(assignRes.status).toBe(201);

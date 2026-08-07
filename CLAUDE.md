@@ -19,23 +19,27 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-078 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **Open DB verification gap**: DR-071/074/075/076's DB-backed
+> Current through DR-079 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **Open DB verification gap**: DR-071/074/075/076/079's DB-backed
 > tests haven't all completed a clean run yet, blocked on this sandbox's
-> connection to the Neon pooler (dropped outright for DR-071; intermittent
-> for DR-074/075, partially confirmed; sustained ~5.2s round-trip latency
-> for DR-076, tripping Prisma's 5s interactive-transaction timeout) — CI or
-> a later local run with better connectivity is the remaining step for all
-> four; `lint`/`typecheck` are clean throughout. Payments now auto-succeed
-> on initiation rather than staying staff-`PENDING` (DR-074, stub-gateway
-> only, OI-01); `countryOfResidence`/`citizenship` are mandatory on a
-> `TAILOR_MADE` request (DR-075); Find My Booking shows real trip/price/
-> add-on detail (DR-076); the departure/Starlink pickup-location forms now
-> have an interactive Google Maps picker layered over the existing plain
-> lat/long inputs, degrading gracefully to those alone until
+> intermittent connection to the Neon pooler — CI or a later local run with
+> better connectivity is the remaining step; `lint`/`typecheck` are clean
+> throughout, and DR-079 in particular got a clean end-to-end pass on
+> `tests/api/packages-v2.api.test.ts` plus 12/15 of
+> `tests/api/assignment.api.test.ts` (including every new-logic test; the
+> 3 failures there cascaded from one transient connection hiccup, not a
+> real bug). Payments now auto-succeed on initiation rather than staying
+> staff-`PENDING` (DR-074, stub-gateway only, OI-01);
+> `countryOfResidence`/`citizenship` are mandatory on a `TAILOR_MADE`
+> request (DR-075); Find My Booking shows real trip/price/add-on detail
+> (DR-076); the departure/Starlink pickup-location forms have an
+> interactive Google Maps picker layered over the existing plain lat/long
+> inputs, degrading gracefully to those alone until
 > `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is provisioned (DR-077, OI-13); guide
 > assignment has a real searchable picker pre-filled to the top-rated
-> eligible guide, matching vehicle/driver's existing convention (DR-078).
+> eligible guide (DR-078) and is now a **mandatory** field, enforced at the
+> application layer only — `Assignment.guideUserId` stays nullable in the
+> DB (DR-079).
 
 ---
 

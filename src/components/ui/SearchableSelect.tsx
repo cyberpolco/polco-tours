@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 export interface SearchableOption {
   value: string;
@@ -22,6 +22,12 @@ interface SearchableSelectProps {
   /** Forwarded onto the visible text input -- FormField clones this in for
    * label htmlFor linkage, same convention as every other FormField child. */
   id?: string;
+  /** Blocks native form submission until a real option is chosen -- the
+   * submitted value lives on a hidden input, and the `required` attribute
+   * has no effect on type="hidden" (excluded from constraint validation by
+   * spec), so this is enforced via setCustomValidity on the visible input
+   * instead. */
+  required?: boolean;
 }
 
 // A dependency-free combobox (text input + filtered dropdown + a hidden
@@ -31,18 +37,33 @@ interface SearchableSelectProps {
 // substring search, and <datalist> can't bind free-typed text back to a
 // stable id, so this is the minimal custom control that does both without
 // adding a combobox library.
-export function SearchableSelect({ name, options, defaultValue, placeholder, emptyLabel, className, id }: SearchableSelectProps) {
+export function SearchableSelect({
+  name,
+  options,
+  defaultValue,
+  placeholder,
+  emptyLabel,
+  className,
+  id,
+  required,
+}: SearchableSelectProps) {
   const initial = options.find((o) => o.value === defaultValue);
   const [query, setQuery] = useState(initial?.label ?? '');
   const [selectedValue, setSelectedValue] = useState(defaultValue ?? '');
   const [open, setOpen] = useState(false);
   const listId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter((o) => o.searchText.includes(q));
   }, [query, options]);
+
+  useEffect(() => {
+    if (!required) return;
+    inputRef.current?.setCustomValidity(selectedValue ? '' : 'Please select an option from the list.');
+  }, [required, selectedValue]);
 
   function choose(option: SearchableOption | null) {
     setQuery(option?.label ?? '');
@@ -54,6 +75,7 @@ export function SearchableSelect({ name, options, defaultValue, placeholder, emp
     <div className="relative">
       <input type="hidden" name={name} value={selectedValue} />
       <input
+        ref={inputRef}
         id={id}
         type="text"
         role="combobox"

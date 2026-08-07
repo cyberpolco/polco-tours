@@ -77,24 +77,21 @@ export const assignmentService = {
     const driverProfile = await fleetService.getDriverProfile(ctx, input.driverProfileId);
     if (driverProfile.status !== 'ACTIVE') throw Errors.conflict('Driver is not ACTIVE');
 
-    let guideProfile: GuideProfileView | null = null;
-    if (input.guideUserId) {
-      const guide = await authService.getUser(input.guideUserId);
-      // authService.getUser is a raw, org-unscoped lookup (mirrors
-      // getUserByEmail's convention) -- check the org explicitly here to
-      // avoid assigning a guide from a different tenant.
-      if (!guide || !guide.roles.includes('TOUR_GUIDE') || guide.organizationId !== organizationId) {
-        throw Errors.validation('guideUserId must reference a TOUR_GUIDE in this organization');
-      }
-      // GuideProfile is optional (DR-030 introduced it after guides already
-      // existed as bare Users) -- only gate on status when one exists, so a
-      // guide who's never been given a profile isn't blocked from being
-      // assigned. A profile that does exist and is SUSPENDED does block it,
-      // closing the asymmetry with vehicle/driver ACTIVE checks above.
-      guideProfile = await fleetService.findGuideProfileByUserId(ctx, input.guideUserId);
-      if (guideProfile && guideProfile.status !== 'ACTIVE') {
-        throw Errors.conflict('Guide is not ACTIVE');
-      }
+    const guide = await authService.getUser(input.guideUserId);
+    // authService.getUser is a raw, org-unscoped lookup (mirrors
+    // getUserByEmail's convention) -- check the org explicitly here to
+    // avoid assigning a guide from a different tenant.
+    if (!guide || !guide.roles.includes('TOUR_GUIDE') || guide.organizationId !== organizationId) {
+      throw Errors.validation('guideUserId must reference a TOUR_GUIDE in this organization');
+    }
+    // GuideProfile is optional (DR-030 introduced it after guides already
+    // existed as bare Users) -- only gate on status when one exists, so a
+    // guide who's never been given a profile isn't blocked from being
+    // assigned. A profile that does exist and is SUSPENDED does block it,
+    // closing the asymmetry with vehicle/driver ACTIVE checks above.
+    const guideProfile = await fleetService.findGuideProfileByUserId(ctx, input.guideUserId);
+    if (guideProfile && guideProfile.status !== 'ACTIVE') {
+      throw Errors.conflict('Guide is not ACTIVE');
     }
 
     // Double-booking: neither the vehicle, driver, nor guide may already be
@@ -102,7 +99,7 @@ export const assignmentService = {
     const [vehicleAssignments, driverAssignments, guideAssignments] = await Promise.all([
       assignmentRepository.listForVehicle(organizationId, input.vehicleId),
       assignmentRepository.listForDriverProfile(organizationId, input.driverProfileId),
-      input.guideUserId ? assignmentRepository.listForGuide(organizationId, input.guideUserId) : Promise.resolve([]),
+      assignmentRepository.listForGuide(organizationId, input.guideUserId),
     ]);
     const otherDepartureIds = new Set(
       [...vehicleAssignments, ...driverAssignments, ...guideAssignments].map((a) => a.departureId),

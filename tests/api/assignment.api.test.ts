@@ -196,7 +196,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
       `http://localhost/api/v1/departures/${departureCId}/assignments`,
       headers,
       'POST',
-      { vehicleId: maintenanceVehicleId, driverProfileId: activeDriverProfileId },
+      { vehicleId: maintenanceVehicleId, driverProfileId: activeDriverProfileId, guideUserId: guideId },
     );
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureCId }) });
     expect(res.status).toBe(409);
@@ -208,7 +208,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
       `http://localhost/api/v1/departures/${departureCId}/assignments`,
       headers,
       'POST',
-      { vehicleId: activeVehicleId, driverProfileId: suspendedDriverProfileId },
+      { vehicleId: activeVehicleId, driverProfileId: suspendedDriverProfileId, guideUserId: guideId },
     );
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureCId }) });
     expect(res.status).toBe(409);
@@ -234,7 +234,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
       `http://localhost/api/v1/departures/${departureBId}/assignments`,
       headers,
       'POST',
-      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId },
+      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId, guideUserId: guideId },
     );
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureBId }) });
     expect(res.status).toBe(409);
@@ -247,7 +247,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
       `http://localhost/api/v1/departures/${departureCId}/assignments`,
       headers,
       'POST',
-      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId },
+      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId, guideUserId: guideId },
     );
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureCId }) });
     expect(res.status).toBe(201);
@@ -260,7 +260,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
       `http://localhost/api/v1/departures/${departureCId}/assignments`,
       headers,
       'POST',
-      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId },
+      { vehicleId: activeVehicleId, driverProfileId: activeDriverProfileId, guideUserId: guideId },
     );
     const res = await createAssignment(req, { params: Promise.resolve({ departureId: departureCId }) });
     expect(res.status).toBe(409);

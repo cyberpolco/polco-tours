@@ -188,13 +188,16 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
               ))}
             </Select>
           </FormField>
-          <FormField label="Guide (optional -- search by name or email)" htmlFor="guideUserId" optional>
+          {guideOptions.length === 0 && (
+            <Alert tone="info">No eligible guides available -- an assignment can&apos;t be created until one exists.</Alert>
+          )}
+          <FormField label="Guide (search by name or email)" htmlFor="guideUserId">
             <SearchableSelect
               name="guideUserId"
               options={guideOptions}
               defaultValue={recommendation.recommendedGuideId ?? undefined}
               placeholder="Search guides by name or email…"
-              emptyLabel="No guide"
+              required
             />
           </FormField>
           <SubmitButton>Add assignment</SubmitButton>

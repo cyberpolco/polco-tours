@@ -54,15 +54,16 @@ describe('assignment domain', () => {
   });
 
   describe('CreateAssignmentInput', () => {
-    it('accepts vehicleId + driverProfileId with no guide', () => {
+    // DR-079: guideUserId is now mandatory, not optional.
+    it('rejects vehicleId + driverProfileId with no guide', () => {
       const result = CreateAssignmentInput.safeParse({
         vehicleId: '11111111-1111-4111-8111-111111111111',
         driverProfileId: '22222222-2222-4222-8222-222222222222',
       });
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
 
-    it('accepts an optional guideUserId', () => {
+    it('accepts vehicleId + driverProfileId + guideUserId', () => {
       const result = CreateAssignmentInput.safeParse({
         vehicleId: '11111111-1111-4111-8111-111111111111',
         driverProfileId: '22222222-2222-4222-8222-222222222222',
@@ -74,6 +75,7 @@ describe('assignment domain', () => {
     it('rejects a missing vehicleId', () => {
       const result = CreateAssignmentInput.safeParse({
         driverProfileId: '22222222-2222-4222-8222-222222222222',
+        guideUserId: '33333333-3333-4333-8333-333333333333',
       });
       expect(result.success).toBe(false);
     });
