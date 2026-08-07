@@ -1,7 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { canTransition } from '../src/modules/itinerary/domain';
+import { canTransition, CreateSiteInput } from '../src/modules/itinerary/domain';
 
 describe('itinerary domain', () => {
+  describe('CreateSiteInput (DR-086)', () => {
+    it('accepts a real province of one of the 4 operating countries', () => {
+      expect(CreateSiteInput.safeParse({ name: 'Etosha Gate', country: 'NA', province: 'Kunene' }).success).toBe(true);
+      expect(CreateSiteInput.safeParse({ name: 'Virunga Gate', country: 'CD', province: 'Nord-Kivu' }).success).toBe(true);
+    });
+
+    it('rejects a country outside the 4 operating countries', () => {
+      expect(CreateSiteInput.safeParse({ name: 'Somewhere', country: 'ZA', province: 'Gauteng' }).success).toBe(false);
+    });
+
+    it('rejects a province that does not belong to the selected country', () => {
+      // Gauteng is a real South African province, not a Namibian region.
+      expect(CreateSiteInput.safeParse({ name: 'Etosha Gate', country: 'NA', province: 'Gauteng' }).success).toBe(false);
+    });
+  });
+
   describe('canTransition', () => {
     it('DRAFT can go to IN_REVIEW or straight to APPROVED', () => {
       expect(canTransition('DRAFT', 'IN_REVIEW')).toBe(true);

@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-086 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-087 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-086 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city — nothing schema-related is pending).
@@ -52,8 +52,13 @@ explicit decision to do so.
 > Budget/Luxury trip preferences are now mutually exclusive
 > (client + server); and a real bug fix — the Fleet Locations "Update" link
 > on `/staff/tracking` was using `StarlinkKit.kitId` (the display label)
-> instead of its real row id, so it always 404'd. See DR-082 through
-> DR-086 for full detail.
+> instead of its real row id, so it always 404'd. DR-087 restricted Site's
+> country to just these 4 operating countries (with matching server-side
+> province-belongs-to-country validation) and fixed a real CI-caught e2e
+> regression DR-086 introduced — Playwright auto-dismisses
+> `window.confirm()` unless a test explicitly accepts it, so any e2e test
+> clicking a now-confirm-gated button needs `page.once('dialog', d =>
+> d.accept())` first. See DR-082 through DR-087 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

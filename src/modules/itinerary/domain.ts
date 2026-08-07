@@ -1,6 +1,7 @@
 // itinerary module — domain types & rules. Pure; no framework or DB imports.
 import type { ItineraryStatus } from '@prisma/client';
 import { z } from 'zod';
+import { PROVINCES_BY_COUNTRY, SITE_COUNTRY_CODES } from '@lib/provinces';
 
 export interface ItineraryView {
   id: string;
@@ -174,15 +175,44 @@ export interface SiteView {
   updatedAt: Date;
 }
 
-export const CreateSiteInput = z.object({
-  name: z.string().min(1).max(200),
-  country: z.string().length(2),
-  province: z.string().min(1).max(100),
-  city: z.string().max(100).optional(),
-});
+// Explicit user direction: a Site's country is restricted to this app's 4
+// operating countries (SITE_COUNTRY_CODES), not the full world list Hotel/
+// Restaurant use -- and province must be one of that country's real
+// administrative divisions (PROVINCES_BY_COUNTRY), not free text. The
+// frontend (site-form.tsx) already only offers these as picklists; this is
+// the backend source-of-truth enforcement (charter rule 1), same
+// "client prevents for UX, server still validates" precedent as
+// booking/domain.ts's Budget/Luxury mutual-exclusion refine.
+export const CreateSiteInput = z
+  .object({
+    name: z.string().min(1).max(200),
+    country: z.enum(SITE_COUNTRY_CODES),
+    province: z.string().min(1).max(100),
+    city: z.string().max(100).optional(),
+  })
+  .refine((v) => PROVINCES_BY_COUNTRY[v.country].includes(v.province), {
+    message: 'Province must be a real administrative division of the selected country',
+    path: ['province'],
+  });
 export type CreateSiteInput = z.infer<typeof CreateSiteInput>;
 
-export const UpdateSiteInput = CreateSiteInput.partial();
+// Can't reuse CreateSiteInput.partial() here -- refine()'d schemas don't
+// expose .partial() (the refinement can't be checked against a partial
+// object missing one of the two fields it compares). Same
+// required-fields-optional shape as CreateSiteInput, plus the identical
+// cross-field check applied only when both fields are actually present in
+// this particular update (an update might only touch `name`, say).
+export const UpdateSiteInput = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    country: z.enum(SITE_COUNTRY_CODES).optional(),
+    province: z.string().min(1).max(100).optional(),
+    city: z.string().max(100).optional(),
+  })
+  .refine((v) => !v.country || !v.province || PROVINCES_BY_COUNTRY[v.country].includes(v.province), {
+    message: 'Province must be a real administrative division of the selected country',
+    path: ['province'],
+  });
 export type UpdateSiteInput = z.infer<typeof UpdateSiteInput>;
 
 // DRAFT -> IN_REVIEW -> APPROVED, or DRAFT -> APPROVED directly (the same

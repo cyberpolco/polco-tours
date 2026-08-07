@@ -3,10 +3,30 @@
  * countries (Namibia, DRC, Zambia, Zimbabwe) -- no external dependency
  * (charter rule 4), same "static curated list" precedent as
  * destination-sites.ts/country-codes.ts. Powers the Site form's
- * country -> province cascading dropdown; a country with no entry here
- * (anything outside these 4) falls back to a free-text province input.
+ * country -> province cascading dropdown.
+ *
+ * Explicit user direction: a Site's country is restricted to these 4
+ * (SITE_COUNTRIES below), not the full COUNTRY_CODES world list Hotel/
+ * Restaurant/Traveler use -- a site is somewhere on this app's own
+ * itinerary, never anywhere else. Each entry here is the complete,
+ * current list of that country's top-level administrative divisions
+ * (Namibia's 14 regions since the 2013 redelineation; DRC's 26 provinces
+ * since the 2015 redistricting; Zambia's 10 provinces since Muchinga split
+ * off Northern in 2011; Zimbabwe's 10 provinces, 2 of which -- Harare and
+ * Bulawayo -- are also cities with provincial status).
  */
-export const PROVINCES_BY_COUNTRY: Record<string, string[]> = {
+export const SITE_COUNTRIES = [
+  { code: 'NA', name: 'Namibia' },
+  { code: 'CD', name: 'DR Congo' },
+  { code: 'ZM', name: 'Zambia' },
+  { code: 'ZW', name: 'Zimbabwe' },
+] as const;
+
+export type SiteCountryCode = (typeof SITE_COUNTRIES)[number]['code'];
+
+export const SITE_COUNTRY_CODES = SITE_COUNTRIES.map((c) => c.code) as [SiteCountryCode, ...SiteCountryCode[]];
+
+export const PROVINCES_BY_COUNTRY: Record<SiteCountryCode, string[]> = {
   NA: [
     'Erongo',
     'Hardap',

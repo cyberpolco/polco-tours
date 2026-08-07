@@ -33,6 +33,11 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await expect(page.getByText(/Seats covered by assigned vehicles: 5\/5/)).toBeVisible();
     await expect(page.getByText('Remove')).toBeVisible();
 
+    // DR-086: every destructive action now shows a native confirm() dialog
+    // before submitting -- Playwright auto-dismisses window.confirm() by
+    // default (cancelling the action) unless a handler is registered to
+    // accept it first.
+    page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByText('No assignments yet.')).toBeVisible();
   });
