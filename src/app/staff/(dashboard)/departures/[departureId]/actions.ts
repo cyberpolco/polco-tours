@@ -3,22 +3,19 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError } from '@lib/errors';
-import { authService } from '@modules/auth';
 import { CreateAssignmentInput, assignmentService } from '@modules/assignment';
 import { SetDeparturePickupLocationInput, catalogService } from '@modules/catalog';
 
 export async function createAssignmentAction(departureId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
 
-  const guideEmail = String(formData.get('guideEmail') ?? '').trim();
-  let guideUserId: string | undefined;
-  if (guideEmail) {
-    const guide = await authService.getUserByEmail(guideEmail);
-    if (!guide || !guide.roles.includes('TOUR_GUIDE')) {
-      redirect(`/staff/departures/${departureId}?error=guide_not_found`);
-    }
-    guideUserId = guide.id;
-  }
+  // DR-078: the guide field is now a SearchableSelect over the
+  // recommendation's own eligible-guide list, so this is always either a
+  // real userId from that pre-vetted list or empty (never a raw email to
+  // resolve) -- assignmentService.createAssignment still independently
+  // re-validates role/org/status, this is just no longer doing that lookup
+  // twice.
+  const guideUserId = String(formData.get('guideUserId') ?? '').trim() || undefined;
 
   const input = CreateAssignmentInput.parse({
     vehicleId: String(formData.get('vehicleId') ?? ''),

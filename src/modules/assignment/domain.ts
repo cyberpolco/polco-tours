@@ -42,11 +42,11 @@ export function departuresOverlap(a: DateRange, b: DateRange): boolean {
 // departuresOverlap, the existing hard gate), vehicle capacity fit,
 // maintenance recency (fleetService.maintenanceRecencyScore), and distance
 // from pickup (only when both a Departure pickup point and a vehicle's
-// Starlink location are on file). Driver rating is deliberately NOT a
-// factor -- no reviews system exists yet (explicit user decision), so
-// drivers are only filtered to eligible (ACTIVE + not conflicting), never
-// ranked; adding a rating factor later is a small, additive change to
-// scoreVehicle's sibling once that data exists.
+// Starlink location are on file). Driver AND guide rating (DR-037,
+// compareByRating below) rank eligible candidates -- both are otherwise
+// only filtered to eligible (ACTIVE + not conflicting), never scored
+// against vehicle-style factors like capacity/maintenance/distance, since
+// neither of those apply to a person.
 
 /** How tightly a vehicle's capacity matches what's needed -- rewards
  * minimal wasted seats. Null (excluded, not merely down-scored) if it can't

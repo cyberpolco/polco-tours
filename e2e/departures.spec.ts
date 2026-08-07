@@ -24,7 +24,8 @@ test.describe('staff departures + assignments (DR-018)', () => {
 
     await page.getByLabel('Vehicle').selectOption({ index: 1 });
     await page.getByLabel('Driver').selectOption({ index: 1 });
-    await page.getByLabel(/Guide email/).fill(guideEmail);
+    await page.getByLabel(/Guide/).fill(guideEmail);
+    await page.getByRole('option', { name: new RegExp(guideEmail) }).click();
     await page.getByRole('button', { name: 'Add assignment' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/departures/${departureId}$`));
@@ -36,18 +37,27 @@ test.describe('staff departures + assignments (DR-018)', () => {
     await expect(page.getByText('No assignments yet.')).toBeVisible();
   });
 
-  test('an unknown guide email shows an error and does not create the assignment', async ({ page }) => {
-    const { staffUserId, departureId } = await seedStaffWithDepartureAndFleet();
+  // DR-078: the guide field is now a searchable picker over the
+  // recommendation's own eligible-guide list, not a free-text email --
+  // there's no "unknown guide" error path anymore (unmatched search text
+  // just means no guide gets selected, since guide stays optional).
+  test('guide picker searches by email; leaving it unselected still creates an assignment with no guide', async ({ page }) => {
+    const { staffUserId, departureId, guideEmail } = await seedStaffWithDepartureAndFleet();
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto(`/staff/departures/${departureId}`);
     await page.getByLabel('Vehicle').selectOption({ index: 1 });
     await page.getByLabel('Driver').selectOption({ index: 1 });
-    await page.getByLabel(/Guide email/).fill('no-such-guide@example.test');
+
+    const guideInput = page.getByLabel(/Guide/);
+    await guideInput.fill(guideEmail.slice(0, 10));
+    await expect(page.getByRole('option', { name: new RegExp(guideEmail) })).toBeVisible();
+    await guideInput.fill('no-such-guide-anywhere');
+    await expect(page.getByText('No matches')).toBeVisible();
+
     await page.getByRole('button', { name: 'Add assignment' }).click();
 
-    await expect(page).toHaveURL(/error=guide_not_found/);
-    await expect(page.getByText('No TOUR_GUIDE account found for that email.')).toBeVisible();
-    await expect(page.getByText('No assignments yet.')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/staff/departures/${departureId}$`));
+    await expect(page.getByText('No assignments yet.')).toHaveCount(0);
   });
 });

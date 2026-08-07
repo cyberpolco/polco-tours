@@ -7,7 +7,9 @@ import { fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
+import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
@@ -20,7 +22,6 @@ interface Props {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  guide_not_found: 'No TOUR_GUIDE account found for that email.',
   conflict: 'Could not create the assignment.',
 };
 
@@ -67,13 +68,25 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
   const sortedDrivers = [...activeDriverProfiles].sort(
     (a, b) => Number(eligibleDriverIds.has(b.id)) - Number(eligibleDriverIds.has(a.id)),
   );
-  // DR-037: guides are now ranked in the recommendation too (by
-  // averageRating, unrated last) -- the guide field itself stays a plain
-  // email lookup (unlike vehicle/driver, it's never had a select/candidate
-  // list), so this just surfaces the top pick as a hint to copy from.
-  const recommendedGuide = recommendation.recommendedGuideId
-    ? await authService.getUser(recommendation.recommendedGuideId)
-    : null;
+  // DR-078: guides are ranked in the recommendation (by averageRating,
+  // unrated last -- DR-037) and now get a real searchable picker, same
+  // trust level as vehicle/driver's pre-filled dropdowns above. Resolve
+  // name/email for every eligible guide (not just the top pick) so the
+  // picker can show and search over the full candidate list.
+  const guideUsers = await Promise.all(recommendation.guides.map((g) => authService.getUser(g.userId)));
+  const guideOptions: SearchableOption[] = recommendation.guides.flatMap((g, i) => {
+    const user = guideUsers[i];
+    if (!user) return [];
+    const label = user.name ? `${user.name} (${user.email})` : user.email;
+    return [
+      {
+        value: g.userId,
+        label,
+        searchText: `${user.name ?? ''} ${user.email}`.toLowerCase(),
+        hint: g.userId === recommendation.recommendedGuideId ? '★' : undefined,
+      },
+    ];
+  });
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -96,27 +109,8 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
             ? `${departure.pickupLatitude}, ${departure.pickupLongitude}`
             : 'Not set -- distance-from-pickup scoring is skipped until this is entered.'}
         </p>
-        <form action={setPickupLocationAction.bind(null, departureId)} className="mt-3 flex flex-wrap items-end gap-3">
-          <FormField label="Latitude" htmlFor="latitude">
-            <input
-              name="latitude"
-              type="number"
-              step="any"
-              defaultValue={departure.pickupLatitude ?? undefined}
-              required
-              className="w-32 rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label="Longitude" htmlFor="longitude">
-            <input
-              name="longitude"
-              type="number"
-              step="any"
-              defaultValue={departure.pickupLongitude ?? undefined}
-              required
-              className="w-32 rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
+        <form action={setPickupLocationAction.bind(null, departureId)} className="mt-3 max-w-md space-y-3">
+          <MapLocationPicker initialLatitude={departure.pickupLatitude} initialLongitude={departure.pickupLongitude} />
           <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
             Set pickup location
           </SubmitButton>
@@ -162,8 +156,9 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
 
         <form action={createAssignmentAction.bind(null, departureId)} className="mt-6 space-y-4">
           <p className="text-xs text-mist">
-            Recommended options (capacity fit, maintenance recency, distance from pickup where known) sort first and
-            are pre-selected below -- a simple rules-based suggestion, not real AI. Pick anything else to override.
+            Recommended options -- vehicle/driver by capacity fit, maintenance recency, and distance from pickup
+            where known; guide by average rating -- sort first and are pre-selected below, a simple rules-based
+            suggestion, not real AI. Pick anything else to override.
           </p>
           <FormField label="Vehicle" htmlFor="vehicleId">
             <Select name="vehicleId" required defaultValue={recommendation.recommendedVehicleId ?? ''}>
@@ -193,14 +188,15 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
               ))}
             </Select>
           </FormField>
-          <FormField label="Guide email (optional -- existing TOUR_GUIDE account)" htmlFor="guideEmail" optional>
-            <input name="guideEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />
+          <FormField label="Guide (optional -- search by name or email)" htmlFor="guideUserId" optional>
+            <SearchableSelect
+              name="guideUserId"
+              options={guideOptions}
+              defaultValue={recommendation.recommendedGuideId ?? undefined}
+              placeholder="Search guides by name or email…"
+              emptyLabel="No guide"
+            />
           </FormField>
-          {recommendedGuide && (
-            <p className="text-xs text-mist">
-              ★ Recommended: {recommendedGuide.name ?? recommendedGuide.email} ({recommendedGuide.email})
-            </p>
-          )}
           <SubmitButton>Add assignment</SubmitButton>
         </form>
       </div>

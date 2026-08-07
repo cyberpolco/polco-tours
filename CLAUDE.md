@@ -19,42 +19,23 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-076 — see `docs/decisions/DECISION_LOG.md` for full
-> history. Open verification gaps, all traced to this sandbox's connection
-> to the Neon pooler: DR-071's `content` module schema push/`db:seed`
-> re-run/DB-backed test (never got a working connection at all this
-> session); DR-074/075's updated `tests/api/invoices.api.test.ts`/
-> `tests/api/bookings-v2.api.test.ts` (partially verified -- a run where
-> connectivity held confirmed the actual new behavior server-side: DEPOSIT/
-> BALANCE payments auto-succeed, the invoice reaches PARTIALLY_PAID/PAID,
-> re-initiating an already-succeeded leg 409s, and DR-075's mandatory
-> fields persist end-to-end); and DR-076's new
-> `tests/find-booking-lifecycle.test.ts` cases (typecheck/lint-clean, not
-> yet run clean end-to-end). That last one hit a *different* symptom worth
-> noting for whoever picks this up: not a connection drop, but sustained
-> ~5.2s round-trip latency this session, reproducing identically across
-> attempts and tripping Prisma's default 5000ms interactive-transaction
-> timeout partway through the fixture's `beforeAll` -- confirmed to be
-> environment latency, not new-code fragility, since the failure point
-> (`visaApplication.create`) sits in fixture code that predates this
-> session's changes entirely. No single run has stayed connected/fast
-> enough to finish any of the three clean start-to-end, so CI or a later
-> local run is still the one remaining confirmation step for all three.
-> **DR-074**: guest/staff payment initiation now auto-succeeds
-> instead of leaving a `PENDING` payment for staff to resolve by hand —
-> deliberately supersedes DR-012's anti-fraud rule for as long as DPO stays
-> stubbed (OI-01); revisit once a real DPO integration lands. **DR-075**:
-> `countryOfResidence`/`citizenship` are now mandatory (not optional) on a
-> `TAILOR_MADE` request, in both the guest and staff plan-my-trip wizards.
-> **DR-076**: Find My Booking now shows real trip detail (package/
-> destination info, travel dates, price/payment breakdown, selected
-> add-ons, tour lead's own phone/email) on every non-excluded status, via
-> three new no-`ctx` "`*ForBookingLookup`" methods (catalog, booking,
-> invoicing); the staff booking detail page's traveler list also gained an
-> emergency-contact sub-line (data it already had access to, just wasn't
-> rendering). Day-by-day itinerary and emergency-contact-on-the-guest-page
-> were explicitly scoped out; `CANCELLED`/`REFUNDED` stay excluded from
-> lookup.
+> Current through DR-078 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **Open DB verification gap**: DR-071/074/075/076's DB-backed
+> tests haven't all completed a clean run yet, blocked on this sandbox's
+> connection to the Neon pooler (dropped outright for DR-071; intermittent
+> for DR-074/075, partially confirmed; sustained ~5.2s round-trip latency
+> for DR-076, tripping Prisma's 5s interactive-transaction timeout) — CI or
+> a later local run with better connectivity is the remaining step for all
+> four; `lint`/`typecheck` are clean throughout. Payments now auto-succeed
+> on initiation rather than staying staff-`PENDING` (DR-074, stub-gateway
+> only, OI-01); `countryOfResidence`/`citizenship` are mandatory on a
+> `TAILOR_MADE` request (DR-075); Find My Booking shows real trip/price/
+> add-on detail (DR-076); the departure/Starlink pickup-location forms now
+> have an interactive Google Maps picker layered over the existing plain
+> lat/long inputs, degrading gracefully to those alone until
+> `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is provisioned (DR-077, OI-13); guide
+> assignment has a real searchable picker pre-filled to the top-rated
+> eligible guide, matching vehicle/driver's existing convention (DR-078).
 
 ---
 
@@ -150,6 +131,7 @@ gaps a fresh Postgres would hit).
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
+| Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (`src/components/ui/MapLocationPicker.tsx`, a hand-written type shim for the small subset of the API used, not `@types/google.maps`). Powers the pickup-location picker on the departure and Starlink-kit staff forms; `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` not yet provisioned (OI-13) — degrades gracefully to plain lat/long inputs until then |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing; guest site only, partial coverage (Nav/Footer/HomePage) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
@@ -518,6 +500,10 @@ Surface these to the human — don't invent answers.
   to `/gallery` or `TourPackage.imageUrl` — still nothing real to attach
   there; would need operator-supplied photos or a licensed stock budget
   for that broader scope.
+- **OI-13** (DR-077) Google Cloud project + billing +
+  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` not yet provisioned. Blocks the
+  interactive pickup-location map on the departure/Starlink-kit staff
+  pages — degrades gracefully to the plain lat/long inputs until then.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
