@@ -24,8 +24,15 @@ export async function createAssignmentAction(departureId: string, formData: Form
   try {
     await assignmentService.createAssignment(ctx, departureId, input);
   } catch (err) {
-    if (err instanceof ApiError && err.status === 409) {
-      redirect(`/staff/departures/${departureId}?error=conflict&detail=${encodeURIComponent(err.detail ?? '')}`);
+    // DR-079 incident: createAssignment can also throw a 422
+    // (Errors.validation, e.g. "guideUserId must reference a TOUR_GUIDE in
+    // this organization") -- previously harmless-if-rare since guide was
+    // optional (staff could just omit it), this became a real production
+    // crash once guide became mandatory, since this catch only handled 409
+    // and let everything else propagate as an uncaught server-action error.
+    // Catch every ApiError generically now, not just conflicts.
+    if (err instanceof ApiError) {
+      redirect(`/staff/departures/${departureId}?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
     }
     throw err;
   }

@@ -250,7 +250,7 @@ describe('find-booking lifecycle no-ctx lookups', () => {
   });
 
   it('catalogService.getDepartureTripSummaryForBookingLookup resolves package/departure detail, null when none exists', async () => {
-    const summary = await catalogService.getDepartureTripSummaryForBookingLookup(departureId);
+    const summary = await catalogService.getDepartureTripSummaryForBookingLookup(orgId, departureId);
     expect(summary).toMatchObject({
       title: 'Lifecycle Fixture Safari',
       country: 'NA',
@@ -259,7 +259,7 @@ describe('find-booking lifecycle no-ctx lookups', () => {
     expect(summary!.startDate).toEqual(new Date('2026-10-01T00:00:00Z'));
     expect(summary!.endDate).toEqual(new Date('2026-10-04T00:00:00Z'));
 
-    expect(await catalogService.getDepartureTripSummaryForBookingLookup('00000000-0000-0000-0000-000000000000')).toBeNull();
+    expect(await catalogService.getDepartureTripSummaryForBookingLookup(orgId, '00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 
   it('catalogService.listAddonServicesForBookingLookup resolves names, [] for an empty id list', async () => {

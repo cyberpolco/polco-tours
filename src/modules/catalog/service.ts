@@ -407,21 +407,29 @@ export const catalogService = {
     return { startDate: departure.startDate, endDate: departure.endDate };
   },
 
-  /** Guest "find my booking" trip-detail card (no-ctx). Only resolves for a
-   * package-backed departure (tourPackageId non-null) -- a bespoke departure
-   * (DR-028, created via createBespokeDeparture for a converted TAILOR_MADE
-   * booking) has no TourPackage to summarize; the one caller
-   * (find-booking/result/page.tsx) falls back to the booking's own custom*
-   * fields when this returns null. Deliberately no visibility/status gate,
-   * same convention as getDepartureWindow above -- a COMPLETED booking's
-   * departure/package may no longer be SCHEDULED/PUBLISHED, and the caller
-   * has already independently verified the guest's two-factor lookup before
-   * reaching here. Returns null (not throw) if the package was since
-   * soft-deleted (findPackageById filters deletedAt) -- an old booking
-   * against a since-removed package just shows no trip-details card, same
-   * as it shows nothing today. */
-  async getDepartureTripSummaryForBookingLookup(departureId: string): Promise<DepartureTripSummaryView | null> {
-    const organizationId = await getPrimaryOrgId();
+  /** Guest "find my booking" trip-detail card (no-ctx). Takes
+   * organizationId explicitly (the caller already has booking.organizationId
+   * in hand), same convention as every sibling *ForBookingLookup method in
+   * this codebase (itineraryService.getStatusForBookingLookup,
+   * fleetService.listVehiclesForBookingLookup, etc.) -- unlike
+   * getDepartureWindow above, which resolves getPrimaryOrgId() internally
+   * because its one caller (ratings) doesn't have organizationId as
+   * conveniently on hand. Only resolves for a package-backed departure
+   * (tourPackageId non-null) -- a bespoke departure (DR-028, created via
+   * createBespokeDeparture for a converted TAILOR_MADE booking) has no
+   * TourPackage to summarize; the one caller (find-booking/result/page.tsx)
+   * falls back to the booking's own custom* fields when this returns null.
+   * Deliberately no visibility/status gate, same convention as
+   * getDepartureWindow -- a COMPLETED booking's departure/package may no
+   * longer be SCHEDULED/PUBLISHED, and the caller has already independently
+   * verified the guest's two-factor lookup before reaching here. Returns
+   * null (not throw) if the package was since soft-deleted (findPackageById
+   * filters deletedAt) -- an old booking against a since-removed package
+   * just shows no trip-details card, same as it shows nothing today. */
+  async getDepartureTripSummaryForBookingLookup(
+    organizationId: string,
+    departureId: string,
+  ): Promise<DepartureTripSummaryView | null> {
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure || !departure.tourPackageId) return null;
     const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);

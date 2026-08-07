@@ -23,6 +23,7 @@ interface Props {
 
 const ERROR_MESSAGES: Record<string, string> = {
   conflict: 'Could not create the assignment.',
+  'validation-failed': 'Could not create the assignment -- one of the selected options is no longer valid. Pick a different guide, driver, or vehicle and try again.',
 };
 
 export default async function DepartureDetailPage({ params, searchParams }: Props) {

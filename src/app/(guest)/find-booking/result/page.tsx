@@ -85,7 +85,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   // not Promise.all (DR-038/041/060).
   let tripSummary: Awaited<ReturnType<typeof catalogService.getDepartureTripSummaryForBookingLookup>> = null;
   if (booking.departureId) {
-    tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(booking.departureId);
+    tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(booking.organizationId, booking.departureId);
   }
   // A bespoke departure (tripSummary null, tourPackageId was null) OR a
   // TAILOR_MADE booking that hasn't been converted to an operational

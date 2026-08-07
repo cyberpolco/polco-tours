@@ -19,16 +19,30 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-079 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **Open DB verification gap**: DR-071/074/075/076/079's DB-backed
-> tests haven't all completed a clean run yet, blocked on this sandbox's
-> intermittent connection to the Neon pooler — CI or a later local run with
-> better connectivity is the remaining step; `lint`/`typecheck` are clean
-> throughout, and DR-079 in particular got a clean end-to-end pass on
-> `tests/api/packages-v2.api.test.ts` plus 12/15 of
-> `tests/api/assignment.api.test.ts` (including every new-logic test; the
-> 3 failures there cascaded from one transient connection hiccup, not a
-> real bug). Payments now auto-succeed on initiation rather than staying
+> Current through DR-080 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-080 is a live production incident fix** — DR-079 (guide
+> mandatory) crashed real staff traffic within ~2 hours of deploy (a
+> pre-existing guide/org validation edge case that used to be avoidable by
+> leaving guide blank, now uncaught by `createAssignmentAction`'s
+> 409-only error handling); root-caused directly against production via an
+> authenticated `vercel logs` session, now fixed to catch every `ApiError`
+> generically. **Two things flagged for human follow-up, not yet
+> resolved**: (1) *why* an org-scoped-eligible guide can still fail
+> `createAssignment`'s own org check is still open — likely `User
+> .organizationId` drifting from `GuideProfile`'s own org under DR-026's
+> multi-membership model, needs confirming against the real account before
+> touching that validation logic; (2) this sandbox's own `DATABASE_URL` does
+> not appear to point at the same database serving production (seeded
+> primary org shows zero departures locally despite the crashing one being
+> real in production logs) — this may explain some of this session's earlier
+> "DB-backed test couldn't get a clean run" notes beyond pure Neon latency,
+> worth the human confirming which DB this sandbox actually targets.
+> **Process gap this session**: CI was red on every push and never checked
+> until this incident (`gh run list`) — CLAUDE.md's own "CI is the source of
+> truth" rule wasn't followed; one real CI-caught bug (DR-076's
+> `getDepartureTripSummaryForBookingLookup` resolving the wrong org via
+> `getPrimaryOrgId()` instead of taking `organizationId` as a parameter like
+> its siblings) was fixed alongside DR-080. Payments now auto-succeed on initiation rather than staying
 > staff-`PENDING` (DR-074, stub-gateway only, OI-01);
 > `countryOfResidence`/`citizenship` are mandatory on a `TAILOR_MADE`
 > request (DR-075); Find My Booking shows real trip/price/add-on detail
