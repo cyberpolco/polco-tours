@@ -117,7 +117,16 @@ export function SearchableSelect({
           'w-full rounded-survey border border-rule px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/60'
         }
       />
-      {open && (
+      {/* Only render the absolutely-positioned overlay when it has something
+          operable in it -- it's taken out of document flow (`absolute`), so
+          whatever follows the field in the form (often a submit button) is
+          never pushed down to make room for it, and a real user's click
+          lands on whatever's topmost at that point, not what's underneath.
+          An empty-of-options overlay left open has nothing to offer and
+          nothing to lose by not blocking the page -- render the "no
+          matches" hint as plain inline text instead, which doesn't overlap
+          anything. */}
+      {open && (emptyLabel || filtered.length > 0) && (
         <ul
           id={listId}
           role="listbox"
@@ -135,7 +144,6 @@ export function SearchableSelect({
               </button>
             </li>
           )}
-          {filtered.length === 0 && <li className="px-3 py-2 text-sm text-mist">No matches</li>}
           {filtered.map((o) => (
             <li key={o.value} role="option" aria-selected={o.value === selectedValue}>
               <button
@@ -151,6 +159,7 @@ export function SearchableSelect({
           ))}
         </ul>
       )}
+      {open && !emptyLabel && filtered.length === 0 && <p className="mt-1 text-sm text-mist">No matches</p>}
     </div>
   );
 }
