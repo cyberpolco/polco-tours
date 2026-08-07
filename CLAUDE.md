@@ -19,69 +19,25 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Last updated: 2026-08-06, HEAD `f82e1df` (+ a follow-on UI/i18n-only
-> pass, no DR-007 trigger: a bilingual sitewide `MaintenanceBanner`
-> (`src/app/(guest)/maintenance-banner.tsx`) now renders above the header
-> on every guest page while the site is mid-rebuild — pure announcement,
-> nothing gated behind it). Prior pass, same "no DR-007 trigger"
-> precedent: `/gallery` picture tiles now open an
-> in-page lightbox on click instead of navigating to `/plan-my-trip` — the
-> destination name/flag stays a real `Link` there, only the picture itself
-> changed (new `src/app/(guest)/gallery/gallery-grid.tsx`, split out of
-> `page.tsx` since a click handler needs a client component); the guest
-> footer's "Cyber PolCo" credit is now a real link to
-> `https://www.cyberpolco.com` (bold, no underline, amber on hover); the
-> footer tagline changed to "Tourism OS for Mufasa Safaris and Tours
-> powered by Cyber PolCo"; and the homepage map's DRC area figure
-> (`src/lib/country-facts.ts`) corrected to `~2,345,410 km²`). An earlier,
-> separate pass over the guest site: `BackLink`/`BackAction` redesigned as an on-theme
-> pill chip, the guest container widened `max-w-5xl`→`max-w-7xl` to sit
-> closer to the staff dashboard's scale, a mobile hamburger nav +
-> responsive padding/wizard-grid/map-height fixes, and a homepage
-> perceived-performance pass — `getPrimaryOrgId` deduped via React
-> `cache()`, `TrustSummary` streamed behind `Suspense`, `loading.tsx`
-> skeletons on `/` and `/packages`, `AfricaMap` deferred via
-> `next/dynamic`. None of that needed a DR entry, same "UI/perf-only, no
-> DR-007 trigger" precedent as DR-070. DR-071 builds the `content` module
-> around the `SiteContent`/`FaqEntry` tables DR-042 left as an unused
-> scaffold — SUPERADMIN-only About/FAQ CRUD at `/staff/content`, a
-> `locale` column on both tables (real French, not a literal
-> translation), a new `access: 'public'` Vercel Blob upload variant + one
-> matching `next.config.mjs` `remotePatterns` entry, and the guest
-> `/about`/`/faq` pages now read through it. **DR-071's schema push,
-> `db:seed` re-run, and its one DB-backed test still haven't been applied
-> to the shared Neon DB** — the sandbox that authored it had no outbound
-> network path to the Neon pooler at all — so treat the `content` module
-> as code-complete but not yet verified end-to-end until that happens.
-> **DR-072 (this session) fixes sign-in hanging on a newly-added
-> production custom domain, `mufasasafaris.com`** — root cause was
-> `src/lib/auth-client.ts` hardcoding `NEXT_PUBLIC_APP_URL` (a Next.js
-> public env var baked into the client bundle at *build* time) as the
-> auth client's `baseURL`, so every domain other than whichever one was
-> live when the app was last built was making a cross-origin, silently-
-> blocked sign-in call. Fixed by dropping the explicit `baseURL` (falls
-> back to `window.location.origin`, correct for any number of domains
-> going forward) and adding the new domain to `trustedOrigins` in
-> `src/lib/auth.ts`. **This app is currently live in production on two
-> real domains — `polco-tours.vercel.app` and
-> `mufasasafaris.com`/`www.mufasasafaris.com` — while `polcotours.com`,
-> the brand domain this file otherwise documents, does not resolve at
-> all yet** (consistent with OI-02, trademark clearance still open); this
-> was a config bug, not a rebrand — see Brand line below and DR-072.
-> **DR-073 (this session) puts the app's first-ever real, licensed
-> destination photography on the homepage hero** — three licensed stock
-> photos (Sossusvlei/Namibia, Virunga/DRC, Victoria Falls/Zambia+Zimbabwe),
-> one per existing `HeroCarousel` slide, sourced by the founder. New
-> `public/images/hero/` convention (the first file ever placed under
-> `public/` in this repo — local static assets there need no
-> `next.config.mjs` `remotePatterns` entry). `HeroSlide.gradient` is now a
-> translucent left-to-right scrim over a `next/image` layer instead of an
-> opaque background, so each destination's existing brand-color mood
-> stays intact while the photo reads through. Advances but doesn't close
-> OI-12 — `TourPackage.imageUrl`/`/gallery` still have no real photos; see
-> Open Items. Decision log current through DR-073. Both Upstash
-> integrations (Redis rate limiting, QStash scheduled jobs) are live in
-> production — see Open Items.
+> Current through DR-075 — see `docs/decisions/DECISION_LOG.md` for full
+> history. Two open verification gaps, both traced to the same cause (this
+> sandbox's connection to the Neon pooler is intermittent, not fully down):
+> DR-071's `content` module schema push/`db:seed` re-run/DB-backed test
+> (never got a working connection at all this session), and DR-074/075's
+> updated `tests/api/invoices.api.test.ts`/`tests/api/bookings-v2.api.test.ts`
+> (partially verified -- a run where connectivity held confirmed the actual
+> new behavior server-side: DEPOSIT/BALANCE payments auto-succeed, the
+> invoice reaches PARTIALLY_PAID/PAID, re-initiating an already-succeeded
+> leg 409s, and DR-075's mandatory fields persist end-to-end; no single run
+> has stayed connected long enough to finish clean start-to-end, so CI or a
+> later local run is still the one remaining confirmation step). `lint`/
+> `typecheck` are clean for both. **DR-074**: guest/staff payment initiation
+> now auto-succeeds instead of leaving a `PENDING` payment for staff to
+> resolve by hand — deliberately supersedes DR-012's anti-fraud rule for as
+> long as DPO stays stubbed (OI-01); revisit once a real DPO integration
+> lands. **DR-075**: `countryOfResidence`/`citizenship` are now mandatory
+> (not optional) on a `TAILOR_MADE` request, in both the guest and staff
+> plan-my-trip wizards.
 
 ---
 
@@ -349,70 +305,11 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 
 ## Domain & regulatory context (Namibia, DRC, Zambia & Zimbabwe)
 
-Why the app is shaped the way it is — and the real-world rules any feature
-touching operators, vehicles, guides, visas, or destinations must respect.
-**All figures are effective-dated and change often; never hardcode them —
-verify against NTB/MEFT (Namibia), ICCN/Ministry of Tourism (DRC), and the
-relevant Zambia/Zimbabwe authorities/embassies. Treat this as orientation,
-not legal ground truth.**
-
-**Four regimes, one platform.** Namibia, the DRC, Zambia, and Zimbabwe have
-very different tourism governance. This is the reason for per-country tax,
-per-country operator compliance (BR-12), country-scoped visa applications
-(`VisaApplication.country`), EN/FR bilingual content, and packages priced in
-one of four currencies with **no FX conversion anywhere**.
-
-**Country Regulations (`immigration` module) is the structured source of
-truth going forward** for visa requirements, required documents, processing
-times, entry conditions, immigration fees, embassy details, health
-requirements, travel advisories, and special restrictions, one row per
-country — staff-editable at `/staff/country-regulations`
-(`SUPERADMIN`-only write). The bullets below are general-knowledge starting
-points, not verified against each country's actual immigration authority —
-correct them in the UI, not by hand-editing this file or `seed.ts`.
-
-- **Namibia — operator & fleet compliance (feeds `fleet`/`documents`).**
-  Operators register with the **Namibia Tourism Board (NTB)** (Act 21/2000):
-  NTB licence + **BIPA** Certificate to Commence Business + **NamRA** tax
-  registration + public/passenger liability insurance. Vehicles need
-  roadworthiness certificates, company name on both sides, fire extinguisher
-  + first-aid kit, and an **NTB inspection disc**; drivers carrying paying
-  passengers need a **Professional Driving Permit (PDP)**. Foreign guides
-  need a work permit. → These map directly to the compliance `Document`
-  kinds the fleet module tracks (registration, insurance, inspection,
-  licence) and their `expiresAt`.
-- **Namibia — visas (feeds `visa`).** The regime changed in 2025: 33
-  previously visa-exempt nationalities (incl. US/UK/EU/Canada/Australia) now
-  need an e-visa / visa-on-arrival. Rules shifted **twice** in 2025 — model
-  visa requirements as effective-dated data, never a hardcoded nationality list.
-- **DRC — no central tourism board (feeds `fleet`/`visa`/BR-12).** Operators
-  navigate several bodies: **DARA** business licence + **DGI** tax
-  registration + **ICCN** authorization for any park operation + a Ministry
-  of Tourism Competence Certificate; foreign operators must work through a
-  licensed local **DMC**; immigration is **DGM**. Parks (Virunga,
-  Kahuzi-Biéga, Salonga…) are ICCN-managed; gorilla permits run through ICCN
-  / the Virunga Foundation.
-- **DRC — security zones (BR-07, a hard product rule).** Eastern DRC is under
-  active conflict. Zone posture (2025): Kinshasa & western DRC generally
-  accessible; Congo River basin accessible with experienced operators;
-  **North Kivu (incl. Virunga) high-risk / specialist only**; **South Kivu
-  elevated**; **Ituri — do not operate**; **Kasai — elevated**. Any booking
-  into a flagged province must carry a current security assessment and show
-  a mandatory advisory to the traveler; the platform may block sales per
-  admin policy. **Not yet implemented in code** — departures have no
-  location/region field yet; this is where BR-07 gets enforced once they do.
-- **Guest health/logistics (for briefings, not yet modeled).** Malaria risk in
-  northern Namibia (Etosha/Caprivi/Kavango) and much of the DRC; yellow-fever
-  proof if arriving from an endemic country; gorilla trekking has strict rules
-  (accredited local guide, ~8/group, 7 m distance, no flash, sick visitors may
-  not trek).
-
-**Implication for engineering:** compliance data is documents-with-expiry, not
-free text; visa and immigration flows are country-scoped; destination risk is
-a first-class booking concern once departures carry a region. If you're
-building anything in `fleet`, `visa`, `catalog` (destinations), or booking
-eligibility, re-read this section and prefer configurable/effective-dated
-data over constants.
+Operator/fleet compliance, visa rules, DRC security zones (BR-07), and guest
+health/logistics context — moved to the `regional-compliance` skill
+(`.claude/skills/regional-compliance/SKILL.md`). Load it (or read the file
+directly) whenever working on `fleet`, `visa`, `catalog` (destinations),
+`immigration`, or booking-eligibility features.
 
 ---
 

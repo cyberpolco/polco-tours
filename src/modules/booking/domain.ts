@@ -157,8 +157,8 @@ export const CreateTailorMadeInput = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
   preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
-  countryOfResidence: z.string().length(2).optional(),
-  citizenship: z.string().length(2).optional(),
+  countryOfResidence: z.string().length(2),
+  citizenship: z.string().length(2),
 });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 

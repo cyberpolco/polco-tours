@@ -17,8 +17,10 @@ export const GET = withAuth<Params>('invoice.read', async (ctx, _req, { invoiceI
 });
 
 // DPO is stubbed this increment (OI-01 still open) -- this returns a fake
-// redirect and a PENDING payment; a staff-only /resolve action stands in
-// for what will become DPO's webhook.
+// redirect and an already-SUCCEEDED payment (DR-074: no real webhook to
+// wait for yet, so invoicingService auto-resolves it immediately). The
+// staff-only /resolve action still exists as a manual override for a
+// payment that's PENDING for some other reason.
 export const POST = withAuth<Params>('payment.initiate', async (ctx, req: NextRequest, { invoiceId }) => {
   const { kind } = InitiatePaymentInput.parse(await req.json());
   const { payment, redirectUrl } = await invoicingService.initiatePayment(ctx, invoiceId, kind);

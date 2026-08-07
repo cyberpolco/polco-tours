@@ -273,6 +273,8 @@ describe('booking domain', () => {
       email: 'guest@example.test',
       firstName: 'Guest',
       lastName: 'Traveler',
+      countryOfResidence: 'US',
+      citizenship: 'GB',
     };
 
     it('accepts preferredTags/preferredSites as optional arrays', () => {
@@ -330,25 +332,38 @@ describe('booking domain', () => {
       expect(result.success).toBe(false);
     });
 
-    // DR-048: description is now optional; add-ons + residence/citizenship
-    // are new optional staff-context fields.
+    // DR-048: description is now optional; add-ons remain an optional
+    // staff-context field.
     it('accepts the input with no customDescription at all', () => {
       const { customDescription: _customDescription, ...withoutDescription } = base;
       expect(CreateTailorMadeInput.safeParse(withoutDescription).success).toBe(true);
     });
 
-    it('accepts preferredAddons/countryOfResidence/citizenship as optional', () => {
+    it('accepts preferredAddons as optional', () => {
       const result = CreateTailorMadeInput.safeParse({
         ...base,
         preferredAddons: ['PHOTOGRAPHY', 'VISA_ASSISTANCE'],
-        countryOfResidence: 'US',
-        citizenship: 'GB',
       });
       expect(result.success).toBe(true);
     });
 
     it('rejects a preferredAddons value outside the known AddonCode vocabulary', () => {
       const result = CreateTailorMadeInput.safeParse({ ...base, preferredAddons: ['NOT_A_REAL_ADDON'] });
+      expect(result.success).toBe(false);
+    });
+
+    // DR-075: mandatory, not optional -- previously guests could skip
+    // straight past residence/citizenship ("Prefer not to say"), leaving
+    // staff with nothing to scope visa assistance from.
+    it('rejects a missing countryOfResidence', () => {
+      const { countryOfResidence: _countryOfResidence, ...withoutResidence } = base;
+      const result = CreateTailorMadeInput.safeParse(withoutResidence);
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a missing citizenship', () => {
+      const { citizenship: _citizenship, ...withoutCitizenship } = base;
+      const result = CreateTailorMadeInput.safeParse(withoutCitizenship);
       expect(result.success).toBe(false);
     });
   });

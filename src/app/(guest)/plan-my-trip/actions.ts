@@ -18,8 +18,8 @@ export interface CreatePlanMyTripPayload {
   preferredSites: string[];
   customDescription?: string; // optional (DR-048)
   preferredAddons?: string[];
-  countryOfResidence?: string;
-  citizenship?: string;
+  countryOfResidence: string;
+  citizenship: string;
   specialRequests?: string;
   firstName: string;
   lastName: string;
@@ -70,8 +70,8 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       firstName: payload.firstName.trim(),
       lastName: payload.lastName.trim(),
       preferredAddons: payload.preferredAddons,
-      countryOfResidence: payload.countryOfResidence?.trim().toUpperCase() || undefined,
-      citizenship: payload.citizenship?.trim().toUpperCase() || undefined,
+      countryOfResidence: payload.countryOfResidence.trim().toUpperCase(),
+      citizenship: payload.citizenship.trim().toUpperCase(),
     });
     // Confirmation email language follows the guest's own site-wide locale
     // cookie (DR-023) -- notifications' Locale enum is uppercase ('EN'/'FR'),

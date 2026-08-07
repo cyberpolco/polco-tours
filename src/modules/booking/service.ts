@@ -9,7 +9,7 @@ import { Errors } from '@lib/errors';
 import { add, money, scale, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
-import { assertCan } from '@lib/rbac';
+import { assertCan, can } from '@lib/rbac';
 import {
   canAddTraveler,
   computeAvailability,
@@ -467,9 +467,17 @@ export const bookingService = {
    * keeps the module boundary intact (invoicing never writes Booking.status
    * directly). DEPOSIT stays AWAITING_DEPOSIT -> DEPOSIT_PAID; BALANCE/FULL
    * both land on FULLY_PAID (BALANCE only ever follows an already-paid
-   * deposit). Staff-gated -- same actor as payment.resolve itself. */
+   * deposit). Reached either by staff resolving a payment, or (DR-074) by a
+   * tourist's own payment auto-succeeding through the stub gateway. */
   async recordPaymentReceived(ctx: AuthContext, bookingId: string, kind: PaymentKind): Promise<BookingView> {
-    assertCan(ctx, 'booking.confirm');
+    // Staff resolving a payment (`booking.confirm`) or a tourist's own
+    // payment auto-succeeding through the stub gateway (`payment.initiate`,
+    // DR-074) -- invoicingService.initiatePayment already re-checked
+    // invoice/booking ownership before ever reaching here, so no further
+    // ownership check is needed on this path.
+    if (!can(ctx, 'booking.confirm') && !can(ctx, 'payment.initiate')) {
+      throw Errors.forbidden('Not permitted to record a payment on this booking');
+    }
     const organizationId = requireOrg(ctx);
     const to = kind === 'DEPOSIT' ? 'DEPOSIT_PAID' : 'FULLY_PAID';
     const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, to));

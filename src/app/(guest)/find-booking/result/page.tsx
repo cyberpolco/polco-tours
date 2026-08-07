@@ -278,12 +278,6 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
           </div>
         </Reveal>
       )}
-
-      <p className="mt-6 text-sm text-mist">
-        {isTailorMadeInquiry
-          ? 'To accept a quotation or make a change, sign back in on the device you requested from, or contact our team with your reference code above.'
-          : 'For payment or itinerary changes, contact our team with your reference code above.'}
-      </p>
     </div>
   );
 }

@@ -154,9 +154,12 @@ export default async function BookingHomePage({ params }: Props) {
             (setAddons has no status gate) -- the invoice snapshot below is
             frozen at creation regardless, so hiding this once a payment has
             actually succeeded avoids inviting an edit that can no longer
-            affect what was billed. */}
-        {booking.status === 'AWAITING_DEPOSIT' && (
+            affect what was billed. Once setup is no longer reviewable, the
+            chip transforms into a "return home" link instead of disappearing. */}
+        {booking.status === 'AWAITING_DEPOSIT' ? (
           <BackLink href={`/booking/${bookingId}/addons`}>review setup details</BackLink>
+        ) : (
+          <BackLink href="/">return home</BackLink>
         )}
         <p className="eyebrow mt-4 text-mist">Your booking</p>
         <p className="mt-2 text-xs uppercase tracking-wide text-mist">Your booking reference</p>

@@ -90,7 +90,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
     true, // preferences (tags) -- optional
     true, // sites -- optional
     true, // your trip (description) -- optional (DR-048)
-    true, // add-ons + residence/citizenship -- optional
+    countryOfResidence !== '' && citizenship !== '', // add-ons -- optional; residence/citizenship required
     true, // special requests -- optional
     firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' && localNumber.trim() !== '',
   ][step];
@@ -128,8 +128,8 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
         preferredSites: sites,
         customDescription: customDescription || undefined,
         preferredAddons,
-        countryOfResidence: countryOfResidence || undefined,
-        citizenship: citizenship || undefined,
+        countryOfResidence,
+        citizenship,
         specialRequests: specialRequests || undefined,
         firstName,
         lastName,
@@ -272,9 +272,11 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               ))}
             </div>
           </div>
-          <FormField label="Country of residence" htmlFor="countryOfResidence" optional>
-            <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)}>
-              <option value="">Prefer not to say</option>
+          <FormField label="Country of residence" htmlFor="countryOfResidence">
+            <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)} required>
+              <option value="" disabled>
+                Select a country
+              </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
@@ -282,9 +284,11 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               ))}
             </Select>
           </FormField>
-          <FormField label="Citizenship" htmlFor="citizenship" optional>
-            <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)}>
-              <option value="">Prefer not to say</option>
+          <FormField label="Citizenship" htmlFor="citizenship">
+            <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)} required>
+              <option value="" disabled>
+                Select a country
+              </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
@@ -292,11 +296,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               ))}
             </Select>
           </FormField>
-          {preferredAddons.includes('VISA_ASSISTANCE') && (
-            <p className="text-xs text-mist">
-              Sharing your residence/citizenship helps our team scope visa assistance accurately.
-            </p>
-          )}
+          <p className="text-xs text-mist">Your residence/citizenship helps our team scope visa assistance accurately.</p>
         </div>
       )}
 

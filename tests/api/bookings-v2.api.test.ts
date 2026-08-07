@@ -82,6 +82,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelEnd: '2027-01-15',
       seats: 2,
       customDescription: 'A private Etosha + Sossusvlei combo, 6 days.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -117,6 +119,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelStart: '2027-03-10',
       customTravelEnd: '2027-03-17',
       seats: 3,
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     notificationSendMock.mockClear();
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
@@ -156,6 +160,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelStart: '2027-08-01',
       customTravelEnd: '2027-08-05',
       seats: 1,
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     notificationSendMock.mockClear();
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
@@ -184,6 +190,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customDescription: 'A wildlife-focused trip.',
       preferredTags: ['WILDLIFE', 'ADVENTURE'],
       preferredSites: ['Etosha National Park', 'Sossusvlei'],
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -205,6 +213,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelEnd: '2027-03-10',
       seats: 2,
       customDescription: 'A multi-country Southern Africa combo.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -227,6 +237,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelEnd: '2027-04-05',
       seats: 1,
       customDescription: 'A Congo River trip.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -246,6 +258,8 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customTravelStart: '2027-05-01',
       customTravelEnd: '2027-05-05',
       seats: 1,
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -253,8 +267,10 @@ describe('POST /api/v1/bookings/tailor-made', () => {
     expect(body.booking.customDescription).toBeNull();
   }, 30_000);
 
-  // DR-048: add-ons + residence/citizenship are new optional staff context,
-  // same tier as preferredTags/preferredSites/preferredCountries.
+  // DR-048: add-ons are optional staff context, same tier as
+  // preferredTags/preferredSites/preferredCountries. countryOfResidence/
+  // citizenship are mandatory (DR-075) -- covered by every fixture request
+  // in this file; this test only checks that non-default values persist.
   it('persists preferredAddons/countryOfResidence/citizenship when the guest picks some', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('http://localhost/api/v1/bookings/tailor-made', headers, {
@@ -292,6 +308,8 @@ describe('quotation send -> accept -> refund lifecycle', () => {
       customTravelEnd: '2027-02-05',
       seats: 1,
       customDescription: 'Lifecycle fixture.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     bookingId = (await res.json()).booking.id;
@@ -405,6 +423,8 @@ describe('staff can accept a quotation on the client\'s behalf', () => {
       customTravelEnd: '2027-07-05',
       seats: 1,
       customDescription: 'Staff-accept fixture.',
+      countryOfResidence: 'US',
+      citizenship: 'US',
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     bookingId = (await res.json()).booking.id;

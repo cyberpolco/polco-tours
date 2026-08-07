@@ -25,6 +25,51 @@ function isStaff(ctx: AuthContext): boolean {
   return !ctx.roles.includes('TOURIST');
 }
 
+/** Shared by `initiatePayment`'s auto-succeed step and `resolvePayment` --
+ * the actual status-flipping + booking/notification side effects, with no
+ * permission check of its own (each caller asserts its own permission
+ * first). DR-074: until a real DPO integration lands (OI-01), the stub
+ * gateway has no async webhook to wait for, so `initiatePayment` calls this
+ * with 'SUCCEEDED' immediately instead of leaving the payment PENDING for
+ * staff to resolve by hand. This deliberately supersedes DR-012's
+ * "tourist can't self-resolve their own payment" fraud rule for the
+ * duration of the stub -- safe only because no real money moves yet;
+ * revisit (require staff/webhook resolution again) when DPO is real. */
+async function applyPaymentOutcome(
+  ctx: AuthContext,
+  organizationId: string,
+  paymentId: string,
+  outcome: Extract<PaymentStatus, 'SUCCEEDED' | 'FAILED'>,
+): Promise<{ payment: PaymentView; invoice: InvoiceView }> {
+  const result = await invoicingRepository.resolvePayment(organizationId, paymentId, outcome);
+  if (!result) throw Errors.notFound('Payment not found');
+
+  await audit({
+    actorUserId: ctx.userId,
+    actorRole: ctx.roles[0],
+    action: outcome === 'SUCCEEDED' ? 'payment.succeeded' : 'payment.failed',
+    resourceType: 'Payment',
+    resourceId: result.payment.id,
+    organizationId,
+  });
+  if (outcome === 'SUCCEEDED') {
+    // Cross-module call through booking's public interface only (module
+    // boundary rule) -- moves the booking to DEPOSIT_PAID/FULLY_PAID so
+    // its status reflects the payment without invoicing ever writing
+    // Booking.status directly.
+    await bookingService.recordPaymentReceived(ctx, result.invoice.bookingId, result.payment.kind);
+  }
+  await notificationsService.notify(
+    outcome === 'SUCCEEDED' ? 'PAYMENT_SUCCEEDED' : 'PAYMENT_FAILED',
+    result.touristUserId,
+    organizationId,
+    { amountMinor: result.payment.amountMinor, currency: result.payment.currency },
+  );
+  // Rebuilt explicitly (not `return result`) -- touristUserId is only for
+  // notify() above, never part of this endpoint's response contract.
+  return { payment: result.payment, invoice: result.invoice };
+}
+
 export const invoicingService = {
   async getOrCreateInvoiceForBooking(ctx: AuthContext, bookingId: string): Promise<InvoiceView> {
     assertCan(ctx, 'invoice.read');
@@ -179,10 +224,19 @@ export const invoicingService = {
       resourceId: payment.id,
       organizationId,
     });
-    return { payment, redirectUrl };
+
+    // DR-074: no live DPO integration yet (OI-01), so the stub gateway has
+    // no async webhook to wait for -- auto-succeed immediately rather than
+    // leaving the payment PENDING for staff to resolve by hand. Revisit
+    // once a real DPO integration lands.
+    const resolved = await applyPaymentOutcome(ctx, organizationId, payment.id, 'SUCCEEDED');
+    return { payment: resolved.payment, redirectUrl };
   },
 
-  /** Staff-only: stands in for a future DPO webhook. */
+  /** Staff-only manual override -- since `initiatePayment` now auto-succeeds
+   * (DR-074), this only matters for a payment that's still PENDING for some
+   * other reason (e.g. predates DR-074, or the auto-succeed step above
+   * failed partway through). Stands in for a future real DPO webhook. */
   async resolvePayment(
     ctx: AuthContext,
     paymentId: string,
@@ -190,33 +244,6 @@ export const invoicingService = {
   ): Promise<{ payment: PaymentView; invoice: InvoiceView }> {
     assertCan(ctx, 'payment.resolve');
     const organizationId = requireOrg(ctx);
-
-    const result = await invoicingRepository.resolvePayment(organizationId, paymentId, outcome);
-    if (!result) throw Errors.notFound('Payment not found');
-
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: outcome === 'SUCCEEDED' ? 'payment.succeeded' : 'payment.failed',
-      resourceType: 'Payment',
-      resourceId: result.payment.id,
-      organizationId,
-    });
-    if (outcome === 'SUCCEEDED') {
-      // Cross-module call through booking's public interface only (module
-      // boundary rule) -- moves the booking to DEPOSIT_PAID/FULLY_PAID so
-      // its status reflects the payment without invoicing ever writing
-      // Booking.status directly.
-      await bookingService.recordPaymentReceived(ctx, result.invoice.bookingId, result.payment.kind);
-    }
-    await notificationsService.notify(
-      outcome === 'SUCCEEDED' ? 'PAYMENT_SUCCEEDED' : 'PAYMENT_FAILED',
-      result.touristUserId,
-      organizationId,
-      { amountMinor: result.payment.amountMinor, currency: result.payment.currency },
-    );
-    // Rebuilt explicitly (not `return result`) -- touristUserId is only for
-    // notify() above, never part of this endpoint's response contract.
-    return { payment: result.payment, invoice: result.invoice };
+    return applyPaymentOutcome(ctx, organizationId, paymentId, outcome);
   },
 };

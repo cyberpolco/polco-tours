@@ -211,20 +211,32 @@ describe('POST /api/v1/invoices/:invoiceId/payments', () => {
     expect(res.status).toBe(409);
   });
 
-  it('initiates the DEPOSIT leg (201, PENDING, fake redirect)', async () => {
+  // DR-074: no live DPO integration yet (OI-01), so invoicingService
+  // auto-resolves the payment to SUCCEEDED immediately instead of leaving
+  // it PENDING for staff to resolve by hand.
+  it('initiates and auto-succeeds the DEPOSIT leg (201) -- invoice moves to PARTIALLY_PAID', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceId}/payments`, headers, { kind: 'DEPOSIT' });
     const res = await initiatePayment(req, { params: Promise.resolve({ invoiceId }) });
     expect(res.status).toBe(201);
     const body = await res.json();
     depositPaymentId = body.payment.id;
-    expect(body.payment.status).toBe('PENDING');
+    expect(body.payment.status).toBe('SUCCEEDED');
     expect(body.payment.kind).toBe('DEPOSIT');
     expect(body.payment.amountMinor).toBe(4400);
     expect(typeof body.redirectUrl).toBe('string');
+    // Proves the auto-succeed step's notify() call actually fired -- not a
+    // real network call (mocked at the top of this file).
+    expect(notificationSendMock).toHaveBeenCalled();
+
+    const invoiceHeaders = await loginAs(touristAId);
+    const invoiceReq = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice`, invoiceHeaders);
+    const invoiceRes = await getInvoice(invoiceReq, { params: Promise.resolve({ bookingId }) });
+    const invoiceBody = await invoiceRes.json();
+    expect(invoiceBody.invoice.status).toBe('PARTIALLY_PAID');
   });
 
-  it('rejects re-initiating DEPOSIT while one is already outstanding (409)', async () => {
+  it('rejects re-initiating DEPOSIT since it has already succeeded (409)', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceId}/payments`, headers, { kind: 'DEPOSIT' });
     const res = await initiatePayment(req, { params: Promise.resolve({ invoiceId }) });
@@ -233,7 +245,11 @@ describe('POST /api/v1/invoices/:invoiceId/payments', () => {
 });
 
 describe('POST /api/v1/payments/:paymentId/resolve', () => {
-  it('rejects a TOURIST resolving their own payment (403 -- staff only)', async () => {
+  // Kept as a manual-override safety net (e.g. a payment PENDING for some
+  // other reason) even though the golden path now auto-succeeds -- DR-012's
+  // fraud rule (a tourist can't self-resolve their own payment) still
+  // applies to this endpoint regardless of the payment's current status.
+  it('rejects a TOURIST resolving a payment (403 -- staff only)', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/payments/${depositPaymentId}/resolve`, headers, {
       outcome: 'SUCCEEDED',
@@ -242,51 +258,20 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     expect(res.status).toBe(403);
   });
 
-  it('staff resolves the deposit to SUCCEEDED -- invoice moves to PARTIALLY_PAID (200)', async () => {
-    const headers = await loginAs(operatorId);
-    const req = jsonRequest('POST', `http://localhost/api/v1/payments/${depositPaymentId}/resolve`, headers, {
-      outcome: 'SUCCEEDED',
-    });
-    const res = await resolvePayment(req, { params: Promise.resolve({ paymentId: depositPaymentId }) });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.payment.status).toBe('SUCCEEDED');
-    expect(body.invoice.status).toBe('PARTIALLY_PAID');
-    // touristUserId is resolved internally to notify the recipient (DR-013)
-    // but must never leak into this endpoint's response contract.
-    expect(body).not.toHaveProperty('touristUserId');
-
-    // notify() never blocks/fails this response either way (charter rule 8) --
-    // it always audits its own outcome (sent or every channel exhausted),
-    // regardless of whether real provider credentials are configured in this
-    // environment. audit_logs is RLS-protected (rls.sql) even for reads, so
-    // this must go through withOrg, not the raw admin client.
-    const notified = await withOrg(orgId, (tx) =>
-      tx.auditLog.findFirst({
-        where: { organizationId: orgId, action: { in: ['notification.sent', 'notification.failed'] }, resourceType: 'Notification' },
-      }),
-    );
-    expect(notified).not.toBeNull();
-    // Proves the mock actually intercepted this -- not a real network call.
-    expect(notificationSendMock).toHaveBeenCalled();
-  });
-
-  it('now allows initiating the BALANCE leg (201)', async () => {
+  it('initiates and auto-succeeds the BALANCE leg (201) -- invoice moves to PAID', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceId}/payments`, headers, { kind: 'BALANCE' });
     const res = await initiatePayment(req, { params: Promise.resolve({ invoiceId }) });
     expect(res.status).toBe(201);
     const body = await res.json();
+    expect(body.payment.status).toBe('SUCCEEDED');
     expect(body.payment.amountMinor).toBe(6600);
 
-    const resolveHeaders = await loginAs(operatorId);
-    const resolveReq = jsonRequest('POST', `http://localhost/api/v1/payments/${body.payment.id}/resolve`, resolveHeaders, {
-      outcome: 'SUCCEEDED',
-    });
-    const resolveRes = await resolvePayment(resolveReq, { params: Promise.resolve({ paymentId: body.payment.id }) });
-    expect(resolveRes.status).toBe(200);
-    const resolveBody = await resolveRes.json();
-    expect(resolveBody.invoice.status).toBe('PAID');
+    const invoiceHeaders = await loginAs(touristAId);
+    const invoiceReq = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice`, invoiceHeaders);
+    const invoiceRes = await getInvoice(invoiceReq, { params: Promise.resolve({ bookingId }) });
+    const invoiceBody = await invoiceRes.json();
+    expect(invoiceBody.invoice.status).toBe('PAID');
   });
 
   it('lists both payment attempts for the invoice (200)', async () => {
