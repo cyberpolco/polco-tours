@@ -57,6 +57,13 @@ export async function seedStaffWithDepartureAndFleet(): Promise<{
     await tx.driverProfile.create({
       data: { organizationId: org.id, userId: driverUser.id, licenseNumber: `DL-${suffix}`, status: 'ACTIVE' },
     });
+    // DR-078: the guide field is a SearchableSelect populated from
+    // recommendAssignment's eligible-guide list, which comes from
+    // GuideProfile rows -- a bare TOUR_GUIDE User with no profile never
+    // appears as a selectable option at all.
+    await tx.guideProfile.create({
+      data: { organizationId: org.id, userId: guide.id, status: 'ACTIVE' },
+    });
     return departure.id;
   });
 

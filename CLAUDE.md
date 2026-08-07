@@ -47,7 +47,13 @@ explicit decision to do so.
 > — one real CI-caught bug (DR-076's `getDepartureTripSummaryForBookingLookup`
 > resolving the wrong org via `getPrimaryOrgId()` instead of taking
 > `organizationId` as a parameter like its siblings) was fixed alongside.
-> Payments now auto-succeed on initiation rather than staying
+> Turning CI back on also surfaced two pre-existing e2e gaps, both fixed,
+> neither a DR-007 trigger (test-only, no production code changed):
+> `e2e/helpers/assignment-fixture.ts`'s guide fixture had no `GuideProfile`
+> row, so it could never appear as a selectable option in DR-078's
+> `SearchableSelect` picker; and `guest-checkout.spec.ts` had a bare
+> click-then-URL-assertion race already documented as a known gotcha below,
+> just never hit before. Payments now auto-succeed on initiation rather than staying
 > staff-`PENDING` (DR-074, stub-gateway only, OI-01);
 > `countryOfResidence`/`citizenship` are mandatory on a `TAILOR_MADE`
 > request (DR-075); Find My Booking shows real trip/price/add-on detail

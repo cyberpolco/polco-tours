@@ -43,9 +43,11 @@ test.describe('guest checkout (DR-016)', () => {
     // CI failure this exact ambiguity caused).
     await expect(page).toHaveURL(/\/addons$/);
     await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
-    await page.getByRole('button', { name: 'Continue' }).click();
+    // A bare click immediately followed by a non-navigation assertion can
+    // race and abort the navigation (documented CLAUDE.md gotcha) -- wait
+    // for the URL change alongside the click instead.
+    await Promise.all([page.waitForURL(/\/travelers\/new$/), page.getByRole('button', { name: 'Continue' }).click()]);
 
-    await expect(page).toHaveURL(/\/travelers\/new$/);
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();
     // Prefilled from "Your details" (book/[departureId]) -- same name/phone
     // typed there, so the tour lead doesn't retype it.
