@@ -19,30 +19,35 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-080 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-080 is a live production incident fix** — DR-079 (guide
-> mandatory) crashed real staff traffic within ~2 hours of deploy (a
-> pre-existing guide/org validation edge case that used to be avoidable by
-> leaving guide blank, now uncaught by `createAssignmentAction`'s
-> 409-only error handling); root-caused directly against production via an
-> authenticated `vercel logs` session, now fixed to catch every `ApiError`
-> generically. **Two things flagged for human follow-up, not yet
-> resolved**: (1) *why* an org-scoped-eligible guide can still fail
-> `createAssignment`'s own org check is still open — likely `User
-> .organizationId` drifting from `GuideProfile`'s own org under DR-026's
-> multi-membership model, needs confirming against the real account before
-> touching that validation logic; (2) this sandbox's own `DATABASE_URL` does
-> not appear to point at the same database serving production (seeded
-> primary org shows zero departures locally despite the crashing one being
-> real in production logs) — this may explain some of this session's earlier
-> "DB-backed test couldn't get a clean run" notes beyond pure Neon latency,
-> worth the human confirming which DB this sandbox actually targets.
-> **Process gap this session**: CI was red on every push and never checked
-> until this incident (`gh run list`) — CLAUDE.md's own "CI is the source of
-> truth" rule wasn't followed; one real CI-caught bug (DR-076's
-> `getDepartureTripSummaryForBookingLookup` resolving the wrong org via
-> `getPrimaryOrgId()` instead of taking `organizationId` as a parameter like
-> its siblings) was fixed alongside DR-080. Payments now auto-succeed on initiation rather than staying
+> Current through DR-081 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-080/081 are a live production incident, root-caused and
+> fixed this session**: DR-079 (guide mandatory) crashed real staff traffic
+> — `deactivateUser` (DR-026) only sets `User.deletedAt`, never cascading to
+> suspend that user's `GuideProfile`/`DriverProfile`, so a deactivated
+> guide's `ACTIVE` profile kept surfacing in `recommendAssignment`'s
+> eligible/recommended list; `createAssignment` then rejected them
+> (`authService.getUser` returns `null` for a deleted user), a 422 that
+> DR-079 made unavoidable (guide could no longer be left blank to route
+> around it) and that `createAssignmentAction`'s 409-only error handling
+> didn't catch, crashing instead of showing a message. Confirmed directly
+> against real production data (`vercel logs` for the crash, `withOrg`-
+> scoped queries for the guide/user rows) — DR-080's first hypothesis (an
+> org mismatch) was wrong and corrected in DR-081; **the sandbox's DB is
+> confirmed to be the real production database** (an earlier "zero
+> departures" reading was from querying without `withOrg`, silently denied
+> by deny-by-default RLS, not a different database). Fixed at both layers:
+> `createAssignmentAction` catches every `ApiError` now, and
+> `recommendAssignment`'s guide loop re-validates each candidate's
+> underlying user the same way `createAssignment` does, so the picker can't
+> offer what the service will refuse. **Not yet decided**: whether
+> `deactivateUser` should itself cascade to suspend `DriverProfile`/
+> `GuideProfile` (would fix this at the data layer for good; the analogous
+> driver-side gap is flagged but not yet fixed). **Process gap owned**: CI
+> was red on every push this session and never checked until this incident
+> — one real CI-caught bug (DR-076's `getDepartureTripSummaryForBookingLookup`
+> resolving the wrong org via `getPrimaryOrgId()` instead of taking
+> `organizationId` as a parameter like its siblings) was fixed alongside.
+> Payments now auto-succeed on initiation rather than staying
 > staff-`PENDING` (DR-074, stub-gateway only, OI-01);
 > `countryOfResidence`/`citizenship` are mandatory on a `TAILOR_MADE`
 > request (DR-075); Find My Booking shows real trip/price/add-on detail

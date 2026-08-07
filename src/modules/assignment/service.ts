@@ -181,9 +181,18 @@ export const assignmentService = {
     // from ranking, same as how driver ranking only ever sees profiled
     // drivers). Assignment.guideUserId references User directly, so
     // otherDepartureIds is resolved by guideProfile.userId, not its own id.
+    // DR-081 incident fix: GuideProfile.status has no cascade when its
+    // underlying User is soft-deleted (deactivateUser only sets
+    // User.deletedAt, nothing touches GuideProfile) -- an ACTIVE profile
+    // can point at a deleted user. createAssignment's own validation
+    // (authService.getUser returning null for a deleted user) already
+    // rejects that combination; re-check it here too so the recommendation
+    // never offers a candidate the service will then refuse.
     const eligibleGuides: GuideProfileView[] = [];
     for (const guideProfile of allGuides) {
       if (guideProfile.status !== 'ACTIVE') continue;
+      const guideUser = await authService.getUser(guideProfile.userId);
+      if (!guideUser || !guideUser.roles.includes('TOUR_GUIDE')) continue;
       const otherDepartureIds = (await assignmentRepository.listForGuide(organizationId, guideProfile.userId)).map(
         (a) => a.departureId,
       );

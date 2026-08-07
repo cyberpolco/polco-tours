@@ -101,6 +101,7 @@ afterAll(async () => {
     await withOrg(orgId, (tx) => tx.maintenanceRecord.deleteMany({ where: { organizationId: orgId } }));
     await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
     await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));
+    await withOrg(orgId, (tx) => tx.guideProfile.deleteMany({ where: { organizationId: orgId } }));
     await withOrg(orgId, (tx) => tx.driverProfile.deleteMany({ where: { organizationId: orgId } }));
     await withOrg(orgId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgId } }));
     await admin.user.deleteMany({ where: { organizationId: orgId } });
@@ -180,5 +181,30 @@ describe('fleet v2: maintenance records + Starlink kits (DR-029)', () => {
     expect(body.recommendedVehicleId).toBe(bigVehicleId);
     expect(body.recommendedDriverId).toBe(driverProfileId);
     expect(body.drivers.map((d: { id: string }) => d.id)).toContain(driverProfileId);
+  }, 30_000);
+
+  // DR-081 production incident: deactivateUser only sets User.deletedAt --
+  // nothing cascades to suspend a GuideProfile, so an ACTIVE GuideProfile
+  // can point at a deleted user. createAssignment already rejects that
+  // combination (authService.getUser returns null for a deleted user); this
+  // confirms recommendAssignment now excludes it too, so the picker never
+  // offers a candidate the service will then refuse.
+  it('excludes a guide whose ACTIVE GuideProfile points at a soft-deleted user', async () => {
+    const deletedGuideUser = await admin.user.create({
+      data: { email: `fleetv2-deleted-guide-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId },
+    });
+    await withOrg(orgId, (tx) =>
+      tx.guideProfile.create({ data: { organizationId: orgId, userId: deletedGuideUser.id, status: 'ACTIVE' } }),
+    );
+    await admin.user.update({ where: { id: deletedGuideUser.id }, data: { deletedAt: new Date() } });
+
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/departures/${departureId}/recommend-assignment`, { headers });
+    const res = await recommendAssignment(req, { params: Promise.resolve({ departureId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.guides.map((g: { userId: string }) => g.userId)).not.toContain(deletedGuideUser.id);
+    expect(body.recommendedGuideId).not.toBe(deletedGuideUser.id);
   }, 30_000);
 });
