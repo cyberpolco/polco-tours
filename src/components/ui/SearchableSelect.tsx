@@ -53,6 +53,7 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,6 +66,23 @@ export function SearchableSelect({
     inputRef.current?.setCustomValidity(selectedValue ? '' : 'Please select an option from the list.');
   }, [required, selectedValue]);
 
+  // The dropdown is absolutely positioned and can overlap page content below
+  // it (e.g. a submit button) -- relying on the input's own onBlur to close
+  // it isn't enough, since a click on an inert "No matches" row (or any
+  // non-focusable area) never moves focus, so the input never blurs and the
+  // dropdown stays open, permanently intercepting clicks underneath it.
+  // Standard combobox fix: also close on any click outside the component.
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [open]);
+
   function choose(option: SearchableOption | null) {
     setQuery(option?.label ?? '');
     setSelectedValue(option?.value ?? '');
@@ -72,7 +90,7 @@ export function SearchableSelect({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <input type="hidden" name={name} value={selectedValue} />
       <input
         ref={inputRef}
