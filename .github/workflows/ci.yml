@@ -142,8 +142,34 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: E2E tests
-        run: npm run test:e2e
+      # TEMP-DEBUG: investigating a persistent guest-checkout.spec.ts hang at
+      # the addons->travelers transition under this job's 2-worker
+      # concurrency. Playwright's own webServer teardown closes all DB
+      # connections by the time the step exits, so a dump *after* `npm run
+      # test:e2e` sees nothing -- this samples pg_stat_activity/pg_locks
+      # every 2s *during* the run instead, from a background poller, so
+      # whatever's actually stuck at the moment of the hang is on record.
+      # Remove this whole step once root-caused.
+      - name: E2E tests (with live Postgres activity sampling)
+        run: |
+          (
+            while true; do
+              echo "=== $(date -u +%H:%M:%S) ==="
+              PGPASSWORD=polco psql -h localhost -U polco -d polco_test -t -A -c "
+                SELECT pid, state, wait_event_type, wait_event, extract(epoch from (now()-query_start)), left(query,150)
+                FROM pg_stat_activity WHERE datname='polco_test' AND pid <> pg_backend_pid() AND state <> 'idle';
+              "
+              sleep 2
+            done
+          ) > /tmp/pg-activity.log 2>&1 &
+          POLLER_PID=$!
+          npm run test:e2e
+          TEST_EXIT=$?
+          kill "$POLLER_PID" 2>/dev/null || true
+          echo "::group::Postgres activity samples during the run (non-idle only, one block per 2s tick)"
+          cat /tmp/pg-activity.log
+          echo "::endgroup::"
+          exit $TEST_EXIT
 
   # Non-blocking scan surface; hardened further in Vol. 8 §8.6.
   security:
