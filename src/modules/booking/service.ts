@@ -518,6 +518,17 @@ export const bookingService = {
       : bookingRepository.listMine(organizationId, ctx.userId);
   },
 
+  /** Staff-only: every non-deleted booking for an arbitrary tourist, not
+   * just the caller's own -- backs the Clients directory's delete-guard
+   * (src/lib/client-deletion.ts). Same repository call listMine already
+   * uses for a tourist's self-service view, just for someone else's id. */
+  async listForTourist(ctx: AuthContext, touristUserId: string): Promise<BookingView[]> {
+    assertCan(ctx, 'booking.read');
+    if (!isStaff(ctx)) throw Errors.forbidden("Only staff may list another tourist's bookings");
+    const organizationId = requireOrg(ctx);
+    return bookingRepository.listMine(organizationId, touristUserId);
+  },
+
   async addTraveler(ctx: AuthContext, bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);

@@ -168,6 +168,8 @@ export interface SiteView {
   organizationId: string;
   name: string;
   country: string;
+  province: string;
+  city: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -175,6 +177,8 @@ export interface SiteView {
 export const CreateSiteInput = z.object({
   name: z.string().min(1).max(200),
   country: z.string().length(2),
+  province: z.string().min(1).max(100),
+  city: z.string().max(100).optional(),
 });
 export type CreateSiteInput = z.infer<typeof CreateSiteInput>;
 

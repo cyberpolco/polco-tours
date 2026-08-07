@@ -200,7 +200,11 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
         <SubmitButton>Save changes</SubmitButton>
       </form>
       <form action={deleteCountryRegulationAction.bind(null, regulation.country)}>
-        <SubmitButton variant="secondary" pendingLabel="Removing…">
+        <SubmitButton
+          variant="secondary"
+          pendingLabel="Removing…"
+          confirmMessage="Delete this country's regulations? This cannot be undone."
+        >
           Delete country
         </SubmitButton>
       </form>

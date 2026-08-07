@@ -15,7 +15,12 @@ interface Props {
 function DeleteButton({ action }: { action: () => Promise<void> }) {
   return (
     <form action={action}>
-      <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+      <SubmitButton
+        variant="secondary"
+        size="compact"
+        pendingLabel="Removing…"
+        confirmMessage="Remove this FAQ entry? This cannot be undone."
+      >
         Remove
       </SubmitButton>
     </form>

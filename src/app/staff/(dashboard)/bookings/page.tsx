@@ -117,7 +117,12 @@ export default async function BookingsPage({ searchParams }: Props) {
                         gate for rendering the control at all. */}
                     {ctx.roles.includes('SUPERADMIN') && (
                       <form action={deleteBookingAction.bind(null, b.id)}>
-                        <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                        <SubmitButton
+                          variant="secondary"
+                          size="compact"
+                          pendingLabel="Deleting…"
+                          confirmMessage={`Delete booking ${b.bookingReference}? This cannot be undone.`}
+                        >
                           Delete
                         </SubmitButton>
                       </form>

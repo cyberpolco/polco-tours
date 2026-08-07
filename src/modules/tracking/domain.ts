@@ -54,7 +54,13 @@ export function locationFreshness(lastLocationAt: Date | null, now: Date): Locat
 export interface FleetLocationView {
   vehicleId: string;
   plateNumber: string;
+  // Human-readable label (StarlinkKit.kitId, e.g. "KIT-001") -- display only.
   kitId: string | null;
+  // The kit's real row id -- what /staff/fleet/starlink-kits/[kitId] (a
+  // findStarlinkKitById lookup) actually needs. Named separately from
+  // `kitId` above so the two are never confused again (a past bug linked
+  // this page's "Update" button using the human label instead).
+  starlinkKitId: string | null;
   latitude: number | null;
   longitude: number | null;
   lastLocationAt: Date | null;

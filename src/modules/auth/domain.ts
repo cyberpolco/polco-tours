@@ -40,6 +40,7 @@ export interface PublicUser {
   deletedAt: Date | null; // DR-026: null = active, set = soft-deleted/deactivated
   mustChangePassword: boolean; // DR-026
   lastLoginAt: Date | null; // set via databaseHooks.session.create.after in lib/auth.ts
+  inactiveAt: Date | null; // DR-084: null = active, set = dormant (sign-in blocked until reactivated)
 }
 
 // E.164: optional leading +, 1-15 digits, first digit non-zero.
@@ -115,6 +116,20 @@ export function isSuperAdmin(roles: Role[]): boolean {
  * isSuperAdmin above. */
 export function isClientDirectoryViewer(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
+}
+
+// DR-084: user dormancy after 30 days without signing in (staff roles
+// only -- see authRepository.markDormantUsers for the TOURIST/SUPERADMIN
+// exclusions, which live at the query level since they're about *which*
+// users the sweep considers, not this pure threshold check itself).
+export const DORMANCY_THRESHOLD_DAYS = 30;
+
+/** `referenceDate` is lastLoginAt if the account has ever signed in, else
+ * createdAt -- an account created but never once logged into is exactly as
+ * dormant as one that logged in 30+ days ago and never came back. */
+export function isDormant(referenceDate: Date, now: Date): boolean {
+  const daysSinceActive = (now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceActive > DORMANCY_THRESHOLD_DAYS;
 }
 
 // Permission-matrix editor (DR-035). `role` reuses rbac.ts's EDITABLE_ROLES

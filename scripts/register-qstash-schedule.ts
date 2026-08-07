@@ -1,6 +1,7 @@
 // One-off/idempotent CLI to register the real QStash schedules that drive
 // this app's scheduled jobs (DR-067's booking-lifecycle sweep, DR-082's
-// fleet-availability inactivity sweep) -- creating a *schedule* (as opposed
+// fleet-availability inactivity sweep, DR-084's user-dormancy sweep) --
+// creating a *schedule* (as opposed
 // to the app's own signature-verification code) is an external Upstash
 // account action, not something expressible in application code, same
 // category as verifying a Resend sending domain (OI-05) or topping up the
@@ -28,6 +29,11 @@ const SCHEDULES = [
     scheduleId: 'polco-sweep-fleet-availability',
     path: '/api/jobs/sweep-fleet-availability',
     cron: '0 3 * * *', // once daily -- only ever catches a 60-day inactivity threshold, no need for tighter polling
+  },
+  {
+    scheduleId: 'polco-sweep-user-dormancy',
+    path: '/api/jobs/sweep-user-dormancy',
+    cron: '0 4 * * *', // once daily -- only ever catches a 30-day inactivity threshold
   },
 ];
 

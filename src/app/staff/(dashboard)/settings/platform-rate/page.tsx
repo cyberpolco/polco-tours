@@ -11,7 +11,12 @@ import { createPlatformRateAction, deletePlatformRateAction } from './actions';
 function DeleteButton({ action }: { action: () => Promise<void> }) {
   return (
     <form action={action}>
-      <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+      <SubmitButton
+        variant="secondary"
+        size="compact"
+        pendingLabel="Removing…"
+        confirmMessage="Remove this platform rate? This cannot be undone."
+      >
         Remove
       </SubmitButton>
     </form>

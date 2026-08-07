@@ -78,7 +78,12 @@ export default async function FleetPage() {
                           gate for rendering the control at all. */}
                       {ctx.roles.includes('SUPERADMIN') && (
                         <form action={deleteVehicleAction.bind(null, v.id)}>
-                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                          <SubmitButton
+                            variant="secondary"
+                            size="compact"
+                            pendingLabel="Deleting…"
+                            confirmMessage={`Delete vehicle ${v.plateNumber}? This cannot be undone.`}
+                          >
                             Delete
                           </SubmitButton>
                         </form>
@@ -130,7 +135,12 @@ export default async function FleetPage() {
                       </Link>
                       {ctx.roles.includes('SUPERADMIN') && (
                         <form action={deleteDriverProfileAction.bind(null, d.id)}>
-                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                          <SubmitButton
+                            variant="secondary"
+                            size="compact"
+                            pendingLabel="Deleting…"
+                            confirmMessage="Delete this driver profile? This cannot be undone."
+                          >
                             Delete
                           </SubmitButton>
                         </form>
@@ -184,7 +194,12 @@ export default async function FleetPage() {
                       </Link>
                       {ctx.roles.includes('SUPERADMIN') && (
                         <form action={deleteGuideProfileAction.bind(null, g.id)}>
-                          <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                          <SubmitButton
+                            variant="secondary"
+                            size="compact"
+                            pendingLabel="Deleting…"
+                            confirmMessage="Delete this guide profile? This cannot be undone."
+                          >
                             Delete
                           </SubmitButton>
                         </form>
@@ -238,7 +253,12 @@ export default async function FleetPage() {
                         </Link>
                         {ctx.roles.includes('SUPERADMIN') && (
                           <form action={deleteStarlinkKitAction.bind(null, k.id)}>
-                            <SubmitButton variant="secondary" size="compact" pendingLabel="Deleting…">
+                            <SubmitButton
+                              variant="secondary"
+                              size="compact"
+                              pendingLabel="Deleting…"
+                              confirmMessage={`Delete Starlink kit ${k.kitId}? This cannot be undone.`}
+                            >
                               Delete
                             </SubmitButton>
                           </form>

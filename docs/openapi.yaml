@@ -3424,21 +3424,27 @@ components:
         organizationId: { type: string, format: uuid }
         name: { type: string }
         country: { type: string, description: ISO-3166 alpha-2 }
+        province: { type: string }
+        city: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
     CreateSiteInput:
       type: object
-      required: [name, country]
+      required: [name, country, province]
       properties:
         name: { type: string, minLength: 1, maxLength: 200 }
         country: { type: string, minLength: 2, maxLength: 2 }
+        province: { type: string, minLength: 1, maxLength: 100 }
+        city: { type: string, maxLength: 100 }
 
     UpdateSiteInput:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 200 }
         country: { type: string, minLength: 2, maxLength: 2 }
+        province: { type: string, minLength: 1, maxLength: 100 }
+        city: { type: string, maxLength: 100 }
 
     CreateRestaurantInput:
       type: object

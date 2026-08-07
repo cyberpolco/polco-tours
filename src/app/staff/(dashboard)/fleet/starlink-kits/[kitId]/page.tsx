@@ -82,7 +82,7 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
         <div>
           <div className="survey-rule mb-6" />
           <form action={deleteStarlinkKitAction.bind(null, kitId)}>
-            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+            <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this Starlink kit? This cannot be undone.">
               Delete Starlink kit
             </SubmitButton>
           </form>

@@ -117,7 +117,7 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
         <div>
           <div className="survey-rule mb-6" />
           <form action={deleteGuideProfileAction.bind(null, guideProfileId)}>
-            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+            <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this guide profile? This cannot be undone.">
               Delete guide
             </SubmitButton>
           </form>

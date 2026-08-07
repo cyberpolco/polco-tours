@@ -36,6 +36,7 @@ export const trackingService = {
         vehicleId: kit.vehicleId ?? '',
         plateNumber: vehicle?.plateNumber ?? 'Unassigned',
         kitId: kit.kitId,
+        starlinkKitId: kit.id,
         latitude: kit.lastLatitude,
         longitude: kit.lastLongitude,
         lastLocationAt: kit.lastLocationAt,

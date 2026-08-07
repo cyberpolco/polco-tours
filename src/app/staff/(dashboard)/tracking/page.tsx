@@ -42,7 +42,7 @@ export default async function TrackingPage() {
             </thead>
             <tbody>
               {fleet.map((f) => (
-                <Tr key={f.kitId ?? f.vehicleId}>
+                <Tr key={f.starlinkKitId ?? f.vehicleId}>
                   <Td>{f.plateNumber}</Td>
                   <Td>{f.kitId}</Td>
                   <Td>{f.latitude != null && f.longitude != null ? `${f.latitude}, ${f.longitude}` : 'Not set'}</Td>
@@ -51,8 +51,8 @@ export default async function TrackingPage() {
                     <Badge tone={LOCATION_FRESHNESS_TONE[f.freshness]}>{f.freshness}</Badge>
                   </Td>
                   <Td>
-                    {f.kitId && (
-                      <Link href={`/staff/fleet/starlink-kits/${f.kitId}`} className="text-forest hover:underline">
+                    {f.starlinkKitId && (
+                      <Link href={`/staff/fleet/starlink-kits/${f.starlinkKitId}`} className="text-forest hover:underline">
                         Update
                       </Link>
                     )}

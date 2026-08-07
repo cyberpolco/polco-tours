@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
-import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { SETTINGS_ITEMS } from '../../settings-items';
+import { SidebarShell } from '../../sidebar-shell';
+import { SiteForm } from '../site-form';
 import { deleteSiteAction, updateSiteAction } from './actions';
 
 interface Props {
@@ -24,28 +24,21 @@ export default async function SiteDetailPage({ params }: Props) {
   }
 
   return (
-    <div className="max-w-md space-y-8">
-      <PageHeader eyebrow="Site" title={site.name} />
-      <form action={updateSiteAction.bind(null, siteId)} className="space-y-4">
-        <FormField label="Name" htmlFor="name">
-          <input name="name" defaultValue={site.name} required className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-        <FormField label="Country" htmlFor="country">
-          <Select name="country" defaultValue={site.country} required>
-            {COUNTRY_CODES.map((c) => (
-              <option key={c.alpha2} value={c.alpha2}>
-                {flagEmoji(c.alpha2)} {c.name}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <SubmitButton>Save changes</SubmitButton>
-      </form>
-      <form action={deleteSiteAction.bind(null, siteId)}>
-        <SubmitButton variant="secondary" pendingLabel="Removing…">
-          Delete site
-        </SubmitButton>
-      </form>
-    </div>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+      <div className="max-w-md space-y-8">
+        <PageHeader eyebrow="Site" title={site.name} />
+        <SiteForm
+          action={updateSiteAction.bind(null, siteId)}
+          defaultValues={{ name: site.name, country: site.country, province: site.province, city: site.city }}
+          submitLabel="Save changes"
+          pendingLabel="Saving…"
+        />
+        <form action={deleteSiteAction.bind(null, siteId)}>
+          <SubmitButton variant="secondary" pendingLabel="Removing…" confirmMessage="Delete this site? This cannot be undone.">
+            Delete site
+          </SubmitButton>
+        </form>
+      </div>
+    </SidebarShell>
   );
 }

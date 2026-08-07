@@ -122,7 +122,7 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
         <div>
           <div className="survey-rule mb-6" />
           <form action={deleteDriverProfileAction.bind(null, driverProfileId)}>
-            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+            <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this driver profile? This cannot be undone.">
               Delete driver
             </SubmitButton>
           </form>

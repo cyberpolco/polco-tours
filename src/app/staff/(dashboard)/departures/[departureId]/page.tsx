@@ -145,7 +145,12 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                     {guide && ` · Guide: ${guide.name ?? guide.email}`}
                   </span>
                   <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
-                    <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                    <SubmitButton
+                      variant="secondary"
+                      size="compact"
+                      pendingLabel="Removing…"
+                      confirmMessage="Remove this vehicle/driver/guide assignment from the departure?"
+                    >
                       Remove
                     </SubmitButton>
                   </form>

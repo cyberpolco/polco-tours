@@ -55,14 +55,14 @@ afterAll(async () => {
 describe('POST /api/v1/sites', () => {
   it('a TOURIST cannot create a site (403)', async () => {
     const headers = await loginAs(touristId);
-    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA' });
+    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA', province: 'Kunene' });
     const res = await createSite(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
   });
 
   it('an operator creates a site (201)', async () => {
     const headers = await loginAs(operatorId);
-    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA' });
+    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA', province: 'Kunene' });
     const res = await createSite(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -72,7 +72,7 @@ describe('POST /api/v1/sites', () => {
 
   it('rejects a duplicate (organizationId, country, name) (422/409)', async () => {
     const headers = await loginAs(operatorId);
-    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA' });
+    const req = jsonRequest('http://localhost/api/v1/sites', headers, 'POST', { name: 'Etosha Gate', country: 'NA', province: 'Kunene' });
     const res = await createSite(req, { params: Promise.resolve({}) });
     expect(res.status).toBeGreaterThanOrEqual(400);
   });

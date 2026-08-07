@@ -319,7 +319,11 @@ export default async function BookingDetailPage({ params }: Props) {
               bookingService.deleteBooking's own isBookingDeleter check. */}
           {ctx.roles.includes('SUPERADMIN') && (
             <form action={deleteBookingAction.bind(null, booking.id)}>
-              <SubmitButton variant="secondary" pendingLabel="Deleting…">
+              <SubmitButton
+                variant="secondary"
+                pendingLabel="Deleting…"
+                confirmMessage="Delete this booking? This cannot be undone."
+              >
                 Delete booking
               </SubmitButton>
             </form>

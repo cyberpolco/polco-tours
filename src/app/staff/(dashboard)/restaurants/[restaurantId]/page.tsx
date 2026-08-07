@@ -86,7 +86,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
       )}
       {canWrite && (
         <form action={deleteRestaurantAction.bind(null, restaurantId)}>
-          <SubmitButton variant="secondary" pendingLabel="Removing…">
+          <SubmitButton variant="secondary" pendingLabel="Removing…" confirmMessage="Delete this restaurant? This cannot be undone.">
             Delete restaurant
           </SubmitButton>
         </form>

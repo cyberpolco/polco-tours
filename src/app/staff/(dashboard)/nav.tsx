@@ -46,7 +46,6 @@ const LINKS: NavLink[] = [
     label: 'Restaurants',
     anyOfPermissions: ['itinerary.write', 'hotel_restaurant_rating.write'],
   },
-  { href: '/staff/sites', label: 'Sites', permission: 'itinerary.write' },
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
   { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },

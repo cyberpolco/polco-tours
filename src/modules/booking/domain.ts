@@ -137,29 +137,37 @@ export type CreateBookingWithDatesInput = z.infer<typeof CreateBookingWithDatesI
 // scoring input. `email` is booking-scoped contact info (Booking
 // .contactEmail), not a User.email change -- see that field's own comment
 // for why.
-export const CreateTailorMadeInput = z.object({
-  countries: z.array(z.string().length(2)).min(1),
-  customTravelStart: z.coerce.date(),
-  customTravelEnd: z.coerce.date(),
-  seats: z.number().int().positive(),
-  // Optional (DR-048, explicit user direction) -- staff already see
-  // country/dates/tags/sites/add-ons context; a free-text description is
-  // a nice-to-have, not required to submit an inquiry.
-  customDescription: z.string().max(2000).optional(),
-  touristUserId: z.string().uuid().optional(),
-  specialRequests: z.string().max(1000).optional(),
-  preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
-  preferredSites: z.array(z.string()).optional(),
-  email: z.string().email(),
-  // DR-057: required, not optional -- without a name captured here,
-  // /find-booking's last-name check has nothing to match against until
-  // the booking has a real Traveler manifest (post-quotation-acceptance).
-  firstName: z.string().min(1).max(100),
-  lastName: z.string().min(1).max(100),
-  preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
-  countryOfResidence: z.string().length(2),
-  citizenship: z.string().length(2),
-});
+export const CreateTailorMadeInput = z
+  .object({
+    countries: z.array(z.string().length(2)).min(1),
+    customTravelStart: z.coerce.date(),
+    customTravelEnd: z.coerce.date(),
+    seats: z.number().int().positive(),
+    // Optional (DR-048, explicit user direction) -- staff already see
+    // country/dates/tags/sites/add-ons context; a free-text description is
+    // a nice-to-have, not required to submit an inquiry.
+    customDescription: z.string().max(2000).optional(),
+    touristUserId: z.string().uuid().optional(),
+    specialRequests: z.string().max(1000).optional(),
+    preferredTags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+    preferredSites: z.array(z.string()).optional(),
+    email: z.string().email(),
+    // DR-057: required, not optional -- without a name captured here,
+    // /find-booking's last-name check has nothing to match against until
+    // the booking has a real Traveler manifest (post-quotation-acceptance).
+    firstName: z.string().min(1).max(100),
+    lastName: z.string().min(1).max(100),
+    preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
+    countryOfResidence: z.string().length(2),
+    citizenship: z.string().length(2),
+  })
+  // BUDGET and LUXURY are contradictory trip preferences -- the guest/staff
+  // forms already prevent selecting both client-side, this is the backend
+  // source of truth (charter rule: server validates, never trusts the UI).
+  .refine((v) => !(v.preferredTags?.includes('BUDGET') && v.preferredTags?.includes('LUXURY')), {
+    message: 'Budget and Luxury are mutually exclusive preferences -- pick one',
+    path: ['preferredTags'],
+  });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 
 export const SendQuotationInput = z.object({

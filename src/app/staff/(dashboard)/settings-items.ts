@@ -14,6 +14,12 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   { href: '/staff/content', label: 'Site Content', permission: 'content.read', superadminOnly: true },
   { href: '/staff/country-regulations', label: 'Country Regulations', permission: 'country_regulation.read' },
   { href: '/staff/finance/rates', label: 'Operational Rates', permission: 'finance_config.read' },
+  // Sites (DR-083): staff-managed reference list powering the itinerary
+  // day form's "planned sites" picker -- moved here from the top-level nav
+  // per explicit user direction (a reference-data admin screen, same
+  // category as Hotels/Restaurants conceptually, but those stayed
+  // top-level since they're edited far more often day-to-day).
+  { href: '/staff/sites', label: 'Sites', permission: 'itinerary.write' },
   { href: '/staff/insights', label: 'Insights', permission: 'insights.read' },
   { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
   // Contact directory for bare/anonymous TOURIST records (DR-036) --

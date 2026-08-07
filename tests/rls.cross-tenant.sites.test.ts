@@ -10,7 +10,7 @@ let orgB: string;
 
 async function seedOrgWithSite(name: string): Promise<string> {
   const org = await admin.organization.create({ data: { name, countries: ['NA'], status: 'VERIFIED' } });
-  await withOrg(org.id, (tx) => tx.site.create({ data: { organizationId: org.id, name: 'Fixture Site', country: 'NA' } }));
+  await withOrg(org.id, (tx) => tx.site.create({ data: { organizationId: org.id, name: 'Fixture Site', country: 'NA', province: 'Khomas' } }));
   return org.id;
 }
 
@@ -56,7 +56,7 @@ describe('Row-Level Security: sites tenant isolation', () => {
 
   it('cannot write a site into another tenant (WITH CHECK)', async () => {
     await expect(
-      withOrg(orgA, (tx) => tx.site.create({ data: { organizationId: orgB, name: 'Hostile Site', country: 'NA' } })),
+      withOrg(orgA, (tx) => tx.site.create({ data: { organizationId: orgB, name: 'Hostile Site', country: 'NA', province: 'Khomas' } })),
     ).rejects.toThrow();
   });
 });

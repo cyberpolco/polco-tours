@@ -24,6 +24,7 @@ let driverProfileId: string;
 let guideUserId: string;
 let vehicleId: string;
 let futureVehicleId: string;
+let starlinkKitId: string;
 
 const now = new Date();
 
@@ -55,7 +56,7 @@ beforeAll(async () => {
       data: { organizationId: orgId, plateNumber: `TRKF-${suffix}`, make: 'Toyota', model: 'Land Cruiser', vehicleType: '4x4', seatCapacity: 7 },
     });
     futureVehicleId = futureVehicle.id;
-    await tx.starlinkKit.create({
+    const kit = await tx.starlinkKit.create({
       data: {
         organizationId: orgId,
         kitId: `KIT-${suffix}`,
@@ -65,6 +66,7 @@ beforeAll(async () => {
         lastLocationAt: now,
       },
     });
+    starlinkKitId = kit.id;
   });
 
   await withOrg(orgId, async (tx) => {
@@ -146,6 +148,10 @@ describe('GET /api/v1/tracking', () => {
 
       expect(snapshot.fleet).toHaveLength(1);
       expect(snapshot.fleet[0].kitId).toBe(`KIT-${suffix}`);
+      // Regression: the "Update" link on /staff/tracking must resolve via
+      // the kit's real row id (what findStarlinkKitById looks up), not the
+      // human-readable kitId label -- a past bug conflated the two.
+      expect(snapshot.fleet[0].starlinkKitId).toBe(starlinkKitId);
       expect(snapshot.fleet[0].plateNumber).toBe(`TRK-${suffix}`);
       expect(snapshot.fleet[0].latitude).toBeCloseTo(-22.5597, 3);
       expect(snapshot.fleet[0].freshness).toBe('FRESH');

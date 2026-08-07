@@ -19,51 +19,47 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-083 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-082/083 (this session): fleet availability tracking +
-> four itinerary requests, both code-complete but neither's schema change
-> has been applied to the shared Neon database yet** (batched together,
-> pending explicit user confirmation + a pasted `neondb_owner` credential).
-> DR-082 adds a `Vehicle`/`DriverProfile`/`GuideProfile` `availability`
-> column (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
+> Current through DR-086 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **All schema changes through DR-086 are applied to the shared
+> Neon database** (fleet availability, itinerary hotel/restaurant/site,
+> user dormancy, site province/city — nothing schema-related is pending).
+> DR-082 adds `Vehicle`/`DriverProfile`/`GuideProfile.availability`
+> (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
 > `VehicleStatus`/`DriverStatus`/`GuideStatus` operational-hold dimension)
 > plus `lastActiveAt` — hook-driven (assignment create/remove, booking
-> confirm/cancel/refund, orchestrated via a new `src/lib/fleet-availability.ts`
-> cross-module helper, never from inside `bookingService`/`assignmentService`
-> themselves) with a daily QStash-scheduled sweep
-> (`/api/jobs/sweep-fleet-availability`, inert until re-registered via
-> `scripts/register-qstash-schedule.ts`) as the only path to `INACTIVE`.
-> DR-083 covers: itinerary emergency contact now defaults from the tour
-> lead's own `Traveler` data; `ItineraryDay.dayNumber` is server-computed
-> from `date` relative to the trip's start, never client-supplied;
-> hotel/restaurant assignment moved from itinerary-wide to per-day
-> (`ItineraryDay.hotelId`/`restaurantId`, replacing the removed
-> `ItineraryHotel`/`ItineraryRestaurant` join tables) alongside a new
-> staff-managed `Site` reference list powering a "planned sites" autocomplete;
-> and hotel/restaurant rating moved off the itinerary page onto
-> `/staff/hotels/[hotelId]`/`/staff/restaurants/[restaurantId]`, now open to
-> TOUR_GUIDE/DRIVER (previously `itinerary.write`-only) scoped to a
-> hotel/restaurant they've actually toured. See DR-082/083 for full detail.
-> **DR-080/081 were a live production incident, root-caused and
-> fixed this session**: DR-079 (guide mandatory) crashed real staff traffic
-> — `deactivateUser` (DR-026) only sets `User.deletedAt`, never cascading to
-> suspend that user's `GuideProfile`/`DriverProfile`, so a deactivated
-> guide's `ACTIVE` profile kept surfacing in `recommendAssignment`'s
-> eligible/recommended list; `createAssignment` then rejected them
-> (`authService.getUser` returns `null` for a deleted user), a 422 that
-> DR-079 made unavoidable (guide could no longer be left blank to route
-> around it) and that `createAssignmentAction`'s 409-only error handling
-> didn't catch, crashing instead of showing a message. Confirmed directly
-> against real production data (`vercel logs` for the crash, `withOrg`-
-> scoped queries for the guide/user rows) — DR-080's first hypothesis (an
-> org mismatch) was wrong and corrected in DR-081; **the sandbox's DB is
-> confirmed to be the real production database** (an earlier "zero
-> departures" reading was from querying without `withOrg`, silently denied
-> by deny-by-default RLS, not a different database). Fixed at both layers:
-> `createAssignmentAction` catches every `ApiError` now, and
-> `recommendAssignment`'s guide loop re-validates each candidate's
-> underlying user the same way `createAssignment` does, so the picker can't
-> offer what the service will refuse. **Not yet decided**: whether
+> confirm/cancel/refund, via `src/lib/fleet-availability.ts`) with a daily
+> QStash sweep (`/api/jobs/sweep-fleet-availability`) as the only path to
+> `INACTIVE`. DR-083 moved itinerary hotel/restaurant assignment to
+> per-day (`ItineraryDay.hotelId`/`restaurantId`, replacing the removed
+> `ItineraryHotel`/`ItineraryRestaurant` join tables), added a staff-managed
+> `Site` reference list, auto-computed `dayNumber`, defaulted the emergency
+> contact from the tour lead's own `Traveler` data, and moved hotel/
+> restaurant rating onto `/staff/hotels/[hotelId]`/`/staff/restaurants/
+> [restaurantId]`, now open to TOUR_GUIDE/DRIVER scoped to a place they've
+> actually toured. DR-084 adds `User.inactiveAt`: a staff account is
+> flagged inactive after 30 days without signing in (TOURIST/SUPERADMIN
+> excluded, daily QStash sweep), and — the more involved option, not just
+> an informational badge — **sign-in is actually blocked**
+> (`databaseHooks.session.create.before` in `src/lib/auth.ts`) until an
+> `admin.all` holder clicks Reactivate on `/staff/admin/users`. DR-085 lets
+> SUPERADMIN delete a client (bare/anonymous `TOURIST` contact record) from
+> `/staff/admin/clients`, guarded by `src/lib/client-deletion.ts`: blocked
+> unless every one of their bookings is `COMPLETED`-and-reviewed or already
+> superadmin-deleted. DR-086 batches smaller changes: a `confirmMessage`
+> confirm-dialog on every destructive delete/deactivate button platform-wide;
+> `Site` gained `province` (country-dependent dropdown, `src/lib/
+> provinces.ts`) and optional `city`; Sites moved into the Settings sidebar;
+> Budget/Luxury trip preferences are now mutually exclusive
+> (client + server); and a real bug fix — the Fleet Locations "Update" link
+> on `/staff/tracking` was using `StarlinkKit.kitId` (the display label)
+> instead of its real row id, so it always 404'd. See DR-082 through
+> DR-086 for full detail.
+> **DR-080/081 were a live production incident** (guide-mandatory,
+> DR-079, crashed real staff traffic because `deactivateUser` never
+> cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
+> defensive (`createAssignmentAction` catches every `ApiError`) and root
+> (`recommendAssignment` re-validates each guide candidate) layers, and
+> confirmed against real production data. **Not yet decided**: whether
 > `deactivateUser` should itself cascade to suspend `DriverProfile`/
 > `GuideProfile` (would fix this at the data layer for good; the analogous
 > driver-side gap is flagged but not yet fixed). **Process gap owned**: CI
@@ -179,7 +175,7 @@ gaps a fresh Postgres would hit).
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`); `sweep-fleet-availability` (DR-082) is code-complete but its own QStash schedule isn't registered yet |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`); `sweep-fleet-availability` (DR-082) and `sweep-user-dormancy` (DR-084) are code-complete but their own QStash schedules aren't registered yet |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -201,6 +197,7 @@ src/
     api/auth/[...all]/         # Better Auth's own mount
     api/jobs/sweep-bookings/    # QStash-signature-verified scheduled sweep endpoint
     api/jobs/sweep-fleet-availability/ # DR-082: daily inactivity-sweep endpoint, same shape
+    api/jobs/sweep-user-dormancy/ # DR-084: daily 30-day-no-login sweep endpoint, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -216,9 +213,10 @@ src/
       about/, faq/, contact/, terms/
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
-                              #   guest-guard, primary-org, country-codes, tax,
-                              #   platform-rate, rate-limit, qstash, geo,
-                              #   fleet-availability (DR-082 cross-module sync helper)
+                              #   guest-guard, primary-org, country-codes, provinces,
+                              #   tax, platform-rate, rate-limit, qstash, geo,
+                              #   fleet-availability (DR-082 cross-module sync helper),
+                              #   client-deletion (DR-085 cross-module delete guard)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage + PackageTag + Departure + AddonService +
@@ -389,7 +387,11 @@ timed out, and degrades gracefully.
 - Credentials & sessions (`auth`) — better-auth, httpOnly cookies, a real
   30-minute inactivity session timeout (`{expiresIn: 30m, updateAge: 30m}`,
   applied globally including anonymous guest-checkout sessions); anonymous
-  guest sessions are real sessions, not bare ids.
+  guest sessions are real sessions, not bare ids. A staff account itself
+  (not just its session) locks after 30 days with no sign-in at all
+  (DR-084, `User.inactiveAt`, staff roles only) — `databaseHooks.session
+  .create.before` in `src/lib/auth.ts` rejects sign-in outright until an
+  `admin.all` holder reactivates it.
 - Tenant business data — organization-scoped, RLS-isolated.
 
 **STRIDE → controls in place:**
@@ -490,17 +492,21 @@ visually coherent with the design package.
   per-channel credential status.
 - **Soft-delete + SUPERADMIN-only hard gates**: `Booking` (90-day retention
   purge via the lazy sweep / QStash job), `Vehicle`/`DriverProfile`/
-  `GuideProfile` (indefinite, no purge). `StarlinkKit` is a genuine hard
-  delete (confirmed no FK references it). All gated by a `SUPERADMIN`-only
+  `GuideProfile` (indefinite, no purge), a client (bare `TOURIST` contact
+  record, DR-085 — additionally guarded by `src/lib/client-deletion.ts`:
+  blocked unless every one of their bookings is `COMPLETED`-and-reviewed or
+  already superadmin-deleted). `StarlinkKit` is a genuine hard delete
+  (confirmed no FK references it). All gated by a `SUPERADMIN`-only
   service-layer check beneath the route permission, never by the bare
   permission alone.
 - **No generic job runner** — every scheduled job is its own QStash-
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
-  re-running that script. Two exist today: `/api/jobs/sweep-bookings`
-  (every 15 minutes, live in production) and `/api/jobs/sweep-fleet-
-  availability` (DR-082, daily — inert/401s until its schedule is
-  registered, same bootstrap gap `sweep-bookings` itself once had).
+  re-running that script. Three exist today, all daily except the first:
+  `/api/jobs/sweep-bookings` (every 15 minutes, live in production),
+  `/api/jobs/sweep-fleet-availability` (DR-082), and `/api/jobs/sweep-user-
+  dormancy` (DR-084) — the latter two are inert/401s until their schedules
+  are registered, same bootstrap gap `sweep-bookings` itself once had.
 
 ## Roadmap (not yet built)
 

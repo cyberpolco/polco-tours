@@ -231,6 +231,14 @@ model User {
   // authenticated request. Powers the "Last login" column on
   // /staff/admin/users.
   lastLoginAt        DateTime?
+  // DR-084: dormancy after 30 days without a sign-in (staff roles only --
+  // TOURIST accounts are anonymous-session-based, this doesn't apply, and
+  // SUPERADMIN is excluded from the sweep, see authRepository
+  // .markDormantUsers). null = active; set = sign-in is actively blocked
+  // (databaseHooks.session.create.before in lib/auth.ts) until an admin
+  // reactivates. Distinct from deletedAt -- that's a manual, permanent
+  // deactivation; this is automatic and reversible by any admin.all holder.
+  inactiveAt         DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
@@ -1161,6 +1169,12 @@ model Site {
   organizationId String   @db.Uuid
   name           String
   country        String   @db.VarChar(2)
+  // Cascading with country in the staff form (src/lib/provinces.ts) for the
+  // 4 operating countries; free text for any other. city is a real optional
+  // field (explicit user direction) -- a site can be a park/region with no
+  // proper town attached.
+  province       String
+  city           String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

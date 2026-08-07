@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { CreateUserForm } from './create-user-form';
-import { deactivateUserAction } from './actions';
+import { deactivateUserAction, reactivateUserAction } from './actions';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 
@@ -50,7 +50,14 @@ export default async function UsersPage() {
                 </div>
               </Td>
               <Td>
-                <Badge tone={u.deletedAt ? 'danger' : 'success'}>{u.deletedAt ? 'Deactivated' : 'Active'}</Badge>
+                {/* DR-084: Inactive (30+ days no sign-in, auto-flagged) is a
+                    third state alongside the existing manual Active/
+                    Deactivated -- Deactivated always wins when both are
+                    true, since that user can't sign in regardless of
+                    dormancy. */}
+                <Badge tone={u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
+                  {u.deletedAt ? 'Deactivated' : u.inactiveAt ? 'Inactive' : 'Active'}
+                </Badge>
               </Td>
               <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : 'Never'}</Td>
               <Td>
@@ -60,10 +67,21 @@ export default async function UsersPage() {
                       Edit
                     </Link>
                   )}
-                  {u.id !== ctx.userId && !u.deletedAt && (
+                  {u.id !== ctx.userId && !u.deletedAt && !u.inactiveAt && (
                     <form action={deactivateUserAction.bind(null, u.id)}>
-                      <SubmitButton variant="secondary" size="compact">
+                      <SubmitButton
+                        variant="secondary"
+                        size="compact"
+                        confirmMessage={`Deactivate ${u.name ?? u.email}? They will no longer be able to sign in.`}
+                      >
                         Deactivate
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {!u.deletedAt && u.inactiveAt && (
+                    <form action={reactivateUserAction.bind(null, u.id)}>
+                      <SubmitButton variant="success" size="compact">
+                        Reactivate
                       </SubmitButton>
                     </form>
                   )}

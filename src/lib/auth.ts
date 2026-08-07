@@ -1,4 +1,4 @@
-import { betterAuth } from 'better-auth';
+import { APIError, betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { anonymous } from 'better-auth/plugins';
 import { prisma } from './db';
@@ -134,6 +134,24 @@ export const authConfig = {
     // with. Best-effort: a failure here must never block sign-in itself.
     session: {
       create: {
+        // DR-084: blocks sign-in for a dormant (30+ days without signing
+        // in) staff account. Reads inactiveAt via a direct Prisma query,
+        // not ctx.context.internalAdapter -- that adapter's transformOutput
+        // only round-trips fields registered as additionalFields, and
+        // inactiveAt (like lastLoginAt below) is deliberately not one, same
+        // reasoning as that field's own comment: this is a plain direct
+        // read/write, never part of better-auth's own managed payload.
+        // Mirrors the official admin plugin's own banned-user session hook
+        // (databaseHooks.session.create.before + APIError.from('FORBIDDEN')).
+        async before(session: { userId: string }) {
+          const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { inactiveAt: true } });
+          if (user?.inactiveAt) {
+            throw APIError.from('FORBIDDEN', {
+              message: 'This account is inactive after 30+ days without signing in -- ask an admin to reactivate it.',
+              code: 'ACCOUNT_INACTIVE',
+            });
+          }
+        },
         async after(session: { userId: string }) {
           try {
             await prisma.user.update({ where: { id: session.userId }, data: { lastLoginAt: new Date() } });

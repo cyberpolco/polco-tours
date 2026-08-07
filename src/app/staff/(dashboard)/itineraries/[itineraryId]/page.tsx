@@ -226,7 +226,12 @@ export default async function ItineraryDetailPage({ params }: Props) {
                   </p>
                   {canWrite && (
                     <form action={removeDayAction.bind(null, itineraryId, day.id)}>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                      <SubmitButton
+                        variant="secondary"
+                        size="compact"
+                        pendingLabel="Removing…"
+                        confirmMessage={`Remove day ${day.dayNumber} from this itinerary? This cannot be undone.`}
+                      >
                         Remove
                       </SubmitButton>
                     </form>

@@ -2,6 +2,7 @@
 import type { Role } from '@prisma/client';
 import type { Permission } from '@lib/rbac';
 import { prisma, withOrg } from '@lib/db';
+import { DORMANCY_THRESHOLD_DAYS } from './domain';
 import type { PublicUser, UpdateProfileInput } from './domain';
 
 interface RawUser {
@@ -16,6 +17,7 @@ interface RawUser {
   deletedAt: Date | null;
   mustChangePassword: boolean;
   lastLoginAt: Date | null;
+  inactiveAt: Date | null;
 }
 
 function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
@@ -32,6 +34,7 @@ function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
     deletedAt: u.deletedAt,
     mustChangePassword: u.mustChangePassword,
     lastLoginAt: u.lastLoginAt,
+    inactiveAt: u.inactiveAt,
   };
 }
 
@@ -178,6 +181,37 @@ export const authRepository = {
    * authService.resolveSession, which already treat this as "gone". */
   async softDeleteUser(userId: string): Promise<void> {
     await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
+  },
+
+  /** DR-084: scheduled-sweep entry point -- staff roles only (TOURIST
+   * accounts are anonymous-session-based, "hasn't logged in" doesn't
+   * apply) and excludes SUPERADMIN (the one hardcoded, permanently-
+   * uneditable role -- locking out the only superadmin would strand the
+   * whole platform with no one left able to reactivate them). `users` has
+   * no RLS (unlike tenant tables, see CLAUDE.md's own gotcha on this), so
+   * this is a single global updateMany, no per-org loop needed like
+   * fleetRepository.sweepInactivityAllOrganizations. Never touches an
+   * already-dormant (inactiveAt set) or already-deactivated (deletedAt
+   * set) row -- idempotent to re-run. */
+  async markDormantUsers(now: Date): Promise<number> {
+    const cutoff = new Date(now.getTime() - DORMANCY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+    const result = await prisma.user.updateMany({
+      where: {
+        deletedAt: null,
+        inactiveAt: null,
+        role: { notIn: ['TOURIST', 'SUPERADMIN'] },
+        OR: [{ lastLoginAt: { lt: cutoff } }, { lastLoginAt: null, createdAt: { lt: cutoff } }],
+      },
+      data: { inactiveAt: now },
+    });
+    return result.count;
+  },
+
+  /** DR-084: the only way a dormant account is ever restored -- there is no
+   * self-service path, since a dormant user can't authenticate to trigger
+   * anything themselves. */
+  async reactivateUser(userId: string): Promise<void> {
+    await prisma.user.update({ where: { id: userId }, data: { inactiveAt: null } });
   },
 
   /** DR-026: clears the forced-password-change flag after a successful

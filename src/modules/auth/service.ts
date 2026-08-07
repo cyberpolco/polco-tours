@@ -104,6 +104,31 @@ export const authService = {
     return authRepository.listClients(ctx.organizationId);
   },
 
+  /** SUPERADMIN-only (narrower than listClients above, explicit user
+   * direction) -- soft-deletes a client contact record. The actual
+   * business-rule guard (no active/future/unreviewed booking) is NOT
+   * checked here: it lives in src/lib/client-deletion.ts's
+   * assertClientDeletable, called by the Server Action just before this,
+   * because auth cannot depend on booking/ratings (booking already depends
+   * on auth -- the reverse would be circular, same reasoning as DR-059's
+   * itinerary-deletion orchestration). This method only enforces the role
+   * gate and performs the write. */
+  async deleteClient(ctx: AuthContext, clientUserId: string): Promise<void> {
+    assertCan(ctx, 'booking.create');
+    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a client');
+    const target = await authRepository.findUserById(clientUserId);
+    if (!target) throw Errors.notFound('Client not found');
+    await authRepository.softDeleteUser(clientUserId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'auth.client_deleted',
+      resourceType: 'User',
+      resourceId: clientUserId,
+      organizationId: ctx.organizationId ?? undefined,
+    });
+  },
+
   /** Admin-only: creates a staff account with one or more simultaneous roles
    * and a generated one-time password the caller must relay out of band --
    * it is returned exactly once here and never persisted in plaintext or
@@ -166,6 +191,34 @@ export const authService = {
       resourceId: userId,
       organizationId: ctx.organizationId ?? undefined,
     });
+  },
+
+  /** DR-084: clears a dormancy flag so the account can sign in again -- the
+   * only way one is ever restored, since a dormant user can't authenticate
+   * to trigger anything themselves. Same admin.all gate as deactivateUser;
+   * no SUPERADMIN-only narrowing needed here (unlike deleteClient/
+   * deleteVehicle) since this is strictly restorative, not destructive. */
+  async reactivateUser(ctx: AuthContext, userId: string): Promise<void> {
+    assertCan(ctx, 'admin.all');
+    const target = await authRepository.findUserById(userId);
+    if (!target) throw Errors.notFound('User not found');
+    await authRepository.reactivateUser(userId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'auth.user_reactivated',
+      resourceType: 'User',
+      resourceId: userId,
+      organizationId: ctx.organizationId ?? undefined,
+    });
+  },
+
+  /** DR-084: scheduled-sweep entry point, no ctx -- there is no
+   * AuthContext for "the platform's own scheduler," same shape as
+   * fleetService.runAvailabilitySweep/bookingService.runScheduledSweep. */
+  async runDormancySweep(): Promise<{ usersMarkedDormant: number }> {
+    const usersMarkedDormant = await authRepository.markDormantUsers(new Date());
+    return { usersMarkedDormant };
   },
 
   /** Self-service: clears the forced-password-change flag after

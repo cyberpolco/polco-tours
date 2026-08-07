@@ -59,7 +59,7 @@ export default async function PackageDetailPage({ params }: Props) {
           </form>
         )}
         <form action={deletePackageAction.bind(null, packageId)}>
-          <SubmitButton variant="secondary" pendingLabel="Deleting…">
+          <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this package? This cannot be undone.">
             Delete
           </SubmitButton>
         </form>
@@ -175,7 +175,12 @@ export default async function PackageDetailPage({ params }: Props) {
                     )}
                   </p>
                   <form action={removeTemplateDayAction.bind(null, packageId, day.id)}>
-                    <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                    <SubmitButton
+                      variant="secondary"
+                      size="compact"
+                      pendingLabel="Removing…"
+                      confirmMessage="Remove this day from the package's itinerary template?"
+                    >
                       Remove
                     </SubmitButton>
                   </form>

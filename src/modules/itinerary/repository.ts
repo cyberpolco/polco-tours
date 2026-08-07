@@ -68,6 +68,8 @@ function toSiteView(s: Site): SiteView {
     organizationId: s.organizationId,
     name: s.name,
     country: s.country,
+    province: s.province,
+    city: s.city,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   };

@@ -209,7 +209,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
         <div>
           <div className="survey-rule mb-6" />
           <form action={deleteVehicleAction.bind(null, vehicleId)}>
-            <SubmitButton variant="secondary" pendingLabel="Deleting…">
+            <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this vehicle? This cannot be undone.">
               Delete vehicle
             </SubmitButton>
           </form>

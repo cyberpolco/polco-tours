@@ -49,6 +49,16 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
+// BUDGET and LUXURY are contradictory trip preferences -- selecting one
+// clears the other, in both directions.
+const MUTUALLY_EXCLUSIVE_TAGS: Record<string, string> = { BUDGET: 'LUXURY', LUXURY: 'BUDGET' };
+
+function toggleTag(list: string[], value: string): string[] {
+  if (list.includes(value)) return list.filter((v) => v !== value);
+  const opposite = MUTUALLY_EXCLUSIVE_TAGS[value];
+  return [...list.filter((v) => v !== opposite), value];
+}
+
 interface PlanMyTripFormProps {
   /** Pre-selected from the homepage map's country click (AfricaMap.tsx),
    * via plan-my-trip/page.tsx's ?destination= query param. */
@@ -220,7 +230,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
           <p className="mb-2 text-sm text-mist">What matters most? (pick any)</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {TAGS.map((tag) => (
-              <SelectableCard key={tag} type="checkbox" checked={tags.includes(tag)} onChange={() => setTags((t) => toggle(t, tag))}>
+              <SelectableCard key={tag} type="checkbox" checked={tags.includes(tag)} onChange={() => setTags((t) => toggleTag(t, tag))}>
                 {titleCase(tag)}
               </SelectableCard>
             ))}
