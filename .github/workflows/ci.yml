@@ -163,8 +163,10 @@ jobs:
             done
           ) > /tmp/pg-activity.log 2>&1 &
           POLLER_PID=$!
+          set +e
           npm run test:e2e
           TEST_EXIT=$?
+          set -e
           kill "$POLLER_PID" 2>/dev/null || true
           echo "::group::Postgres activity samples during the run (non-idle only, one block per 2s tick)"
           cat /tmp/pg-activity.log
