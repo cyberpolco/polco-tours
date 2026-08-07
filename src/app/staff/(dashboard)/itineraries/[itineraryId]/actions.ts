@@ -2,14 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
-import {
-  AddItineraryDayInput,
-  RateHotelInput,
-  RateRestaurantInput,
-  UpdateItineraryDayInput,
-  UpdateItineraryInput,
-  itineraryService,
-} from '@modules/itinerary';
+import { AddItineraryDayInput, UpdateItineraryDayInput, UpdateItineraryInput, itineraryService } from '@modules/itinerary';
 
 function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
   const s = v ? String(v).trim() : '';
@@ -46,10 +39,11 @@ export async function approveItineraryAction(itineraryId: string) {
   revalidatePath(`/staff/itineraries/${itineraryId}`);
 }
 
+// dayNumber is no longer a form field -- the service computes it from
+// `date` relative to the trip's own start date (DR-083).
 export async function addDayAction(itineraryId: string, formData: FormData) {
   const ctx = await requireStaffContext('itinerary.write');
   const input = AddItineraryDayInput.parse({
-    dayNumber: Number(formData.get('dayNumber')),
     date: String(formData.get('date') ?? ''),
     departureTime: emptyToUndefined(formData.get('departureTime')),
     arrivalTime: emptyToUndefined(formData.get('arrivalTime')),
@@ -61,6 +55,8 @@ export async function addDayAction(itineraryId: string, formData: FormData) {
       ? Number(formData.get('estimatedTravelMinutes'))
       : undefined,
     notes: emptyToUndefined(formData.get('notes')),
+    hotelId: emptyToUndefined(formData.get('hotelId')),
+    restaurantId: emptyToUndefined(formData.get('restaurantId')),
   });
   await itineraryService.addDay(ctx, itineraryId, input);
   revalidatePath(`/staff/itineraries/${itineraryId}`);
@@ -80,6 +76,8 @@ export async function updateDayAction(itineraryId: string, dayId: string, formDa
       ? Number(formData.get('estimatedTravelMinutes'))
       : undefined,
     notes: emptyToUndefined(formData.get('notes')),
+    hotelId: emptyToUndefined(formData.get('hotelId')),
+    restaurantId: emptyToUndefined(formData.get('restaurantId')),
   });
   await itineraryService.updateDay(ctx, itineraryId, dayId, input);
   revalidatePath(`/staff/itineraries/${itineraryId}`);
@@ -88,51 +86,5 @@ export async function updateDayAction(itineraryId: string, dayId: string, formDa
 export async function removeDayAction(itineraryId: string, dayId: string) {
   const ctx = await requireStaffContext('itinerary.write');
   await itineraryService.removeDay(ctx, itineraryId, dayId);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function assignHotelAction(itineraryId: string, formData: FormData) {
-  const ctx = await requireStaffContext('itinerary.write');
-  const hotelId = String(formData.get('hotelId') ?? '');
-  if (hotelId) await itineraryService.assignHotel(ctx, itineraryId, hotelId);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function unassignHotelAction(itineraryId: string, hotelId: string) {
-  const ctx = await requireStaffContext('itinerary.write');
-  await itineraryService.unassignHotel(ctx, itineraryId, hotelId);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function assignRestaurantAction(itineraryId: string, formData: FormData) {
-  const ctx = await requireStaffContext('itinerary.write');
-  const restaurantId = String(formData.get('restaurantId') ?? '');
-  if (restaurantId) await itineraryService.assignRestaurant(ctx, itineraryId, restaurantId);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function unassignRestaurantAction(itineraryId: string, restaurantId: string) {
-  const ctx = await requireStaffContext('itinerary.write');
-  await itineraryService.unassignRestaurant(ctx, itineraryId, restaurantId);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function rateHotelAction(itineraryId: string, hotelId: string, formData: FormData) {
-  const ctx = await requireStaffContext('hotel_restaurant_rating.write');
-  const input = RateHotelInput.parse({
-    rating: Number(formData.get('rating')),
-    comment: emptyToUndefined(formData.get('comment')),
-  });
-  await itineraryService.rateHotel(ctx, itineraryId, hotelId, input);
-  revalidatePath(`/staff/itineraries/${itineraryId}`);
-}
-
-export async function rateRestaurantAction(itineraryId: string, restaurantId: string, formData: FormData) {
-  const ctx = await requireStaffContext('hotel_restaurant_rating.write');
-  const input = RateRestaurantInput.parse({
-    rating: Number(formData.get('rating')),
-    comment: emptyToUndefined(formData.get('comment')),
-  });
-  await itineraryService.rateRestaurant(ctx, itineraryId, restaurantId, input);
   revalidatePath(`/staff/itineraries/${itineraryId}`);
 }

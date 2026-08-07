@@ -1,4 +1,5 @@
 import type {
+  AvailabilityStatus,
   BookingStatus,
   DepartureStatus,
   DriverStatus,
@@ -52,6 +53,14 @@ export const DRIVER_STATUS_TONE: Record<DriverStatus, BadgeTone> = {
 export const GUIDE_STATUS_TONE: Record<GuideStatus, BadgeTone> = {
   ACTIVE: 'success',
   SUSPENDED: 'warning',
+};
+
+// DR-082: usage-recency, independent of the operational-hold statuses
+// above (VEHICLE/DRIVER/GUIDE_STATUS_TONE) -- see AvailabilityStatus.
+export const AVAILABILITY_STATUS_TONE: Record<AvailabilityStatus, BadgeTone> = {
+  AVAILABLE: 'success',
+  BOOKED: 'warning',
+  INACTIVE: 'neutral',
 };
 
 export const STARLINK_STATUS_TONE: Record<StarlinkStatus, BadgeTone> = {

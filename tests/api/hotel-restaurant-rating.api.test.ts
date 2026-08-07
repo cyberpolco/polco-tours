@@ -6,19 +6,17 @@ import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 
-const { GET: getHotelRating, POST: rateHotel } = await import(
-  '../../src/app/api/v1/itineraries/[itineraryId]/hotels/[hotelId]/rating/route'
-);
-const { POST: rateRestaurant } = await import(
-  '../../src/app/api/v1/itineraries/[itineraryId]/restaurants/[restaurantId]/rating/route'
-);
+const { GET: getHotelRating, POST: rateHotel } = await import('../../src/app/api/v1/hotels/[hotelId]/rating/route');
+const { POST: rateRestaurant } = await import('../../src/app/api/v1/restaurants/[restaurantId]/rating/route');
 const { GET: getHotelById } = await import('../../src/app/api/v1/hotels/[hotelId]/route');
 
 /**
- * DR-060 follow-up: staff-only 5-star hotel/restaurant rating -- one row per
+ * DR-060 follow-up, moved off the itinerary onto the hotel/restaurant itself
+ * in DR-083: staff-only 5-star hotel/restaurant rating -- one row per
  * (hotel-or-restaurant, staff rater), overwritten on revisit. TOUR_GUIDE/
- * DRIVER are anti-BOLA-scoped to only a hotel/restaurant assigned to one of
- * their own toured itineraries; TOUR_OPERATOR/PLATFORM_ADMIN are unscoped.
+ * DRIVER are anti-BOLA-scoped to only a hotel/restaurant actually used
+ * (ItineraryDay.hotelId/restaurantId) on one of their own toured
+ * itineraries; TOUR_OPERATOR/PLATFORM_ADMIN are unscoped.
  */
 const admin = new PrismaClient();
 
@@ -112,11 +110,13 @@ beforeAll(async () => {
   await withOrg(orgId, async (tx) => {
     const hotel = await tx.hotel.create({ data: { organizationId: orgId, name: 'Fixture Lodge', country: 'NA' } });
     hotelId = hotel.id;
-    await tx.itineraryHotel.create({ data: { organizationId: orgId, itineraryId, hotelId: hotel.id } });
-
     const restaurant = await tx.restaurant.create({ data: { organizationId: orgId, name: 'Fixture Grill', country: 'NA' } });
     restaurantId = restaurant.id;
-    await tx.itineraryRestaurant.create({ data: { organizationId: orgId, itineraryId, restaurantId: restaurant.id } });
+    // DR-083: rateability now comes from actually using this hotel/restaurant
+    // on a day of the guide's own toured itinerary, not a standalone join row.
+    await tx.itineraryDay.create({
+      data: { organizationId: orgId, itineraryId, dayNumber: 1, date: new Date('2026-09-01'), hotelId: hotel.id, restaurantId: restaurant.id },
+    });
   });
 });
 
@@ -128,8 +128,6 @@ afterAll(async () => {
   }
   await withOrg(orgId, (tx) => tx.hotelRating.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.restaurantRating.deleteMany({ where: { organizationId: orgId } }));
-  await withOrg(orgId, (tx) => tx.itineraryHotel.deleteMany({ where: { organizationId: orgId } }));
-  await withOrg(orgId, (tx) => tx.itineraryRestaurant.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.restaurant.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.assignment.deleteMany({ where: { organizationId: orgId } }));
@@ -145,14 +143,14 @@ afterAll(async () => {
   await prisma.$disconnect();
 }, 30_000);
 
-describe('POST /api/v1/itineraries/:itineraryId/hotels/:hotelId/rating', () => {
-  it('a TOUR_GUIDE assigned to this itinerary can rate its hotel (201)', async () => {
+describe('POST /api/v1/hotels/:hotelId/rating', () => {
+  it('a TOUR_GUIDE who toured this hotel can rate it (201)', async () => {
     const headers = await loginAs(assignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', {
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', {
       rating: 4,
       comment: 'Great breakfast',
     });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.rating.rating).toBe(4);
@@ -161,8 +159,8 @@ describe('POST /api/v1/itineraries/:itineraryId/hotels/:hotelId/rating', () => {
 
   it('rating again from the same guide updates the same row, not a new one (201, aggregate reflects 1 rater)', async () => {
     const headers = await loginAs(assignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 5 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 5 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(201);
 
     const rows = await withOrg(orgId, (tx) => tx.hotelRating.findMany({ where: { hotelId } }));
@@ -179,8 +177,8 @@ describe('POST /api/v1/itineraries/:itineraryId/hotels/:hotelId/rating', () => {
 
   it('a second rater (TOUR_OPERATOR, unscoped) rating the same hotel updates the aggregate to reflect both (201)', async () => {
     const headers = await loginAs(operatorId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 3 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 3 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(201);
 
     const rows = await withOrg(orgId, (tx) => tx.hotelRating.findMany({ where: { hotelId } }));
@@ -194,61 +192,61 @@ describe('POST /api/v1/itineraries/:itineraryId/hotels/:hotelId/rating', () => {
     expect(hotelBody.hotel.ratingCount).toBe(2);
   });
 
-  it('a TOUR_GUIDE NOT assigned to this itinerary cannot rate its hotel (404, anti-BOLA)', async () => {
+  it('a TOUR_GUIDE who never toured this hotel cannot rate it (404, anti-BOLA)', async () => {
     const headers = await loginAs(unassignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 2 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 2 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(404);
   });
 
   it('a VEHICLE_OWNER (no hotel_restaurant_rating.write) cannot rate a hotel (403)', async () => {
     const headers = await loginAs(vehicleOwnerId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 2 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 2 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(403);
   });
 
   it('rejects a rating outside the 1-5 range (422)', async () => {
     const headers = await loginAs(assignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 6 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 6 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(422);
   });
 
-  it('rejects rating a hotel not assigned to this itinerary (404)', async () => {
+  it('rejects rating a hotel never used on any of the caller\'s toured days (404)', async () => {
     const otherHotel = await withOrg(orgId, (tx) => tx.hotel.create({ data: { organizationId: orgId, name: 'Unassigned Lodge', country: 'NA' } }));
     const headers = await loginAs(assignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', headers, 'POST', { rating: 3 });
-    const res = await rateHotel(req, { params: Promise.resolve({ itineraryId, hotelId: otherHotel.id }) });
+    const req = jsonRequest('http://localhost/api/v1/hotels/y/rating', headers, 'POST', { rating: 3 });
+    const res = await rateHotel(req, { params: Promise.resolve({ hotelId: otherHotel.id }) });
     expect(res.status).toBe(404);
   });
 });
 
-describe('GET /api/v1/itineraries/:itineraryId/hotels/:hotelId/rating', () => {
+describe('GET /api/v1/hotels/:hotelId/rating', () => {
   it("returns the caller's own rating, not anyone else's", async () => {
     const headers = await loginAs(assignedGuideId);
-    const req = new NextRequest('http://localhost/api/v1/itineraries/x/hotels/y/rating', { headers });
-    const res = await getHotelRating(req, { params: Promise.resolve({ itineraryId, hotelId }) });
+    const req = new NextRequest('http://localhost/api/v1/hotels/y/rating', { headers });
+    const res = await getHotelRating(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.rating.rating).toBe(5); // assignedGuide's own rating from the earlier test
   });
 });
 
-describe('POST /api/v1/itineraries/:itineraryId/restaurants/:restaurantId/rating', () => {
-  it('a TOUR_GUIDE assigned to this itinerary can rate its restaurant (201)', async () => {
+describe('POST /api/v1/restaurants/:restaurantId/rating', () => {
+  it('a TOUR_GUIDE who toured this restaurant can rate it (201)', async () => {
     const headers = await loginAs(assignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/restaurants/y/rating', headers, 'POST', { rating: 4 });
-    const res = await rateRestaurant(req, { params: Promise.resolve({ itineraryId, restaurantId }) });
+    const req = jsonRequest('http://localhost/api/v1/restaurants/y/rating', headers, 'POST', { rating: 4 });
+    const res = await rateRestaurant(req, { params: Promise.resolve({ restaurantId }) });
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.rating.rating).toBe(4);
   });
 
-  it('a TOUR_GUIDE NOT assigned to this itinerary cannot rate its restaurant (404)', async () => {
+  it('a TOUR_GUIDE who never toured this restaurant cannot rate it (404)', async () => {
     const headers = await loginAs(unassignedGuideId);
-    const req = jsonRequest('http://localhost/api/v1/itineraries/x/restaurants/y/rating', headers, 'POST', { rating: 2 });
-    const res = await rateRestaurant(req, { params: Promise.resolve({ itineraryId, restaurantId }) });
+    const req = jsonRequest('http://localhost/api/v1/restaurants/y/rating', headers, 'POST', { rating: 2 });
+    const res = await rateRestaurant(req, { params: Promise.resolve({ restaurantId }) });
     expect(res.status).toBe(404);
   });
 });

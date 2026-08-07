@@ -1,21 +1,22 @@
 // fleet module — repository. The only place that touches the DB for this module.
-import type { DriverProfile, GuideProfile, MaintenanceRecord, StarlinkKit, Vehicle } from '@prisma/client';
-import { withOrg } from '@lib/db';
-import type {
-  CreateDriverProfileInput,
-  CreateGuideProfileInput,
-  CreateMaintenanceRecordInput,
-  CreateStarlinkKitInput,
-  CreateVehicleInput,
-  DriverProfileView,
-  GuideProfileView,
-  MaintenanceRecordView,
-  StarlinkKitView,
-  UpdateDriverProfileInput,
-  UpdateGuideProfileInput,
-  UpdateStarlinkKitInput,
-  UpdateVehicleInput,
-  VehicleView,
+import type { AvailabilityStatus, DriverProfile, GuideProfile, MaintenanceRecord, StarlinkKit, Vehicle } from '@prisma/client';
+import { prisma, withOrg } from '@lib/db';
+import {
+  INACTIVITY_THRESHOLD_DAYS,
+  type CreateDriverProfileInput,
+  type CreateGuideProfileInput,
+  type CreateMaintenanceRecordInput,
+  type CreateStarlinkKitInput,
+  type CreateVehicleInput,
+  type DriverProfileView,
+  type GuideProfileView,
+  type MaintenanceRecordView,
+  type StarlinkKitView,
+  type UpdateDriverProfileInput,
+  type UpdateGuideProfileInput,
+  type UpdateStarlinkKitInput,
+  type UpdateVehicleInput,
+  type VehicleView,
 } from './domain';
 
 function toVehicleView(v: Vehicle): VehicleView {
@@ -31,6 +32,8 @@ function toVehicleView(v: Vehicle): VehicleView {
     vehicleType: v.vehicleType,
     seatCapacity: v.seatCapacity,
     status: v.status,
+    availability: v.availability,
+    lastActiveAt: v.lastActiveAt,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   };
@@ -47,6 +50,8 @@ function toDriverProfileView(d: DriverProfile): DriverProfileView {
     status: d.status,
     averageRating: d.averageRating,
     ratingCount: d.ratingCount,
+    availability: d.availability,
+    lastActiveAt: d.lastActiveAt,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   };
@@ -62,6 +67,8 @@ function toGuideProfileView(g: GuideProfile): GuideProfileView {
     status: g.status,
     averageRating: g.averageRating,
     ratingCount: g.ratingCount,
+    availability: g.availability,
+    lastActiveAt: g.lastActiveAt,
     createdAt: g.createdAt,
     updatedAt: g.updatedAt,
   };
@@ -148,6 +155,19 @@ export const fleetRepository = {
     });
   },
 
+  /** DR-082 -- the only write path for these two columns, keyed by vehicleId
+   * directly (matches Assignment.vehicleId). Same "updateMany, no-op if the
+   * id doesn't resolve in this org" shape as updateDriverRatingAggregate. */
+  async updateVehicleAvailability(
+    organizationId: string,
+    vehicleId: string,
+    data: { availability: AvailabilityStatus; lastActiveAt?: Date },
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.vehicle.updateMany({ where: { id: vehicleId, deletedAt: null }, data });
+    });
+  },
+
   async createDriverProfile(organizationId: string, input: CreateDriverProfileInput): Promise<DriverProfileView> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.driverProfile.create({ data: { organizationId, ...input } });
@@ -223,6 +243,18 @@ export const fleetRepository = {
     });
   },
 
+  /** DR-082 counterpart to updateVehicleAvailability -- keyed by
+   * driverProfileId directly (matches Assignment.driverProfileId). */
+  async updateDriverProfileAvailability(
+    organizationId: string,
+    driverProfileId: string,
+    data: { availability: AvailabilityStatus; lastActiveAt?: Date },
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.driverProfile.updateMany({ where: { id: driverProfileId, deletedAt: null }, data });
+    });
+  },
+
   // ------------------------------------------------------------ guides (DR-030)
 
   async createGuideProfile(organizationId: string, input: CreateGuideProfileInput): Promise<GuideProfileView> {
@@ -295,6 +327,19 @@ export const fleetRepository = {
   ): Promise<void> {
     await withOrg(organizationId, async (tx) => {
       await tx.guideProfile.updateMany({ where: { userId: guideUserId }, data: aggregate });
+    });
+  },
+
+  /** DR-082 counterpart to updateVehicleAvailability -- keyed by userId, not
+   * this table's own id (matches Assignment.guideUserId), same precedent as
+   * updateGuideRatingAggregateByUserId. */
+  async updateGuideProfileAvailabilityByUserId(
+    organizationId: string,
+    guideUserId: string,
+    data: { availability: AvailabilityStatus; lastActiveAt?: Date },
+  ): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.guideProfile.updateMany({ where: { userId: guideUserId, deletedAt: null }, data });
     });
   },
 
@@ -397,5 +442,37 @@ export const fleetRepository = {
       await tx.starlinkKit.delete({ where: { id } });
       return true;
     });
+  },
+
+  // ------------------------------------------------------------ availability (DR-082)
+
+  /** Scheduled-job sweep across every organization -- same "list orgs, loop
+   * withOrg" shape as bookingRepository.sweepAllOrganizations. Only ever
+   * moves AVAILABLE -> INACTIVE (never touches BOOKED, which is exclusively
+   * hook-driven, and never revives INACTIVE -- that only happens by getting
+   * freshly booked again, see fleetService.recompute*Availability). */
+  async sweepInactivityAllOrganizations(): Promise<{
+    organizationsSwept: number;
+    vehiclesMarkedInactive: number;
+    driversMarkedInactive: number;
+    guidesMarkedInactive: number;
+  }> {
+    const cutoff = new Date(Date.now() - INACTIVITY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+    const orgs = await prisma.organization.findMany({ select: { id: true } });
+    let vehiclesMarkedInactive = 0;
+    let driversMarkedInactive = 0;
+    let guidesMarkedInactive = 0;
+    const staleAvailable = { availability: 'AVAILABLE' as AvailabilityStatus, lastActiveAt: { lt: cutoff }, deletedAt: null };
+    for (const org of orgs) {
+      await withOrg(org.id, async (tx) => {
+        const v = await tx.vehicle.updateMany({ where: staleAvailable, data: { availability: 'INACTIVE' } });
+        vehiclesMarkedInactive += v.count;
+        const d = await tx.driverProfile.updateMany({ where: staleAvailable, data: { availability: 'INACTIVE' } });
+        driversMarkedInactive += d.count;
+        const g = await tx.guideProfile.updateMany({ where: staleAvailable, data: { availability: 'INACTIVE' } });
+        guidesMarkedInactive += g.count;
+      });
+    }
+    return { organizationsSwept: orgs.length, vehiclesMarkedInactive, driversMarkedInactive, guidesMarkedInactive };
   },
 };

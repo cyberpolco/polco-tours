@@ -4,6 +4,7 @@ import type { PaymentKind } from '@prisma/client';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
+import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
@@ -11,13 +12,19 @@ import { ratingsService } from '@modules/ratings';
 
 export async function confirmBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
-  await bookingService.confirm(ctx, bookingId);
+  const booking = await bookingService.confirm(ctx, bookingId);
+  // DR-082: a CONFIRMED booking marks its assigned vehicle/driver/guide
+  // BOOKED -- orchestrated here (not inside bookingService.confirm), same
+  // "cross-module side effect stays at the caller layer" convention as
+  // deleteBookingAction's itinerary cleanup below.
+  if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
 export async function cancelBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.cancel');
-  await bookingService.cancel(ctx, bookingId);
+  const booking = await bookingService.cancel(ctx, bookingId);
+  if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
@@ -63,7 +70,8 @@ export async function sendQuotationAction(bookingId: string, formData: FormData)
 
 export async function refundBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
-  await bookingService.refund(ctx, bookingId);
+  const booking = await bookingService.refund(ctx, bookingId);
+  if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 

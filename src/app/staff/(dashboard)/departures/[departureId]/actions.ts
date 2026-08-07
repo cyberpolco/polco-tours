@@ -3,8 +3,10 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError } from '@lib/errors';
+import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { CreateAssignmentInput, assignmentService } from '@modules/assignment';
 import { SetDeparturePickupLocationInput, catalogService } from '@modules/catalog';
+import { fleetService } from '@modules/fleet';
 
 export async function createAssignmentAction(departureId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
@@ -23,6 +25,12 @@ export async function createAssignmentAction(departureId: string, formData: Form
 
   try {
     await assignmentService.createAssignment(ctx, departureId, input);
+    // DR-082: a freshly assigned vehicle/driver/guide should reflect the
+    // departure's current booking state right away, not wait for the next
+    // sweep -- orchestrated here (not inside assignmentService), same
+    // "cross-module side effect stays at the caller layer" convention as
+    // the booking confirm/cancel/refund actions.
+    if (ctx.organizationId) await syncFleetAvailabilityForDeparture(ctx.organizationId, departureId);
   } catch (err) {
     // DR-079 incident: createAssignment can also throw a 422
     // (Errors.validation, e.g. "guideUserId must reference a TOUR_GUIDE in
@@ -41,7 +49,16 @@ export async function createAssignmentAction(departureId: string, formData: Form
 
 export async function removeAssignmentAction(departureId: string, assignmentId: string): Promise<void> {
   const ctx = await requireStaffContext('assignment.write');
-  await assignmentService.removeAssignment(ctx, assignmentId);
+  const removed = await assignmentService.removeAssignment(ctx, assignmentId);
+  // DR-082: the freed vehicle/driver/guide are no longer serving this
+  // departure at all -- recompute them directly (not via
+  // syncFleetAvailabilityForDeparture, which can no longer find them once
+  // the assignment row is gone; see the REST DELETE route's identical fix).
+  if (ctx.organizationId) {
+    await fleetService.recomputeVehicleAvailability(ctx.organizationId, removed.vehicleId, false);
+    await fleetService.recomputeDriverAvailability(ctx.organizationId, removed.driverProfileId, false);
+    if (removed.guideUserId) await fleetService.recomputeGuideAvailability(ctx.organizationId, removed.guideUserId, false);
+  }
   redirect(`/staff/departures/${departureId}`);
 }
 

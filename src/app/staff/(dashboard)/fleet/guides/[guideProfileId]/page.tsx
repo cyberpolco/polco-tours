@@ -8,7 +8,7 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
+import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { deleteGuideProfileAction, updateGuideProfileAction, uploadGuideDocumentAction } from './actions';
 
 interface Props {
@@ -41,6 +41,9 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
       <div>
         <PageHeader eyebrow="Guide" title={user?.name ?? user?.email ?? guide.userId} />
         <p className="mt-1 text-mist">{user?.email}</p>
+        <p className="mt-1 text-sm text-mist">
+          Availability: <Badge tone={AVAILABILITY_STATUS_TONE[guide.availability]}>{guide.availability}</Badge>
+        </p>
       </div>
 
       <form action={updateGuideProfileAction.bind(null, guideProfileId)} className="space-y-4">

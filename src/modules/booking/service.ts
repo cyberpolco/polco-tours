@@ -158,6 +158,15 @@ export const bookingService = {
     return { capacity: departure.capacity, seatsAvailable: computeAvailability(departure.capacity, seatsTaken) };
   },
 
+  /** No-ctx (DR-082): backs the fleet-availability sync helper
+   * (src/lib/fleet-availability.ts), which already has organizationId in
+   * hand from the assignment/booking mutation that triggered it -- same
+   * "caller already has authority" convention as the *ForBookingLookup
+   * methods elsewhere in this module. */
+  async hasActiveBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
+    return bookingRepository.hasActiveBookingForDeparture(organizationId, departureId);
+  },
+
   async createHold(ctx: AuthContext, input: CreateBookingInput): Promise<BookingView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);

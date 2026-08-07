@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@lib/route-guard';
+import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { bookingService } from '@modules/booking';
 
 export const runtime = 'nodejs';
@@ -13,5 +14,7 @@ interface Params {
 // bookingService.cancel, not here.
 export const POST = withAuth<Params>('booking.cancel', async (ctx, _req, { bookingId }) => {
   const booking = await bookingService.cancel(ctx, bookingId);
+  // DR-082 -- see the guest cancelBookingAction for why this lives here.
+  if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   return NextResponse.json({ booking });
 });

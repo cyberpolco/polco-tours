@@ -23,3 +23,4 @@ export type {
   StarlinkKitView,
   VehicleView,
 } from './domain';
+export type { AvailabilityStatus } from '@prisma/client';

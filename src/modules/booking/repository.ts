@@ -226,6 +226,22 @@ export const bookingRepository = {
     });
   },
 
+  /** DR-082: backs the fleet-availability sync helper's "is this departure
+   * currently booked" check -- CONFIRMED/IN_PROGRESS only (a departure with
+   * only DRAFT, an awaiting-quotation/deposit status, or DEPOSIT_PAID/
+   * FULLY_PAID hasn't reached a real commitment yet; COMPLETED/CANCELLED/
+   * REFUNDED are no longer "current"). A departure can have several
+   * bookings sharing one Assignment -- true if ANY of them is active. */
+  async hasActiveBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const match = await tx.booking.findFirst({
+        where: { departureId, status: { in: ['CONFIRMED', 'IN_PROGRESS'] } },
+        select: { id: true },
+      });
+      return match !== null;
+    });
+  },
+
   async createHold(organizationId: string, params: CreateHoldParams): Promise<BookingView> {
     return withOrg(organizationId, async (tx) => {
       // Serializes concurrent hold attempts on the SAME departure so two

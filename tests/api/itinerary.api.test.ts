@@ -13,8 +13,6 @@ import { POST as sendBackToDraft } from '../../src/app/api/v1/itineraries/[itine
 import { POST as approveItinerary } from '../../src/app/api/v1/itineraries/[itineraryId]/approve/route';
 import { GET as listDays, POST as addDay } from '../../src/app/api/v1/itineraries/[itineraryId]/days/route';
 import { PATCH as updateDay, DELETE as removeDay } from '../../src/app/api/v1/itineraries/[itineraryId]/days/[dayId]/route';
-import { GET as listAssignedHotels, POST as assignHotel } from '../../src/app/api/v1/itineraries/[itineraryId]/hotels/route';
-import { DELETE as unassignHotel } from '../../src/app/api/v1/itineraries/[itineraryId]/hotels/[hotelId]/route';
 import { GET as listHotels, POST as createHotel } from '../../src/app/api/v1/hotels/route';
 import { PATCH as updateHotel, DELETE as deleteHotel } from '../../src/app/api/v1/hotels/[hotelId]/route';
 
@@ -92,7 +90,6 @@ afterAll(async () => {
     await prisma.$disconnect();
     return;
   }
-  await withOrg(orgId, (tx) => tx.itineraryHotel.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.itineraryDay.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.itinerary.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
@@ -181,10 +178,12 @@ describe('PATCH /api/v1/itineraries/:itineraryId', () => {
 });
 
 describe('itinerary day management', () => {
-  it('an operator adds day 1 (201)', async () => {
+  // DR-083: dayNumber is no longer client-supplied -- the service computes
+  // it from `date` relative to the departure's own startDate (2026-09-01
+  // for this fixture), so a `date` of 2026-09-01 becomes day 1.
+  it('an operator adds day 1, dayNumber computed from date (201)', async () => {
     const headers = await loginAs(operatorId);
     const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
-      dayNumber: 1,
       date: '2026-09-01',
       departureTime: '08:00',
       pickupLocation: 'Hotel lobby',
@@ -196,10 +195,18 @@ describe('itinerary day management', () => {
     expect(body.day.dayNumber).toBe(1);
   });
 
+  it('rejects a date before the trip start date (422, validation)', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
+      date: '2026-08-31',
+    });
+    const res = await addDay(req, { params: Promise.resolve({ itineraryId }) });
+    expect(res.status).toBe(422);
+  });
+
   it('rejects a malformed departureTime (422, zod validation)', async () => {
     const headers = await loginAs(operatorId);
     const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
-      dayNumber: 2,
       date: '2026-09-02',
       departureTime: '25:99',
     });
@@ -252,7 +259,7 @@ describe('itinerary day management', () => {
 
 let hotelId: string;
 
-describe('hotel reference data + itinerary assignment', () => {
+describe('hotel reference data + per-day assignment (DR-083)', () => {
   it('an operator creates a hotel (201)', async () => {
     const headers = await loginAs(operatorId);
     const req = jsonRequest('http://localhost/api/v1/hotels', headers, 'POST', {
@@ -284,38 +291,26 @@ describe('hotel reference data + itinerary assignment', () => {
     expect(body.hotel.name).toBe('Fixture Lodge Renamed');
   });
 
-  it('assigns the hotel to the itinerary (201)', async () => {
+  it('assigns the hotel to a specific day via hotelId (201)', async () => {
     const headers = await loginAs(operatorId);
-    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/hotels`, headers, 'POST', { hotelId });
-    const res = await assignHotel(req, { params: Promise.resolve({ itineraryId }) });
+    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
+      date: '2026-09-01',
+      hotelId,
+    });
+    const res = await addDay(req, { params: Promise.resolve({ itineraryId }) });
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.hotels.some((h: { id: string }) => h.id === hotelId)).toBe(true);
+    expect(body.day.hotelId).toBe(hotelId);
   });
 
-  it('404s assigning a non-existent hotel', async () => {
+  it('404s adding a day with a non-existent hotel', async () => {
     const headers = await loginAs(operatorId);
-    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/hotels`, headers, 'POST', {
+    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
+      date: '2026-09-02',
       hotelId: '00000000-0000-0000-0000-000000000000',
     });
-    const res = await assignHotel(req, { params: Promise.resolve({ itineraryId }) });
+    const res = await addDay(req, { params: Promise.resolve({ itineraryId }) });
     expect(res.status).toBe(404);
-  });
-
-  it('lists the itinerary\'s assigned hotels (200)', async () => {
-    const headers = await loginAs(operatorId);
-    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryId}/hotels`, { headers });
-    const res = await listAssignedHotels(req, { params: Promise.resolve({ itineraryId }) });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.hotels.length).toBe(1);
-  });
-
-  it('unassigns the hotel (204)', async () => {
-    const headers = await loginAs(operatorId);
-    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryId}/hotels/${hotelId}`, { method: 'DELETE', headers });
-    const res = await unassignHotel(req, { params: Promise.resolve({ itineraryId, hotelId }) });
-    expect(res.status).toBe(204);
   });
 
   it('deletes the hotel (204, soft delete)', async () => {

@@ -147,6 +147,20 @@ enum GuideStatus {
   SUSPENDED
 }
 
+// DR-082: usage-recency status, a dimension deliberately independent of
+// Vehicle/Driver/GuideStatus above -- MAINTENANCE/RETIRED/SUSPENDED are
+// manual operational/compliance holds; this tracks whether a resource is
+// currently on a confirmed trip (BOOKED), free (AVAILABLE), or hasn't had
+// one in 2+ months (INACTIVE). A vehicle in MAINTENANCE can still be
+// AVAILABLE or INACTIVE on this axis; the two are checked independently
+// wherever they matter (assignment eligibility only ever looks at the
+// ACTIVE/SUSPENDED/MAINTENANCE/RETIRED status, never this one).
+enum AvailabilityStatus {
+  AVAILABLE
+  BOOKED
+  INACTIVE
+}
+
 // ------------------------------------------------------------- identity
 model Organization {
   id            String    @id @default(uuid()) @db.Uuid
@@ -185,8 +199,7 @@ model Organization {
   itineraryDays         ItineraryDay[]
   hotels                Hotel[]
   restaurants           Restaurant[]
-  itineraryHotels       ItineraryHotel[]
-  itineraryRestaurants  ItineraryRestaurant[]
+  sites                 Site[]
   ratingCodes           RatingCode[]
   reviews               Review[]
   reviewSubjectRatings  ReviewSubjectRating[]
@@ -471,9 +484,9 @@ model TourPackage {
   // reads across this module already filter deletedAt: null.
   deletedAt        DateTime?
 
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departures          Departure[]
-  costBreakdown       PackageCostBreakdown?
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departures            Departure[]
+  costBreakdown         PackageCostBreakdown?
   itineraryTemplateDays PackageItineraryDay[]
 
   @@index([organizationId])
@@ -606,29 +619,29 @@ model Assignment {
 // same lazy sweepLifecycle convention this module already uses for
 // hold-expiry/status transitions.
 model Booking {
-  id                 String        @id @default(uuid()) @db.Uuid
-  organizationId     String        @db.Uuid
-  origin             BookingOrigin @default(PREDEFINED_PACKAGE)
+  id                     String        @id @default(uuid()) @db.Uuid
+  organizationId         String        @db.Uuid
+  origin                 BookingOrigin @default(PREDEFINED_PACKAGE)
   // Null only for a TAILOR_MADE booking -- no fixed departure exists yet.
-  departureId        String?       @db.Uuid
-  touristUserId      String        @db.Uuid
-  seats              Int
-  status             BookingStatus @default(DRAFT)
-  holdExpiresAt      DateTime? // set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking
+  departureId            String?       @db.Uuid
+  touristUserId          String        @db.Uuid
+  seats                  Int
+  status                 BookingStatus @default(DRAFT)
+  holdExpiresAt          DateTime? // set only while status = AWAITING_DEPOSIT, and only for a PREDEFINED_PACKAGE booking
   // Seats * effective unit price for PREDEFINED_PACKAGE, snapshotted at hold
   // time. Null for TAILOR_MADE until staff sends a quotation (sendQuotation).
-  priceMinor         Int?
-  currency           Currency?
+  priceMinor             Int?
+  currency               Currency?
   // Set when the add-ons wizard step is submitted, even choosing none --
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
-  addonsFinalizedAt  DateTime?
+  addonsFinalizedAt      DateTime?
   // Snapshotted when add-ons are finalized (setAddons): true only if the
   // selection included the VISA_ASSISTANCE add-on. Drives whether the
   // Passport wizard step appears at all, and for how many travelers --
   // computed once here rather than re-joining BookingAddon -> AddonService
   // on every page render (see domain.isTravelerManifestComplete).
-  requiresPassportUpload Boolean   @default(false)
+  requiresPassportUpload Boolean       @default(false)
   // Business-facing reference, e.g. shown on invoices/receipts and used as
   // the sole "find my booking" lookup key (+ the tour lead's last name --
   // see bookingService.lookupByBookingReference). DR-052 removed the
@@ -638,25 +651,25 @@ model Booking {
   // 2-3 non-adjacent unique uppercase letters + unique digits -- see
   // src/modules/booking/domain.ts's generateBookingReference;
   // booking_reference_seq is dead (superseded by that same DR-045 change).
-  bookingReference   String        @unique
-  specialRequests    String?       @db.VarChar(1000)
+  bookingReference       String        @unique
+  specialRequests        String?       @db.VarChar(1000)
   // TAILOR_MADE-only fields (all null/empty for a PREDEFINED_PACKAGE booking).
-  customCountry      String?       @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
-  customTravelStart  DateTime?
-  customTravelEnd    DateTime?
-  customDescription  String?       @db.VarChar(2000)
+  customCountry          String?       @db.VarChar(2) // ISO-3166 alpha-2; drives tax-rate lookup in lieu of a Departure's package
+  customTravelStart      DateTime?
+  customTravelEnd        DateTime?
+  customDescription      String?       @db.VarChar(2000)
   // Guest preference context for staff pricing a bespoke request (DR-046) --
   // NOT a matching/scoring input (the old quiz's package-ranking role is
   // gone entirely). Same PackageTag enum TourPackage.tags already uses.
-  preferredTags      PackageTag[]  @default([])
-  preferredSites     String[]      @default([])
+  preferredTags          PackageTag[]  @default([])
+  preferredSites         String[]      @default([])
   // DR-047: the full set of countries a guest ticked on /plan-my-trip
   // (customCountry above is just the first pick -- still the sole driver
   // of tax/visa lookups, unchanged). Contact email is booking-scoped, not
   // written onto User.email (which is better-auth-managed and @unique --
   // two different guests submitting the same real email would collide).
-  preferredCountries String[]      @default([])
-  contactEmail       String?       @db.VarChar(320)
+  preferredCountries     String[]      @default([])
+  contactEmail           String?       @db.VarChar(320)
   // DR-057: the guest's own name at inquiry time, booking-scoped like
   // contactEmail above -- needed because /find-booking's last-name check
   // otherwise has nothing to match against for a TAILOR_MADE booking still
@@ -664,24 +677,24 @@ model Booking {
   // until the setup wizard runs, which only starts after a quotation is
   // accepted). Not written onto User.name, which the wizard's contact step
   // already sets separately for account-profile purposes.
-  contactFirstName   String?       @db.VarChar(100)
-  contactLastName    String?       @db.VarChar(100)
+  contactFirstName       String?       @db.VarChar(100)
+  contactLastName        String?       @db.VarChar(100)
   // DR-048: guest-expressed add-on interest (same AddonCode enum
   // BookingAddon/AddonService use for a real priced predefined-package
   // add-on) -- staff context only here, no priced AddonService/BookingAddon
   // row exists yet for a bespoke inquiry with no package to attach one to.
-  preferredAddons    AddonCode[]   @default([])
+  preferredAddons        AddonCode[]   @default([])
   // ISO-3166 alpha-2 -- same convention as Traveler.nationality, but this
   // is the *guest's* own residence/citizenship (relevant to visa-assistance
   // interest), collected at inquiry time rather than per-traveler later.
-  countryOfResidence String?       @db.VarChar(2)
-  citizenship        String?       @db.VarChar(2)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  countryOfResidence     String?       @db.VarChar(2)
+  citizenship            String?       @db.VarChar(2)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
   // DR-058: see this model's own doc comment above -- a deliberate,
   // explicit, SUPERADMIN-only delete action, not an automatic side effect
   // of cancellation/refund.
-  deletedAt          DateTime?
+  deletedAt              DateTime?
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departure    Departure?     @relation(fields: [departureId], references: [id], onDelete: Cascade)
@@ -831,9 +844,9 @@ model Document {
 // Departure via Assignment starting DR-018. GPS v1 (later increment) will
 // attach here too.
 model Vehicle {
-  id             String        @id @default(uuid()) @db.Uuid
-  organizationId String        @db.Uuid
-  ownerId        String?       @db.Uuid // VEHICLE_OWNER user; null = operator-owned
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  ownerId        String?            @db.Uuid // VEHICLE_OWNER user; null = operator-owned
   plateNumber    String
   vin            String? // chassis/VIN (DR-029) -- distinct from plateNumber, not every jurisdiction requires it up front
   make           String
@@ -841,9 +854,15 @@ model Vehicle {
   year           Int?
   vehicleType    String // open-ended (sedan/minibus/4x4/boat...) -- varies too much across NA/DRC for an enum
   seatCapacity   Int
-  status         VehicleStatus @default(ACTIVE)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  status         VehicleStatus      @default(ACTIVE)
+  // DR-082: usage-recency, independent of `status` above -- see
+  // AvailabilityStatus's own comment. lastActiveAt seeds from createdAt
+  // (a brand-new vehicle isn't "inactive" on day one) and is bumped to
+  // now() whenever src/lib/fleet-availability.ts's sync runs against it.
+  availability   AvailabilityStatus @default(AVAILABLE)
+  lastActiveAt   DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   deletedAt      DateTime?
 
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -864,21 +883,25 @@ model Vehicle {
 // action -- distinct from `status`, which is the ordinary
 // ACTIVE/SUSPENDED deactivation toggle every staff fleet.write caller uses.
 model DriverProfile {
-  id               String       @id @default(uuid()) @db.Uuid
-  organizationId   String       @db.Uuid
-  userId           String       @unique @db.Uuid
+  id               String             @id @default(uuid()) @db.Uuid
+  organizationId   String             @db.Uuid
+  userId           String             @unique @db.Uuid
   licenseNumber    String
   licenseExpiresAt DateTime?
   // ISO-639-1 codes, e.g. ["en","fr"] (DR-029).
-  languages        String[]     @default([])
-  status           DriverStatus @default(ACTIVE)
+  languages        String[]           @default([])
+  status           DriverStatus       @default(ACTIVE)
+  // DR-082: usage-recency, independent of `status` -- see
+  // AvailabilityStatus's own comment.
+  availability     AvailabilityStatus @default(AVAILABLE)
+  lastActiveAt     DateTime           @default(now())
   // Live-recomputed from ReviewSubjectRating on every new Review (DR-037) --
   // null until the first rating, never incremented. Feeds
   // assignmentService.recommendAssignment's ordering.
   averageRating    Float?
-  ratingCount      Int          @default(0)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  ratingCount      Int                @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   deletedAt        DateTime?
 
   organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -895,27 +918,34 @@ model DriverProfile {
 // boundary reasoning as DriverProfile. Note: Assignment.guideUserId still
 // points directly at User (unchanged, pre-existing FK) rather than at this
 // table's id -- this profile is a satellite of compliance/skill data looked
-// up by userId, not the join target for assignments. "Availability" is not
-// a stored field -- computed from existing Assignment overlap data.
+// up by userId, not the join target for assignments. Per-departure "is this
+// guide free on these specific dates" eligibility is still computed live
+// from Assignment overlap data (recommendAssignment), never stored --
+// `availability` below (DR-082) is a different, general-purpose "how
+// recently has this guide worked at all" status, which IS stored.
 model GuideProfile {
-  id             String      @id @default(uuid()) @db.Uuid
-  organizationId String      @db.Uuid
-  userId         String      @unique @db.Uuid
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  userId         String             @unique @db.Uuid
   // ISO-639-1 codes, e.g. ["en","fr"], same convention as DriverProfile.
-  languages      String[]    @default([])
+  languages      String[]           @default([])
   // Freeform (e.g. "wildlife", "gorilla trekking", "cultural") -- no fixed
   // taxonomy specified, kept consistent with languages' flexible-array shape
   // rather than inventing an unrequested enum.
-  specialties    String[]    @default([])
-  status         GuideStatus @default(ACTIVE)
+  specialties    String[]           @default([])
+  status         GuideStatus        @default(ACTIVE)
+  // DR-082: usage-recency, independent of `status` -- see
+  // AvailabilityStatus's own comment.
+  availability   AvailabilityStatus @default(AVAILABLE)
+  lastActiveAt   DateTime           @default(now())
   // Live-recomputed from ReviewSubjectRating on every new Review (DR-037) --
   // null until the first rating, never incremented. Written by userId (see
   // fleetService.recordGuideRatingAggregateByUserId), since
   // ReviewSubjectRating.guideUserId points at User, not this table's id.
   averageRating  Float?
-  ratingCount    Int         @default(0)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  ratingCount    Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
   // DR-059: same deliberate, explicit, SUPERADMIN-only delete action as
   // DriverProfile.deletedAt -- see that field's own comment.
   deletedAt      DateTime?
@@ -1018,11 +1048,9 @@ model Itinerary {
   createdAt                DateTime        @default(now())
   updatedAt                DateTime        @updatedAt
 
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  booking      Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking      Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   days         ItineraryDay[]
-  hotels       ItineraryHotel[]
-  restaurants  ItineraryRestaurant[]
 
   @@index([organizationId])
   @@map("itineraries")
@@ -1033,6 +1061,14 @@ model Itinerary {
 // Itinerary's trip-level fields. departureTime/arrivalTime are plain
 // "HH:MM" strings (no existing time-of-day type in this schema, and
 // timezone precision isn't needed for a same-day local activity time).
+// dayNumber is server-computed from the trip's start date, never client-
+// supplied (see AddItineraryDayInput/service addDay -- explicit user
+// direction: a manually-typed day number was redundant with the date and
+// error-prone). hotelId/restaurantId (DR-083): per-day lodging/dining
+// assignment, replacing the old itinerary-wide ItineraryHotel/
+// ItineraryRestaurant join tables -- a real multi-day safari itinerary
+// stays at a different lodge/eats at a different restaurant per day, not
+// one fixed pair for the whole trip.
 model ItineraryDay {
   id                     String   @id @default(uuid()) @db.Uuid
   organizationId         String   @db.Uuid
@@ -1047,15 +1083,21 @@ model ItineraryDay {
   activities             String?  @db.Text
   estimatedTravelMinutes Int?
   notes                  String?  @db.Text
+  hotelId                String?  @db.Uuid
+  restaurantId           String?  @db.Uuid
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   itinerary    Itinerary    @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  hotel        Hotel?       @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  restaurant   Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
 
   @@unique([itineraryId, dayNumber])
   @@index([organizationId])
   @@index([itineraryId])
+  @@index([hotelId])
+  @@index([restaurantId])
   @@map("itinerary_days")
 }
 
@@ -1077,8 +1119,8 @@ model Hotel {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itineraries  ItineraryHotel[]
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  days         ItineraryDay[]
   ratings      HotelRating[]
 
   @@index([organizationId])
@@ -1101,12 +1143,32 @@ model Restaurant {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itineraries  ItineraryRestaurant[]
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  days         ItineraryDay[]
   ratings      RestaurantRating[]
 
   @@index([organizationId])
   @@map("restaurants")
+}
+
+// DR-083: staff-managed list of named tourist sites/attractions per country,
+// used to populate the daily-schedule "planned sites" picker instead of
+// free-typed text -- same "lightweight reusable reference entity" precedent
+// as Hotel/Restaurant above (name + country only, itinerary.write-gated
+// CRUD), not a full attraction/POI system.
+model Site {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  country        String   @db.VarChar(2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, country, name])
+  @@index([organizationId, country])
+  @@map("sites")
 }
 
 // Staff-only hotel rating (distinct from the tourist-facing ratings module's
@@ -1154,40 +1216,6 @@ model RestaurantRating {
   @@index([organizationId])
   @@index([restaurantId])
   @@map("restaurant_ratings")
-}
-
-model ItineraryHotel {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
-  itineraryId    String   @db.Uuid
-  hotelId        String   @db.Uuid
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itinerary    Itinerary    @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
-  hotel        Hotel        @relation(fields: [hotelId], references: [id], onDelete: Cascade)
-
-  @@unique([itineraryId, hotelId])
-  @@index([organizationId])
-  @@index([hotelId])
-  @@map("itinerary_hotels")
-}
-
-model ItineraryRestaurant {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
-  itineraryId    String   @db.Uuid
-  restaurantId   String   @db.Uuid
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itinerary    Itinerary    @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
-  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-
-  @@unique([itineraryId, restaurantId])
-  @@index([organizationId])
-  @@index([restaurantId])
-  @@map("itinerary_restaurants")
 }
 
 // Org-scoped catalog of priced add-on services (photography, video,

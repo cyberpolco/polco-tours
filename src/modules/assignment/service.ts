@@ -262,7 +262,11 @@ export const assignmentService = {
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 
-  async removeAssignment(ctx: AuthContext, assignmentId: string): Promise<void> {
+  /** Returns the removed row (DR-082: the departure page's
+   * removeAssignmentAction needs the freed vehicleId/driverProfileId/
+   * guideUserId to recompute their availability -- a departure-scoped
+   * lookup can't find them anymore once the assignment is gone). */
+  async removeAssignment(ctx: AuthContext, assignmentId: string): Promise<AssignmentView> {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const removed = await assignmentRepository.remove(organizationId, assignmentId);
@@ -276,6 +280,7 @@ export const assignmentService = {
       resourceId: removed.id,
       organizationId,
     });
+    return removed;
   },
 
   /** Self-service read, scoped per held role. No staff UI consumes this yet

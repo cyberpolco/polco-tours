@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   complianceStatus,
+  computeAvailabilityStatus,
   isFleetDeleter,
   maintenanceRecencyScore,
   CreateDriverProfileInput,
@@ -158,6 +159,37 @@ describe('fleet domain', () => {
     it('floors at 0 for maintenance long past the lookback window', () => {
       const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
       expect(maintenanceRecencyScore(yearAgo, now)).toBe(0);
+    });
+  });
+
+  describe('computeAvailabilityStatus (DR-082)', () => {
+    const now = new Date('2026-07-10T00:00:00Z');
+
+    it('is BOOKED whenever isCurrentlyBooked is true, regardless of lastActiveAt', () => {
+      expect(computeAvailabilityStatus(true, now, now)).toBe('BOOKED');
+      const longAgo = new Date('2020-01-01T00:00:00Z');
+      expect(computeAvailabilityStatus(true, longAgo, now)).toBe('BOOKED');
+    });
+
+    it('is AVAILABLE when not currently booked and lastActiveAt is recent', () => {
+      expect(computeAvailabilityStatus(false, now, now)).toBe('AVAILABLE');
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      expect(computeAvailabilityStatus(false, thirtyDaysAgo, now)).toBe('AVAILABLE');
+    });
+
+    it('is AVAILABLE exactly at the 60-day boundary', () => {
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      expect(computeAvailabilityStatus(false, sixtyDaysAgo, now)).toBe('AVAILABLE');
+    });
+
+    it('is INACTIVE just past the 60-day boundary', () => {
+      const justOver = new Date(now.getTime() - 61 * 24 * 60 * 60 * 1000);
+      expect(computeAvailabilityStatus(false, justOver, now)).toBe('INACTIVE');
+    });
+
+    it('is INACTIVE for a resource inactive for a year', () => {
+      const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      expect(computeAvailabilityStatus(false, yearAgo, now)).toBe('INACTIVE');
     });
   });
 

@@ -5,12 +5,14 @@ export {
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
+  CreateSiteInput,
   RateHotelInput,
   RateRestaurantInput,
   UpdateHotelInput,
   UpdateItineraryDayInput,
   UpdateItineraryInput,
   UpdateRestaurantInput,
+  UpdateSiteInput,
   canTransition,
 } from './domain';
 export type {
@@ -20,5 +22,6 @@ export type {
   ItineraryView,
   RestaurantRatingView,
   RestaurantView,
+  SiteView,
 } from './domain';
 export type { ItineraryStatus } from '@prisma/client';

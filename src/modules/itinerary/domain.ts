@@ -31,6 +31,10 @@ export interface ItineraryDayView {
   activities: string | null;
   estimatedTravelMinutes: number | null;
   notes: string | null;
+  // DR-083: per-day lodging/dining, replacing the old itinerary-wide
+  // ItineraryHotel/ItineraryRestaurant join tables.
+  hotelId: string | null;
+  restaurantId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,8 +119,12 @@ export type UpdateItineraryInput = z.infer<typeof UpdateItineraryInput>;
 // precision isn't needed for a same-day local activity time.
 const TIME_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+// dayNumber is deliberately NOT in this input -- explicit user direction: a
+// separate manually-typed day number was redundant with `date` and
+// error-prone (staff could enter a date and day number that disagreed).
+// The service computes it from `date` relative to the trip's own start
+// date instead (see itineraryService.addDay/resolveTripStartDate).
 export const AddItineraryDayInput = z.object({
-  dayNumber: z.number().int().positive(),
   date: z.coerce.date(),
   departureTime: z.string().regex(TIME_HHMM).optional(),
   arrivalTime: z.string().regex(TIME_HHMM).optional(),
@@ -126,10 +134,12 @@ export const AddItineraryDayInput = z.object({
   activities: z.string().max(2000).optional(),
   estimatedTravelMinutes: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
+  hotelId: z.string().uuid().optional(),
+  restaurantId: z.string().uuid().optional(),
 });
 export type AddItineraryDayInput = z.infer<typeof AddItineraryDayInput>;
 
-export const UpdateItineraryDayInput = AddItineraryDayInput.omit({ dayNumber: true }).partial();
+export const UpdateItineraryDayInput = AddItineraryDayInput.partial();
 export type UpdateItineraryDayInput = z.infer<typeof UpdateItineraryDayInput>;
 
 export const CreateHotelInput = z.object({
@@ -150,6 +160,26 @@ export type CreateRestaurantInput = z.infer<typeof CreateRestaurantInput>;
 
 export const UpdateRestaurantInput = UpdateHotelInput;
 export type UpdateRestaurantInput = z.infer<typeof UpdateRestaurantInput>;
+
+// DR-083: staff-managed reference list of named sites/attractions per
+// country -- populates the daily-schedule "planned sites" picker.
+export interface SiteView {
+  id: string;
+  organizationId: string;
+  name: string;
+  country: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const CreateSiteInput = z.object({
+  name: z.string().min(1).max(200),
+  country: z.string().length(2),
+});
+export type CreateSiteInput = z.infer<typeof CreateSiteInput>;
+
+export const UpdateSiteInput = CreateSiteInput.partial();
+export type UpdateSiteInput = z.infer<typeof UpdateSiteInput>;
 
 // DRAFT -> IN_REVIEW -> APPROVED, or DRAFT -> APPROVED directly (the same
 // roles hold both itinerary.write and itinerary.approve in this launch --

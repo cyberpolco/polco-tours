@@ -257,21 +257,14 @@ CREATE POLICY tenant_isolation ON restaurants
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
--- ------------------------------------------------------- itinerary_hotels (DR-033)
-ALTER TABLE itinerary_hotels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE itinerary_hotels FORCE ROW LEVEL SECURITY;
+-- ------------------------------------------------------------------ sites (DR-083)
+-- Replaces the old itinerary_hotels/itinerary_restaurants join tables
+-- (dropped -- hotel/restaurant assignment moved onto itinerary_days itself).
+ALTER TABLE sites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sites FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS tenant_isolation ON itinerary_hotels;
-CREATE POLICY tenant_isolation ON itinerary_hotels
-  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
-  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
-
--- --------------------------------------------------- itinerary_restaurants (DR-033)
-ALTER TABLE itinerary_restaurants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE itinerary_restaurants FORCE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS tenant_isolation ON itinerary_restaurants;
-CREATE POLICY tenant_isolation ON itinerary_restaurants
+DROP POLICY IF EXISTS tenant_isolation ON sites;
+CREATE POLICY tenant_isolation ON sites
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 

@@ -7,6 +7,7 @@ import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
+  computeAvailabilityStatus,
   isFleetDeleter,
   type CreateDriverProfileInput,
   type CreateGuideProfileInput,
@@ -494,5 +495,60 @@ export const fleetService = {
       }
     }
     return locations;
+  },
+
+  // ------------------------------------------------------------ availability (DR-082)
+  //
+  // No-ctx, mirroring the *ForBookingLookup convention (DR-030/031 etc.):
+  // these are a computed side effect of an action the CALLER already
+  // authorized (creating an assignment, moving a booking to/out of
+  // CONFIRMED-or-later), not a new user-facing write of their own -- the
+  // cross-module sync helper (src/lib/fleet-availability.ts) is the one and
+  // only caller, right after assignmentService/bookingService's own
+  // ctx-gated mutations succeed. Silently no-ops if the id doesn't resolve
+  // in this org (soft-deleted or never existed) -- never worth failing the
+  // assignment/booking-status change that triggered it.
+
+  async recomputeVehicleAvailability(organizationId: string, vehicleId: string, isCurrentlyBooked: boolean): Promise<void> {
+    const vehicle = await fleetRepository.findVehicleById(organizationId, vehicleId);
+    if (!vehicle) return;
+    const now = new Date();
+    await fleetRepository.updateVehicleAvailability(organizationId, vehicleId, {
+      availability: computeAvailabilityStatus(isCurrentlyBooked, vehicle.lastActiveAt, now),
+      lastActiveAt: isCurrentlyBooked ? now : undefined,
+    });
+  },
+
+  async recomputeDriverAvailability(organizationId: string, driverProfileId: string, isCurrentlyBooked: boolean): Promise<void> {
+    const driver = await fleetRepository.findDriverProfileById(organizationId, driverProfileId);
+    if (!driver) return;
+    const now = new Date();
+    await fleetRepository.updateDriverProfileAvailability(organizationId, driverProfileId, {
+      availability: computeAvailabilityStatus(isCurrentlyBooked, driver.lastActiveAt, now),
+      lastActiveAt: isCurrentlyBooked ? now : undefined,
+    });
+  },
+
+  /** Keyed by userId, not GuideProfile.id -- matches Assignment.guideUserId
+   * (see updateGuideProfileAvailabilityByUserId). No-ops if this guide has
+   * no GuideProfile row at all (profiles are optional, DR-030). */
+  async recomputeGuideAvailability(organizationId: string, guideUserId: string, isCurrentlyBooked: boolean): Promise<void> {
+    const guide = await fleetRepository.findGuideProfileByUserId(organizationId, guideUserId);
+    if (!guide) return;
+    const now = new Date();
+    await fleetRepository.updateGuideProfileAvailabilityByUserId(organizationId, guideUserId, {
+      availability: computeAvailabilityStatus(isCurrentlyBooked, guide.lastActiveAt, now),
+      lastActiveAt: isCurrentlyBooked ? now : undefined,
+    });
+  },
+
+  /** Scheduled-sweep entry point (DR-082, mirrors bookingService.
+   * runScheduledSweep's shape) -- catches the "2+ months, nothing else ever
+   * triggered a recompute" case across every organization. Never flips
+   * anything BOOKED (that's only ever set by the hooks above, which know
+   * about a real live assignment); this only ever moves AVAILABLE ->
+   * INACTIVE once lastActiveAt is stale enough, or leaves it AVAILABLE. */
+  async runAvailabilitySweep(): Promise<{ organizationsSwept: number; vehiclesMarkedInactive: number; driversMarkedInactive: number; guidesMarkedInactive: number }> {
+    return fleetRepository.sweepInactivityAllOrganizations();
   },
 };

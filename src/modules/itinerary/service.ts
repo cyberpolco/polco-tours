@@ -14,6 +14,7 @@ import {
   type CreateHotelInput,
   type CreateItineraryInput,
   type CreateRestaurantInput,
+  type CreateSiteInput,
   type HotelRatingView,
   type HotelView,
   type ItineraryDayView,
@@ -22,10 +23,12 @@ import {
   type RateRestaurantInput,
   type RestaurantRatingView,
   type RestaurantView,
+  type SiteView,
   type UpdateHotelInput,
   type UpdateItineraryDayInput,
   type UpdateItineraryInput,
   type UpdateRestaurantInput,
+  type UpdateSiteInput,
 } from './domain';
 import { itineraryRepository } from './repository';
 
@@ -74,7 +77,24 @@ export const itineraryService = {
     const existing = await itineraryRepository.findByBookingId(organizationId, bookingId);
     if (existing) throw Errors.conflict('This booking already has an itinerary');
 
-    const itinerary = await itineraryRepository.create(organizationId, bookingId, input);
+    // Explicit user direction: an emergency contact is the tourist's own
+    // data, collected once already on the tour lead's Traveler row during
+    // guest booking -- default the itinerary's copy from there instead of
+    // asking staff to retype it from scratch. Still a plain input field
+    // (not read-live from Traveler), same "prefill but staff can still
+    // override" convention as the departure page's guide auto-assign --
+    // staff may legitimately want a different on-the-ground contact (e.g.
+    // a local ranger station, see the Relation field's placeholder).
+    const travelers = await bookingService.listTravelers(ctx, bookingId);
+    const tourLead = travelers.find((t) => t.isTourLead);
+    const effectiveInput: CreateItineraryInput = {
+      ...input,
+      emergencyContactName: input.emergencyContactName ?? tourLead?.emergencyContactName ?? undefined,
+      emergencyContactPhone: input.emergencyContactPhone ?? tourLead?.emergencyContactPhone ?? undefined,
+      emergencyContactRelation: input.emergencyContactRelation ?? tourLead?.emergencyContactRelation ?? undefined,
+    };
+
+    const itinerary = await itineraryRepository.create(organizationId, bookingId, effectiveInput);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -97,8 +117,7 @@ export const itineraryService = {
         if (departure.tourPackageId) {
           const templateDays = await catalogService.listTemplateDaysForItineraryCopy(organizationId, departure.tourPackageId);
           for (const day of templateDays) {
-            await itineraryRepository.addDay(organizationId, itinerary.id, {
-              dayNumber: day.dayNumber,
+            await itineraryRepository.addDay(organizationId, itinerary.id, day.dayNumber, {
               date: addDaysToDate(departure.startDate, day.dayNumber - 1),
               departureTime: day.departureTime ?? undefined,
               arrivalTime: day.arrivalTime ?? undefined,
@@ -248,8 +267,11 @@ export const itineraryService = {
   async addDay(ctx: AuthContext, itineraryId: string, input: AddItineraryDayInput): Promise<ItineraryDayView> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    return itineraryRepository.addDay(organizationId, itineraryId, input);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    const dayNumber = await computeDayNumber(ctx, itinerary, input.date);
+    if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
+    if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
+    return itineraryRepository.addDay(organizationId, itineraryId, dayNumber, input);
   },
 
   async updateDay(
@@ -260,8 +282,11 @@ export const itineraryService = {
   ): Promise<ItineraryDayView> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    const updated = await itineraryRepository.updateDay(organizationId, dayId, input);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    const dayNumber = input.date ? await computeDayNumber(ctx, itinerary, input.date) : undefined;
+    if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
+    if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
+    const updated = await itineraryRepository.updateDay(organizationId, dayId, input, dayNumber);
     if (!updated) throw Errors.notFound('Itinerary day not found');
     return updated;
   },
@@ -315,6 +340,14 @@ export const itineraryService = {
     return itineraryRepository.listHotels(requireOrg(ctx));
   },
 
+  /** Batch name resolution for the daily-schedule day cards (DR-083) -- each
+   * ItineraryDay stores only a hotelId, this resolves the small (typically
+   * <10) distinct set actually used across an itinerary's days in one query. */
+  async listHotelsByIds(ctx: AuthContext, hotelIds: string[]): Promise<HotelView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.findHotelsByIds(requireOrg(ctx), hotelIds);
+  },
+
   async createRestaurant(ctx: AuthContext, input: CreateRestaurantInput): Promise<RestaurantView> {
     assertCan(ctx, 'itinerary.write');
     return itineraryRepository.createRestaurant(requireOrg(ctx), input);
@@ -345,70 +378,84 @@ export const itineraryService = {
     return itineraryRepository.listRestaurants(requireOrg(ctx));
   },
 
-  // ------------------------------------------------------------ assignment (join tables)
-
-  async assignHotel(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<void> {
-    assertCan(ctx, 'itinerary.write');
-    const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    const hotels = await itineraryRepository.findHotelsByIds(organizationId, [hotelId]);
-    if (hotels.length === 0) throw Errors.notFound('Hotel not found');
-    await itineraryRepository.assignHotel(organizationId, itineraryId, hotelId);
-  },
-
-  async unassignHotel(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<void> {
-    assertCan(ctx, 'itinerary.write');
-    const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    await itineraryRepository.unassignHotel(organizationId, itineraryId, hotelId);
-  },
-
-  async listAssignedHotels(ctx: AuthContext, itineraryId: string): Promise<HotelView[]> {
+  /** Restaurant counterpart to listHotelsByIds -- identical shape. */
+  async listRestaurantsByIds(ctx: AuthContext, restaurantIds: string[]): Promise<RestaurantView[]> {
     assertCan(ctx, 'itinerary.read');
-    const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
-    const ids = await itineraryRepository.listAssignedHotelIds(organizationId, itineraryId);
-    return itineraryRepository.findHotelsByIds(organizationId, ids);
+    return itineraryRepository.findRestaurantsByIds(requireOrg(ctx), restaurantIds);
   },
 
-  async assignRestaurant(ctx: AuthContext, itineraryId: string, restaurantId: string): Promise<void> {
+  // ------------------------------------------------------------ sites (reference data)
+
+  async createSite(ctx: AuthContext, input: CreateSiteInput): Promise<SiteView> {
     assertCan(ctx, 'itinerary.write');
-    const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    const restaurants = await itineraryRepository.findRestaurantsByIds(organizationId, [restaurantId]);
-    if (restaurants.length === 0) throw Errors.notFound('Restaurant not found');
-    await itineraryRepository.assignRestaurant(organizationId, itineraryId, restaurantId);
+    return itineraryRepository.createSite(requireOrg(ctx), input);
   },
 
-  async unassignRestaurant(ctx: AuthContext, itineraryId: string, restaurantId: string): Promise<void> {
-    assertCan(ctx, 'itinerary.write');
-    const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
-    await itineraryRepository.unassignRestaurant(organizationId, itineraryId, restaurantId);
-  },
-
-  async listAssignedRestaurants(ctx: AuthContext, itineraryId: string): Promise<RestaurantView[]> {
+  async getSite(ctx: AuthContext, siteId: string): Promise<SiteView> {
     assertCan(ctx, 'itinerary.read');
-    const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
-    const ids = await itineraryRepository.listAssignedRestaurantIds(organizationId, itineraryId);
-    return itineraryRepository.findRestaurantsByIds(organizationId, ids);
+    const site = await itineraryRepository.findSiteById(requireOrg(ctx), siteId);
+    if (!site) throw Errors.notFound('Site not found');
+    return site;
+  },
+
+  async updateSite(ctx: AuthContext, siteId: string, input: UpdateSiteInput): Promise<SiteView> {
+    assertCan(ctx, 'itinerary.write');
+    const updated = await itineraryRepository.updateSite(requireOrg(ctx), siteId, input);
+    if (!updated) throw Errors.notFound('Site not found');
+    return updated;
+  },
+
+  async deleteSite(ctx: AuthContext, siteId: string): Promise<void> {
+    assertCan(ctx, 'itinerary.write');
+    const removed = await itineraryRepository.deleteSite(requireOrg(ctx), siteId);
+    if (!removed) throw Errors.notFound('Site not found');
+  },
+
+  async listSites(ctx: AuthContext): Promise<SiteView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.listSites(requireOrg(ctx));
+  },
+
+  /** Powers the day form's "planned sites" picker, scoped to the itinerary's
+   * own package country -- staff building a day plan only sees sites
+   * relevant to where the trip actually is. */
+  async listSitesForCountry(ctx: AuthContext, country: string): Promise<SiteView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.listSitesForCountry(requireOrg(ctx), country);
   },
 
   // ------------------------------------------------------------ hotel / restaurant ratings
 
-  /** Staff-only 5-star rating, scoped to a hotel actually assigned to the
-   * given itinerary (re-verified here, not trusted from the client) --
-   * getOwnedItinerary's existing anti-BOLA check is what actually restricts
-   * TOUR_GUIDE/DRIVER to only their own toured itineraries; a manager
-   * (itinerary.write holder) can reach any itinerary and so effectively any
-   * assigned hotel, matching the explicit "operators can rate any" design. */
-  async rateHotel(ctx: AuthContext, itineraryId: string, hotelId: string, input: RateHotelInput): Promise<HotelRatingView> {
+  /** Anti-BOLA scope for TOUR_GUIDE/DRIVER (DR-083): hotels actually used
+   * (ItineraryDay.hotelId) on one of the caller's own assigned itineraries.
+   * Consulted only for non-managers -- a manager (itinerary.write holder)
+   * may rate any hotel, matching the pre-existing "operators can rate any"
+   * design. Also used by the hotel profile page to decide page-level
+   * access (404 for a hotel a guide/driver never actually toured). */
+  async listMyRateableHotelIds(ctx: AuthContext): Promise<string[]> {
+    assertCan(ctx, 'itinerary.read');
+    return myRateableHotelIds(ctx, requireOrg(ctx));
+  },
+
+  /** Restaurant counterpart to listMyRateableHotelIds -- identical shape. */
+  async listMyRateableRestaurantIds(ctx: AuthContext): Promise<string[]> {
+    assertCan(ctx, 'itinerary.read');
+    return myRateableRestaurantIds(ctx, requireOrg(ctx));
+  },
+
+  /** Staff-only 5-star rating, now scoped to the hotel directly (DR-083:
+   * moved off the itinerary page onto /staff/hotels/[hotelId], no
+   * itineraryId in scope anymore). Non-managers are restricted to a hotel
+   * they've actually toured (listMyRateableHotelIds); managers may rate any. */
+  async rateHotel(ctx: AuthContext, hotelId: string, input: RateHotelInput): Promise<HotelRatingView> {
     assertCan(ctx, 'hotel_restaurant_rating.write');
     const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
-    const assignedIds = await itineraryRepository.listAssignedHotelIds(organizationId, itineraryId);
-    if (!assignedIds.includes(hotelId)) throw Errors.notFound('Hotel is not assigned to this itinerary');
+    const hotel = await itineraryRepository.findHotelById(organizationId, hotelId);
+    if (!hotel) throw Errors.notFound('Hotel not found');
+    if (!isItineraryManager(ctx.roles)) {
+      const rateableIds = await myRateableHotelIds(ctx, organizationId);
+      if (!rateableIds.includes(hotelId)) throw Errors.notFound('Hotel not found');
+    }
 
     const rating = await itineraryRepository.upsertHotelRating(organizationId, hotelId, ctx.userId, input);
     await audit({
@@ -418,32 +465,30 @@ export const itineraryService = {
       resourceType: 'Hotel',
       resourceId: hotelId,
       organizationId,
-      metadata: { itineraryId, rating: input.rating },
+      metadata: { rating: input.rating },
     });
     return rating;
   },
 
-  /** The caller's own rating for a hotel, in the context of one of their
-   * itineraries -- same anti-BOLA gate as rateHotel, read-only. */
-  async getMyHotelRating(ctx: AuthContext, itineraryId: string, hotelId: string): Promise<HotelRatingView | null> {
+  /** The caller's own rating for a hotel -- read-only, no anti-BOLA gate of
+   * its own (a rating that doesn't exist yet is simply null; the write path
+   * above is where access is actually enforced). */
+  async getMyHotelRating(ctx: AuthContext, hotelId: string): Promise<HotelRatingView | null> {
     assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
     return itineraryRepository.getMyHotelRating(organizationId, hotelId, ctx.userId);
   },
 
   /** Restaurant counterpart to rateHotel -- identical shape/rules. */
-  async rateRestaurant(
-    ctx: AuthContext,
-    itineraryId: string,
-    restaurantId: string,
-    input: RateRestaurantInput,
-  ): Promise<RestaurantRatingView> {
+  async rateRestaurant(ctx: AuthContext, restaurantId: string, input: RateRestaurantInput): Promise<RestaurantRatingView> {
     assertCan(ctx, 'hotel_restaurant_rating.write');
     const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
-    const assignedIds = await itineraryRepository.listAssignedRestaurantIds(organizationId, itineraryId);
-    if (!assignedIds.includes(restaurantId)) throw Errors.notFound('Restaurant is not assigned to this itinerary');
+    const restaurant = await itineraryRepository.findRestaurantById(organizationId, restaurantId);
+    if (!restaurant) throw Errors.notFound('Restaurant not found');
+    if (!isItineraryManager(ctx.roles)) {
+      const rateableIds = await myRateableRestaurantIds(ctx, organizationId);
+      if (!rateableIds.includes(restaurantId)) throw Errors.notFound('Restaurant not found');
+    }
 
     const rating = await itineraryRepository.upsertRestaurantRating(organizationId, restaurantId, ctx.userId, input);
     await audit({
@@ -453,19 +498,14 @@ export const itineraryService = {
       resourceType: 'Restaurant',
       resourceId: restaurantId,
       organizationId,
-      metadata: { itineraryId, rating: input.rating },
+      metadata: { rating: input.rating },
     });
     return rating;
   },
 
-  async getMyRestaurantRating(
-    ctx: AuthContext,
-    itineraryId: string,
-    restaurantId: string,
-  ): Promise<RestaurantRatingView | null> {
+  async getMyRestaurantRating(ctx: AuthContext, restaurantId: string): Promise<RestaurantRatingView | null> {
     assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
-    await getOwnedItinerary(ctx, organizationId, itineraryId);
     return itineraryRepository.getMyRestaurantRating(organizationId, restaurantId, ctx.userId);
   },
 };
@@ -509,4 +549,68 @@ function addDaysToDate(startDate: Date, extraDays: number): Date {
   const d = new Date(startDate);
   d.setUTCDate(d.getUTCDate() + extraDays);
   return d;
+}
+
+function diffInCalendarDays(a: Date, b: Date): number {
+  const utcA = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const utcB = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
+  return Math.round((utcA - utcB) / 86_400_000);
+}
+
+/** The trip's own start date, resolved the same way the itinerary detail
+ * page already displays "travel dates": a PREDEFINED_PACKAGE booking's real
+ * Departure.startDate, or a converted TAILOR_MADE booking's
+ * customTravelStart. Throws (not null) -- a booking with neither means
+ * travel dates were never set, and adding a dated day makes no sense yet. */
+async function resolveTripStartDate(ctx: AuthContext, itinerary: ItineraryView): Promise<Date> {
+  const booking = await bookingService.getById(ctx, itinerary.bookingId);
+  if (booking.departureId) {
+    const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    return departure.startDate;
+  }
+  if (booking.customTravelStart) return booking.customTravelStart;
+  throw Errors.conflict("This booking has no travel start date yet -- set travel dates before adding itinerary days.");
+}
+
+/** Explicit user direction: dayNumber is never client-supplied -- it's
+ * derived from `date` relative to the trip's own start date, so it can
+ * never disagree with the date staff actually picked. */
+async function computeDayNumber(ctx: AuthContext, itinerary: ItineraryView, date: Date): Promise<number> {
+  const startDate = await resolveTripStartDate(ctx, itinerary);
+  const dayNumber = diffInCalendarDays(date, startDate) + 1;
+  if (dayNumber < 1) {
+    throw Errors.validation(`Date is before the trip's start date (${startDate.toISOString().slice(0, 10)})`);
+  }
+  return dayNumber;
+}
+
+async function requireHotelExists(organizationId: string, hotelId: string): Promise<void> {
+  const hotel = await itineraryRepository.findHotelById(organizationId, hotelId);
+  if (!hotel) throw Errors.notFound('Hotel not found');
+}
+
+async function requireRestaurantExists(organizationId: string, restaurantId: string): Promise<void> {
+  const restaurant = await itineraryRepository.findRestaurantById(organizationId, restaurantId);
+  if (!restaurant) throw Errors.notFound('Restaurant not found');
+}
+
+/** Same departureIds resolution as the public listMine() -- factored out so
+ * the rateable-hotel/restaurant helpers below don't need to re-derive it. */
+async function myAssignedItineraryIds(ctx: AuthContext, organizationId: string): Promise<string[]> {
+  const assignments = await assignmentService.listMyAssignments(ctx);
+  const departureIds = [...new Set(assignments.map((a) => a.departureId))];
+  const itineraries = await itineraryRepository.listForDepartureIds(organizationId, departureIds);
+  return itineraries.map((i) => i.id);
+}
+
+async function myRateableHotelIds(ctx: AuthContext, organizationId: string): Promise<string[]> {
+  const itineraryIds = await myAssignedItineraryIds(ctx, organizationId);
+  const days = await itineraryRepository.listDaysForItineraries(organizationId, itineraryIds);
+  return [...new Set(days.map((d) => d.hotelId).filter((id): id is string => id !== null))];
+}
+
+async function myRateableRestaurantIds(ctx: AuthContext, organizationId: string): Promise<string[]> {
+  const itineraryIds = await myAssignedItineraryIds(ctx, organizationId);
+  const days = await itineraryRepository.listDaysForItineraries(organizationId, itineraryIds);
+  return [...new Set(days.map((d) => d.restaurantId).filter((id): id is string => id !== null))];
 }

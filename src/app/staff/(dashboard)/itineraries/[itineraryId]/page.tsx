@@ -3,33 +3,30 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
-import { itineraryService } from '@modules/itinerary';
+import { itineraryService, type HotelView, type RestaurantView } from '@modules/itinerary';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
 import {
   addDayAction,
   approveItineraryAction,
-  assignHotelAction,
-  assignRestaurantAction,
-  rateHotelAction,
-  rateRestaurantAction,
   removeDayAction,
   sendBackToDraftAction,
   submitForReviewAction,
-  unassignHotelAction,
-  unassignRestaurantAction,
   updateDayAction,
   updateItineraryAction,
 } from './actions';
 
 interface Props {
   params: Promise<{ itineraryId: string }>;
+}
+
+function notNull<T>(v: T | null): v is T {
+  return v !== null;
 }
 
 // Itinerary Management (DR-033) -- "the single operational reference for
@@ -41,6 +38,11 @@ interface Props {
 // linked from here rather than duplicated, since Assignment is keyed by
 // Departure (shared across every booking on a PREDEFINED_PACKAGE departure),
 // not by Itinerary/Booking.
+//
+// DR-083: hotel/restaurant assignment moved from an itinerary-wide list to
+// per-day (ItineraryDay.hotelId/restaurantId) -- a real multi-lodge safari
+// stays at a different place each night. Rating moved off this page
+// entirely, onto /staff/hotels/[hotelId] and /staff/restaurants/[id].
 export default async function ItineraryDetailPage({ params }: Props) {
   const { itineraryId } = await params;
   const ctx = await requireStaffContext('itinerary.read');
@@ -54,7 +56,6 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
   const canWrite = can(ctx, 'itinerary.write');
   const canApprove = can(ctx, 'itinerary.approve');
-  const canRate = can(ctx, 'hotel_restaurant_rating.write');
 
   // DR-058: a soft-deleted Booking isn't hard-deleted until the retention
   // purge, so this itinerary's own bookingId can point at one for up to 90
@@ -70,34 +71,18 @@ export default async function ItineraryDetailPage({ params }: Props) {
     notFound();
   }
 
-  const [days, assignedHotels, assignedRestaurants] = await Promise.all([
-    itineraryService.listDays(ctx, itineraryId),
-    itineraryService.listAssignedHotels(ctx, itineraryId),
-    itineraryService.listAssignedRestaurants(ctx, itineraryId),
-  ]);
-
-  // Staff-only hotel/restaurant ratings (only fetched for a role that can
-  // actually submit one -- read-only average ratings render regardless).
-  // Sequential awaits, not Promise.all -- same connection-pool-exhaustion
-  // avoidance as Insights (DR-038)/Tracking (DR-041)/Visa Queue (DR-060).
-  const myHotelRatings = new Map<string, Awaited<ReturnType<typeof itineraryService.getMyHotelRating>>>();
-  if (canRate) {
-    for (const h of assignedHotels) {
-      myHotelRatings.set(h.id, await itineraryService.getMyHotelRating(ctx, itineraryId, h.id));
-    }
-  }
-  const myRestaurantRatings = new Map<string, Awaited<ReturnType<typeof itineraryService.getMyRestaurantRating>>>();
-  if (canRate) {
-    for (const r of assignedRestaurants) {
-      myRestaurantRatings.set(r.id, await itineraryService.getMyRestaurantRating(ctx, itineraryId, r.id));
-    }
-  }
+  const days = await itineraryService.listDays(ctx, itineraryId);
 
   let travelDates = 'Not scheduled yet';
+  // Falls back to the TAILOR_MADE booking's own custom country when there's
+  // no real departure/package yet -- feeds the "planned sites" datalist
+  // below, scoped to wherever this trip actually is.
+  let tripCountry: string | null = booking.customCountry;
   if (booking.departureId) {
     try {
-      const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+      const { departure, packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
       travelDates = `${departure.startDate.toLocaleDateString()}${departure.endDate ? ` – ${departure.endDate.toLocaleDateString()}` : ''}`;
+      tripCountry = packageCountry;
     } catch {
       // departure no longer visible to this role -- fall through to the default text
     }
@@ -105,13 +90,25 @@ export default async function ItineraryDetailPage({ params }: Props) {
     travelDates = `${booking.customTravelStart.toLocaleDateString()}${booking.customTravelEnd ? ` – ${booking.customTravelEnd.toLocaleDateString()}` : ''}`;
   }
 
-  const [allHotels, allRestaurants] = canWrite
-    ? await Promise.all([itineraryService.listHotels(ctx), itineraryService.listRestaurants(ctx)])
-    : [[], []];
-  const assignedHotelIds = new Set(assignedHotels.map((h) => h.id));
-  const assignedRestaurantIds = new Set(assignedRestaurants.map((r) => r.id));
-  const availableHotels = allHotels.filter((h) => !assignedHotelIds.has(h.id));
-  const availableRestaurants = allRestaurants.filter((r) => !assignedRestaurantIds.has(r.id));
+  // Batch name resolution for whatever hotels/restaurants the days already
+  // reference (read-only view too, not just canWrite) -- separate from the
+  // full org-wide lists below, which only the write forms need.
+  const dayHotelIds = [...new Set(days.map((d) => d.hotelId).filter(notNull))];
+  const dayRestaurantIds = [...new Set(days.map((d) => d.restaurantId).filter(notNull))];
+  const [dayHotels, dayRestaurants]: [HotelView[], RestaurantView[]] = await Promise.all([
+    itineraryService.listHotelsByIds(ctx, dayHotelIds),
+    itineraryService.listRestaurantsByIds(ctx, dayRestaurantIds),
+  ]);
+  const hotelNameById = new Map(dayHotels.map((h) => [h.id, h.name]));
+  const restaurantNameById = new Map(dayRestaurants.map((r) => [r.id, r.name]));
+
+  const [allHotels, allRestaurants, siteOptions] = canWrite
+    ? await Promise.all([
+        itineraryService.listHotels(ctx),
+        itineraryService.listRestaurants(ctx),
+        tripCountry ? itineraryService.listSitesForCountry(ctx, tripCountry) : Promise.resolve([]),
+      ])
+    : [[], [], []];
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -236,6 +233,18 @@ export default async function ItineraryDetailPage({ params }: Props) {
                   )}
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm text-mist">
+                  {day.hotelId && (
+                    <div>
+                      <dt className="text-xs">Hotel</dt>
+                      <dd>{hotelNameById.get(day.hotelId) ?? '—'}</dd>
+                    </div>
+                  )}
+                  {day.restaurantId && (
+                    <div>
+                      <dt className="text-xs">Restaurant</dt>
+                      <dd>{restaurantNameById.get(day.restaurantId) ?? '—'}</dd>
+                    </div>
+                  )}
                   {day.pickupLocation && (
                     <div>
                       <dt className="text-xs">Pickup</dt>
@@ -297,21 +306,43 @@ export default async function ItineraryDetailPage({ params }: Props) {
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Departure time (HH:MM)" htmlFor={`dep-${day.id}`} optional>
+                        <FormField label="Departure time" htmlFor={`dep-${day.id}`} optional>
                           <input
                             name="departureTime"
+                            type="time"
                             defaultValue={day.departureTime ?? ''}
-                            placeholder="08:00"
                             className="w-full rounded-survey border border-rule px-3 py-2"
                           />
                         </FormField>
-                        <FormField label="Arrival time (HH:MM)" htmlFor={`arr-${day.id}`} optional>
+                        <FormField label="Arrival time" htmlFor={`arr-${day.id}`} optional>
                           <input
                             name="arrivalTime"
+                            type="time"
                             defaultValue={day.arrivalTime ?? ''}
-                            placeholder="17:00"
                             className="w-full rounded-survey border border-rule px-3 py-2"
                           />
+                        </FormField>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Hotel" htmlFor={`hotel-${day.id}`} optional>
+                          <Select name="hotelId" defaultValue={day.hotelId ?? ''}>
+                            <option value="">— none —</option>
+                            {allHotels.map((h) => (
+                              <option key={h.id} value={h.id}>
+                                {h.name} ({h.country})
+                              </option>
+                            ))}
+                          </Select>
+                        </FormField>
+                        <FormField label="Restaurant" htmlFor={`restaurant-${day.id}`} optional>
+                          <Select name="restaurantId" defaultValue={day.restaurantId ?? ''}>
+                            <option value="">— none —</option>
+                            {allRestaurants.map((r) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} ({r.country})
+                              </option>
+                            ))}
+                          </Select>
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -331,10 +362,11 @@ export default async function ItineraryDetailPage({ params }: Props) {
                         </FormField>
                       </div>
                       <FormField label="Planned sites / attractions" htmlFor={`sites-${day.id}`} optional>
-                        <textarea
+                        <input
                           name="plannedSites"
+                          list="site-options"
                           defaultValue={day.plannedSites ?? ''}
-                          rows={2}
+                          placeholder="Start typing for known sites…"
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
@@ -366,223 +398,80 @@ export default async function ItineraryDetailPage({ params }: Props) {
         )}
 
         {canWrite && (
-          <details className="mt-6">
-            <summary className="cursor-pointer text-sm text-forest">Add a day</summary>
-            <form action={addDayAction.bind(null, itineraryId)} className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label="Day number" htmlFor="dayNumber">
-                  <input
-                    name="dayNumber"
-                    type="number"
-                    min={1}
-                    defaultValue={days.length + 1}
-                    required
-                    className="w-full rounded-survey border border-rule px-3 py-2"
-                  />
-                </FormField>
+          <>
+            {/* Shared by both the add-day and edit-day "planned sites" inputs. */}
+            <datalist id="site-options">
+              {siteOptions.map((s) => (
+                <option key={s.id} value={s.name} />
+              ))}
+            </datalist>
+            <details className="mt-6">
+              <summary className="cursor-pointer text-sm text-forest">Add a day</summary>
+              <form action={addDayAction.bind(null, itineraryId)} className="mt-4 space-y-3">
+                {/* Day number is computed server-side from this date relative to
+                    the trip's own start date (DR-083) -- no longer a form field. */}
                 <FormField label="Date" htmlFor="date">
                   <input name="date" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label="Departure time (HH:MM)" htmlFor="departureTime" optional>
-                  <input name="departureTime" placeholder="08:00" className="w-full rounded-survey border border-rule px-3 py-2" />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Departure time" htmlFor="departureTime" optional>
+                    <input name="departureTime" type="time" className="w-full rounded-survey border border-rule px-3 py-2" />
+                  </FormField>
+                  <FormField label="Arrival time" htmlFor="arrivalTime" optional>
+                    <input name="arrivalTime" type="time" className="w-full rounded-survey border border-rule px-3 py-2" />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Hotel" htmlFor="hotelId" optional>
+                    <Select name="hotelId" defaultValue="">
+                      <option value="">— none —</option>
+                      {allHotels.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name} ({h.country})
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Restaurant" htmlFor="restaurantId" optional>
+                    <Select name="restaurantId" defaultValue="">
+                      <option value="">— none —</option>
+                      {allRestaurants.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} ({r.country})
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Pickup location" htmlFor="pickupLocation" optional>
+                    <input name="pickupLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
+                  </FormField>
+                  <FormField label="Drop-off location" htmlFor="dropoffLocation" optional>
+                    <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
+                  </FormField>
+                </div>
+                <FormField label="Planned sites / attractions" htmlFor="plannedSites" optional>
+                  <input
+                    name="plannedSites"
+                    list="site-options"
+                    placeholder="Start typing for known sites…"
+                    className="w-full rounded-survey border border-rule px-3 py-2"
+                  />
                 </FormField>
-                <FormField label="Arrival time (HH:MM)" htmlFor="arrivalTime" optional>
-                  <input name="arrivalTime" placeholder="17:00" className="w-full rounded-survey border border-rule px-3 py-2" />
+                <FormField label="Activities" htmlFor="activities" optional>
+                  <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <FormField label="Pickup location" htmlFor="pickupLocation" optional>
-                  <input name="pickupLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
+                <FormField label="Estimated travel (minutes)" htmlFor="estimatedTravelMinutes" optional>
+                  <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-                <FormField label="Drop-off location" htmlFor="dropoffLocation" optional>
-                  <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
+                <FormField label="Notes" htmlFor="notes" optional>
+                  <textarea name="notes" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-              </div>
-              <FormField label="Planned sites / attractions" htmlFor="plannedSites" optional>
-                <textarea name="plannedSites" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-              </FormField>
-              <FormField label="Activities" htmlFor="activities" optional>
-                <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-              </FormField>
-              <FormField label="Estimated travel (minutes)" htmlFor="estimatedTravelMinutes" optional>
-                <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />
-              </FormField>
-              <FormField label="Notes" htmlFor="notes" optional>
-                <textarea name="notes" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-              </FormField>
-              <SubmitButton pendingLabel="Adding…">Add day</SubmitButton>
-            </form>
-          </details>
-        )}
-      </div>
-
-      <div>
-        <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Assigned hotels</p>
-        {assignedHotels.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">None assigned.</p>
-        ) : (
-          <Table className="mt-3">
-            <thead>
-              <TableHeaderRow>
-                <Th>Name</Th>
-                <Th>Country</Th>
-                <Th>Contact</Th>
-                <Th>Rating</Th>
-                {canRate && <Th>My rating</Th>}
-                <Th />
-              </TableHeaderRow>
-            </thead>
-            <tbody>
-              {assignedHotels.map((h) => {
-                const mine = myHotelRatings.get(h.id);
-                return (
-                  <Tr key={h.id}>
-                    <Td>{h.name}</Td>
-                    <Td>{h.country}</Td>
-                    <Td>{h.contactPhone ?? h.contactEmail ?? '—'}</Td>
-                    <Td>{h.averageRating != null ? `${h.averageRating.toFixed(1)} ★ (${h.ratingCount})` : '—'}</Td>
-                    {canRate && (
-                      <Td>
-                        <form action={rateHotelAction.bind(null, itineraryId, h.id)} className="flex items-center gap-2">
-                          <Select name="rating" defaultValue={mine?.rating ?? ''} required className="px-2 py-1 text-xs">
-                            <option value="" disabled>
-                              Rate…
-                            </option>
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <option key={n} value={n}>
-                                {n} ★
-                              </option>
-                            ))}
-                          </Select>
-                          <input
-                            name="comment"
-                            defaultValue={mine?.comment ?? ''}
-                            placeholder="Comment (optional)"
-                            className="w-32 rounded-survey border border-rule px-2 py-1 text-xs"
-                          />
-                          <SubmitButton size="compact" pendingLabel="Saving…">
-                            {mine ? 'Update' : 'Rate'}
-                          </SubmitButton>
-                        </form>
-                      </Td>
-                    )}
-                    <Td>
-                      {canWrite && (
-                        <form action={unassignHotelAction.bind(null, itineraryId, h.id)}>
-                          <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
-                            Remove
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-        {canWrite && availableHotels.length > 0 && (
-          <form action={assignHotelAction.bind(null, itineraryId)} className="mt-4 flex items-end gap-3">
-            <FormField label="Assign a hotel" htmlFor="hotelId">
-              <Select name="hotelId" required>
-                {availableHotels.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name} ({h.country})
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-            <SubmitButton variant="secondary" size="compact" pendingLabel="Assigning…">
-              Assign
-            </SubmitButton>
-          </form>
-        )}
-      </div>
-
-      <div>
-        <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Assigned restaurants</p>
-        {assignedRestaurants.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">None assigned.</p>
-        ) : (
-          <Table className="mt-3">
-            <thead>
-              <TableHeaderRow>
-                <Th>Name</Th>
-                <Th>Country</Th>
-                <Th>Contact</Th>
-                <Th>Rating</Th>
-                {canRate && <Th>My rating</Th>}
-                <Th />
-              </TableHeaderRow>
-            </thead>
-            <tbody>
-              {assignedRestaurants.map((r) => {
-                const mine = myRestaurantRatings.get(r.id);
-                return (
-                  <Tr key={r.id}>
-                    <Td>{r.name}</Td>
-                    <Td>{r.country}</Td>
-                    <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
-                    <Td>{r.averageRating != null ? `${r.averageRating.toFixed(1)} ★ (${r.ratingCount})` : '—'}</Td>
-                    {canRate && (
-                      <Td>
-                        <form action={rateRestaurantAction.bind(null, itineraryId, r.id)} className="flex items-center gap-2">
-                          <Select name="rating" defaultValue={mine?.rating ?? ''} required className="px-2 py-1 text-xs">
-                            <option value="" disabled>
-                              Rate…
-                            </option>
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <option key={n} value={n}>
-                                {n} ★
-                              </option>
-                            ))}
-                          </Select>
-                          <input
-                            name="comment"
-                            defaultValue={mine?.comment ?? ''}
-                            placeholder="Comment (optional)"
-                            className="w-32 rounded-survey border border-rule px-2 py-1 text-xs"
-                          />
-                          <SubmitButton size="compact" pendingLabel="Saving…">
-                            {mine ? 'Update' : 'Rate'}
-                          </SubmitButton>
-                        </form>
-                      </Td>
-                    )}
-                    <Td>
-                      {canWrite && (
-                        <form action={unassignRestaurantAction.bind(null, itineraryId, r.id)}>
-                          <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
-                            Remove
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
-        {canWrite && availableRestaurants.length > 0 && (
-          <form action={assignRestaurantAction.bind(null, itineraryId)} className="mt-4 flex items-end gap-3">
-            <FormField label="Assign a restaurant" htmlFor="restaurantId">
-              <Select name="restaurantId" required>
-                {availableRestaurants.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.country})
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-            <SubmitButton variant="secondary" size="compact" pendingLabel="Assigning…">
-              Assign
-            </SubmitButton>
-          </form>
+                <SubmitButton pendingLabel="Adding…">Add day</SubmitButton>
+              </form>
+            </details>
+          </>
         )}
       </div>
     </div>

@@ -33,8 +33,20 @@ const LINKS: NavLink[] = [
   { href: '/staff/packages', label: 'Packages', permission: 'catalog.read' },
   { href: '/staff/fleet', label: 'Fleet', permission: 'fleet.read' },
   { href: '/staff/itineraries', label: 'Itineraries', permission: 'itinerary.write' },
-  { href: '/staff/hotels', label: 'Hotels', permission: 'itinerary.write' },
-  { href: '/staff/restaurants', label: 'Restaurants', permission: 'itinerary.write' },
+  // DR-083: also visible to TOUR_GUIDE/DRIVER (hotel_restaurant_rating.write,
+  // no itinerary.write) -- they now rate a hotel/restaurant from its own
+  // profile page rather than the itinerary page, so they need a way in.
+  {
+    href: '/staff/hotels',
+    label: 'Hotels',
+    anyOfPermissions: ['itinerary.write', 'hotel_restaurant_rating.write'],
+  },
+  {
+    href: '/staff/restaurants',
+    label: 'Restaurants',
+    anyOfPermissions: ['itinerary.write', 'hotel_restaurant_rating.write'],
+  },
+  { href: '/staff/sites', label: 'Sites', permission: 'itinerary.write' },
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
   { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },

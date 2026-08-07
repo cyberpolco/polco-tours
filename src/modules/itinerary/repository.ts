@@ -1,11 +1,12 @@
 // itinerary module — repository. The only place that touches the DB for this module.
-import type { Hotel, HotelRating, Itinerary, ItineraryDay, ItineraryStatus, Restaurant, RestaurantRating } from '@prisma/client';
+import type { Hotel, HotelRating, Itinerary, ItineraryDay, ItineraryStatus, Restaurant, RestaurantRating, Site } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
   AddItineraryDayInput,
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
+  CreateSiteInput,
   HotelRatingView,
   HotelView,
   ItineraryDayView,
@@ -14,10 +15,12 @@ import type {
   RateRestaurantInput,
   RestaurantRatingView,
   RestaurantView,
+  SiteView,
   UpdateHotelInput,
   UpdateItineraryDayInput,
   UpdateItineraryInput,
   UpdateRestaurantInput,
+  UpdateSiteInput,
 } from './domain';
 
 function toItineraryView(i: Itinerary): ItineraryView {
@@ -52,8 +55,21 @@ function toDayView(d: ItineraryDay): ItineraryDayView {
     activities: d.activities,
     estimatedTravelMinutes: d.estimatedTravelMinutes,
     notes: d.notes,
+    hotelId: d.hotelId,
+    restaurantId: d.restaurantId,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
+  };
+}
+
+function toSiteView(s: Site): SiteView {
+  return {
+    id: s.id,
+    organizationId: s.organizationId,
+    name: s.name,
+    country: s.country,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
   };
 }
 
@@ -146,10 +162,9 @@ export const itineraryRepository = {
 
   /** DR-059 follow-up: cascade cleanup when a Booking is deleted -- a real
    * hard delete (not soft), cascading via the schema's own onDelete:
-   * Cascade to this itinerary's ItineraryDay/ItineraryHotel/
-   * ItineraryRestaurant join rows (Hotel/Restaurant reference rows
-   * themselves are untouched). Returns null (not an error) when the
-   * booking never had an itinerary at all -- most bookings don't. */
+   * Cascade to this itinerary's ItineraryDay rows (Hotel/Restaurant
+   * reference rows themselves are untouched). Returns null (not an error)
+   * when the booking never had an itinerary at all -- most bookings don't. */
   async deleteByBookingId(organizationId: string, bookingId: string): Promise<ItineraryView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.itinerary.findUnique({ where: { bookingId } });
@@ -205,22 +220,34 @@ export const itineraryRepository = {
 
   // ------------------------------------------------------------ days
 
-  async addDay(organizationId: string, itineraryId: string, input: AddItineraryDayInput): Promise<ItineraryDayView> {
+  /** dayNumber is computed by the service (from `input.date` relative to the
+   * trip's start date), not part of AddItineraryDayInput -- passed in
+   * explicitly here rather than smuggled onto the input object. */
+  async addDay(
+    organizationId: string,
+    itineraryId: string,
+    dayNumber: number,
+    input: AddItineraryDayInput,
+  ): Promise<ItineraryDayView> {
     return withOrg(organizationId, async (tx) => {
-      const d = await tx.itineraryDay.create({ data: { organizationId, itineraryId, ...input } });
+      const d = await tx.itineraryDay.create({ data: { organizationId, itineraryId, dayNumber, ...input } });
       return toDayView(d);
     });
   },
 
+  /** dayNumber, when provided, is a service-computed recomputation triggered
+   * by a `date` change (same reasoning as addDay) -- omitted (undefined)
+   * when the update didn't touch `date`, leaving it as-is. */
   async updateDay(
     organizationId: string,
     dayId: string,
     input: UpdateItineraryDayInput,
+    dayNumber?: number,
   ): Promise<ItineraryDayView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.itineraryDay.findUnique({ where: { id: dayId } });
       if (!existing) return null;
-      const d = await tx.itineraryDay.update({ where: { id: dayId }, data: input });
+      const d = await tx.itineraryDay.update({ where: { id: dayId }, data: { ...input, dayNumber } });
       return toDayView(d);
     });
   },
@@ -237,6 +264,17 @@ export const itineraryRepository = {
   async listDays(organizationId: string, itineraryId: string): Promise<ItineraryDayView[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.itineraryDay.findMany({ where: { itineraryId }, orderBy: { dayNumber: 'asc' } });
+      return rows.map(toDayView);
+    });
+  },
+
+  /** Anti-BOLA helper for TOUR_GUIDE/DRIVER rating scope (DR-083): every day
+   * across a set of itineraries, used to derive "hotels/restaurants I've
+   * actually toured" without a per-itinerary join table. */
+  async listDaysForItineraries(organizationId: string, itineraryIds: string[]): Promise<ItineraryDayView[]> {
+    if (itineraryIds.length === 0) return [];
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.itineraryDay.findMany({ where: { itineraryId: { in: itineraryIds } } });
       return rows.map(toDayView);
     });
   },
@@ -343,41 +381,51 @@ export const itineraryRepository = {
     });
   },
 
-  // ------------------------------------------------------------ assignment join tables
+  // ------------------------------------------------------------ sites (reference data)
 
-  async assignHotel(organizationId: string, itineraryId: string, hotelId: string): Promise<void> {
-    await withOrg(organizationId, (tx) => tx.itineraryHotel.create({ data: { organizationId, itineraryId, hotelId } }));
-  },
-
-  async unassignHotel(organizationId: string, itineraryId: string, hotelId: string): Promise<void> {
-    await withOrg(organizationId, (tx) =>
-      tx.itineraryHotel.deleteMany({ where: { itineraryId, hotelId } }),
-    );
-  },
-
-  async listAssignedHotelIds(organizationId: string, itineraryId: string): Promise<string[]> {
+  async createSite(organizationId: string, input: CreateSiteInput): Promise<SiteView> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.itineraryHotel.findMany({ where: { itineraryId }, select: { hotelId: true } });
-      return rows.map((r) => r.hotelId);
+      const s = await tx.site.create({ data: { organizationId, ...input } });
+      return toSiteView(s);
     });
   },
 
-  async assignRestaurant(organizationId: string, itineraryId: string, restaurantId: string): Promise<void> {
-    await withOrg(organizationId, (tx) =>
-      tx.itineraryRestaurant.create({ data: { organizationId, itineraryId, restaurantId } }),
-    );
-  },
-
-  async unassignRestaurant(organizationId: string, itineraryId: string, restaurantId: string): Promise<void> {
-    await withOrg(organizationId, (tx) =>
-      tx.itineraryRestaurant.deleteMany({ where: { itineraryId, restaurantId } }),
-    );
-  },
-
-  async listAssignedRestaurantIds(organizationId: string, itineraryId: string): Promise<string[]> {
+  async updateSite(organizationId: string, id: string, input: UpdateSiteInput): Promise<SiteView | null> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.itineraryRestaurant.findMany({ where: { itineraryId }, select: { restaurantId: true } });
-      return rows.map((r) => r.restaurantId);
+      const existing = await tx.site.findUnique({ where: { id } });
+      if (!existing) return null;
+      const s = await tx.site.update({ where: { id }, data: input });
+      return toSiteView(s);
+    });
+  },
+
+  async deleteSite(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.site.findUnique({ where: { id } });
+      if (!existing) return false;
+      await tx.site.delete({ where: { id } });
+      return true;
+    });
+  },
+
+  async findSiteById(organizationId: string, id: string): Promise<SiteView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const s = await tx.site.findUnique({ where: { id } });
+      return s ? toSiteView(s) : null;
+    });
+  },
+
+  async listSites(organizationId: string): Promise<SiteView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.site.findMany({ orderBy: [{ country: 'asc' }, { name: 'asc' }] });
+      return rows.map(toSiteView);
+    });
+  },
+
+  async listSitesForCountry(organizationId: string, country: string): Promise<SiteView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.site.findMany({ where: { country }, orderBy: { name: 'asc' } });
+      return rows.map(toSiteView);
     });
   },
 

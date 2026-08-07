@@ -19,8 +19,32 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-081 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-080/081 are a live production incident, root-caused and
+> Current through DR-083 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-082/083 (this session): fleet availability tracking +
+> four itinerary requests, both code-complete but neither's schema change
+> has been applied to the shared Neon database yet** (batched together,
+> pending explicit user confirmation + a pasted `neondb_owner` credential).
+> DR-082 adds a `Vehicle`/`DriverProfile`/`GuideProfile` `availability`
+> column (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
+> `VehicleStatus`/`DriverStatus`/`GuideStatus` operational-hold dimension)
+> plus `lastActiveAt` — hook-driven (assignment create/remove, booking
+> confirm/cancel/refund, orchestrated via a new `src/lib/fleet-availability.ts`
+> cross-module helper, never from inside `bookingService`/`assignmentService`
+> themselves) with a daily QStash-scheduled sweep
+> (`/api/jobs/sweep-fleet-availability`, inert until re-registered via
+> `scripts/register-qstash-schedule.ts`) as the only path to `INACTIVE`.
+> DR-083 covers: itinerary emergency contact now defaults from the tour
+> lead's own `Traveler` data; `ItineraryDay.dayNumber` is server-computed
+> from `date` relative to the trip's start, never client-supplied;
+> hotel/restaurant assignment moved from itinerary-wide to per-day
+> (`ItineraryDay.hotelId`/`restaurantId`, replacing the removed
+> `ItineraryHotel`/`ItineraryRestaurant` join tables) alongside a new
+> staff-managed `Site` reference list powering a "planned sites" autocomplete;
+> and hotel/restaurant rating moved off the itinerary page onto
+> `/staff/hotels/[hotelId]`/`/staff/restaurants/[restaurantId]`, now open to
+> TOUR_GUIDE/DRIVER (previously `itinerary.write`-only) scoped to a
+> hotel/restaurant they've actually toured. See DR-082/083 for full detail.
+> **DR-080/081 were a live production incident, root-caused and
 > fixed this session**: DR-079 (guide mandatory) crashed real staff traffic
 > — `deactivateUser` (DR-026) only sets `User.deletedAt`, never cascading to
 > suspend that user's `GuideProfile`/`DriverProfile`, so a deactivated
@@ -155,7 +179,7 @@ gaps a fresh Postgres would hit).
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`) |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`); `sweep-fleet-availability` (DR-082) is code-complete but its own QStash schedule isn't registered yet |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -176,12 +200,13 @@ src/
     api/v1/...                 # REST routes, one directory per module (see below)
     api/auth/[...all]/         # Better Auth's own mount
     api/jobs/sweep-bookings/    # QStash-signature-verified scheduled sweep endpoint
+    api/jobs/sweep-fleet-availability/ # DR-082: daily inactivity-sweep endpoint, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
       (dashboard)/             # gated by requireStaffContext (isStaffRole baseline)
         layout.tsx, nav.tsx, back-button.tsx, sidebar-shell.tsx, settings-items.ts
-        bookings/, departures/, itineraries/, hotels/, restaurants/,
+        bookings/, departures/, itineraries/, hotels/, restaurants/, sites/,
         fleet/, schedule/, visa-queue/, country-regulations/,
         finance/, insights/, tracking/, ratings/, packages/, profile/,
         settings/ (tax-rates, platform-rate), admin/ (users, clients, permissions)
@@ -192,7 +217,8 @@ src/
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
                               #   guest-guard, primary-org, country-codes, tax,
-                              #   platform-rate, rate-limit, qstash, geo
+                              #   platform-rate, rate-limit, qstash, geo,
+                              #   fleet-availability (DR-082 cross-module sync helper)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage + PackageTag + Departure + AddonService +
@@ -203,11 +229,14 @@ src/
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
-                   #   MaintenanceRecord, compliance-document tracking
+                   #   MaintenanceRecord, compliance-document tracking;
+                   #   DR-082 adds availability/lastActiveAt (usage-recency,
+                   #   independent of each entity's own operational status)
     assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule
     visa/          # VisaApplication lifecycle, facilitator queue
-    itinerary/     # Itinerary + ItineraryDay + Hotel/Restaurant reference
-                   #   entities + HotelRating/RestaurantRating (staff-only)
+    itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
+                   #   DR-083) + Hotel/Restaurant/Site reference entities +
+                   #   HotelRating/RestaurantRating (staff + guide/driver)
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
@@ -465,10 +494,13 @@ visually coherent with the design package.
   delete (confirmed no FK references it). All gated by a `SUPERADMIN`-only
   service-layer check beneath the route permission, never by the bare
   permission alone.
-- **No scheduled-job infrastructure exists beyond the one QStash-triggered
-  sweep** (`/api/jobs/sweep-bookings`, every 15 minutes in production) — any
-  future periodic task needs its own route + schedule registration, there is
-  no generic job runner.
+- **No generic job runner** — every scheduled job is its own QStash-
+  signature-verified route + its own entry in
+  `scripts/register-qstash-schedule.ts`'s schedule list, registered by
+  re-running that script. Two exist today: `/api/jobs/sweep-bookings`
+  (every 15 minutes, live in production) and `/api/jobs/sweep-fleet-
+  availability` (DR-082, daily — inert/401s until its schedule is
+  registered, same bootstrap gap `sweep-bookings` itself once had).
 
 ## Roadmap (not yet built)
 

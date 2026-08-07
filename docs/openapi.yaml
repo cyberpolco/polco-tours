@@ -1978,82 +1978,6 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /itineraries/{itineraryId}/hotels:
-    parameters:
-      - $ref: '#/components/parameters/itineraryId'
-    get:
-      summary: List hotels assigned to this itinerary
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { type: object, properties: { hotels: { type: array, items: { $ref: '#/components/schemas/Hotel' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
-    post:
-      summary: Assign a hotel to this itinerary (itinerary.write)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, required: [hotelId], properties: { hotelId: { type: string, format: uuid } } }
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: { type: object, properties: { hotels: { type: array, items: { $ref: '#/components/schemas/Hotel' } } } }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-  /itineraries/{itineraryId}/hotels/{hotelId}:
-    parameters:
-      - $ref: '#/components/parameters/itineraryId'
-      - $ref: '#/components/parameters/hotelId'
-    delete:
-      summary: Unassign a hotel from this itinerary (itinerary.write)
-      responses:
-        '204': { description: No Content }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
-  /itineraries/{itineraryId}/restaurants:
-    parameters:
-      - $ref: '#/components/parameters/itineraryId'
-    get:
-      summary: List restaurants assigned to this itinerary
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { type: object, properties: { restaurants: { type: array, items: { $ref: '#/components/schemas/Restaurant' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
-    post:
-      summary: Assign a restaurant to this itinerary (itinerary.write)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { type: object, required: [restaurantId], properties: { restaurantId: { type: string, format: uuid } } }
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema: { type: object, properties: { restaurants: { type: array, items: { $ref: '#/components/schemas/Restaurant' } } } }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-  /itineraries/{itineraryId}/restaurants/{restaurantId}:
-    parameters:
-      - $ref: '#/components/parameters/itineraryId'
-      - $ref: '#/components/parameters/restaurantId'
-    delete:
-      summary: Unassign a restaurant from this itinerary (itinerary.write)
-      responses:
-        '204': { description: No Content }
-        '403': { $ref: '#/components/responses/Forbidden' }
-
   /hotels:
     get:
       summary: List every hotel reference entity in the org (itinerary.read)
@@ -2114,6 +2038,42 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /hotels/{hotelId}/rating:
+    parameters:
+      - $ref: '#/components/parameters/hotelId'
+    get:
+      summary: >-
+        Get the caller's own rating for this hotel (itinerary.read). DR-083:
+        moved off /itineraries/{itineraryId}/hotels/{hotelId}/rating -- no
+        longer itinerary-scoped.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { rating: { allOf: [{ $ref: '#/components/schemas/HotelRating' }], nullable: true } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: >-
+        Rate this hotel (hotel_restaurant_rating.write). One row per
+        (hotel, rater), overwritten on revisit. TOUR_GUIDE/DRIVER are
+        restricted to a hotel actually used (ItineraryDay.hotelId) on one of
+        their own toured itineraries; TOUR_OPERATOR/PLATFORM_ADMIN unscoped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateHotelInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { rating: { $ref: '#/components/schemas/HotelRating' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound', description: 'Hotel not found, or not toured by this caller' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   /restaurants:
     get:
       summary: List every restaurant reference entity in the org (itinerary.read)
@@ -2169,6 +2129,96 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       summary: Soft-delete a restaurant reference entity (itinerary.write)
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /restaurants/{restaurantId}/rating:
+    parameters:
+      - $ref: '#/components/parameters/restaurantId'
+    get:
+      summary: Get the caller's own rating for this restaurant (itinerary.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { rating: { allOf: [{ $ref: '#/components/schemas/RestaurantRating' }], nullable: true } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Rate this restaurant (hotel_restaurant_rating.write). Restaurant counterpart to /hotels/{hotelId}/rating.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RateRestaurantInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { rating: { $ref: '#/components/schemas/RestaurantRating' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound', description: 'Restaurant not found, or not toured by this caller' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /sites:
+    get:
+      summary: List every site reference entity in the org (itinerary.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { sites: { type: array, items: { $ref: '#/components/schemas/Site' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a site reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSiteInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { site: { $ref: '#/components/schemas/Site' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /sites/{siteId}:
+    parameters:
+      - $ref: '#/components/parameters/siteId'
+    get:
+      summary: Get a site reference entity (itinerary.read)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { site: { $ref: '#/components/schemas/Site' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a site reference entity (itinerary.write)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSiteInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { site: { $ref: '#/components/schemas/Site' } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Hard-delete a site reference entity (itinerary.write) -- no soft-delete, unlike Hotel/Restaurant (nothing references a Site by id).
       responses:
         '204': { description: No Content }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -2358,6 +2408,11 @@ components:
       schema: { type: string, format: uuid }
     hotelId:
       name: hotelId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    siteId:
+      name: siteId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -3224,14 +3279,18 @@ components:
         activities: { type: string, nullable: true }
         estimatedTravelMinutes: { type: integer, nullable: true }
         notes: { type: string, nullable: true }
+        hotelId: { type: string, format: uuid, nullable: true, description: 'DR-083: per-day lodging' }
+        restaurantId: { type: string, format: uuid, nullable: true, description: 'DR-083: per-day dining' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
     AddItineraryDayInput:
       type: object
-      required: [dayNumber, date]
+      required: [date]
+      description: >-
+        dayNumber is NOT client-supplied (DR-083) -- the service computes it
+        from `date` relative to the trip's own start date.
       properties:
-        dayNumber: { type: integer, minimum: 1 }
         date: { type: string, format: date }
         departureTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
         arrivalTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
@@ -3241,10 +3300,12 @@ components:
         activities: { type: string, maxLength: 2000 }
         estimatedTravelMinutes: { type: integer, minimum: 0 }
         notes: { type: string, maxLength: 2000 }
+        hotelId: { type: string, format: uuid }
+        restaurantId: { type: string, format: uuid }
 
     UpdateItineraryDayInput:
       type: object
-      description: Same fields as AddItineraryDayInput, minus dayNumber, all optional.
+      description: Same fields as AddItineraryDayInput, all optional.
       properties:
         date: { type: string, format: date }
         departureTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
@@ -3255,6 +3316,8 @@ components:
         activities: { type: string, maxLength: 2000 }
         estimatedTravelMinutes: { type: integer, minimum: 0 }
         notes: { type: string, maxLength: 2000 }
+        hotelId: { type: string, format: uuid }
+        restaurantId: { type: string, format: uuid }
 
     Hotel:
       type: object
@@ -3271,6 +3334,8 @@ components:
         contactName: { type: string, nullable: true }
         contactPhone: { type: string, nullable: true }
         contactEmail: { type: string, nullable: true }
+        averageRating: { type: number, nullable: true }
+        ratingCount: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
@@ -3307,8 +3372,73 @@ components:
         contactName: { type: string, nullable: true }
         contactPhone: { type: string, nullable: true }
         contactEmail: { type: string, nullable: true }
+        averageRating: { type: number, nullable: true }
+        ratingCount: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    RateHotelInput:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, maxLength: 1000 }
+
+    RateRestaurantInput:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, maxLength: 1000 }
+
+    HotelRating:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        hotelId: { type: string, format: uuid }
+        raterUserId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RestaurantRating:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        restaurantId: { type: string, format: uuid }
+        raterUserId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Site:
+      type: object
+      description: >-
+        Staff-managed reference list of named sites/attractions per country
+        (DR-083) -- populates the itinerary daily-schedule "planned sites"
+        picker.
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, description: ISO-3166 alpha-2 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateSiteInput:
+      type: object
+      required: [name, country]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
+
+    UpdateSiteInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        country: { type: string, minLength: 2, maxLength: 2 }
 
     CreateRestaurantInput:
       type: object

@@ -1,5 +1,5 @@
 // fleet module — domain types & rules. Pure; no framework or DB imports.
-import type { Currency, DriverStatus, GuideStatus, Role, StarlinkStatus, VehicleStatus } from '@prisma/client';
+import type { AvailabilityStatus, Currency, DriverStatus, GuideStatus, Role, StarlinkStatus, VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
 
 /** Genuinely destructive (Vehicle/DriverProfile/GuideProfile deletion has no
@@ -23,6 +23,10 @@ export interface VehicleView {
   vehicleType: string;
   seatCapacity: number;
   status: VehicleStatus;
+  // DR-082: usage-recency, a dimension independent of `status` above -- see
+  // computeAvailabilityStatus.
+  availability: AvailabilityStatus;
+  lastActiveAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +43,9 @@ export interface DriverProfileView {
   // Review, never incremented here.
   averageRating: number | null;
   ratingCount: number;
+  // DR-082: usage-recency, independent of `status` above.
+  availability: AvailabilityStatus;
+  lastActiveAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -90,6 +97,9 @@ export interface GuideProfileView {
   // (ReviewSubjectRating.guideUserId points at User).
   averageRating: number | null;
   ratingCount: number;
+  // DR-082: usage-recency, independent of `status` above.
+  availability: AvailabilityStatus;
+  lastActiveAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -194,4 +204,28 @@ export function complianceStatus(expiresAt: Date | null, now: Date): ComplianceS
   if (daysUntilExpiry <= 0) return 'EXPIRED';
   if (daysUntilExpiry <= EXPIRING_SOON_WINDOW_DAYS) return 'EXPIRING_SOON';
   return 'VALID';
+}
+
+// -------------------------------------------------------------- availability (DR-082)
+//
+// A dimension deliberately independent of Vehicle/DriverStatus/GuideStatus
+// above -- those are manual operational/compliance holds (MAINTENANCE/
+// RETIRED/SUSPENDED); this tracks whether a resource is currently on a
+// CONFIRMED-or-later booking (BOOKED), free (AVAILABLE), or hasn't been on
+// one in 2+ months (INACTIVE). Per explicit user direction: "active can be
+// followed by booked or available" -- i.e. AVAILABLE/INACTIVE are the two
+// sub-states of "not currently booked", not a third independent axis.
+
+export const INACTIVITY_THRESHOLD_DAYS = 60;
+
+/** `lastActiveAt` only ever advances while `isCurrentlyBooked` -- between
+ * bookings it stays put, so this is really "how long since the last
+ * CONFIRMED-or-later booking ended", not merely "since created". Callers
+ * update lastActiveAt to `now` themselves whenever isCurrentlyBooked is
+ * true (see fleetService.recompute*Availability) so it always reflects the
+ * most recent time this resource was actually in use. */
+export function computeAvailabilityStatus(isCurrentlyBooked: boolean, lastActiveAt: Date, now: Date): AvailabilityStatus {
+  if (isCurrentlyBooked) return 'BOOKED';
+  const daysSinceActive = (now.getTime() - lastActiveAt.getTime()) / MS_PER_DAY;
+  return daysSinceActive > INACTIVITY_THRESHOLD_DAYS ? 'INACTIVE' : 'AVAILABLE';
 }
