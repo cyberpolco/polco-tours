@@ -142,24 +142,8 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # TEMP-DEBUG: investigating a persistent guest-checkout.spec.ts hang at
-      # the addons->travelers transition under this job's 2-worker
-      # concurrency. A live pg_stat_activity/pg_locks sample every 2s during
-      # a real failing run (previous iteration of this debug step) showed
-      # the database completely idle throughout -- ruling out a DB-side lock
-      # or connection-pool cause. Uploading the real Playwright trace now to
-      # see the actual browser-side network activity for the failing
-      # request. Remove this step once root-caused.
       - name: E2E tests
         run: npm run test:e2e
-
-      - name: Upload Playwright traces on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-traces
-          path: test-results/
-          retention-days: 3
 
   # Non-blocking scan surface; hardened further in Vol. 8 §8.6.
   security:
