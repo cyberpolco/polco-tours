@@ -2,7 +2,9 @@ import { headers } from 'next/headers';
 import { assignmentService } from '@modules/assignment';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
+import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
+import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService, type VisaStatus } from '@modules/visa';
@@ -11,10 +13,17 @@ import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
+import { PackageImage } from '@/components/ui/PackageImage';
 import { Reveal } from '@/components/ui/Reveal';
 import { COUNTRY_CODES_BY_ALPHA2, flagEmoji } from '@lib/country-codes';
-import { formatOrPending } from '@lib/money';
-import { BOOKING_STATUS_TONE, ITINERARY_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
+import { format, formatOrPending, money } from '@lib/money';
+import {
+  BOOKING_STATUS_TONE,
+  INVOICE_STATUS_TONE,
+  ITINERARY_STATUS_TONE,
+  PAYMENT_STATUS_TONE,
+  VISA_STATUS_TONE,
+} from '@lib/status-tones';
 
 function countryLabel(alpha2: string): string {
   const name = COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
@@ -69,6 +78,38 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   const { booking, travelers } = result;
   const isTailorMadeInquiry =
     booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT');
+
+  // Trip/package summary + selected add-ons + billing summary for the
+  // "Trip details" / "Add-ons" / "Price & payment" sections below -- same
+  // trust boundary as the lifecycle-status block below. Sequential awaits,
+  // not Promise.all (DR-038/041/060).
+  let tripSummary: Awaited<ReturnType<typeof catalogService.getDepartureTripSummaryForBookingLookup>> = null;
+  if (booking.departureId) {
+    tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(booking.departureId);
+  }
+  // A bespoke departure (tripSummary null, tourPackageId was null) OR a
+  // TAILOR_MADE booking that hasn't been converted to an operational
+  // itinerary yet (no departureId at all, past the inquiry phase) -- both
+  // fall back to the booking's own custom* fields, still populated either
+  // way (DR-028/DR-046).
+  const showCustomTripFallback =
+    !isTailorMadeInquiry && !tripSummary && booking.origin === 'TAILOR_MADE' && booking.customCountry !== null;
+
+  let addons: Awaited<ReturnType<typeof bookingService.listAddonsForBookingLookup>> = [];
+  const addonNames = new Map<string, string>();
+  if (booking.addonsFinalizedAt) {
+    addons = await bookingService.listAddonsForBookingLookup(booking.organizationId, booking.id);
+    const addonServices = await catalogService.listAddonServicesForBookingLookup(
+      booking.organizationId,
+      [...new Set(addons.map((a) => a.addonServiceId))],
+    );
+    for (const service of addonServices) addonNames.set(service.id, service.name);
+  }
+
+  let billingSummary: Awaited<ReturnType<typeof invoicingService.getBillingSummaryForBookingLookup>> = null;
+  if (!isTailorMadeInquiry) {
+    billingSummary = await invoicingService.getBillingSummaryForBookingLookup(booking.organizationId, booking.id);
+  }
 
   // Lifecycle status composition for the "Trip status" section below --
   // guest, no-session lookup (the page has already verified the guest's
@@ -185,6 +226,60 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         </Reveal>
       )}
 
+      {(tripSummary || showCustomTripFallback) && (
+        <Reveal delay={0.15}>
+          <div className="survey-rule mt-6" />
+          <div className="pt-6">
+            <p className="eyebrow text-mist">Trip details</p>
+            {tripSummary ? (
+              <Card className="mt-2">
+                <PackageImage
+                  imageUrl={tripSummary.imageUrl}
+                  alt={tripSummary.title}
+                  seed={booking.departureId ?? tripSummary.title}
+                  className="mb-4"
+                />
+                <p className="font-semibold text-navy">{tripSummary.title}</p>
+                <p className="mt-1 text-sm text-mist">
+                  {countryLabel(tripSummary.country)}
+                  {tripSummary.durationDays != null && ` · ${tripSummary.durationDays}-day trip`}
+                </p>
+                <p className="mt-2 text-sm">
+                  {formatDate(tripSummary.startDate)}
+                  {tripSummary.endDate && <> – {formatDate(tripSummary.endDate)}</>}
+                </p>
+                <p className="mt-2 text-sm text-mist">{tripSummary.description}</p>
+              </Card>
+            ) : (
+              <Card className="mt-2">
+                <dl className="space-y-2 text-sm">
+                  {booking.customCountry && (
+                    <div>
+                      <dt className="text-xs text-mist">Destination</dt>
+                      <dd>{countryLabel(booking.customCountry)}</dd>
+                    </div>
+                  )}
+                  {booking.customTravelStart && booking.customTravelEnd && (
+                    <div>
+                      <dt className="text-xs text-mist">Travel dates</dt>
+                      <dd>
+                        {formatDate(booking.customTravelStart)} to {formatDate(booking.customTravelEnd)}
+                      </dd>
+                    </div>
+                  )}
+                  {booking.customDescription && (
+                    <div>
+                      <dt className="text-xs text-mist">Trip description</dt>
+                      <dd>{booking.customDescription}</dd>
+                    </div>
+                  )}
+                </dl>
+              </Card>
+            )}
+          </div>
+        </Reveal>
+      )}
+
       {travelers.length > 0 && (
         <Reveal delay={0.2}>
           <div className="survey-rule mt-6" />
@@ -195,6 +290,9 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                 {travelers.map((t) => (
                   <li key={t.id}>
                     {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
+                    {t.isTourLead && (t.phone || t.email) && (
+                      <div className="text-xs text-mist">{[t.phone, t.email].filter(Boolean).join(' · ')}</div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -203,8 +301,78 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         </Reveal>
       )}
 
+      {addons.length > 0 && (
+        <Reveal delay={0.25}>
+          <div className="survey-rule mt-6" />
+          <div className="pt-6">
+            <p className="eyebrow text-mist">Add-ons</p>
+            <Card className="mt-2">
+              <ul className="space-y-1 text-sm">
+                {addons.map((a) => (
+                  <li key={a.id}>
+                    {addonNames.get(a.addonServiceId) ?? 'Add-on'} · {format(money(a.priceMinor, a.currency))}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
+        </Reveal>
+      )}
+
+      {billingSummary && (
+        <Reveal delay={0.28}>
+          <div className="survey-rule mt-6" />
+          <div className="pt-6">
+            <p className="eyebrow text-mist">Price &amp; payment</p>
+            <Card className="mt-2 space-y-3 text-sm">
+              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs text-mist">Subtotal</dt>
+                  <dd>{format(money(billingSummary.subtotalMinor, billingSummary.currency))}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-mist">Tax</dt>
+                  <dd>{format(money(billingSummary.taxMinor, billingSummary.currency))}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-mist">Deposit</dt>
+                  <dd>{format(money(billingSummary.depositMinor, billingSummary.currency))}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-mist">Balance</dt>
+                  <dd>{format(money(billingSummary.balanceMinor, billingSummary.currency))}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-mist">Total</dt>
+                  <dd className="font-semibold text-navy">{format(money(billingSummary.totalMinor, billingSummary.currency))}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-mist">Status</dt>
+                  <dd>
+                    <Badge tone={INVOICE_STATUS_TONE[billingSummary.status]}>{billingSummary.status}</Badge>
+                  </dd>
+                </div>
+              </dl>
+              {billingSummary.payments.length > 0 && (
+                <div>
+                  <p className="text-xs text-mist">Payments</p>
+                  <ul className="mt-1 space-y-1">
+                    {billingSummary.payments.map((p) => (
+                      <li key={p.id}>
+                        {p.kind} · {format(money(p.amountMinor, p.currency))} ·{' '}
+                        <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{p.status}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          </div>
+        </Reveal>
+      )}
+
       {hasTripStatus && (
-        <Reveal delay={0.3}>
+        <Reveal delay={0.35}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
             <p className="eyebrow text-mist">Trip status</p>

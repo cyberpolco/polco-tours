@@ -19,25 +19,42 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-075 — see `docs/decisions/DECISION_LOG.md` for full
-> history. Two open verification gaps, both traced to the same cause (this
-> sandbox's connection to the Neon pooler is intermittent, not fully down):
-> DR-071's `content` module schema push/`db:seed` re-run/DB-backed test
-> (never got a working connection at all this session), and DR-074/075's
-> updated `tests/api/invoices.api.test.ts`/`tests/api/bookings-v2.api.test.ts`
-> (partially verified -- a run where connectivity held confirmed the actual
-> new behavior server-side: DEPOSIT/BALANCE payments auto-succeed, the
-> invoice reaches PARTIALLY_PAID/PAID, re-initiating an already-succeeded
-> leg 409s, and DR-075's mandatory fields persist end-to-end; no single run
-> has stayed connected long enough to finish clean start-to-end, so CI or a
-> later local run is still the one remaining confirmation step). `lint`/
-> `typecheck` are clean for both. **DR-074**: guest/staff payment initiation
-> now auto-succeeds instead of leaving a `PENDING` payment for staff to
-> resolve by hand — deliberately supersedes DR-012's anti-fraud rule for as
-> long as DPO stays stubbed (OI-01); revisit once a real DPO integration
-> lands. **DR-075**: `countryOfResidence`/`citizenship` are now mandatory
-> (not optional) on a `TAILOR_MADE` request, in both the guest and staff
-> plan-my-trip wizards.
+> Current through DR-076 — see `docs/decisions/DECISION_LOG.md` for full
+> history. Open verification gaps, all traced to this sandbox's connection
+> to the Neon pooler: DR-071's `content` module schema push/`db:seed`
+> re-run/DB-backed test (never got a working connection at all this
+> session); DR-074/075's updated `tests/api/invoices.api.test.ts`/
+> `tests/api/bookings-v2.api.test.ts` (partially verified -- a run where
+> connectivity held confirmed the actual new behavior server-side: DEPOSIT/
+> BALANCE payments auto-succeed, the invoice reaches PARTIALLY_PAID/PAID,
+> re-initiating an already-succeeded leg 409s, and DR-075's mandatory
+> fields persist end-to-end); and DR-076's new
+> `tests/find-booking-lifecycle.test.ts` cases (typecheck/lint-clean, not
+> yet run clean end-to-end). That last one hit a *different* symptom worth
+> noting for whoever picks this up: not a connection drop, but sustained
+> ~5.2s round-trip latency this session, reproducing identically across
+> attempts and tripping Prisma's default 5000ms interactive-transaction
+> timeout partway through the fixture's `beforeAll` -- confirmed to be
+> environment latency, not new-code fragility, since the failure point
+> (`visaApplication.create`) sits in fixture code that predates this
+> session's changes entirely. No single run has stayed connected/fast
+> enough to finish any of the three clean start-to-end, so CI or a later
+> local run is still the one remaining confirmation step for all three.
+> **DR-074**: guest/staff payment initiation now auto-succeeds
+> instead of leaving a `PENDING` payment for staff to resolve by hand —
+> deliberately supersedes DR-012's anti-fraud rule for as long as DPO stays
+> stubbed (OI-01); revisit once a real DPO integration lands. **DR-075**:
+> `countryOfResidence`/`citizenship` are now mandatory (not optional) on a
+> `TAILOR_MADE` request, in both the guest and staff plan-my-trip wizards.
+> **DR-076**: Find My Booking now shows real trip detail (package/
+> destination info, travel dates, price/payment breakdown, selected
+> add-ons, tour lead's own phone/email) on every non-excluded status, via
+> three new no-`ctx` "`*ForBookingLookup`" methods (catalog, booking,
+> invoicing); the staff booking detail page's traveler list also gained an
+> emergency-contact sub-line (data it already had access to, just wasn't
+> rendering). Day-by-day itinerary and emergency-contact-on-the-guest-page
+> were explicitly scoped out; `CANCELLED`/`REFUNDED` stay excluded from
+> lookup.
 
 ---
 

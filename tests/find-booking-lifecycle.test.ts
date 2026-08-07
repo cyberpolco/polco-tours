@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
-import { generateBookingReference } from '@modules/booking';
+import { catalogService, formatPackageReference } from '@modules/catalog';
+import { bookingService, generateBookingReference } from '@modules/booking';
+import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { fleetService } from '@modules/fleet';
 import { visaService } from '@modules/visa';
@@ -25,6 +26,8 @@ let orgId: string;
 let bookingId: string;
 let travelerId: string;
 let vehicleId: string;
+let departureId: string;
+let addonServiceId: string;
 
 beforeAll(async () => {
   const org = await admin.organization.create({
@@ -54,8 +57,9 @@ beforeAll(async () => {
       },
     });
     const departure = await tx.departure.create({
-      data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-10-01T00:00:00Z'), capacity: 2, status: 'SCHEDULED' },
+      data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-10-01T00:00:00Z'), endDate: new Date('2026-10-04T00:00:00Z'), capacity: 2, status: 'SCHEDULED' },
     });
+    departureId = departure.id;
     const booking = await tx.booking.create({
       data: {
         organizationId: orgId,
@@ -135,6 +139,54 @@ beforeAll(async () => {
       },
     });
   });
+
+  // Separate transaction from the fixture block above -- purely to keep
+  // each `withOrg` call's round-trip count down under this sandbox's
+  // sometimes-slow Neon connection (a single, longer transaction is more
+  // likely to hit Prisma's default interactive-transaction timeout); no
+  // functional reason these couldn't live in one transaction.
+  await withOrg(orgId, async (tx) => {
+    const addonService = await tx.addonService.create({
+      data: {
+        organizationId: orgId,
+        code: 'TRANSLATOR',
+        name: 'Translator',
+        description: 'Fixture add-on.',
+        priceMinor: 3000,
+        currency: 'USD',
+      },
+    });
+    addonServiceId = addonService.id;
+    await tx.bookingAddon.create({
+      data: { organizationId: orgId, bookingId, addonServiceId: addonService.id, priceMinor: 3000, currency: 'USD' },
+    });
+    await tx.booking.update({ where: { id: bookingId }, data: { addonsFinalizedAt: new Date() } });
+
+    const invoice = await tx.invoice.create({
+      data: {
+        organizationId: orgId,
+        bookingId,
+        currency: 'USD',
+        subtotalMinor: 13000,
+        taxRateBp: 1000,
+        taxMinor: 1300,
+        totalMinor: 14300,
+        depositMinor: 5720,
+        balanceMinor: 8580,
+        status: 'PARTIALLY_PAID',
+      },
+    });
+    await tx.payment.create({
+      data: {
+        organizationId: orgId,
+        invoiceId: invoice.id,
+        kind: 'DEPOSIT',
+        amountMinor: 5720,
+        currency: 'USD',
+        status: 'SUCCEEDED',
+      },
+    });
+  });
 });
 
 afterAll(async () => {
@@ -149,6 +201,10 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.starlinkKit.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.driverProfile.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.payment.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.invoice.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.bookingAddon.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.addonService.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.itinerary.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.traveler.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
@@ -191,5 +247,51 @@ describe('find-booking lifecycle no-ctx lookups', () => {
     expect('code' in status!).toBe(false);
 
     expect(await ratingsService.getRatingCodeStatusForBookingLookup(orgId, '00000000-0000-0000-0000-000000000000')).toBeNull();
+  });
+
+  it('catalogService.getDepartureTripSummaryForBookingLookup resolves package/departure detail, null when none exists', async () => {
+    const summary = await catalogService.getDepartureTripSummaryForBookingLookup(departureId);
+    expect(summary).toMatchObject({
+      title: 'Lifecycle Fixture Safari',
+      country: 'NA',
+      durationDays: 3,
+    });
+    expect(summary!.startDate).toEqual(new Date('2026-10-01T00:00:00Z'));
+    expect(summary!.endDate).toEqual(new Date('2026-10-04T00:00:00Z'));
+
+    expect(await catalogService.getDepartureTripSummaryForBookingLookup('00000000-0000-0000-0000-000000000000')).toBeNull();
+  });
+
+  it('catalogService.listAddonServicesForBookingLookup resolves names, [] for an empty id list', async () => {
+    const services = await catalogService.listAddonServicesForBookingLookup(orgId, [addonServiceId]);
+    expect(services).toHaveLength(1);
+    expect(services[0]).toMatchObject({ name: 'Translator' });
+    expect(await catalogService.listAddonServicesForBookingLookup(orgId, [])).toEqual([]);
+  });
+
+  it('bookingService.listAddonsForBookingLookup resolves the finalized add-on', async () => {
+    const addons = await bookingService.listAddonsForBookingLookup(orgId, bookingId);
+    expect(addons).toHaveLength(1);
+    expect(addons[0]).toMatchObject({ addonServiceId, priceMinor: 3000, currency: 'USD' });
+  });
+
+  it('invoicingService.getBillingSummaryForBookingLookup resolves totals/payments without leaking staff-only fields, null when no invoice exists', async () => {
+    const summary = await invoicingService.getBillingSummaryForBookingLookup(orgId, bookingId);
+    expect(summary).toMatchObject({
+      currency: 'USD',
+      subtotalMinor: 13000,
+      taxMinor: 1300,
+      depositMinor: 5720,
+      balanceMinor: 8580,
+      totalMinor: 14300,
+      status: 'PARTIALLY_PAID',
+    });
+    expect(summary!.payments).toHaveLength(1);
+    expect(summary!.payments[0]).toMatchObject({ kind: 'DEPOSIT', amountMinor: 5720, status: 'SUCCEEDED' });
+    expect('touristUserId' in summary!).toBe(false);
+    expect('providerRef' in summary!.payments[0]!).toBe(false);
+    expect('platformFeeMinor' in summary!).toBe(false);
+
+    expect(await invoicingService.getBillingSummaryForBookingLookup(orgId, '00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 });

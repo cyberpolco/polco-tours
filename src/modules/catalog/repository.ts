@@ -249,6 +249,16 @@ export const catalogRepository = {
     });
   },
 
+  // Deliberately no `active: true` filter (unlike listActiveAddonServices,
+  // which is for the "pick new add-ons" wizard) -- an already-selected
+  // add-on must keep showing its name even if later deactivated.
+  async findAddonServicesByIds(organizationId: string, ids: string[]): Promise<AddonServiceView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.addonService.findMany({ where: { id: { in: ids } } });
+      return rows.map(toAddonServiceView);
+    });
+  },
+
   // ------------------------------------------------------------ package itinerary template
 
   async addTemplateDay(

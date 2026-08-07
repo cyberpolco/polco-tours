@@ -1,6 +1,6 @@
 // invoicing module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
+import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -14,6 +14,17 @@ import { getEffectiveTaxRate } from '@lib/tax';
 import { amountForPaymentKind, canInitiatePayment, splitDeposit, type InvoiceView, type PaymentView } from './domain';
 import { paymentGateway } from './gateway';
 import { invoicingRepository } from './repository';
+
+export interface BillingSummaryView {
+  currency: Currency;
+  subtotalMinor: number;
+  taxMinor: number;
+  depositMinor: number;
+  balanceMinor: number;
+  totalMinor: number;
+  status: InvoiceStatus;
+  payments: Array<{ id: string; kind: PaymentKind; amountMinor: number; currency: Currency; status: PaymentStatus }>;
+}
 
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
@@ -159,6 +170,39 @@ export const invoicingService = {
   async getInvoiceStatusForBooking(organizationId: string, bookingId: string): Promise<InvoiceStatus | null> {
     const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
     return invoice?.status ?? null;
+  },
+
+  /** Guest "find my booking" price/payment summary (no-ctx) -- same trust
+   * boundary as getInvoiceStatusForBooking above. Deliberately excludes
+   * platformFeeMinor/platformFeeRateBp (staff-only commission split) and
+   * each payment's touristUserId/providerRef/provider (a stub gateway
+   * reference, no reason to expose to a guest) -- same "never part of this
+   * endpoint's response contract" discipline as applyPaymentOutcome's own
+   * comment above. Returns null when no invoice exists yet -- never calls
+   * getOrCreateInvoiceForBooking, which is a ctx-gated action with its own
+   * validation, not something a guest lookup should trigger as a side
+   * effect. */
+  async getBillingSummaryForBookingLookup(organizationId: string, bookingId: string): Promise<BillingSummaryView | null> {
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    if (!invoice) return null;
+    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+    const payments = (detail?.payments ?? []).map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      amountMinor: p.amountMinor,
+      currency: p.currency,
+      status: p.status,
+    }));
+    return {
+      currency: invoice.currency,
+      subtotalMinor: invoice.subtotalMinor,
+      taxMinor: invoice.taxMinor,
+      depositMinor: invoice.depositMinor,
+      balanceMinor: invoice.balanceMinor,
+      totalMinor: invoice.totalMinor,
+      status: invoice.status,
+      payments,
+    };
   },
 
   /** Insights & Decision Making (DR-038): every invoice+payments in the org,

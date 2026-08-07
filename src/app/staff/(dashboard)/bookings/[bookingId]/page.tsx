@@ -345,6 +345,13 @@ export default async function BookingDetailPage({ params }: Props) {
                 {travelers.map((t) => (
                   <li key={t.id}>
                     {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
+                    {t.isTourLead && t.emergencyContactName && (
+                      <div className="text-xs text-mist">
+                        Emergency: {t.emergencyContactName}
+                        {t.emergencyContactRelation && ` (${t.emergencyContactRelation})`}
+                        {t.emergencyContactPhone && ` · ${t.emergencyContactPhone}`}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

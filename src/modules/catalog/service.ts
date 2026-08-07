@@ -52,6 +52,16 @@ export interface DepartureDetail {
   bookable: boolean;
 }
 
+export interface DepartureTripSummaryView {
+  title: string;
+  description: string;
+  country: string;
+  durationDays: number | null;
+  imageUrl: string | null;
+  startDate: Date;
+  endDate: Date | null;
+}
+
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   return ctx.organizationId;
@@ -395,5 +405,42 @@ export const catalogService = {
     const departure = await catalogRepository.findDepartureById(organizationId, departureId);
     if (!departure) return null;
     return { startDate: departure.startDate, endDate: departure.endDate };
+  },
+
+  /** Guest "find my booking" trip-detail card (no-ctx). Only resolves for a
+   * package-backed departure (tourPackageId non-null) -- a bespoke departure
+   * (DR-028, created via createBespokeDeparture for a converted TAILOR_MADE
+   * booking) has no TourPackage to summarize; the one caller
+   * (find-booking/result/page.tsx) falls back to the booking's own custom*
+   * fields when this returns null. Deliberately no visibility/status gate,
+   * same convention as getDepartureWindow above -- a COMPLETED booking's
+   * departure/package may no longer be SCHEDULED/PUBLISHED, and the caller
+   * has already independently verified the guest's two-factor lookup before
+   * reaching here. Returns null (not throw) if the package was since
+   * soft-deleted (findPackageById filters deletedAt) -- an old booking
+   * against a since-removed package just shows no trip-details card, same
+   * as it shows nothing today. */
+  async getDepartureTripSummaryForBookingLookup(departureId: string): Promise<DepartureTripSummaryView | null> {
+    const organizationId = await getPrimaryOrgId();
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    if (!departure || !departure.tourPackageId) return null;
+    const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
+    if (!pkg) return null;
+    return {
+      title: pkg.title,
+      description: pkg.description,
+      country: pkg.country,
+      durationDays: pkg.durationDays,
+      imageUrl: pkg.imageUrl,
+      startDate: departure.startDate,
+      endDate: departure.endDate,
+    };
+  },
+
+  /** Guest "find my booking" add-on name resolution (no-ctx). Batch, not
+   * per-id -- one query for the (typically 0-4) selected add-ons. */
+  async listAddonServicesForBookingLookup(organizationId: string, addonServiceIds: string[]): Promise<AddonServiceView[]> {
+    if (addonServiceIds.length === 0) return [];
+    return catalogRepository.findAddonServicesByIds(organizationId, addonServiceIds);
   },
 };

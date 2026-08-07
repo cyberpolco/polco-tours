@@ -783,4 +783,13 @@ export const bookingService = {
   async getBookingForRating(organizationId: string, bookingReference: string): Promise<BookingView | null> {
     return bookingRepository.findByBookingReference(organizationId, bookingReference);
   },
+
+  /** Guest "find my booking" add-ons list (no-ctx) -- mirrors
+   * getBookingForRating's "*ForBookingLookup" convention above. No name
+   * resolution here (BookingAddonView has no human-readable name); the
+   * caller joins against catalogService.listAddonServicesForBookingLookup
+   * itself. */
+  async listAddonsForBookingLookup(organizationId: string, bookingId: string): Promise<BookingAddonView[]> {
+    return bookingRepository.listAddonsForBooking(organizationId, bookingId);
+  },
 };
