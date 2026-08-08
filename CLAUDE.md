@@ -19,14 +19,15 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-089 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **All schema changes through DR-086 are applied to the shared
+> Current through DR-090 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **All schema changes through DR-088 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
-> user dormancy, site province/city). **DR-088's schema change is not yet
-> applied** — pending explicit user confirmation + a pasted `neondb_owner`
-> credential, per the documented process. DR-089 (the staff Map tab —
-> booking-reference lookup, per-day interactive map, per-day PDF download)
-> is code-complete but depends on that same pending schema push.
+> user dormancy, site province/city, geo-data foundation — nothing
+> schema-related is pending). DR-089 (the staff Map tab — booking-reference
+> lookup, per-day interactive map, per-day PDF download) is fully deployed
+> on top of DR-088. DR-090 re-anchors Rating Code validity to the tour's own
+> last day (usable the day after it ends, expires 5 days after that) instead
+> of to whenever staff happen to issue the code.
 > DR-082 adds `Vehicle`/`DriverProfile`/`GuideProfile.availability`
 > (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
 > `VehicleStatus`/`DriverStatus`/`GuideStatus` operational-hold dimension)
@@ -81,8 +82,11 @@ explicit decision to do so.
 > road-snapped route) and download a day as a PDF (new `StaticMapsGateway`
 > + first-ever `@react-pdf/renderer` use). Scoped the same as everywhere
 > else: SUPERADMIN/TOUR_OPERATOR unrestricted, TOUR_GUIDE/DRIVER limited to
-> a booking on their own assigned departure. See DR-082 through DR-089 for
-> full detail.
+> a booking on their own assigned departure. DR-090 re-anchors Rating Code
+> validity to the tour's own last day instead of issuance date — usable
+> starting the day after the tour ends, expires exactly 5 days after that
+> (`ratingCodeExpiryFromTourEnd`, replacing the old flat 30-days-from-
+> issuance window). See DR-082 through DR-090 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -678,6 +682,18 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
 - **A brand-new permission needs a `db:seed` re-run to actually grant it
   live** — since permissions are DB-backed (`RolePermission`), adding one to
   `rbac.ts` alone changes nothing until the seed's upsert runs.
+- **A destructive schema change (dropping/renaming a column or table) breaks
+  the currently-*deployed* code the moment it's pushed to the shared Neon
+  DB, if that deploy hasn't gone out yet** — real incident, 2026-08-08: DR-088
+  dropped `ItineraryDay.plannedSites` right after `db push`, but the Vercel
+  deployment carrying the matching code hadn't gone out yet (9+ hours stale;
+  git push alone doesn't guarantee an immediate auto-deploy), so the
+  still-live old build crashed on every itinerary-day query referencing the
+  now-gone column. Fixed by an immediate `vercel deploy --prod`. For any
+  future destructive schema change: confirm the matching code is actually
+  live in production (`vercel ls --prod`, check deployment age) — ideally
+  before or immediately after the `db push`, not "at some point after
+  pushing to git."
 - **`@visx/responsive`'s `ParentSize` collapses to 0 height if you only
   give it a Tailwind height class** — its own inline `style={{height:
   '100%'}}` wins over any CSS class. Pass `style={{ height: N }}` as a prop

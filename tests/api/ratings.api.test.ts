@@ -46,6 +46,11 @@ beforeAll(async () => {
         priceMinor: 50000,
         currency: 'USD',
         bookingReference: generateBookingReference(),
+        // DR-090: issueRatingCode now resolves the tour's end date (no
+        // departure on this bare fixture booking, so customTravelEnd is
+        // the fallback) to anchor RatingCode.expiresAt -- a booking with
+        // no travel dates known at all now 409s rather than issuing.
+        customTravelEnd: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
       },
     });
     paidBookingId = paidBooking.id;

@@ -18,7 +18,7 @@ import {
   canIssueRatingCode,
   canSubmitRating,
   isRatingCodeUsable,
-  ratingCodeExpiryFrom,
+  ratingCodeExpiryFromTourEnd,
   type RatableDriver,
   type RatableGuide,
   type OrganizationRatingSummary,
@@ -33,6 +33,14 @@ import { ratingsRepository } from './repository';
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   return ctx.organizationId;
+}
+
+/** Shared by issueRatingCode and resolveEligibleBooking -- same
+ * Departure.endDate / Booking.customTravelEnd fallback the booking
+ * lifecycle sweep uses to decide IN_PROGRESS -> COMPLETED. */
+async function resolveTourEndDate(booking: { departureId: string | null; customTravelEnd: Date | null }): Promise<Date | null> {
+  if (!booking.departureId) return booking.customTravelEnd;
+  return (await catalogService.getDepartureWindow(booking.departureId))?.endDate ?? null;
 }
 
 // Same threshold/window as booking's own guest-lookup rate limit
@@ -80,9 +88,7 @@ async function resolveEligibleBooking(
   }
 
   const invoiceStatus = await invoicingService.getInvoiceStatusForBooking(organizationId, booking.id);
-  const tourEndDate = booking.departureId
-    ? ((await catalogService.getDepartureWindow(booking.departureId))?.endDate ?? null)
-    : booking.customTravelEnd;
+  const tourEndDate = await resolveTourEndDate(booking);
 
   if (!canSubmitRating({ bookingStatus: booking.status, invoiceStatus, tourEndDate, now })) {
     // Distinct from the anti-enumeration 404 above: the guest DOES possess a
@@ -143,10 +149,20 @@ export const ratingsService = {
       );
     }
 
+    // expiresAt is anchored to the tour's own last day, not to today (see
+    // the domain.ts comment on RATING_CODE_VALIDITY_DAYS_AFTER_TOUR_END) --
+    // travel dates are expected to already be known by the time a booking
+    // is fully paid, so a null tourEndDate here is a real data problem, not
+    // a normal case to silently paper over with a fallback.
+    const tourEndDate = await resolveTourEndDate(booking);
+    if (!tourEndDate) {
+      throw Errors.conflict('Cannot issue a Rating Code before this booking has travel dates set');
+    }
+
     const ratingCode = await ratingsRepository.createRatingCode(organizationId, {
       bookingId,
       issuedByUserId: ctx.userId,
-      expiresAt: ratingCodeExpiryFrom(new Date()),
+      expiresAt: ratingCodeExpiryFromTourEnd(tourEndDate),
     });
 
     await audit({

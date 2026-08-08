@@ -4,7 +4,7 @@ import {
   canSubmitRating,
   generateRatingCode,
   isRatingCodeUsable,
-  ratingCodeExpiryFrom,
+  ratingCodeExpiryFromTourEnd,
   RatingCodeLookupInput,
   SubmitRatingInput,
 } from '../src/modules/ratings/domain';
@@ -22,11 +22,11 @@ describe('ratings domain', () => {
     });
   });
 
-  describe('ratingCodeExpiryFrom', () => {
-    it('expires 30 days from now', () => {
-      const now = new Date('2026-01-01T00:00:00Z');
-      const expiry = ratingCodeExpiryFrom(now);
-      expect(expiry.getTime() - now.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+  describe('ratingCodeExpiryFromTourEnd', () => {
+    it('expires exactly 5 days after the tour end date, not from today', () => {
+      const tourEndDate = new Date('2026-01-01T00:00:00Z');
+      const expiry = ratingCodeExpiryFromTourEnd(tourEndDate);
+      expect(expiry.getTime() - tourEndDate.getTime()).toBe(5 * 24 * 60 * 60 * 1000);
     });
   });
 
@@ -64,13 +64,13 @@ describe('ratings domain', () => {
   describe('canSubmitRating', () => {
     const tourEndDate = new Date('2026-06-01T00:00:00Z');
 
-    it('allows submission once completed, paid, and 48h past the tour end', () => {
-      const now = new Date(tourEndDate.getTime() + 48 * 60 * 60 * 1000);
+    it('allows submission starting the day after the tour ends (24h past tour end)', () => {
+      const now = new Date(tourEndDate.getTime() + 24 * 60 * 60 * 1000);
       expect(canSubmitRating({ bookingStatus: 'COMPLETED', invoiceStatus: 'PAID', tourEndDate, now })).toBe(true);
     });
 
-    it('blocks submission before 48h have passed', () => {
-      const now = new Date(tourEndDate.getTime() + 47 * 60 * 60 * 1000);
+    it('blocks submission before the day after the tour ends', () => {
+      const now = new Date(tourEndDate.getTime() + 23 * 60 * 60 * 1000);
       expect(canSubmitRating({ bookingStatus: 'COMPLETED', invoiceStatus: 'PAID', tourEndDate, now })).toBe(false);
     });
 

@@ -37,12 +37,17 @@ export interface ReviewView {
   subjectRatings: ReviewSubjectRatingView[];
 }
 
-// Spec: "expires after a configurable period (recommended: 30 days)" -- a
-// plain constant is this codebase's existing precedent for "configurable
-// but nobody has asked to actually change it yet" (e.g. booking's
-// HOLD_DURATION_MINUTES, the visa module's resubmission window).
-export const RATING_CODE_VALIDITY_DAYS = 30;
-export const RATING_ELIGIBILITY_DELAY_HOURS = 48;
+// Explicit user direction: the code is usable starting the day after the
+// tour's last day, and stays valid for exactly 5 days after that last day
+// -- both ends of the window are anchored to the tour's own end date
+// (Departure.endDate / Booking.customTravelEnd), not to whenever staff
+// happened to issue the code. Anchoring expiry to issuance (the original
+// DR-037 design) had a real gap: a booking can be fully paid -- and the
+// code issued -- well before or after the tour actually happens, so an
+// issuance-anchored window had no guaranteed relationship to the tour's
+// last day at all.
+export const RATING_CODE_VALIDITY_DAYS_AFTER_TOUR_END = 5;
+export const RATING_ELIGIBILITY_DELAY_HOURS = 24;
 
 // Same shape as booking's generateBookingReference (excludes 0/O/1/I --
 // unambiguous when read aloud or handwritten) -- duplicated rather than
@@ -57,8 +62,10 @@ export function generateRatingCode(): string {
   return Array.from(bytes, (b) => RATING_CODE_ALPHABET[b % RATING_CODE_ALPHABET.length]).join('');
 }
 
-export function ratingCodeExpiryFrom(now: Date): Date {
-  return new Date(now.getTime() + RATING_CODE_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+/** Anchored to the tour's own last day, not to issuance time -- see the
+ * comment on RATING_CODE_VALIDITY_DAYS_AFTER_TOUR_END above. */
+export function ratingCodeExpiryFromTourEnd(tourEndDate: Date): Date {
+  return new Date(tourEndDate.getTime() + RATING_CODE_VALIDITY_DAYS_AFTER_TOUR_END * 24 * 60 * 60 * 1000);
 }
 
 /** Derived, not stored -- same "lazy expiry" precedent as booking's
@@ -94,6 +101,7 @@ export function canSubmitRating(params: {
   if (params.bookingStatus !== 'COMPLETED') return false;
   if (params.invoiceStatus !== 'PAID') return false;
   if (!params.tourEndDate) return false;
+  // "Usable starting the day after the tour ends" -- RATING_ELIGIBILITY_DELAY_HOURS is 24h.
   const eligibleFrom = new Date(params.tourEndDate.getTime() + RATING_ELIGIBILITY_DELAY_HOURS * 60 * 60 * 1000);
   return params.now >= eligibleFrom;
 }
