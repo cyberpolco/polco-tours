@@ -4,6 +4,7 @@ import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
 import { FormField } from '@/components/ui/FormField';
+import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -70,6 +71,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
+          <MapLocationPicker initialLatitude={restaurant.latitude} initialLongitude={restaurant.longitude} optional />
           <SubmitButton>Save changes</SubmitButton>
         </form>
       ) : (

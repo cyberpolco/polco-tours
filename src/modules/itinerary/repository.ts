@@ -1,5 +1,15 @@
 // itinerary module — repository. The only place that touches the DB for this module.
-import type { Hotel, HotelRating, Itinerary, ItineraryDay, ItineraryStatus, Restaurant, RestaurantRating, Site } from '@prisma/client';
+import type {
+  Hotel,
+  HotelRating,
+  Itinerary,
+  ItineraryDay,
+  ItineraryDaySite,
+  ItineraryStatus,
+  Restaurant,
+  RestaurantRating,
+  Site,
+} from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
   AddItineraryDayInput,
@@ -9,6 +19,7 @@ import type {
   CreateSiteInput,
   HotelRatingView,
   HotelView,
+  ItineraryDaySiteView,
   ItineraryDayView,
   ItineraryView,
   RateHotelInput,
@@ -51,7 +62,10 @@ function toDayView(d: ItineraryDay): ItineraryDayView {
     arrivalTime: d.arrivalTime,
     pickupLocation: d.pickupLocation,
     dropoffLocation: d.dropoffLocation,
-    plannedSites: d.plannedSites,
+    pickupLatitude: d.pickupLatitude,
+    pickupLongitude: d.pickupLongitude,
+    dropoffLatitude: d.dropoffLatitude,
+    dropoffLongitude: d.dropoffLongitude,
     activities: d.activities,
     estimatedTravelMinutes: d.estimatedTravelMinutes,
     notes: d.notes,
@@ -59,6 +73,15 @@ function toDayView(d: ItineraryDay): ItineraryDayView {
     restaurantId: d.restaurantId,
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
+  };
+}
+
+function toDaySiteView(s: ItineraryDaySite): ItineraryDaySiteView {
+  return {
+    id: s.id,
+    itineraryDayId: s.itineraryDayId,
+    siteId: s.siteId,
+    sequence: s.sequence,
   };
 }
 
@@ -70,6 +93,8 @@ function toSiteView(s: Site): SiteView {
     country: s.country,
     province: s.province,
     city: s.city,
+    latitude: s.latitude,
+    longitude: s.longitude,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   };
@@ -85,6 +110,8 @@ function toHotelView(h: Hotel): HotelView {
     contactName: h.contactName,
     contactPhone: h.contactPhone,
     contactEmail: h.contactEmail,
+    latitude: h.latitude,
+    longitude: h.longitude,
     averageRating: h.averageRating,
     ratingCount: h.ratingCount,
     createdAt: h.createdAt,
@@ -102,6 +129,8 @@ function toRestaurantView(r: Restaurant): RestaurantView {
     contactName: r.contactName,
     contactPhone: r.contactPhone,
     contactEmail: r.contactEmail,
+    latitude: r.latitude,
+    longitude: r.longitude,
     averageRating: r.averageRating,
     ratingCount: r.ratingCount,
     createdAt: r.createdAt,
@@ -263,6 +292,13 @@ export const itineraryRepository = {
     });
   },
 
+  async findDayById(organizationId: string, dayId: string): Promise<ItineraryDayView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const d = await tx.itineraryDay.findUnique({ where: { id: dayId } });
+      return d ? toDayView(d) : null;
+    });
+  },
+
   async listDays(organizationId: string, itineraryId: string): Promise<ItineraryDayView[]> {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.itineraryDay.findMany({ where: { itineraryId }, orderBy: { dayNumber: 'asc' } });
@@ -278,6 +314,67 @@ export const itineraryRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.itineraryDay.findMany({ where: { itineraryId: { in: itineraryIds } } });
       return rows.map(toDayView);
+    });
+  },
+
+  // ------------------------------------------------------------ day sites (ordered stops)
+
+  async listDaySites(organizationId: string, itineraryDayId: string): Promise<ItineraryDaySiteView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.itineraryDaySite.findMany({ where: { itineraryDayId }, orderBy: { sequence: 'asc' } });
+      return rows.map(toDaySiteView);
+    });
+  },
+
+  /** Always appends at the end (max existing sequence + 1) -- staff reorder
+   * afterward via moveDaySite. Gaps left behind by a removal are harmless
+   * since every read orders by `sequence asc`, never assumes contiguity. */
+  async addDaySite(organizationId: string, itineraryDayId: string, siteId: string): Promise<ItineraryDaySiteView> {
+    return withOrg(organizationId, async (tx) => {
+      const max = await tx.itineraryDaySite.aggregate({ where: { itineraryDayId }, _max: { sequence: true } });
+      const s = await tx.itineraryDaySite.create({
+        data: { organizationId, itineraryDayId, siteId, sequence: (max._max.sequence ?? 0) + 1 },
+      });
+      return toDaySiteView(s);
+    });
+  },
+
+  async removeDaySite(organizationId: string, itineraryDayId: string, siteId: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.itineraryDaySite.findUnique({ where: { itineraryDayId_siteId: { itineraryDayId, siteId } } });
+      if (!existing) return false;
+      await tx.itineraryDaySite.delete({ where: { id: existing.id } });
+      return true;
+    });
+  },
+
+  /** Swaps this site's sequence with its immediate neighbor in the given
+   * direction -- a no-op (returns false) at either end of the list.
+   * withOrg already runs its whole callback inside one transaction, and
+   * `@@unique([itineraryDayId, sequence])` is not DEFERRABLE, so a direct
+   * two-update swap would transiently collide (Postgres checks a unique
+   * constraint immediately after each statement, not at commit). Routing
+   * through an unused sentinel value avoids that -- addDaySite only ever
+   * assigns positive sequences, so a negative one can never collide. */
+  async moveDaySite(
+    organizationId: string,
+    itineraryDayId: string,
+    siteId: string,
+    direction: 'up' | 'down',
+  ): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.itineraryDaySite.findMany({ where: { itineraryDayId }, orderBy: { sequence: 'asc' } });
+      const index = rows.findIndex((r) => r.siteId === siteId);
+      if (index === -1) return false;
+      const neighborIndex = direction === 'up' ? index - 1 : index + 1;
+      if (neighborIndex < 0 || neighborIndex >= rows.length) return false;
+      const current = rows[index];
+      const neighbor = rows[neighborIndex];
+      if (!current || !neighbor) return false;
+      await tx.itineraryDaySite.update({ where: { id: current.id }, data: { sequence: -1 } });
+      await tx.itineraryDaySite.update({ where: { id: neighbor.id }, data: { sequence: current.sequence } });
+      await tx.itineraryDaySite.update({ where: { id: current.id }, data: { sequence: neighbor.sequence } });
+      return true;
     });
   },
 
@@ -395,17 +492,19 @@ export const itineraryRepository = {
   async updateSite(organizationId: string, id: string, input: UpdateSiteInput): Promise<SiteView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.site.findUnique({ where: { id } });
-      if (!existing) return null;
+      if (!existing || existing.deletedAt) return null;
       const s = await tx.site.update({ where: { id }, data: input });
       return toSiteView(s);
     });
   },
 
+  /** Soft-delete (matches Hotel/Restaurant) -- a hard delete would FK-violate
+   * or corrupt any ItineraryDaySite row already referencing this Site. */
   async deleteSite(organizationId: string, id: string): Promise<boolean> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.site.findUnique({ where: { id } });
-      if (!existing) return false;
-      await tx.site.delete({ where: { id } });
+      if (!existing || existing.deletedAt) return false;
+      await tx.site.update({ where: { id }, data: { deletedAt: new Date() } });
       return true;
     });
   },
@@ -413,20 +512,29 @@ export const itineraryRepository = {
   async findSiteById(organizationId: string, id: string): Promise<SiteView | null> {
     return withOrg(organizationId, async (tx) => {
       const s = await tx.site.findUnique({ where: { id } });
-      return s ? toSiteView(s) : null;
+      if (!s || s.deletedAt) return null;
+      return toSiteView(s);
+    });
+  },
+
+  async findSitesByIds(organizationId: string, ids: string[]): Promise<SiteView[]> {
+    if (ids.length === 0) return [];
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.site.findMany({ where: { id: { in: ids }, deletedAt: null } });
+      return rows.map(toSiteView);
     });
   },
 
   async listSites(organizationId: string): Promise<SiteView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.site.findMany({ orderBy: [{ country: 'asc' }, { name: 'asc' }] });
+      const rows = await tx.site.findMany({ where: { deletedAt: null }, orderBy: [{ country: 'asc' }, { name: 'asc' }] });
       return rows.map(toSiteView);
     });
   },
 
   async listSitesForCountry(organizationId: string, country: string): Promise<SiteView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.site.findMany({ where: { country }, orderBy: { name: 'asc' } });
+      const rows = await tx.site.findMany({ where: { country, deletedAt: null }, orderBy: { name: 'asc' } });
       return rows.map(toSiteView);
     });
   },

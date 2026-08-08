@@ -17,8 +17,11 @@ import {
   type CreateSiteInput,
   type HotelRatingView,
   type HotelView,
+  type ItineraryDaySiteView,
   type ItineraryDayView,
   type ItineraryView,
+  type MapOverviewView,
+  type MapStopView,
   type RateHotelInput,
   type RateRestaurantInput,
   type RestaurantRatingView,
@@ -30,6 +33,8 @@ import {
   type UpdateRestaurantInput,
   type UpdateSiteInput,
 } from './domain';
+import { StaticMapsGatewayError, staticMapsGateway } from './gateway';
+import { renderDayMapPdf } from './map-pdf';
 import { itineraryRepository } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
@@ -64,6 +69,16 @@ async function getOwnedItinerary(ctx: AuthContext, organizationId: string, itine
     throw Errors.notFound('Itinerary not found');
   }
   return itinerary;
+}
+
+/** Map-tab anti-BOLA: resolves a day by id, then applies the same
+ * manager-or-assigned check as getOwnedItinerary against its parent
+ * itinerary -- a day has no owner of its own, only its itinerary does. */
+async function getOwnedDay(ctx: AuthContext, organizationId: string, dayId: string): Promise<{ day: ItineraryDayView; itinerary: ItineraryView }> {
+  const day = await itineraryRepository.findDayById(organizationId, dayId);
+  if (!day) throw Errors.notFound('Itinerary day not found');
+  const itinerary = await getOwnedItinerary(ctx, organizationId, day.itineraryId);
+  return { day, itinerary };
 }
 
 export const itineraryService = {
@@ -117,13 +132,20 @@ export const itineraryService = {
         if (departure.tourPackageId) {
           const templateDays = await catalogService.listTemplateDaysForItineraryCopy(organizationId, departure.tourPackageId);
           for (const day of templateDays) {
+            // PackageItineraryDay.plannedSites (still free text, catalog
+            // module) is deliberately NOT copied here -- ItineraryDay's own
+            // plannedSites was replaced by the structured ItineraryDaySite
+            // relation, and catalog can't reference itinerary's Site table
+            // (module dependency direction: itinerary -> catalog, never the
+            // reverse). A freshly-created day just arrives with no sites
+            // pre-picked, same as hotelId/restaurantId already not being
+            // copied from the template today.
             await itineraryRepository.addDay(organizationId, itinerary.id, day.dayNumber, {
               date: addDaysToDate(departure.startDate, day.dayNumber - 1),
               departureTime: day.departureTime ?? undefined,
               arrivalTime: day.arrivalTime ?? undefined,
               pickupLocation: day.pickupLocation ?? undefined,
               dropoffLocation: day.dropoffLocation ?? undefined,
-              plannedSites: day.plannedSites ?? undefined,
               activities: day.activities ?? undefined,
               estimatedTravelMinutes: day.estimatedTravelMinutes ?? undefined,
               notes: day.notes ?? undefined,
@@ -306,6 +328,156 @@ export const itineraryService = {
     const organizationId = requireOrg(ctx);
     await getOwnedItinerary(ctx, organizationId, itineraryId);
     return itineraryRepository.listDays(organizationId, itineraryId);
+  },
+
+  // ------------------------------------------------------------ day sites (ordered stops)
+
+  /** Same anti-BOLA scoping as listDays -- shared by the staff edit form and
+   * the guide/driver read-only view. */
+  async listDaySites(ctx: AuthContext, itineraryId: string, dayId: string): Promise<ItineraryDaySiteView[]> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    await getOwnedItinerary(ctx, organizationId, itineraryId);
+    return itineraryRepository.listDaySites(organizationId, dayId);
+  },
+
+  /** Batch name resolution for rendering a day's stop list -- same shape as
+   * listHotelsByIds/listRestaurantsByIds below. */
+  async listSitesByIds(ctx: AuthContext, siteIds: string[]): Promise<SiteView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.findSitesByIds(requireOrg(ctx), siteIds);
+  },
+
+  async addDaySite(ctx: AuthContext, itineraryId: string, dayId: string, siteId: string): Promise<ItineraryDaySiteView> {
+    assertCan(ctx, 'itinerary.write');
+    const organizationId = requireOrg(ctx);
+    await requireManagedItinerary(organizationId, itineraryId);
+    await requireSiteExists(organizationId, siteId);
+    const added = await itineraryRepository.addDaySite(organizationId, dayId, siteId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary_day_site.added',
+      resourceType: 'ItineraryDay',
+      resourceId: dayId,
+      organizationId,
+      metadata: { siteId },
+    });
+    return added;
+  },
+
+  async removeDaySite(ctx: AuthContext, itineraryId: string, dayId: string, siteId: string): Promise<void> {
+    assertCan(ctx, 'itinerary.write');
+    const organizationId = requireOrg(ctx);
+    await requireManagedItinerary(organizationId, itineraryId);
+    const removed = await itineraryRepository.removeDaySite(organizationId, dayId, siteId);
+    if (!removed) throw Errors.notFound('Itinerary day site not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary_day_site.removed',
+      resourceType: 'ItineraryDay',
+      resourceId: dayId,
+      organizationId,
+      metadata: { siteId },
+    });
+  },
+
+  /** The staff form only ever renders a "^"/"v" button when a neighbor
+   * actually exists in that direction, so a false (no-op-at-the-edge)
+   * return here would indicate a UI bug, not a normal user action -- an
+   * unmatched siteId (the only other false case) is a genuine not-found. */
+  async moveDaySite(
+    ctx: AuthContext,
+    itineraryId: string,
+    dayId: string,
+    siteId: string,
+    direction: 'up' | 'down',
+  ): Promise<void> {
+    assertCan(ctx, 'itinerary.write');
+    const organizationId = requireOrg(ctx);
+    await requireManagedItinerary(organizationId, itineraryId);
+    const moved = await itineraryRepository.moveDaySite(organizationId, dayId, siteId, direction);
+    if (!moved) throw Errors.notFound('Itinerary day site not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary_day_site.reordered',
+      resourceType: 'ItineraryDay',
+      resourceId: dayId,
+      organizationId,
+      metadata: { siteId, direction },
+    });
+  },
+
+  // ------------------------------------------------------------ map (DR-089)
+
+  /** Booking-reference entry point for the staff "Map" tab -- reuses
+   * bookingService.getByBookingReference (ctx-checked anti-BOLA) and this
+   * module's own getItineraryForBooking (already does the manager-or-
+   * assigned check via isAssignedToItinerary), so no new scoping logic. */
+  async resolveMapOverview(ctx: AuthContext, bookingReference: string): Promise<MapOverviewView> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await bookingService.getByBookingReference(ctx, bookingReference);
+    const itinerary = await itineraryRepository.findByBookingId(organizationId, booking.id);
+    // Same manager-or-assigned check as getItineraryForBooking, just
+    // reusing the booking already resolved above instead of re-fetching it.
+    if (!itinerary || (!isItineraryManager(ctx.roles) && !(await isAssignedToItinerary(ctx, itinerary)))) {
+      throw Errors.notFound('Itinerary not found');
+    }
+    const days = await itineraryRepository.listDays(organizationId, itinerary.id);
+    const dayViews = await Promise.all(
+      days.map(async (day) => ({
+        dayId: day.id,
+        dayNumber: day.dayNumber,
+        date: day.date,
+        stops: await buildDayStops(organizationId, day),
+      })),
+    );
+    return { bookingReference: booking.bookingReference, itineraryId: itinerary.id, days: dayViews };
+  },
+
+  /** Renders one day's stops as a downloadable PDF (map image + stop list).
+   * Skips any stop with no coordinates when building the map image itself
+   * (Static Maps needs real lat/lng) but still lists it in the PDF text,
+   * flagged "not geocoded", so staff notice the gap rather than silently
+   * losing a planned stop. */
+  async streamDayMapPdf(ctx: AuthContext, dayId: string): Promise<{ body: Buffer; contentType: string }> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    const { day } = await getOwnedDay(ctx, organizationId, dayId);
+    const stops = await buildDayStops(organizationId, day);
+    const geocoded = stops.filter(
+      (s): s is MapStopView & { latitude: number; longitude: number } => s.latitude != null && s.longitude != null,
+    );
+    if (geocoded.length === 0) {
+      throw Errors.conflict('This day has no geocoded stops yet -- add coordinates before generating a map.');
+    }
+
+    let mapImage: Buffer;
+    try {
+      mapImage = await staticMapsGateway.renderMap({
+        markers: geocoded.map((s) => ({ lat: s.latitude, lng: s.longitude, label: s.label })),
+        path: geocoded.map((s) => ({ lat: s.latitude, lng: s.longitude })),
+      });
+    } catch (err) {
+      if (err instanceof StaticMapsGatewayError) throw Errors.internal();
+      throw err;
+    }
+
+    const body = await renderDayMapPdf(day, stops, mapImage);
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary_day_map.downloaded',
+      resourceType: 'ItineraryDay',
+      resourceId: dayId,
+      organizationId,
+    });
+
+    return { body, contentType: 'application/pdf' };
   },
 
   // ------------------------------------------------------------ hotels / restaurants (reference data)
@@ -589,9 +761,56 @@ async function requireHotelExists(organizationId: string, hotelId: string): Prom
   if (!hotel) throw Errors.notFound('Hotel not found');
 }
 
+async function requireSiteExists(organizationId: string, siteId: string): Promise<void> {
+  const site = await itineraryRepository.findSiteById(organizationId, siteId);
+  if (!site) throw Errors.notFound('Site not found');
+}
+
 async function requireRestaurantExists(organizationId: string, restaurantId: string): Promise<void> {
   const restaurant = await itineraryRepository.findRestaurantById(organizationId, restaurantId);
   if (!restaurant) throw Errors.notFound('Restaurant not found');
+}
+
+/** Shared by resolveMapOverview and streamDayMapPdf -- one day's stops, in
+ * visiting order: pickup, each ItineraryDaySite in sequence, hotel,
+ * restaurant, dropoff. A stop with no coordinates is still included
+ * (latitude/longitude null) so the caller can decide whether to skip it
+ * (a map image needs real points) or just flag it (the PDF's text list). */
+async function buildDayStops(organizationId: string, day: ItineraryDayView): Promise<MapStopView[]> {
+  const [daySites, hotel, restaurant] = await Promise.all([
+    itineraryRepository.listDaySites(organizationId, day.id),
+    day.hotelId ? itineraryRepository.findHotelById(organizationId, day.hotelId) : Promise.resolve(null),
+    day.restaurantId ? itineraryRepository.findRestaurantById(organizationId, day.restaurantId) : Promise.resolve(null),
+  ]);
+  const sites = await itineraryRepository.findSitesByIds(organizationId, daySites.map((s) => s.siteId));
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+
+  const stops: MapStopView[] = [];
+  if (day.pickupLatitude != null || day.pickupLongitude != null || day.pickupLocation) {
+    stops.push({
+      kind: 'PICKUP',
+      label: day.pickupLocation ?? 'Pickup',
+      latitude: day.pickupLatitude,
+      longitude: day.pickupLongitude,
+    });
+  }
+  for (const ds of daySites) {
+    const site = siteById.get(ds.siteId);
+    if (site) stops.push({ kind: 'SITE', label: site.name, latitude: site.latitude, longitude: site.longitude });
+  }
+  if (hotel) stops.push({ kind: 'HOTEL', label: hotel.name, latitude: hotel.latitude, longitude: hotel.longitude });
+  if (restaurant) {
+    stops.push({ kind: 'RESTAURANT', label: restaurant.name, latitude: restaurant.latitude, longitude: restaurant.longitude });
+  }
+  if (day.dropoffLatitude != null || day.dropoffLongitude != null || day.dropoffLocation) {
+    stops.push({
+      kind: 'DROPOFF',
+      label: day.dropoffLocation ?? 'Drop-off',
+      latitude: day.dropoffLatitude,
+      longitude: day.dropoffLongitude,
+    });
+  }
+  return stops;
 }
 
 /** Same departureIds resolution as the public listMine() -- factored out so

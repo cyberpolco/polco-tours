@@ -9,6 +9,11 @@ function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
   return s.length > 0 ? s : undefined;
 }
 
+function emptyToUndefinedNumber(v: FormDataEntryValue | null): number | undefined {
+  const s = emptyToUndefined(v);
+  return s !== undefined ? Number(s) : undefined;
+}
+
 export async function createRestaurantAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('itinerary.write');
   const input = CreateRestaurantInput.parse({
@@ -18,6 +23,8 @@ export async function createRestaurantAction(formData: FormData): Promise<void> 
     contactName: emptyToUndefined(formData.get('contactName')),
     contactPhone: emptyToUndefined(formData.get('contactPhone')),
     contactEmail: emptyToUndefined(formData.get('contactEmail')),
+    latitude: emptyToUndefinedNumber(formData.get('latitude')),
+    longitude: emptyToUndefinedNumber(formData.get('longitude')),
   });
   await itineraryService.createRestaurant(ctx, input);
   redirect('/staff/restaurants');

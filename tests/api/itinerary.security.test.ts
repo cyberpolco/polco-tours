@@ -8,6 +8,8 @@ import { loginAs } from '../helpers/test-auth';
 import { GET as getItinerary } from '../../src/app/api/v1/itineraries/[itineraryId]/route';
 import { GET as listMine } from '../../src/app/api/v1/itineraries/mine/route';
 import { GET as listDays, POST as addDay } from '../../src/app/api/v1/itineraries/[itineraryId]/days/route';
+import { GET as mapOverview } from '../../src/app/api/v1/itineraries/map-overview/route';
+import { GET as mapPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/days/[dayId]/map-pdf/route';
 
 /**
  * Anti-BOLA (Vol. 8, API1) for the DR-033 itinerary module: RLS only
@@ -28,6 +30,10 @@ let unassignedGuideId: string; // never assigned to anything
 let itineraryXId: string; // on departureX -- guideId IS assigned here
 let itineraryYId: string; // on departureY -- guideId is NOT assigned here
 let departureXId: string;
+let bookingReferenceX: string; // DR-089: map tab tests key off the reference, not the raw id
+let bookingReferenceY: string;
+let dayXId: string;
+let dayYId: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -104,6 +110,8 @@ beforeAll(async () => {
     ]);
     bookingXId = bookingX.id;
     bookingYId = bookingY.id;
+    bookingReferenceX = bookingX.bookingReference;
+    bookingReferenceY = bookingY.bookingReference;
   });
 
   // Split into a second withOrg call -- Prisma's 5000ms interactive-
@@ -120,7 +128,19 @@ beforeAll(async () => {
     itineraryYId = itineraryY.id;
   });
 
-  // Split into a third withOrg call -- Prisma's 5000ms interactive-
+  // Split into a third withOrg call (DR-089's dayX/dayY fixtures pushed the
+  // previous block over Prisma's 5000ms interactive-transaction timeout --
+  // same documented gotcha, same fix as everywhere else in this file).
+  await withOrg(orgId, async (tx) => {
+    const [dayX, dayY] = await Promise.all([
+      tx.itineraryDay.create({ data: { organizationId: orgId, itineraryId: itineraryXId, dayNumber: 1, date: new Date('2026-09-01') } }),
+      tx.itineraryDay.create({ data: { organizationId: orgId, itineraryId: itineraryYId, dayNumber: 1, date: new Date('2026-10-01') } }),
+    ]);
+    dayXId = dayX.id;
+    dayYId = dayY.id;
+  });
+
+  // Split into a fourth withOrg call -- Prisma's 5000ms interactive-
   // transaction timeout is measurably too short for this sandbox's real
   // network path to Neon once a beforeAll does this much sequential work in
   // one transaction (documented gotcha, CLAUDE.md; same fix as
@@ -251,6 +271,79 @@ describe('anti-BOLA: itinerary assigned-departure scoping', () => {
     const headers = await loginAs(touristId);
     const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}`, { headers });
     const res = await getItinerary(req, { params: Promise.resolve({ itineraryId: itineraryXId }) });
+    expect(res.status).toBe(403);
+  });
+});
+
+/** DR-089: the Map tab's booking-reference entry point reuses the exact
+ * same anti-BOLA scoping proven above -- these cases mirror the itineraryId
+ * ones 1:1, just keyed by bookingReference instead. */
+describe('anti-BOLA: itinerary map tab (booking-reference lookup, DR-089)', () => {
+  it('a TOUR_GUIDE assigned to departureX can resolve the map overview for bookingX (200)', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/map-overview?bookingReference=${bookingReferenceX}`, { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.itineraryId).toBe(itineraryXId);
+    expect(body.days.map((d: { dayId: string }) => d.dayId)).toContain(dayXId);
+  });
+
+  it('the same TOUR_GUIDE gets 404 (not 403) for bookingY on an unrelated departure', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/map-overview?bookingReference=${bookingReferenceY}`, { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(404);
+  });
+
+  it('an operator can resolve the map overview for either booking regardless of assignment', async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/map-overview?bookingReference=${bookingReferenceY}`, { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+  });
+
+  it('a TOURIST gets 403 (no itinerary.read permission)', async () => {
+    const headers = await loginAs(touristId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/map-overview?bookingReference=${bookingReferenceX}`, { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+
+  it('a garbage bookingReference 404s rather than crashing', async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest('http://localhost/api/v1/itineraries/map-overview?bookingReference=NOPE99', { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(404);
+  });
+
+  it('a missing bookingReference query param 422s', async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest('http://localhost/api/v1/itineraries/map-overview', { headers });
+    const res = await mapOverview(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(422);
+  });
+});
+
+describe('anti-BOLA: itinerary day map PDF (DR-089)', () => {
+  it('a TOUR_GUIDE assigned to departureX gets 409 for dayX -- no geocoded stops yet, not an empty map', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/days/${dayXId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId, dayId: dayXId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('the same TOUR_GUIDE gets 404 (not 403) for dayY on the unrelated itinerary', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryYId}/days/${dayYId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryYId, dayId: dayYId }) });
+    expect(res.status).toBe(404);
+  });
+
+  it('a TOURIST gets 403 (no itinerary.read permission)', async () => {
+    const headers = await loginAs(touristId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/days/${dayXId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId, dayId: dayXId }) });
     expect(res.status).toBe(403);
   });
 });

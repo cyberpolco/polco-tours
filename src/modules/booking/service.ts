@@ -67,15 +67,20 @@ export interface BillableTotal {
 
 /** Anti-BOLA: a tourist may only act on their own booking; staff act on any
  * booking in their org. Shared by every method below that resolves a booking
- * by id -- don't leak existence of another tourist's booking via a 403 vs
- * 404 distinction. */
-async function getOwnedBooking(ctx: AuthContext, organizationId: string, bookingId: string): Promise<BookingView> {
-  const booking = await bookingRepository.findById(organizationId, bookingId);
+ * -- don't leak existence of another tourist's booking via a 403 vs 404
+ * distinction. Factored out from getOwnedBooking so getByBookingReference
+ * can reuse the same check against a reference-keyed lookup. */
+function assertOwnedBooking(ctx: AuthContext, booking: BookingView | null): BookingView {
   if (!booking) throw Errors.notFound('Booking not found');
   if (!isStaff(ctx) && booking.touristUserId !== ctx.userId) {
     throw Errors.notFound('Booking not found');
   }
   return booking;
+}
+
+async function getOwnedBooking(ctx: AuthContext, organizationId: string, bookingId: string): Promise<BookingView> {
+  const booking = await bookingRepository.findById(organizationId, bookingId);
+  return assertOwnedBooking(ctx, booking);
 }
 
 /** Every status-transitioning repository call (updateStatus/sendQuotation)
@@ -507,6 +512,22 @@ export const bookingService = {
     assertCan(ctx, 'booking.read');
     const organizationId = requireOrg(ctx);
     return getOwnedBooking(ctx, organizationId, bookingId);
+  },
+
+  /** Staff-authenticated counterpart to getById, keyed by the human-facing
+   * bookingReference instead of the raw uuid (DR-089: powers the Map tab's
+   * "enter a booking reference" lookup) -- same ctx-checked
+   * assertOwnedBooking anti-BOLA as every other lookup in this module.
+   * Every *other* bookingReference-keyed lookup in this codebase
+   * (lookupByBookingReference, getBookingForRating) is deliberately a
+   * no-ctx public/guest path with its own rate-limiting and second-factor
+   * check -- this is the first staff-authenticated one, not a copy of
+   * those. */
+  async getByBookingReference(ctx: AuthContext, bookingReference: string): Promise<BookingView> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await bookingRepository.findByBookingReference(organizationId, bookingReference);
+    return assertOwnedBooking(ctx, booking);
   },
 
   /** Tourist -> their own bookings only. Staff -> the full org manifest. */

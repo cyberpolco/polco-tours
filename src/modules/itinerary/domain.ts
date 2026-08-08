@@ -28,7 +28,13 @@ export interface ItineraryDayView {
   arrivalTime: string | null;
   pickupLocation: string | null;
   dropoffLocation: string | null;
-  plannedSites: string | null;
+  // Independent of the free-text pickupLocation/dropoffLocation above --
+  // those stay as the human label, these are the actual pin (see the
+  // schema.prisma comment on ItineraryDay).
+  pickupLatitude: number | null;
+  pickupLongitude: number | null;
+  dropoffLatitude: number | null;
+  dropoffLongitude: number | null;
   activities: string | null;
   estimatedTravelMinutes: number | null;
   notes: string | null;
@@ -40,6 +46,43 @@ export interface ItineraryDayView {
   updatedAt: Date;
 }
 
+// Replaces the old free-text ItineraryDay.plannedSites -- a staff-ordered
+// relation to Site. `sequence` is staff-settable (unlike ItineraryDay's own
+// server-computed dayNumber): staff choose which sites and in what order.
+export interface ItineraryDaySiteView {
+  id: string;
+  itineraryDayId: string;
+  siteId: string;
+  sequence: number;
+}
+
+// Map tab (DR-089): a day's stops in visiting order -- pickup, then each
+// ItineraryDaySite in sequence, then hotel/restaurant, then dropoff.
+// latitude/longitude are null for a stop that was never geocoded; the
+// caller decides whether to still show it (on-screen) or skip it (Static
+// Maps image, which needs real coordinates).
+export type MapStopKind = 'PICKUP' | 'SITE' | 'HOTEL' | 'RESTAURANT' | 'DROPOFF';
+
+export interface MapStopView {
+  kind: MapStopKind;
+  label: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface MapDayView {
+  dayId: string;
+  dayNumber: number;
+  date: Date;
+  stops: MapStopView[];
+}
+
+export interface MapOverviewView {
+  bookingReference: string;
+  itineraryId: string;
+  days: MapDayView[];
+}
+
 export interface HotelView {
   id: string;
   organizationId: string;
@@ -49,6 +92,8 @@ export interface HotelView {
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  latitude: number | null;
+  longitude: number | null;
   // Staff-only 5-star rating, live-recomputed from HotelRating on every
   // submission -- null/0 until the first rating exists.
   averageRating: number | null;
@@ -66,6 +111,8 @@ export interface RestaurantView {
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  latitude: number | null;
+  longitude: number | null;
   averageRating: number | null;
   ratingCount: number;
   createdAt: Date;
@@ -120,6 +167,9 @@ export type UpdateItineraryInput = z.infer<typeof UpdateItineraryInput>;
 // precision isn't needed for a same-day local activity time.
 const TIME_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+const LATITUDE = z.number().min(-90).max(90);
+const LONGITUDE = z.number().min(-180).max(180);
+
 // dayNumber is deliberately NOT in this input -- explicit user direction: a
 // separate manually-typed day number was redundant with `date` and
 // error-prone (staff could enter a date and day number that disagreed).
@@ -131,7 +181,10 @@ export const AddItineraryDayInput = z.object({
   arrivalTime: z.string().regex(TIME_HHMM).optional(),
   pickupLocation: z.string().max(500).optional(),
   dropoffLocation: z.string().max(500).optional(),
-  plannedSites: z.string().max(2000).optional(),
+  pickupLatitude: LATITUDE.optional(),
+  pickupLongitude: LONGITUDE.optional(),
+  dropoffLatitude: LATITUDE.optional(),
+  dropoffLongitude: LONGITUDE.optional(),
   activities: z.string().max(2000).optional(),
   estimatedTravelMinutes: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
@@ -150,6 +203,8 @@ export const CreateHotelInput = z.object({
   contactName: z.string().max(200).optional(),
   contactPhone: z.string().max(50).optional(),
   contactEmail: z.string().email().optional(),
+  latitude: LATITUDE.optional(),
+  longitude: LONGITUDE.optional(),
 });
 export type CreateHotelInput = z.infer<typeof CreateHotelInput>;
 
@@ -171,6 +226,8 @@ export interface SiteView {
   country: string;
   province: string;
   city: string | null;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -189,6 +246,8 @@ export const CreateSiteInput = z
     country: z.enum(SITE_COUNTRY_CODES),
     province: z.string().min(1).max(100),
     city: z.string().max(100).optional(),
+    latitude: LATITUDE.optional(),
+    longitude: LONGITUDE.optional(),
   })
   .refine((v) => PROVINCES_BY_COUNTRY[v.country].includes(v.province), {
     message: 'Province must be a real administrative division of the selected country',
@@ -208,6 +267,8 @@ export const UpdateSiteInput = z
     country: z.enum(SITE_COUNTRY_CODES).optional(),
     province: z.string().min(1).max(100).optional(),
     city: z.string().max(100).optional(),
+    latitude: LATITUDE.optional(),
+    longitude: LONGITUDE.optional(),
   })
   .refine((v) => !v.country || !v.province || PROVINCES_BY_COUNTRY[v.country].includes(v.province), {
     message: 'Province must be a real administrative division of the selected country',

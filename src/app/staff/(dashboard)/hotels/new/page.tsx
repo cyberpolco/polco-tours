@@ -1,6 +1,7 @@
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { FormField } from '@/components/ui/FormField';
+import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -37,6 +38,7 @@ export default async function NewHotelPage() {
         <FormField label="Contact email" htmlFor="contactEmail" optional>
           <input name="contactEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        <MapLocationPicker optional />
         <SubmitButton>Add hotel</SubmitButton>
       </form>
     </div>

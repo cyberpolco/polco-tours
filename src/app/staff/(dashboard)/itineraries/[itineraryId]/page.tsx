@@ -3,18 +3,22 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
-import { itineraryService, type HotelView, type RestaurantView } from '@modules/itinerary';
+import { itineraryService, type HotelView, type ItineraryDaySiteView, type RestaurantView } from '@modules/itinerary';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
+import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
 import {
   addDayAction,
+  addDaySiteAction,
   approveItineraryAction,
+  moveDaySiteAction,
   removeDayAction,
+  removeDaySiteAction,
   sendBackToDraftAction,
   submitForReviewAction,
   updateDayAction,
@@ -101,6 +105,15 @@ export default async function ItineraryDetailPage({ params }: Props) {
   ]);
   const hotelNameById = new Map(dayHotels.map((h) => [h.id, h.name]));
   const restaurantNameById = new Map(dayRestaurants.map((r) => [r.id, r.name]));
+
+  // Ordered stops per day (replaces the old free-text plannedSites) --
+  // fetched for every day regardless of canWrite, since the read-only
+  // summary below shows them too.
+  const daySitesLists = await Promise.all(days.map((day) => itineraryService.listDaySites(ctx, itineraryId, day.id)));
+  const daySitesByDayId = new Map<string, ItineraryDaySiteView[]>(days.map((day, i) => [day.id, daySitesLists[i] ?? []]));
+  const allUsedSiteIds = [...new Set(daySitesLists.flat().map((s) => s.siteId))];
+  const usedSites = await itineraryService.listSitesByIds(ctx, allUsedSiteIds);
+  const siteNameById = new Map(usedSites.map((s) => [s.id, s.name]));
 
   const [allHotels, allRestaurants, siteOptions] = canWrite
     ? await Promise.all([
@@ -262,10 +275,14 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       <dd>{day.dropoffLocation}</dd>
                     </div>
                   )}
-                  {day.plannedSites && (
+                  {(daySitesByDayId.get(day.id) ?? []).length > 0 && (
                     <div className="col-span-2">
                       <dt className="text-xs">Planned sites</dt>
-                      <dd>{day.plannedSites}</dd>
+                      <dd>
+                        {(daySitesByDayId.get(day.id) ?? [])
+                          .map((ds) => siteNameById.get(ds.siteId) ?? '—')
+                          .join(' → ')}
+                      </dd>
                     </div>
                   )}
                   {day.activities && (
@@ -366,15 +383,28 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           />
                         </FormField>
                       </div>
-                      <FormField label="Planned sites / attractions" htmlFor={`sites-${day.id}`} optional>
-                        <input
-                          name="plannedSites"
-                          list="site-options"
-                          defaultValue={day.plannedSites ?? ''}
-                          placeholder="Start typing for known sites…"
-                          className="w-full rounded-survey border border-rule px-3 py-2"
-                        />
-                      </FormField>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="mb-1 text-xs text-mist">Pickup pin</p>
+                          <MapLocationPicker
+                            latitudeName="pickupLatitude"
+                            longitudeName="pickupLongitude"
+                            initialLatitude={day.pickupLatitude}
+                            initialLongitude={day.pickupLongitude}
+                            optional
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs text-mist">Drop-off pin</p>
+                          <MapLocationPicker
+                            latitudeName="dropoffLatitude"
+                            longitudeName="dropoffLongitude"
+                            initialLatitude={day.dropoffLatitude}
+                            initialLongitude={day.dropoffLongitude}
+                            optional
+                          />
+                        </div>
+                      </div>
                       <FormField label="Activities" htmlFor={`activities-${day.id}`} optional>
                         <textarea
                           name="activities"
@@ -395,6 +425,53 @@ export default async function ItineraryDetailPage({ params }: Props) {
                         Save day
                       </SubmitButton>
                     </form>
+
+                    <div className="mt-4">
+                      <p className="text-xs text-mist">Planned sites / attractions</p>
+                      {(daySitesByDayId.get(day.id) ?? []).length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {(daySitesByDayId.get(day.id) ?? []).map((ds, index, all) => (
+                            <li key={ds.id} className="flex items-center gap-2 text-sm">
+                              <span className="flex-1">{siteNameById.get(ds.siteId) ?? '—'}</span>
+                              {index > 0 && (
+                                <form action={moveDaySiteAction.bind(null, itineraryId, day.id, ds.siteId, 'up')}>
+                                  <SubmitButton variant="secondary" size="compact" pendingLabel="…">
+                                    ▲
+                                  </SubmitButton>
+                                </form>
+                              )}
+                              {index < all.length - 1 && (
+                                <form action={moveDaySiteAction.bind(null, itineraryId, day.id, ds.siteId, 'down')}>
+                                  <SubmitButton variant="secondary" size="compact" pendingLabel="…">
+                                    ▼
+                                  </SubmitButton>
+                                </form>
+                              )}
+                              <form action={removeDaySiteAction.bind(null, itineraryId, day.id, ds.siteId)}>
+                                <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
+                                  Remove
+                                </SubmitButton>
+                              </form>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <form action={addDaySiteAction.bind(null, itineraryId, day.id)} className="mt-2 flex items-end gap-2">
+                        <div className="flex-1">
+                          <Select name="siteId" defaultValue="">
+                            <option value="">— choose a site to add —</option>
+                            {siteOptions.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name} ({s.country})
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel="Adding…">
+                          Add site
+                        </SubmitButton>
+                      </form>
+                    </div>
                   </details>
                 )}
               </div>
@@ -404,12 +481,6 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
         {canWrite && (
           <>
-            {/* Shared by both the add-day and edit-day "planned sites" inputs. */}
-            <datalist id="site-options">
-              {siteOptions.map((s) => (
-                <option key={s.id} value={s.name} />
-              ))}
-            </datalist>
             <details className="mt-6">
               <summary className="cursor-pointer text-sm text-forest">Add a day</summary>
               <form action={addDayAction.bind(null, itineraryId)} className="mt-4 space-y-3">
@@ -456,14 +527,9 @@ export default async function ItineraryDetailPage({ params }: Props) {
                     <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
                   </FormField>
                 </div>
-                <FormField label="Planned sites / attractions" htmlFor="plannedSites" optional>
-                  <input
-                    name="plannedSites"
-                    list="site-options"
-                    placeholder="Start typing for known sites…"
-                    className="w-full rounded-survey border border-rule px-3 py-2"
-                  />
-                </FormField>
+                <p className="text-xs text-mist">
+                  Planned sites, pickup/drop-off pins are added after the day is created, from &quot;Edit day&quot; below.
+                </p>
                 <FormField label="Activities" htmlFor="activities" optional>
                   <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>

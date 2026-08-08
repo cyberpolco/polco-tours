@@ -239,6 +239,19 @@ CREATE POLICY tenant_isolation ON itinerary_days
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
+-- -------------------------------------------------------- itinerary_day_sites
+-- Replaces the old free-text itinerary_days.plannedSites column -- a
+-- staff-ordered join to sites, same tenant_isolation shape as every other
+-- child table in this file (own organizationId column, no parent-join
+-- variant).
+ALTER TABLE itinerary_day_sites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE itinerary_day_sites FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON itinerary_day_sites;
+CREATE POLICY tenant_isolation ON itinerary_day_sites
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
 -- ---------------------------------------------------------------- hotels (DR-033)
 ALTER TABLE hotels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hotels FORCE ROW LEVEL SECURITY;

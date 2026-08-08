@@ -29,7 +29,14 @@ export default async function SiteDetailPage({ params }: Props) {
         <PageHeader eyebrow="Site" title={site.name} />
         <SiteForm
           action={updateSiteAction.bind(null, siteId)}
-          defaultValues={{ name: site.name, country: site.country, province: site.province, city: site.city }}
+          defaultValues={{
+            name: site.name,
+            country: site.country,
+            province: site.province,
+            city: site.city,
+            latitude: site.latitude,
+            longitude: site.longitude,
+          }}
           submitLabel="Save changes"
           pendingLabel="Saving…"
         />

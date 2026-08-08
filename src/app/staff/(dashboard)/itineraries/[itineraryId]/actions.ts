@@ -9,6 +9,11 @@ function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
   return s.length > 0 ? s : undefined;
 }
 
+function emptyToUndefinedNumber(v: FormDataEntryValue | null): number | undefined {
+  const s = emptyToUndefined(v);
+  return s !== undefined ? Number(s) : undefined;
+}
+
 export async function updateItineraryAction(itineraryId: string, formData: FormData) {
   const ctx = await requireStaffContext('itinerary.write');
   const input = UpdateItineraryInput.parse({
@@ -49,7 +54,6 @@ export async function addDayAction(itineraryId: string, formData: FormData) {
     arrivalTime: emptyToUndefined(formData.get('arrivalTime')),
     pickupLocation: emptyToUndefined(formData.get('pickupLocation')),
     dropoffLocation: emptyToUndefined(formData.get('dropoffLocation')),
-    plannedSites: emptyToUndefined(formData.get('plannedSites')),
     activities: emptyToUndefined(formData.get('activities')),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes')
       ? Number(formData.get('estimatedTravelMinutes'))
@@ -70,7 +74,10 @@ export async function updateDayAction(itineraryId: string, dayId: string, formDa
     arrivalTime: emptyToUndefined(formData.get('arrivalTime')),
     pickupLocation: emptyToUndefined(formData.get('pickupLocation')),
     dropoffLocation: emptyToUndefined(formData.get('dropoffLocation')),
-    plannedSites: emptyToUndefined(formData.get('plannedSites')),
+    pickupLatitude: emptyToUndefinedNumber(formData.get('pickupLatitude')),
+    pickupLongitude: emptyToUndefinedNumber(formData.get('pickupLongitude')),
+    dropoffLatitude: emptyToUndefinedNumber(formData.get('dropoffLatitude')),
+    dropoffLongitude: emptyToUndefinedNumber(formData.get('dropoffLongitude')),
     activities: emptyToUndefined(formData.get('activities')),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes')
       ? Number(formData.get('estimatedTravelMinutes'))
@@ -86,5 +93,25 @@ export async function updateDayAction(itineraryId: string, dayId: string, formDa
 export async function removeDayAction(itineraryId: string, dayId: string) {
   const ctx = await requireStaffContext('itinerary.write');
   await itineraryService.removeDay(ctx, itineraryId, dayId);
+  revalidatePath(`/staff/itineraries/${itineraryId}`);
+}
+
+export async function addDaySiteAction(itineraryId: string, dayId: string, formData: FormData) {
+  const ctx = await requireStaffContext('itinerary.write');
+  const siteId = emptyToUndefined(formData.get('siteId'));
+  if (!siteId) return;
+  await itineraryService.addDaySite(ctx, itineraryId, dayId, siteId);
+  revalidatePath(`/staff/itineraries/${itineraryId}`);
+}
+
+export async function removeDaySiteAction(itineraryId: string, dayId: string, siteId: string) {
+  const ctx = await requireStaffContext('itinerary.write');
+  await itineraryService.removeDaySite(ctx, itineraryId, dayId, siteId);
+  revalidatePath(`/staff/itineraries/${itineraryId}`);
+}
+
+export async function moveDaySiteAction(itineraryId: string, dayId: string, siteId: string, direction: 'up' | 'down') {
+  const ctx = await requireStaffContext('itinerary.write');
+  await itineraryService.moveDaySite(ctx, itineraryId, dayId, siteId, direction);
   revalidatePath(`/staff/itineraries/${itineraryId}`);
 }

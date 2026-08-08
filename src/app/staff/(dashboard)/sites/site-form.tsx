@@ -4,12 +4,20 @@ import { useState } from 'react';
 import { flagEmoji } from '@lib/country-codes';
 import { PROVINCES_BY_COUNTRY, SITE_COUNTRIES, type SiteCountryCode } from '@lib/provinces';
 import { FormField } from '@/components/ui/FormField';
+import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 
 interface SiteFormProps {
   action: (formData: FormData) => Promise<void>;
-  defaultValues?: { name: string; country: string; province: string; city: string | null };
+  defaultValues?: {
+    name: string;
+    country: string;
+    province: string;
+    city: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
   submitLabel: string;
   pendingLabel: string;
 }
@@ -59,6 +67,11 @@ export function SiteForm({ action, defaultValues, submitLabel, pendingLabel }: S
       <FormField label="City / Town" htmlFor="city" optional>
         <input name="city" defaultValue={defaultValues?.city ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
+      <MapLocationPicker
+        initialLatitude={defaultValues?.latitude ?? null}
+        initialLongitude={defaultValues?.longitude ?? null}
+        optional
+      />
       <SubmitButton pendingLabel={pendingLabel}>{submitLabel}</SubmitButton>
     </form>
   );

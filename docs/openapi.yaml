@@ -1834,6 +1834,30 @@ paths:
               schema: { type: object, properties: { itineraries: { type: array, items: { $ref: '#/components/schemas/Itinerary' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /itineraries/map-overview:
+    get:
+      summary: Map tab -- resolve a booking reference to its day-by-day stops (DR-089)
+      description: >-
+        Static sibling of the {itineraryId} dynamic segment (same
+        coexistence as /itineraries/mine). Anti-BOLA: reuses
+        bookingService.getByBookingReference + this module's own
+        manager-or-assigned check -- a TOUR_GUIDE/DRIVER not assigned to the
+        booking's departure gets 404, never 403.
+      parameters:
+        - name: bookingReference
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MapOverview' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   /itineraries/{itineraryId}:
     parameters:
       - $ref: '#/components/parameters/itineraryId'
@@ -1977,6 +2001,35 @@ paths:
         '204': { description: No Content }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /itineraries/{itineraryId}/days/{dayId}/map-pdf:
+    parameters:
+      - $ref: '#/components/parameters/itineraryId'
+      - name: dayId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Download one day's map + stop list as a PDF (DR-089)
+      description: >-
+        itineraryId is part of the path for consistency with the sibling day
+        routes above, but isn't used for authorization -- streamDayMapPdf
+        resolves + re-checks ownership from dayId alone. Renders a Static
+        Maps image (Google Maps Platform) via @react-pdf/renderer; a day
+        with zero geocoded stops 409s rather than returning an empty map.
+      responses:
+        '200':
+          description: application/pdf
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: No geocoded stops on this day yet
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /hotels:
     get:
@@ -3275,7 +3328,10 @@ components:
         arrivalTime: { type: string, nullable: true }
         pickupLocation: { type: string, nullable: true }
         dropoffLocation: { type: string, nullable: true }
-        plannedSites: { type: string, nullable: true }
+        pickupLatitude: { type: number, nullable: true, description: 'DR-088: independent of pickupLocation, the actual pin' }
+        pickupLongitude: { type: number, nullable: true }
+        dropoffLatitude: { type: number, nullable: true }
+        dropoffLongitude: { type: number, nullable: true }
         activities: { type: string, nullable: true }
         estimatedTravelMinutes: { type: integer, nullable: true }
         notes: { type: string, nullable: true }
@@ -3283,6 +3339,42 @@ components:
         restaurantId: { type: string, format: uuid, nullable: true, description: 'DR-083: per-day dining' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    ItineraryDaySite:
+      type: object
+      description: >-
+        DR-088: a staff-ordered stop on an ItineraryDay, replacing the old
+        free-text plannedSites. sequence is staff-settable (unlike
+        ItineraryDay's own server-computed dayNumber).
+      properties:
+        id: { type: string, format: uuid }
+        itineraryDayId: { type: string, format: uuid }
+        siteId: { type: string, format: uuid }
+        sequence: { type: integer }
+
+    MapStop:
+      type: object
+      description: 'DR-089: one stop on a day''s map, in visiting order.'
+      properties:
+        kind: { type: string, enum: [PICKUP, SITE, HOTEL, RESTAURANT, DROPOFF] }
+        label: { type: string }
+        latitude: { type: number, nullable: true, description: Null when this stop was never geocoded }
+        longitude: { type: number, nullable: true }
+
+    MapDay:
+      type: object
+      properties:
+        dayId: { type: string, format: uuid }
+        dayNumber: { type: integer }
+        date: { type: string, format: date-time }
+        stops: { type: array, items: { $ref: '#/components/schemas/MapStop' } }
+
+    MapOverview:
+      type: object
+      properties:
+        bookingReference: { type: string }
+        itineraryId: { type: string, format: uuid }
+        days: { type: array, items: { $ref: '#/components/schemas/MapDay' } }
 
     AddItineraryDayInput:
       type: object
@@ -3296,7 +3388,10 @@ components:
         arrivalTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
         pickupLocation: { type: string, maxLength: 500 }
         dropoffLocation: { type: string, maxLength: 500 }
-        plannedSites: { type: string, maxLength: 2000 }
+        pickupLatitude: { type: number, minimum: -90, maximum: 90 }
+        pickupLongitude: { type: number, minimum: -180, maximum: 180 }
+        dropoffLatitude: { type: number, minimum: -90, maximum: 90 }
+        dropoffLongitude: { type: number, minimum: -180, maximum: 180 }
         activities: { type: string, maxLength: 2000 }
         estimatedTravelMinutes: { type: integer, minimum: 0 }
         notes: { type: string, maxLength: 2000 }
@@ -3312,7 +3407,10 @@ components:
         arrivalTime: { type: string, pattern: '^([01]\d|2[0-3]):([0-5]\d)$' }
         pickupLocation: { type: string, maxLength: 500 }
         dropoffLocation: { type: string, maxLength: 500 }
-        plannedSites: { type: string, maxLength: 2000 }
+        pickupLatitude: { type: number, minimum: -90, maximum: 90 }
+        pickupLongitude: { type: number, minimum: -180, maximum: 180 }
+        dropoffLatitude: { type: number, minimum: -90, maximum: 90 }
+        dropoffLongitude: { type: number, minimum: -180, maximum: 180 }
         activities: { type: string, maxLength: 2000 }
         estimatedTravelMinutes: { type: integer, minimum: 0 }
         notes: { type: string, maxLength: 2000 }
@@ -3334,6 +3432,8 @@ components:
         contactName: { type: string, nullable: true }
         contactPhone: { type: string, nullable: true }
         contactEmail: { type: string, nullable: true }
+        latitude: { type: number, nullable: true, description: 'DR-088' }
+        longitude: { type: number, nullable: true }
         averageRating: { type: number, nullable: true }
         ratingCount: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -3349,6 +3449,8 @@ components:
         contactName: { type: string, maxLength: 200 }
         contactPhone: { type: string, maxLength: 50 }
         contactEmail: { type: string, format: email }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     UpdateHotelInput:
       type: object
@@ -3359,6 +3461,8 @@ components:
         contactName: { type: string, maxLength: 200 }
         contactPhone: { type: string, maxLength: 50 }
         contactEmail: { type: string, format: email }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     Restaurant:
       type: object
@@ -3372,6 +3476,8 @@ components:
         contactName: { type: string, nullable: true }
         contactPhone: { type: string, nullable: true }
         contactEmail: { type: string, nullable: true }
+        latitude: { type: number, nullable: true, description: 'DR-088' }
+        longitude: { type: number, nullable: true }
         averageRating: { type: number, nullable: true }
         ratingCount: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -3426,6 +3532,8 @@ components:
         country: { type: string, description: ISO-3166 alpha-2 }
         province: { type: string }
         city: { type: string, nullable: true }
+        latitude: { type: number, nullable: true, description: 'DR-088' }
+        longitude: { type: number, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
@@ -3437,6 +3545,8 @@ components:
         country: { type: string, minLength: 2, maxLength: 2 }
         province: { type: string, minLength: 1, maxLength: 100 }
         city: { type: string, maxLength: 100 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     UpdateSiteInput:
       type: object
@@ -3445,6 +3555,8 @@ components:
         country: { type: string, minLength: 2, maxLength: 2 }
         province: { type: string, minLength: 1, maxLength: 100 }
         city: { type: string, maxLength: 100 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     CreateRestaurantInput:
       type: object
@@ -3456,6 +3568,8 @@ components:
         contactName: { type: string, maxLength: 200 }
         contactPhone: { type: string, maxLength: 50 }
         contactEmail: { type: string, format: email }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     UpdateRestaurantInput:
       type: object
@@ -3466,6 +3580,8 @@ components:
         contactName: { type: string, maxLength: 200 }
         contactPhone: { type: string, maxLength: 50 }
         contactEmail: { type: string, format: email }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
 
     CountryRegulation:
       type: object

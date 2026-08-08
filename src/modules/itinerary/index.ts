@@ -18,8 +18,13 @@ export {
 export type {
   HotelRatingView,
   HotelView,
+  ItineraryDaySiteView,
   ItineraryDayView,
   ItineraryView,
+  MapDayView,
+  MapOverviewView,
+  MapStopKind,
+  MapStopView,
   RestaurantRatingView,
   RestaurantView,
   SiteView,

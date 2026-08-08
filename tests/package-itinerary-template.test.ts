@@ -140,7 +140,10 @@ describe('Package itinerary template', () => {
     const day1 = days.find((d) => d.dayNumber === 1);
     const day2 = days.find((d) => d.dayNumber === 2);
     expect(day1?.activities).toBe('Arrival');
-    expect(day1?.plannedSites).toBe('Airport pickup');
+    // PackageItineraryDay.plannedSites (still free text) is deliberately NOT
+    // copied onto the new ItineraryDay -- that field was replaced by the
+    // structured ItineraryDaySite relation, which catalog can't populate
+    // without inverting the module dependency direction.
     expect(day1?.date.toISOString().slice(0, 10)).toBe('2026-10-01');
     expect(day2?.activities).toBe('Safari drive');
     expect(day2?.date.toISOString().slice(0, 10)).toBe('2026-10-02');

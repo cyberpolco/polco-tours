@@ -19,10 +19,14 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-087 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-089 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-086 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
-> user dormancy, site province/city — nothing schema-related is pending).
+> user dormancy, site province/city). **DR-088's schema change is not yet
+> applied** — pending explicit user confirmation + a pasted `neondb_owner`
+> credential, per the documented process. DR-089 (the staff Map tab —
+> booking-reference lookup, per-day interactive map, per-day PDF download)
+> is code-complete but depends on that same pending schema push.
 > DR-082 adds `Vehicle`/`DriverProfile`/`GuideProfile.availability`
 > (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
 > `VehicleStatus`/`DriverStatus`/`GuideStatus` operational-hold dimension)
@@ -58,7 +62,27 @@ explicit decision to do so.
 > regression DR-086 introduced — Playwright auto-dismisses
 > `window.confirm()` unless a test explicitly accepts it, so any e2e test
 > clicking a now-confirm-gated button needs `page.once('dialog', d =>
-> d.accept())` first. See DR-082 through DR-087 for full detail.
+> d.accept())` first. DR-088 is the shared geo-data groundwork for two
+> discussed-but-not-yet-built features (a staff "Map" tab, and route
+> optimization) — `Hotel`/`Restaurant`/`Site` gain `latitude`/`longitude`;
+> `Site` gains `deletedAt` (soft-delete, matching `Hotel`/`Restaurant`);
+> `ItineraryDay` gains `pickupLatitude`/`pickupLongitude`/`dropoffLatitude`/
+> `dropoffLongitude` and **loses `plannedSites`**, replaced by a new
+> staff-ordered join table `ItineraryDaySite` (`sequence`, reorderable via
+> ▲/▼ buttons on the itinerary day edit form) — `catalog.
+> PackageItineraryDay.plannedSites` is deliberately left untouched (still
+> free text; module dependency direction won't allow catalog to reference
+> itinerary's `Site` table). New `scripts/backfill-coordinates.ts` is
+> `GOOGLE_MAPS_SERVER_API_KEY`'s first real consumer (Geocoding API). DR-089
+> is the Map tab itself, built on that foundation: staff enter a booking
+> reference on `/staff/map`, see each day's stops on a read-only map
+> (`ItineraryDayMap.tsx`, plain markers + a straight-line polyline — no
+> Directions/Routes API call, this feature only needs "where," not a
+> road-snapped route) and download a day as a PDF (new `StaticMapsGateway`
+> + first-ever `@react-pdf/renderer` use). Scoped the same as everywhere
+> else: SUPERADMIN/TOUR_OPERATOR unrestricted, TOUR_GUIDE/DRIVER limited to
+> a booking on their own assigned departure. See DR-082 through DR-089 for
+> full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -185,7 +209,9 @@ gaps a fresh Postgres would hit).
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
-| Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (`src/components/ui/MapLocationPicker.tsx`, a hand-written type shim for the small subset of the API used, not `@types/google.maps`). Powers the pickup-location picker on the departure and Starlink-kit staff forms; `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` not yet provisioned (OI-13) — degrades gracefully to plain lat/long inputs until then |
+| Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryDayMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only per-day map on the staff Map tab (DR-089); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
+| Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's per-day PDF map image; `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
+| PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's per-day PDF (Static Maps image + stop list) |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing; guest site only, partial coverage (Nav/Footer/HomePage) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
@@ -211,6 +237,7 @@ src/
         bookings/, departures/, itineraries/, hotels/, restaurants/, sites/,
         fleet/, schedule/, visa-queue/, country-regulations/,
         finance/, insights/, tracking/, ratings/, packages/, profile/,
+        map/ (DR-089: booking-reference lookup -> per-day map + PDF),
         settings/ (tax-rates, platform-rate), admin/ (users, clients, permissions)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
@@ -238,8 +265,13 @@ src/
     assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule
     visa/          # VisaApplication lifecycle, facilitator queue
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
-                   #   DR-083) + Hotel/Restaurant/Site reference entities +
-                   #   HotelRating/RestaurantRating (staff + guide/driver)
+                   #   DR-083; pickup/dropoff lat-long, DR-088) +
+                   #   ItineraryDaySite (staff-ordered stops, DR-088,
+                   #   replacing the old free-text plannedSites) +
+                   #   Hotel/Restaurant/Site reference entities (all three
+                   #   geocoded, DR-088) + HotelRating/RestaurantRating
+                   #   (staff + guide/driver) + gateway.ts/map-pdf.tsx
+                   #   (Static Maps + PDF rendering for the Map tab, DR-089)
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
@@ -572,16 +604,28 @@ Surface these to the human — don't invent answers.
   to `/gallery` or `TourPackage.imageUrl` — still nothing real to attach
   there; would need operator-supplied photos or a licensed stock budget
   for that broader scope.
-- **OI-13** (DR-077) Google Cloud project + billing +
-  `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` not yet provisioned. Blocks the
-  interactive pickup-location map on the departure/Starlink-kit staff
-  pages — degrades gracefully to the plain lat/long inputs until then.
+- **OI-13 — RESOLVED 2026-08-08.** Google Cloud project + billing
+  provisioned. Two keys, deliberately not one (a referrer-restricted key
+  rejects server-to-server calls with no `Referer` header; an unrestricted
+  key embedded in client JS is a public, freely-reusable credential — no
+  single key can safely be both): a **browser key**
+  (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, HTTP-referrer restricted to this
+  app's domains, API-restricted to Maps JavaScript API) live in `.env` and
+  in Vercel Production/Preview/Development, deployed; and a **server key**
+  (`GOOGLE_MAPS_SERVER_API_KEY`, no application restriction, API-restricted
+  to Static Maps API + Routes API + Geocoding API, never
+  `NEXT_PUBLIC_`-prefixed) live in `.env` and Vercel — first consumed by
+  DR-088's `scripts/backfill-coordinates.ts` (Geocoding API; decided:
+  automatic backfill, not manual re-pin). Interactive pickup-location map
+  on the departure/Starlink-kit staff pages is now live rather than
+  degraded.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
 credentials live in production since 2026-07-22), OI-11 (Upstash QStash —
-real credentials + registered schedule live in production since
-2026-07-22). See `docs/decisions/DECISION_LOG.md` for how each was closed.
+real credentials + registered schedule live in production since 2026-07-22),
+OI-13 (Google Maps browser + server keys provisioned and live since
+2026-08-08). See `docs/decisions/DECISION_LOG.md` for how each was closed.
 
 ---
 

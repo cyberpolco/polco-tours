@@ -49,6 +49,11 @@ const LINKS: NavLink[] = [
   { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
   { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
   { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
+  // DR-089: deliberately itinerary.read, not itinerary.write (unlike the
+  // "Itineraries" link above) -- TOUR_GUIDE/DRIVER's first nav-level entry
+  // point into itinerary data; before this they could only reach a day's
+  // detail by direct URL.
+  { href: '/staff/map', label: 'Map', permission: 'itinerary.read' },
   { href: '/staff/ratings', label: 'Ratings', permission: 'rating.read' },
   // Settings (DR-042): reorganizes 5 pre-existing tabs (Country
   // Regulations, Operational Rates, Insights, Users, Permissions -- URLs

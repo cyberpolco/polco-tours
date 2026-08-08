@@ -3,36 +3,7 @@
 import Script from 'next/script';
 import { useEffect, useRef, useState } from 'react';
 import { FormField } from './FormField';
-
-// Minimal, hand-written typing for exactly the Google Maps JS API surface
-// this component calls -- avoids adding @types/google.maps (or any Maps
-// npm package at all) as a new dependency just for a handful of method
-// signatures. `unknown`-free by design (no-explicit-any is an error in this
-// repo's eslint config).
-interface GoogleLatLng {
-  lat(): number;
-  lng(): number;
-}
-interface GoogleMapMouseEvent {
-  latLng: GoogleLatLng | null;
-}
-interface GoogleMarker {
-  setPosition(position: { lat: number; lng: number }): void;
-  addListener(event: 'dragend', handler: (e: GoogleMapMouseEvent) => void): void;
-}
-interface GoogleMap {
-  setCenter(position: { lat: number; lng: number }): void;
-  addListener(event: 'click', handler: (e: GoogleMapMouseEvent) => void): void;
-}
-interface GoogleMapsNamespace {
-  Map: new (el: HTMLElement, opts: { center: { lat: number; lng: number }; zoom: number }) => GoogleMap;
-  Marker: new (opts: { position: { lat: number; lng: number }; map: GoogleMap; draggable?: boolean }) => GoogleMarker;
-}
-declare global {
-  interface Window {
-    google?: { maps: GoogleMapsNamespace };
-  }
-}
+import type { GoogleMap, GoogleMarker } from './google-maps-types';
 
 // Windhoek, Namibia -- Lam's home base (DR-005, single-operator launch) and
 // a reasonable default center when no pickup point has been set yet.
@@ -44,6 +15,10 @@ interface MapLocationPickerProps {
   initialLatitude?: number | null;
   initialLongitude?: number | null;
   defaultCenter?: { lat: number; lng: number };
+  // When true, the two number inputs drop `required` -- for a field pair
+  // that's genuinely optional (e.g. ItineraryDay pickup/dropoff), unlike
+  // Departure/StarlinkKit's location, which is always set once shown.
+  optional?: boolean;
 }
 
 /** DR-077: Google Maps JS API, this app's first interactive map (the
@@ -53,13 +28,17 @@ interface MapLocationPickerProps {
  * visual aid layered on the existing plain-coordinate form, never the sole
  * way to set a location. Gracefully degrades to those inputs alone (no
  * script load attempt at all) when NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't
- * configured. */
+ * configured. A shared `id` on the Script tag lets Next.js dedupe the
+ * underlying <script> when a form renders more than one picker at once
+ * (e.g. a day's pickup + dropoff) -- Google's Maps JS API warns/misbehaves
+ * if its script is injected twice. */
 export function MapLocationPicker({
   latitudeName = 'latitude',
   longitudeName = 'longitude',
   initialLatitude = null,
   initialLongitude = null,
   defaultCenter = DEFAULT_CENTER,
+  optional = false,
 }: MapLocationPickerProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -111,7 +90,7 @@ export function MapLocationPicker({
           name={latitudeName}
           type="number"
           step="any"
-          required
+          required={!optional}
           value={latitude ?? ''}
           onChange={(e) => setLatitude(e.target.value === '' ? null : Number(e.target.value))}
           className="w-full rounded-survey border border-rule px-3 py-2"
@@ -122,7 +101,7 @@ export function MapLocationPicker({
           name={longitudeName}
           type="number"
           step="any"
-          required
+          required={!optional}
           value={longitude ?? ''}
           onChange={(e) => setLongitude(e.target.value === '' ? null : Number(e.target.value))}
           className="w-full rounded-survey border border-rule px-3 py-2"
@@ -145,6 +124,7 @@ export function MapLocationPicker({
   return (
     <div className="space-y-3">
       <Script
+        id="google-maps-js"
         src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}`}
         strategy="afterInteractive"
         onLoad={() => setScriptLoaded(true)}

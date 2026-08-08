@@ -27,6 +27,7 @@
     "staff:set-password": "tsx scripts/set-staff-password.ts",
     "users:reset-all": "tsx scripts/reset-all-users.ts",
     "qstash:register-schedule": "tsx scripts/register-qstash-schedule.ts",
+    "coords:backfill": "tsx scripts/backfill-coordinates.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
@@ -34,6 +35,7 @@
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
+    "@react-pdf/renderer": "4.5.1",
     "@upstash/qstash": "2.11.2",
     "@upstash/redis": "1.38.0",
     "@vercel/blob": "2.6.1",

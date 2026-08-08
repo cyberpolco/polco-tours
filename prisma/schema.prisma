@@ -197,6 +197,7 @@ model Organization {
   starlinkKits          StarlinkKit[]
   itineraries           Itinerary[]
   itineraryDays         ItineraryDay[]
+  itineraryDaySites     ItineraryDaySite[]
   hotels                Hotel[]
   restaurants           Restaurant[]
   sites                 Site[]
@@ -511,7 +512,13 @@ model TourPackage {
 // mirrors ItineraryDay's shape (itinerary module) rather than being shared
 // with it -- this is catalog-owned reference/template data, that one is a
 // live per-booking record; duplicating the shape is simpler than the two
-// modules depending on each other for one shared type.
+// modules depending on each other for one shared type. The two have since
+// deliberately diverged on one field: this model keeps plannedSites as
+// free text, while ItineraryDay's was replaced by a structured relation to
+// Site (ItineraryDaySite) -- catalog can't reference itinerary's Site table
+// without inverting the module dependency direction (itinerary -> catalog,
+// never the reverse), so the template-copy step in
+// itineraryService.createItinerary no longer copies this field at all.
 model PackageItineraryDay {
   id                     String   @id @default(uuid()) @db.Uuid
   organizationId         String   @db.Uuid
@@ -1087,7 +1094,14 @@ model ItineraryDay {
   arrivalTime            String?
   pickupLocation         String?
   dropoffLocation        String?
-  plannedSites           String?  @db.Text
+  // Independent of the free-text pickupLocation/dropoffLocation above --
+  // those stay as the human label, these are the actual pin (same
+  // pattern as Departure.pickupLatitude/pickupLongitude, DR-077). Optional:
+  // most days won't have one set, same degrade-gracefully posture.
+  pickupLatitude         Float?
+  pickupLongitude        Float?
+  dropoffLatitude        Float?
+  dropoffLongitude       Float?
   activities             String?  @db.Text
   estimatedTravelMinutes Int?
   notes                  String?  @db.Text
@@ -1096,10 +1110,11 @@ model ItineraryDay {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  itinerary    Itinerary    @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
-  hotel        Hotel?       @relation(fields: [hotelId], references: [id], onDelete: SetNull)
-  restaurant   Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  itinerary    Itinerary          @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  hotel        Hotel?             @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  restaurant   Restaurant?        @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  sites        ItineraryDaySite[]
 
   @@unique([itineraryId, dayNumber])
   @@index([organizationId])
@@ -1107,6 +1122,33 @@ model ItineraryDay {
   @@index([hotelId])
   @@index([restaurantId])
   @@map("itinerary_days")
+}
+
+// Replaces the old free-text ItineraryDay.plannedSites (removed) with a
+// real, staff-ordered relation to Site -- needed so a map/route feature has
+// actual geocoded stops to work with instead of an unconstrained string.
+// Unlike ItineraryDay.dayNumber (server-computed, deliberately not
+// client-settable -- see the comment on that field), `sequence` here IS
+// staff-settable: staff pick which sites and in what order for the day.
+model ItineraryDaySite {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  itineraryDayId String   @db.Uuid
+  siteId         String   @db.Uuid
+  sequence       Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  itineraryDay ItineraryDay @relation(fields: [itineraryDayId], references: [id], onDelete: Cascade)
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([itineraryDayId, sequence])
+  @@unique([itineraryDayId, siteId])
+  @@index([organizationId])
+  @@index([itineraryDayId])
+  @@index([siteId])
+  @@map("itinerary_day_sites")
 }
 
 model Hotel {
@@ -1118,6 +1160,8 @@ model Hotel {
   contactName    String?
   contactPhone   String?
   contactEmail   String?
+  latitude       Float?
+  longitude      Float?
   // Staff-only 5-star rating (not a tourist-facing concept) -- live-
   // recomputed on every HotelRating submission, same pattern as
   // DriverProfile/GuideProfile/Organization's own averageRating/ratingCount.
@@ -1144,6 +1188,8 @@ model Restaurant {
   contactName    String?
   contactPhone   String?
   contactEmail   String?
+  latitude       Float?
+  longitude      Float?
   // Staff-only 5-star rating -- same precedent as Hotel.averageRating above.
   averageRating  Float?
   ratingCount    Int       @default(0)
@@ -1165,20 +1211,28 @@ model Restaurant {
 // as Hotel/Restaurant above (name + country only, itinerary.write-gated
 // CRUD), not a full attraction/POI system.
 model Site {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
   name           String
-  country        String   @db.VarChar(2)
+  country        String    @db.VarChar(2)
   // Cascading with country in the staff form (src/lib/provinces.ts) for the
   // 4 operating countries; free text for any other. city is a real optional
   // field (explicit user direction) -- a site can be a park/region with no
   // proper town attached.
   province       String
   city           String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  latitude       Float?
+  longitude      Float?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // Soft-delete (added alongside ItineraryDaySite): once a Site can be
+  // referenced by a day's stop list, a hard delete would either FK-violate
+  // or silently corrupt historical days -- same fix Hotel/Restaurant
+  // already have. deleteSite becomes an update, not a delete.
+  deletedAt      DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dayUsages    ItineraryDaySite[]
 
   @@unique([organizationId, country, name])
   @@index([organizationId, country])
