@@ -359,3 +359,65 @@ describe('POST /api/v1/bookings/:bookingId/addons', () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe('POST /api/v1/bookings/:bookingId/addons (pre-quotation, DR-092)', () => {
+  it('accepts a single-currency add-on selection on a TAILOR_MADE booking with no price yet (200)', async () => {
+    const preQuoteBooking = await withOrg(orgId, (tx) =>
+      tx.booking.create({
+        data: {
+          organizationId: orgId,
+          origin: 'TAILOR_MADE',
+          touristUserId: touristAId,
+          bookingReference: generateBookingReference(),
+          seats: 1,
+          customCountry: country.slice(0, 2),
+          status: 'AWAITING_QUOTATION',
+        },
+      }),
+    );
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${preQuoteBooking.id}/addons`, headers, {
+      addonServiceIds: [addonServiceId],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: preQuoteBooking.id }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.addons).toHaveLength(1);
+  });
+
+  it('rejects a mixed-currency add-on selection on a TAILOR_MADE booking with no price yet (409)', async () => {
+    const [preQuoteBooking, eurAddon] = await Promise.all([
+      withOrg(orgId, (tx) =>
+        tx.booking.create({
+          data: {
+            organizationId: orgId,
+            origin: 'TAILOR_MADE',
+            touristUserId: touristAId,
+            bookingReference: generateBookingReference(),
+            seats: 1,
+            customCountry: country.slice(0, 2),
+            status: 'AWAITING_QUOTATION',
+          },
+        }),
+      ),
+      withOrg(orgId, (tx) =>
+        tx.addonService.create({
+          data: {
+            organizationId: orgId,
+            code: 'TRANSLATOR',
+            name: 'Translator (EUR, pre-quotation fixture)',
+            description: 'Currency-mismatch fixture.',
+            priceMinor: 1000,
+            currency: 'EUR',
+          },
+        }),
+      ),
+    ]);
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${preQuoteBooking.id}/addons`, headers, {
+      addonServiceIds: [addonServiceId, eurAddon.id],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: preQuoteBooking.id }) });
+    expect(res.status).toBe(409);
+  });
+});

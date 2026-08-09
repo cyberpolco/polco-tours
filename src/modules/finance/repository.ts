@@ -7,6 +7,8 @@
 // withOrg like every other tenant table.
 import type {
   ActivityFee,
+  BookingCostBreakdown,
+  BookingCostLineItem,
   FoodBeverageCategory,
   FoodBeverageRate,
   HotelRate,
@@ -20,6 +22,8 @@ import type {
 import { prisma, withOrg } from '@lib/db';
 import type {
   ActivityFeeView,
+  BookingCostBreakdownView,
+  BookingCostLineItemView,
   CreateActivityFeeInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
@@ -105,6 +109,42 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     overriddenByUserId: b.overriddenByUserId,
     overriddenAt: b.overriddenAt,
     lineItems: b.lineItems.map(toLineItemView),
+  };
+}
+function toBookingLineItemView(li: BookingCostLineItem): BookingCostLineItemView {
+  return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson };
+}
+function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCostLineItem[] }): BookingCostBreakdownView {
+  return {
+    id: b.id,
+    organizationId: b.organizationId,
+    bookingId: b.bookingId,
+    currency: b.currency,
+    nights: b.nights,
+    driverDays: b.driverDays,
+    guideDays: b.guideDays,
+    photographerDays: b.photographerDays,
+    videographerDays: b.videographerDays,
+    hotelRateId: b.hotelRateId,
+    roomsNeeded: b.roomsNeeded,
+    breakfastCount: b.breakfastCount,
+    lunchCount: b.lunchCount,
+    dinnerCount: b.dinnerCount,
+    transportRateId: b.transportRateId,
+    transportDays: b.transportDays,
+    requiresVisa: b.requiresVisa,
+    immigrationCostRateId: b.immigrationCostRateId,
+    agencyMarginBp: b.agencyMarginBp,
+    computedBaseCostMinor: b.computedBaseCostMinor,
+    computedSellingPriceMinor: b.computedSellingPriceMinor,
+    addonsTotalMinor: b.addonsTotalMinor,
+    overridePriceMinor: b.overridePriceMinor,
+    overrideReason: b.overrideReason,
+    overriddenByUserId: b.overriddenByUserId,
+    overriddenAt: b.overriddenAt,
+    lineItems: b.lineItems.map(toBookingLineItemView),
+    suggestedTotalMinor:
+      b.overridePriceMinor ?? (b.computedSellingPriceMinor != null ? b.computedSellingPriceMinor + b.addonsTotalMinor : null),
   };
 }
 
@@ -284,6 +324,42 @@ export const financeRepository = {
         include: { lineItems: true },
       });
       return toBreakdownView(withLineItems);
+    });
+  },
+
+  // ---------------------------------------------------- BookingCostBreakdown
+  async findBreakdownForBooking(organizationId: string, bookingId: string): Promise<BookingCostBreakdownView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const b = await tx.bookingCostBreakdown.findUnique({ where: { bookingId }, include: { lineItems: true } });
+      return b ? toBookingBreakdownView(b) : null;
+    });
+  },
+
+  /** Upsert-by-bookingId (one breakdown per booking) + replace-all its line
+   * items -- same delete-then-recreate shape as upsertBreakdown above. */
+  async upsertBookingBreakdown(
+    organizationId: string,
+    bookingId: string,
+    data: Omit<BookingCostBreakdown, 'id' | 'organizationId' | 'bookingId' | 'createdAt' | 'updatedAt'>,
+    lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }>,
+  ): Promise<BookingCostBreakdownView> {
+    return withOrg(organizationId, async (tx) => {
+      const breakdown = await tx.bookingCostBreakdown.upsert({
+        where: { bookingId },
+        create: { organizationId, bookingId, ...data },
+        update: data,
+      });
+      await tx.bookingCostLineItem.deleteMany({ where: { bookingCostBreakdownId: breakdown.id } });
+      if (lineItems.length > 0) {
+        await tx.bookingCostLineItem.createMany({
+          data: lineItems.map((li) => ({ organizationId, bookingCostBreakdownId: breakdown.id, ...li })),
+        });
+      }
+      const withLineItems = await tx.bookingCostBreakdown.findUniqueOrThrow({
+        where: { id: breakdown.id },
+        include: { lineItems: true },
+      });
+      return toBookingBreakdownView(withLineItems);
     });
   },
 };

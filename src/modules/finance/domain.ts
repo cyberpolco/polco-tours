@@ -317,3 +317,75 @@ export function perSeatPriceMinor(sellingPriceTotalMinor: number, referenceGroup
   if (referenceGroupSize <= 0) throw new Error('referenceGroupSize must be positive');
   return Math.ceil(sellingPriceTotalMinor / referenceGroupSize);
 }
+
+// ----------------------------------------------------- booking cost breakdown
+
+export interface BookingCostLineItemView {
+  id: string;
+  foodBeverageRateId: string | null;
+  activityFeeId: string | null;
+  quantityPerPerson: number;
+}
+
+export interface BookingCostBreakdownView {
+  id: string;
+  organizationId: string;
+  bookingId: string;
+  currency: Currency;
+  nights: number;
+  driverDays: number;
+  guideDays: number;
+  photographerDays: number;
+  videographerDays: number;
+  hotelRateId: string | null;
+  roomsNeeded: number;
+  breakfastCount: number;
+  lunchCount: number;
+  dinnerCount: number;
+  transportRateId: string | null;
+  transportDays: number;
+  requiresVisa: boolean;
+  immigrationCostRateId: string | null;
+  agencyMarginBp: number;
+  computedBaseCostMinor: number | null;
+  computedSellingPriceMinor: number | null;
+  addonsTotalMinor: number;
+  overridePriceMinor: number | null;
+  overrideReason: string | null;
+  overriddenByUserId: string | null;
+  overriddenAt: Date | null;
+  lineItems: BookingCostLineItemView[];
+  // Not persisted as its own column -- derived by the repository mapper from
+  // the other fields already on this view.
+  suggestedTotalMinor: number | null;
+}
+
+// Same shape as SaveCostBreakdownInput minus referenceGroupSize/currency --
+// both are computed server-side for a booking (seats come from the booking
+// itself, currency is derived from whichever rates/add-ons actually resolve),
+// never caller-supplied.
+export const SaveBookingCostBreakdownInput = z
+  .object({
+    nights: z.number().int().nonnegative(),
+    driverDays: z.number().int().nonnegative(),
+    guideDays: z.number().int().nonnegative(),
+    photographerDays: z.number().int().nonnegative().default(0),
+    videographerDays: z.number().int().nonnegative().default(0),
+    hotelRateId: z.string().uuid().optional(),
+    roomsNeeded: z.number().int().positive().default(1),
+    breakfastCount: z.number().int().nonnegative().default(0),
+    lunchCount: z.number().int().nonnegative().default(0),
+    dinnerCount: z.number().int().nonnegative().default(0),
+    transportRateId: z.string().uuid().optional(),
+    transportDays: z.number().int().nonnegative().default(0),
+    requiresVisa: z.boolean().default(false),
+    immigrationCostRateId: z.string().uuid().optional(),
+    agencyMarginBp: z.number().int().min(0),
+    lineItems: z.array(LineItemInput).optional().default([]),
+    overridePriceMinor: z.number().int().nonnegative().optional(),
+    overrideReason: z.string().min(1).max(500).optional(),
+  })
+  .refine((v) => (v.overridePriceMinor == null) === (v.overrideReason == null), {
+    message: 'overrideReason is required when overridePriceMinor is set (and only then)',
+  });
+export type SaveBookingCostBreakdownInput = z.infer<typeof SaveBookingCostBreakdownInput>;

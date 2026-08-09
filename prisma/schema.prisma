@@ -206,6 +206,8 @@ model Organization {
   reviewSubjectRatings  ReviewSubjectRating[]
   packageCostBreakdowns PackageCostBreakdown[]
   packageCostLineItems  PackageCostLineItem[]
+  bookingCostBreakdowns BookingCostBreakdown[]
+  bookingCostLineItems  BookingCostLineItem[]
   hotelRatings          HotelRating[]
   restaurantRatings     RestaurantRating[]
   packageItineraryDays  PackageItineraryDay[]
@@ -711,15 +713,16 @@ model Booking {
   // of cancellation/refund.
   deletedAt              DateTime?
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departure    Departure?     @relation(fields: [departureId], references: [id], onDelete: Cascade)
-  tourist      User           @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
-  invoice      Invoice?
-  travelers    Traveler[]
-  addons       BookingAddon[]
-  itinerary    Itinerary?
-  ratingCode   RatingCode?
-  review       Review?
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departure     Departure?            @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  tourist       User                  @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
+  invoice       Invoice?
+  travelers     Traveler[]
+  addons        BookingAddon[]
+  itinerary     Itinerary?
+  ratingCode    RatingCode?
+  review        Review?
+  costBreakdown BookingCostBreakdown?
 
   @@index([organizationId])
   @@index([departureId])
@@ -1678,6 +1681,80 @@ model PackageCostLineItem {
   @@index([organizationId])
   @@index([packageCostBreakdownId])
   @@map("package_cost_line_items")
+}
+
+// DR-092: one per TAILOR_MADE Booking, computed by the same rate tables/
+// math as PackageCostBreakdown -- deliberately a separate table, not a
+// polymorphic/nullable-dual-FK subject on the package one, since
+// PackageCostBreakdown.tourPackageId is an existing, working, unique
+// non-nullable FK not worth destabilizing. No referenceGroupSize --
+// Booking.seats plays that role internally (still genuinely "cost per this
+// many people" for the restaurant/line-item math), but there's no
+// per-seat division afterward: Booking.priceMinor is a whole-booking total
+// (seats * unit price for a package hold), unlike TourPackage.priceMinor,
+// which is per-seat. No caller-supplied currency either -- derived from
+// whichever currency the resolved rates/add-ons are actually in (see
+// financeService.saveBookingCostBreakdown).
+model BookingCostBreakdown {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @db.Uuid
+  bookingId                 String    @unique @db.Uuid
+  currency                  Currency
+  nights                    Int
+  driverDays                Int
+  guideDays                 Int
+  photographerDays          Int       @default(0)
+  videographerDays          Int       @default(0)
+  hotelRateId               String?   @db.Uuid
+  roomsNeeded               Int       @default(1)
+  breakfastCount            Int       @default(0)
+  lunchCount                Int       @default(0)
+  dinnerCount               Int       @default(0)
+  transportRateId           String?   @db.Uuid
+  transportDays             Int       @default(0)
+  requiresVisa              Boolean   @default(false)
+  immigrationCostRateId     String?   @db.Uuid
+  agencyMarginBp            Int
+  computedBaseCostMinor     Int?
+  computedSellingPriceMinor Int?
+  // Snapshot of the booking's already-selected add-ons' total at save time
+  // -- same "snapshot, don't live-join" convention as BookingAddon.priceMinor
+  // and Booking.priceMinor itself. Goes stale if add-ons change after a
+  // save, same as this row's rate-derived fields go stale until resaved --
+  // a staff resave clears it, same as everywhere else in this feature
+  // family; the staff UI shows the live add-ons total alongside this
+  // snapshot so the gap is visible, not hidden.
+  addonsTotalMinor          Int       @default(0)
+  overridePriceMinor        Int?
+  overrideReason            String?   @db.VarChar(500)
+  overriddenByUserId        String?   @db.Uuid
+  overriddenAt              DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking      Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  lineItems    BookingCostLineItem[]
+
+  @@index([organizationId])
+  @@map("booking_cost_breakdowns")
+}
+
+// Same shape/purpose as PackageCostLineItem, FK'd to BookingCostBreakdown.
+model BookingCostLineItem {
+  id                     String  @id @default(uuid()) @db.Uuid
+  organizationId         String  @db.Uuid
+  bookingCostBreakdownId String  @db.Uuid
+  foodBeverageRateId     String? @db.Uuid
+  activityFeeId          String? @db.Uuid
+  quantityPerPerson      Int
+
+  organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookingCostBreakdown BookingCostBreakdown @relation(fields: [bookingCostBreakdownId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([bookingCostBreakdownId])
+  @@map("booking_cost_line_items")
 }
 
 model Account {

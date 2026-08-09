@@ -1,7 +1,9 @@
 // finance module — service. Business logic; orchestrates repository + rbac
 // + the pure cost-computation rules. Callable by other modules ONLY
 // through index.ts (module boundary rule).
+import type { Currency } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
+import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
@@ -11,6 +13,7 @@ import {
   computeSellingPriceMinor,
   perSeatPriceMinor,
   type ActivityFeeView,
+  type BookingCostBreakdownView,
   type CreateActivityFeeInput,
   type CreateFoodBeverageRateInput,
   type CreateHotelRateInput,
@@ -21,6 +24,7 @@ import {
   type HotelRateView,
   type ImmigrationCostRateView,
   type PackageCostBreakdownView,
+  type SaveBookingCostBreakdownInput,
   type SaveCostBreakdownInput,
   type StaffRateView,
   type TransportRateView,
@@ -43,6 +47,88 @@ function requireRateWriter(ctx: AuthContext): void {
   if (!ctx.roles.includes('SUPERADMIN')) {
     throw Errors.forbidden('Only SUPERADMIN may configure operational rates');
   }
+}
+
+interface ResolvedLineItem {
+  foodBeverageRateId?: string;
+  activityFeeId?: string;
+  quantityPerPerson: number;
+  perUnitMinor: number | null;
+  currency: Currency | null;
+}
+
+interface ResolvedRates {
+  driverRate: StaffRateView | null;
+  guideRate: StaffRateView | null;
+  photographerRate: StaffRateView | null;
+  videographerRate: StaffRateView | null;
+  breakfastRate: FoodBeverageRateView | null;
+  lunchRate: FoodBeverageRateView | null;
+  dinnerRate: FoodBeverageRateView | null;
+  hotelRate: HotelRateView | null;
+  transportRate: TransportRateView | null;
+  immigrationCostRate: ImmigrationCostRateView | null;
+  lineItems: ResolvedLineItem[];
+}
+
+interface RateResolutionInput {
+  country: string;
+  driverDays: number;
+  guideDays: number;
+  photographerDays: number;
+  videographerDays: number;
+  breakfastCount: number;
+  lunchCount: number;
+  dinnerCount: number;
+  hotelRateId?: string;
+  transportRateId?: string;
+  requiresVisa: boolean;
+  immigrationCostRateId?: string;
+  lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }>;
+}
+
+/** Shared by saveCostBreakdown (package) and saveBookingCostBreakdown
+ * (booking) -- purely resolves every referenced rate against `country`,
+ * never throws. Each caller keeps its own not-found/no-effective-rate
+ * checks so error wording (and which fields are even required) can differ
+ * between the two flows. */
+async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promise<ResolvedRates> {
+  const [driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate] = await Promise.all([
+    input.driverDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'DRIVER', now) : Promise.resolve(null),
+    input.guideDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'GUIDE', now) : Promise.resolve(null),
+    input.photographerDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'PHOTOGRAPHER', now) : Promise.resolve(null),
+    input.videographerDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'VIDEOGRAPHER', now) : Promise.resolve(null),
+    input.breakfastCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'BREAKFAST', now) : Promise.resolve(null),
+    input.lunchCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'LUNCH', now) : Promise.resolve(null),
+    input.dinnerCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'DINNER', now) : Promise.resolve(null),
+  ]);
+
+  const hotelRate = input.hotelRateId ? await financeRepository.findHotelRateById(input.hotelRateId) : null;
+  const transportRate = input.transportRateId ? await financeRepository.findTransportRateById(input.transportRateId) : null;
+  const immigrationCostRate =
+    input.requiresVisa && input.immigrationCostRateId ? await financeRepository.findImmigrationCostRateById(input.immigrationCostRateId) : null;
+
+  const foodBeverageIds = input.lineItems.map((li) => li.foodBeverageRateId).filter((id): id is string => id != null);
+  const activityIds = input.lineItems.map((li) => li.activityFeeId).filter((id): id is string => id != null);
+  const [foodBeverageRates, activityFees] = await Promise.all([
+    financeRepository.findFoodBeverageRatesByIds(foodBeverageIds),
+    financeRepository.findActivityFeesByIds(activityIds),
+  ]);
+  const foodBeverageById = new Map(foodBeverageRates.map((r) => [r.id, r]));
+  const activityFeeById = new Map(activityFees.map((r) => [r.id, r]));
+
+  const lineItems: ResolvedLineItem[] = input.lineItems.map((li) => {
+    const rate = li.foodBeverageRateId ? foodBeverageById.get(li.foodBeverageRateId) : activityFeeById.get(li.activityFeeId as string);
+    return {
+      foodBeverageRateId: li.foodBeverageRateId,
+      activityFeeId: li.activityFeeId,
+      quantityPerPerson: li.quantityPerPerson,
+      perUnitMinor: rate ? ('perUnitMinor' in rate ? rate.perUnitMinor : rate.feeMinor) : null,
+      currency: rate?.currency ?? null,
+    };
+  });
+
+  return { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, lineItems };
 }
 
 export const financeService = {
@@ -184,15 +270,25 @@ export const financeService = {
 
     const now = new Date();
 
-    const [driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate] = await Promise.all([
-      input.driverDays > 0 ? financeRepository.findEffectiveStaffRate(pkg.country, 'DRIVER', now) : Promise.resolve(null),
-      input.guideDays > 0 ? financeRepository.findEffectiveStaffRate(pkg.country, 'GUIDE', now) : Promise.resolve(null),
-      input.photographerDays > 0 ? financeRepository.findEffectiveStaffRate(pkg.country, 'PHOTOGRAPHER', now) : Promise.resolve(null),
-      input.videographerDays > 0 ? financeRepository.findEffectiveStaffRate(pkg.country, 'VIDEOGRAPHER', now) : Promise.resolve(null),
-      input.breakfastCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(pkg.country, 'BREAKFAST', now) : Promise.resolve(null),
-      input.lunchCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(pkg.country, 'LUNCH', now) : Promise.resolve(null),
-      input.dinnerCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(pkg.country, 'DINNER', now) : Promise.resolve(null),
-    ]);
+    const { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, lineItems: resolvedLineItems } =
+      await resolveRatesForCost(
+        {
+          country: pkg.country,
+          driverDays: input.driverDays,
+          guideDays: input.guideDays,
+          photographerDays: input.photographerDays,
+          videographerDays: input.videographerDays,
+          breakfastCount: input.breakfastCount,
+          lunchCount: input.lunchCount,
+          dinnerCount: input.dinnerCount,
+          hotelRateId: input.hotelRateId,
+          transportRateId: input.transportRateId,
+          requiresVisa: input.requiresVisa,
+          immigrationCostRateId: input.immigrationCostRateId,
+          lineItems: input.lineItems,
+        },
+        now,
+      );
 
     if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${pkg.country}`);
     if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${pkg.country}`);
@@ -201,35 +297,13 @@ export const financeService = {
     if (input.breakfastCount > 0 && !breakfastRate) throw Errors.conflict(`No effective breakfast rate configured for ${pkg.country}`);
     if (input.lunchCount > 0 && !lunchRate) throw Errors.conflict(`No effective lunch rate configured for ${pkg.country}`);
     if (input.dinnerCount > 0 && !dinnerRate) throw Errors.conflict(`No effective dinner rate configured for ${pkg.country}`);
-
-    const hotelRate = input.hotelRateId ? await financeRepository.findHotelRateById(input.hotelRateId) : null;
     if (input.hotelRateId && !hotelRate) throw Errors.notFound('Hotel rate not found');
-
-    const transportRate = input.transportRateId ? await financeRepository.findTransportRateById(input.transportRateId) : null;
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
+    if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
 
-    const immigrationCostRate = input.requiresVisa && input.immigrationCostRateId
-      ? await financeRepository.findImmigrationCostRateById(input.immigrationCostRateId)
-      : null;
-    if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) {
-      throw Errors.notFound('Immigration cost rate not found');
-    }
-
-    const foodBeverageIds = input.lineItems.map((li) => li.foodBeverageRateId).filter((id): id is string => id != null);
-    const activityIds = input.lineItems.map((li) => li.activityFeeId).filter((id): id is string => id != null);
-    const [foodBeverageRates, activityFees] = await Promise.all([
-      financeRepository.findFoodBeverageRatesByIds(foodBeverageIds),
-      financeRepository.findActivityFeesByIds(activityIds),
-    ]);
-    const foodBeverageById = new Map(foodBeverageRates.map((r) => [r.id, r]));
-    const activityFeeById = new Map(activityFees.map((r) => [r.id, r]));
-
-    const lineItems = input.lineItems.map((li) => {
-      const perUnitMinor = li.foodBeverageRateId
-        ? foodBeverageById.get(li.foodBeverageRateId)?.perUnitMinor
-        : activityFeeById.get(li.activityFeeId as string)?.feeMinor;
-      if (perUnitMinor == null) throw Errors.notFound('A referenced drink/activity rate was not found');
-      return { perUnitMinor, quantityPerPerson: li.quantityPerPerson };
+    const lineItems = resolvedLineItems.map((li) => {
+      if (li.perUnitMinor == null) throw Errors.notFound('A referenced drink/activity rate was not found');
+      return { perUnitMinor: li.perUnitMinor, quantityPerPerson: li.quantityPerPerson };
     });
 
     const baseCostMinor = computeBaseCostMinor({
@@ -329,6 +403,212 @@ export const financeService = {
         metadata: { previousPriceMinor: pkg.priceMinor, computedPriceMinor: finalPriceMinor },
       });
     }
+
+    return breakdown;
+  },
+
+  // ---------------------------------------------------- booking cost breakdown
+
+  /** Same viewers as who can send a quotation -- booking.confirm, no new
+   * permission. */
+  async getBookingCostBreakdown(ctx: AuthContext, bookingId: string): Promise<BookingCostBreakdownView | null> {
+    assertCan(ctx, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    await bookingService.getById(ctx, bookingId); // 404s if not found/visible (anti-BOLA inherited)
+    return financeRepository.findBreakdownForBooking(organizationId, bookingId);
+  },
+
+  /** Same shape as saveCostBreakdown, adapted for a TAILOR_MADE booking:
+   * currency is derived (from whichever rates/add-ons actually resolve),
+   * not caller-supplied; referenceGroupSize is the booking's own seat count,
+   * no per-seat division (Booking.priceMinor is a whole-booking total,
+   * unlike TourPackage.priceMinor); the already-selected add-ons' total is
+   * folded into the suggested price. Does NOT write Booking.priceMinor/
+   * currency or send the quotation -- this only computes and persists a
+   * suggestion; sendQuotation (unchanged) is the actual commit step. */
+  async saveBookingCostBreakdown(ctx: AuthContext, bookingId: string, input: SaveBookingCostBreakdownInput): Promise<BookingCostBreakdownView> {
+    assertCan(ctx, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    const booking = await bookingService.getById(ctx, bookingId); // 404s if not found/visible
+
+    if (booking.origin !== 'TAILOR_MADE') throw Errors.conflict('Only a tailor-made request can have a cost breakdown');
+    if (!booking.customCountry) throw Errors.conflict('This booking has no destination country to price against');
+
+    const now = new Date();
+    const country = booking.customCountry;
+
+    const {
+      driverRate,
+      guideRate,
+      photographerRate,
+      videographerRate,
+      breakfastRate,
+      lunchRate,
+      dinnerRate,
+      hotelRate,
+      transportRate,
+      immigrationCostRate,
+      lineItems: resolvedLineItems,
+    } = await resolveRatesForCost(
+      {
+        country,
+        driverDays: input.driverDays,
+        guideDays: input.guideDays,
+        photographerDays: input.photographerDays,
+        videographerDays: input.videographerDays,
+        breakfastCount: input.breakfastCount,
+        lunchCount: input.lunchCount,
+        dinnerCount: input.dinnerCount,
+        hotelRateId: input.hotelRateId,
+        transportRateId: input.transportRateId,
+        requiresVisa: input.requiresVisa,
+        immigrationCostRateId: input.immigrationCostRateId,
+        lineItems: input.lineItems,
+      },
+      now,
+    );
+
+    if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${country}`);
+    if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${country}`);
+    if (input.photographerDays > 0 && !photographerRate) throw Errors.conflict(`No effective photographer rate configured for ${country}`);
+    if (input.videographerDays > 0 && !videographerRate) throw Errors.conflict(`No effective videographer rate configured for ${country}`);
+    if (input.breakfastCount > 0 && !breakfastRate) throw Errors.conflict(`No effective breakfast rate configured for ${country}`);
+    if (input.lunchCount > 0 && !lunchRate) throw Errors.conflict(`No effective lunch rate configured for ${country}`);
+    if (input.dinnerCount > 0 && !dinnerRate) throw Errors.conflict(`No effective dinner rate configured for ${country}`);
+    if (input.hotelRateId && !hotelRate) throw Errors.notFound('Hotel rate not found');
+    if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
+    if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
+
+    const lineItems = resolvedLineItems.map((li) => {
+      if (li.perUnitMinor == null) throw Errors.notFound('A referenced drink/activity rate was not found');
+      return { perUnitMinor: li.perUnitMinor, quantityPerPerson: li.quantityPerPerson };
+    });
+
+    // Derive currency from every resolved rate that actually has one --
+    // including each line item's own underlying rate, not just the three
+    // "category" rates a first pass would reach for.
+    const rateCurrencies = [
+      driverRate?.currency,
+      guideRate?.currency,
+      photographerRate?.currency,
+      videographerRate?.currency,
+      breakfastRate?.currency,
+      lunchRate?.currency,
+      dinnerRate?.currency,
+      hotelRate?.currency,
+      transportRate?.currency,
+      immigrationCostRate?.currency,
+      ...resolvedLineItems.map((li) => li.currency ?? undefined),
+    ].filter((c): c is Currency => c != null);
+    const distinctRateCurrencies = new Set(rateCurrencies);
+    if (distinctRateCurrencies.size > 1) {
+      throw Errors.conflict(`The selected rates are priced in different currencies (${[...distinctRateCurrencies].join(', ')}) -- pick rates that share one currency`);
+    }
+    let currency: Currency | null = rateCurrencies[0] ?? null;
+
+    const addons = await bookingService.listAddons(ctx, bookingId);
+    const addonsTotalMinor = addons.reduce((sum, a) => sum + a.priceMinor, 0);
+    const addonCurrencies = new Set(addons.map((a) => a.currency));
+
+    if (currency && addonCurrencies.size > 0 && (addonCurrencies.size > 1 || !addonCurrencies.has(currency))) {
+      throw Errors.conflict('The selected add-ons currency does not match the selected rates currency');
+    }
+    if (!currency) {
+      if (addonCurrencies.size > 1) throw Errors.conflict('Selected add-ons must share one currency');
+      currency = [...addonCurrencies][0] ?? null;
+    }
+    // A bare override with no cost context anywhere has nothing to attach a
+    // Currency column to -- staff wanting a fully hand-typed number should
+    // use the plain sendQuotation form directly instead of this feature.
+    if (!currency) throw Errors.conflict('Cannot determine a currency -- select at least one rate or add-on before saving a cost breakdown');
+
+    const baseCostMinor = computeBaseCostMinor({
+      referenceGroupSize: booking.seats,
+      nights: input.nights,
+      driverDays: input.driverDays,
+      guideDays: input.guideDays,
+      photographerDays: input.photographerDays,
+      videographerDays: input.videographerDays,
+      driverDailyRateMinor: driverRate?.dailyRateMinor ?? null,
+      guideDailyRateMinor: guideRate?.dailyRateMinor ?? null,
+      photographerDailyRateMinor: photographerRate?.dailyRateMinor ?? null,
+      videographerDailyRateMinor: videographerRate?.dailyRateMinor ?? null,
+      hotelNightlyRateMinor: hotelRate?.nightlyRateMinor ?? null,
+      roomsNeeded: input.roomsNeeded,
+      breakfastCount: input.breakfastCount,
+      lunchCount: input.lunchCount,
+      dinnerCount: input.dinnerCount,
+      breakfastRateMinor: breakfastRate?.perUnitMinor ?? null,
+      lunchRateMinor: lunchRate?.perUnitMinor ?? null,
+      dinnerRateMinor: dinnerRate?.perUnitMinor ?? null,
+      transportDays: input.transportDays,
+      transportRate: transportRate
+        ? {
+            fuelEstimateMinor: transportRate.fuelEstimateMinor,
+            tollFeesMinor: transportRate.tollFeesMinor,
+            parkingFeesMinor: transportRate.parkingFeesMinor,
+            vehicleOperatingCostMinor: transportRate.vehicleOperatingCostMinor,
+          }
+        : null,
+      requiresVisa: input.requiresVisa,
+      immigrationCostRate: immigrationCostRate
+        ? {
+            visaFeeMinor: immigrationCostRate.visaFeeMinor,
+            processingFeeMinor: immigrationCostRate.processingFeeMinor,
+            invitationLetterFeeMinor: immigrationCostRate.invitationLetterFeeMinor,
+            borderPermitFeeMinor: immigrationCostRate.borderPermitFeeMinor,
+          }
+        : null,
+      lineItems,
+    });
+    const sellingPriceTotalMinor = computeSellingPriceMinor(baseCostMinor, input.agencyMarginBp);
+    const finalPriceMinor = input.overridePriceMinor ?? sellingPriceTotalMinor + addonsTotalMinor;
+
+    const breakdown = await financeRepository.upsertBookingBreakdown(
+      organizationId,
+      bookingId,
+      {
+        currency,
+        nights: input.nights,
+        driverDays: input.driverDays,
+        guideDays: input.guideDays,
+        photographerDays: input.photographerDays,
+        videographerDays: input.videographerDays,
+        hotelRateId: input.hotelRateId ?? null,
+        roomsNeeded: input.roomsNeeded,
+        breakfastCount: input.breakfastCount,
+        lunchCount: input.lunchCount,
+        dinnerCount: input.dinnerCount,
+        transportRateId: input.transportRateId ?? null,
+        transportDays: input.transportDays,
+        requiresVisa: input.requiresVisa,
+        immigrationCostRateId: input.immigrationCostRateId ?? null,
+        agencyMarginBp: input.agencyMarginBp,
+        computedBaseCostMinor: baseCostMinor,
+        computedSellingPriceMinor: sellingPriceTotalMinor,
+        addonsTotalMinor,
+        overridePriceMinor: input.overridePriceMinor ?? null,
+        overrideReason: input.overrideReason ?? null,
+        overriddenByUserId: input.overridePriceMinor != null ? ctx.userId : null,
+        overriddenAt: input.overridePriceMinor != null ? now : null,
+      },
+      input.lineItems.map((li) => ({ foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson })),
+    );
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: input.overridePriceMinor != null ? 'finance.booking_price_overridden' : 'finance.booking_cost_breakdown_saved',
+      resourceType: 'Booking',
+      resourceId: bookingId,
+      organizationId,
+      metadata: {
+        previousBookingPriceMinor: booking.priceMinor ?? null,
+        computedPriceMinor: sellingPriceTotalMinor + addonsTotalMinor,
+        finalPriceMinor,
+        ...(input.overridePriceMinor != null ? { reason: input.overrideReason } : {}),
+      },
+    });
 
     return breakdown;
   },

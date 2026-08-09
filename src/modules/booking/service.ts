@@ -654,19 +654,23 @@ export const bookingService = {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
-    if (!booking.currency) {
-      throw Errors.conflict('This booking has no price yet -- it needs a quotation before add-ons can be selected');
-    }
 
     const items = [];
     let requiresPassportUpload = false;
     for (const addonServiceId of input.addonServiceIds) {
       const addon = await catalogService.getAddonService(ctx, addonServiceId);
-      if (addon.currency !== booking.currency) {
+      if (booking.currency && addon.currency !== booking.currency) {
         throw Errors.conflict('Add-on currency does not match the booking currency');
       }
       if (addon.code === 'VISA_ASSISTANCE') requiresPassportUpload = true;
       items.push({ addonServiceId, priceMinor: addon.priceMinor, currency: addon.currency });
+    }
+    // Pre-quotation (booking.currency not set yet -- a TAILOR_MADE request
+    // before staff have priced it), there's no fixed currency to check
+    // against yet; the selection just needs to be internally consistent.
+    if (!booking.currency) {
+      const currencies = new Set(items.map((i) => i.currency));
+      if (currencies.size > 1) throw Errors.conflict('Selected add-ons must share one currency');
     }
 
     await bookingRepository.replaceAddons(organizationId, bookingId, items, requiresPassportUpload);

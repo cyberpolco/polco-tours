@@ -19,11 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-091 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **All schema changes through DR-088 are applied to the shared
+> Current through DR-092 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
-> user dormancy, site province/city, geo-data foundation — nothing
-> schema-related is pending; DR-090/091 needed no schema changes at all).
+> user dormancy, site province/city, geo-data foundation, booking cost
+> breakdowns — nothing schema-related is pending; DR-090/091 needed no
+> schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -92,8 +93,25 @@ explicit decision to do so.
 > `src/components/ui/Pagination.tsx`, both shared by the two pages) — the
 > first pagination anywhere in this app; Users' Status filter can now
 > surface Deactivated accounts, previously hard-excluded at the query level
-> and unreachable via any UI state. See DR-082 through DR-091 for full
-> detail.
+> and unreachable via any UI state. DR-092 closes a real sequencing dead end
+> in the TAILOR_MADE booking journey — the booking detail page pushed staff
+> toward add-ons before a price existed, but `setAddons` required a price to
+> already exist to currency-match against. New `BookingCostBreakdown`/
+> `BookingCostLineItem` (owned by `finance`, reusing DR-039's cost-plus rate
+> tables/math via a new shared `resolveRatesForCost` helper) let staff build
+> a line-item cost breakdown for a bespoke request; `currency` is *derived*
+> from whichever resolved rate/add-on actually has one, never staff-picked.
+> New `financeService.saveBookingCostBreakdown`/`getBookingCostBreakdown`
+> (gated `booking.confirm`, same as `sendQuotation`) fold the booking's
+> already-selected add-ons into a `suggestedTotalMinor` that pre-fills (but
+> doesn't replace) the "Send quotation" amount field — this step never
+> writes `Booking.priceMinor`/`currency` itself; `sendQuotation` stays the
+> only commit path. `bookingService.setAddons`'s currency check is now
+> branched: unchanged once `booking.currency` is set, relaxed to
+> "internally consistent" pre-quotation — closing the dead end without
+> weakening the existing already-priced-booking protection. This is a new
+> `finance` → `booking` module dependency (confirmed acyclic). See DR-082
+> through DR-092 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -291,6 +309,8 @@ src/
                    #   staff-only hotel/restaurant ratings
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
     finance/       # Cost-plus pricing engine — 6 rate tables + PackageCostBreakdown
+                   #   (TourPackage) / BookingCostBreakdown (TAILOR_MADE
+                   #   Booking, DR-092) sharing one resolveRatesForCost helper
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate CRUD
     content/       # SiteContent (About page) + FaqEntry CRUD (DR-071),
@@ -325,7 +345,11 @@ the only thing other modules may import).
 **Module dependency direction matters.** `itinerary` depends on `booking`/
 `assignment`/`catalog`; `booking` never depends on `itinerary` (that would be
 circular) — any orchestration needing both happens one level up, in a Server
-Action or route handler, not inside either module's service.
+Action or route handler, not inside either module's service. `finance`
+depends on `catalog` (package pricing) and, since DR-092, `booking` (booking
+cost breakdowns) — confirmed acyclic the same way `invoicing`/`visa`/
+`itinerary` already depend on `booking`: `booking` itself only imports
+`{auth, catalog, notifications}`, never reaching back into any of them.
 
 ---
 

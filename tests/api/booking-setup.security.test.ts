@@ -21,6 +21,7 @@ const { GET: downloadPassport, POST: uploadPassport } = await import(
   '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/passport/route'
 );
 const { POST: setAddons } = await import('../../src/app/api/v1/bookings/[bookingId]/addons/route');
+const { GET: getBookingCostBreakdown } = await import('../../src/app/api/v1/bookings/[bookingId]/cost-breakdown/route');
 
 /**
  * Anti-BOLA (Vol. 8, API1): RLS only isolates by organizationId -- it does
@@ -31,10 +32,13 @@ const { POST: setAddons } = await import('../../src/app/api/v1/bookings/[booking
 const admin = new PrismaClient();
 
 let orgId: string;
+let orgBId: string;
 let bookingId: string;
 let leadTravelerId: string;
 let touristAId: string;
 let touristBId: string;
+let operatorId: string;
+let operatorBId: string;
 
 function jsonRequest(method: string, url: string, headers: Headers, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -48,12 +52,21 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [touristA, touristB] = await Promise.all([
+  const orgB = await admin.organization.create({
+    data: { name: `SETUP-SEC-TEST-B-${Date.now()}`, countries: ['NA'], status: 'VERIFIED' },
+  });
+  orgBId = orgB.id;
+
+  const [touristA, touristB, operator, operatorB] = await Promise.all([
     admin.user.create({ data: { email: `setup-sec-a-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `setup-sec-b-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId } }),
+    admin.user.create({ data: { email: `setup-sec-op-${Date.now()}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgId } }),
+    admin.user.create({ data: { email: `setup-sec-op-b-${Date.now()}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgBId } }),
   ]);
   touristAId = touristA.id;
   touristBId = touristB.id;
+  operatorId = operator.id;
+  operatorBId = operatorB.id;
 
   await withOrg(orgId, async (tx) => {
     const pkg = await tx.tourPackage.create({
@@ -117,6 +130,10 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
+  if (orgBId) {
+    await admin.user.deleteMany({ where: { organizationId: orgBId } });
+    await admin.organization.delete({ where: { id: orgBId } });
+  }
   await admin.$disconnect();
   await prisma.$disconnect();
 });
@@ -177,5 +194,30 @@ describe('anti-BOLA: booking-setup ownership', () => {
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers`, { headers });
     const res = await listTravelers(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('anti-BOLA + RBAC: GET /api/v1/bookings/:bookingId/cost-breakdown (DR-092)', () => {
+  it('a TOURIST (lacks booking.confirm entirely) is denied (403)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/cost-breakdown`, { headers });
+    const res = await getBookingCostBreakdown(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(403);
+  });
+
+  it("a same-org operator can read the booking's cost breakdown (200, none saved yet)", async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/cost-breakdown`, { headers });
+    const res = await getBookingCostBreakdown(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.breakdown).toBeNull();
+  });
+
+  it("an operator from a different org cannot reach this booking (404, not 403 -- anti-BOLA)", async () => {
+    const headers = await loginAs(operatorBId);
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/cost-breakdown`, { headers });
+    const res = await getBookingCostBreakdown(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(404);
   });
 });

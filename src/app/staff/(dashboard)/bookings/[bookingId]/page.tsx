@@ -3,6 +3,7 @@ import type { Currency } from '@prisma/client';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { financeService } from '@modules/finance';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
@@ -126,6 +127,17 @@ export default async function BookingDetailPage({ params }: Props) {
 
   const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
   const payments = await invoicingService.listPayments(ctx, invoice.id);
+
+  // Only relevant while a quotation hasn't been sent yet -- pre-fills the
+  // "Send quotation" amount below from whatever cost breakdown staff have
+  // already saved for this TAILOR_MADE request (DR-092). Gated on
+  // booking.confirm (not just this page's own booking.read baseline) --
+  // TOUR_GUIDE/DRIVER/VISA_FACILITATOR/TOURIST can all view this page but
+  // don't hold booking.confirm, and getBookingCostBreakdown asserts it.
+  const costBreakdown =
+    booking.status === 'AWAITING_QUOTATION' && booking.origin === 'TAILOR_MADE' && can(ctx, 'booking.confirm')
+      ? await financeService.getBookingCostBreakdown(ctx, bookingId)
+      : null;
 
   // Trip summary for the "Confirm & Pay" review, staff's own New Booking
   // flow (/staff/bookings/new -> pick a package+departure) never showed
@@ -253,6 +265,13 @@ export default async function BookingDetailPage({ params }: Props) {
           </p>
         )}
 
+        {booking.status === 'AWAITING_QUOTATION' && booking.origin === 'TAILOR_MADE' && can(ctx, 'booking.confirm') && (
+          <p className="mt-4 text-sm">
+            <LinkButton href={`/staff/bookings/${bookingId}/cost-breakdown`}>
+              {costBreakdown ? 'Edit cost breakdown' : 'Build a cost breakdown'}
+            </LinkButton>
+          </p>
+        )}
         {booking.status === 'AWAITING_QUOTATION' && (
           <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm items-end gap-3">
             <FormField label="Quote amount" htmlFor="amount">
@@ -262,11 +281,12 @@ export default async function BookingDetailPage({ params }: Props) {
                 step="0.01"
                 min="0"
                 required
+                defaultValue={costBreakdown?.suggestedTotalMinor != null ? (costBreakdown.suggestedTotalMinor / 100).toFixed(2) : undefined}
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
             <FormField label="Currency" htmlFor="currency">
-              <Select name="currency" required>
+              <Select name="currency" required defaultValue={costBreakdown?.currency}>
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
                 <option value="NAD">NAD</option>
@@ -275,6 +295,12 @@ export default async function BookingDetailPage({ params }: Props) {
             </FormField>
             <SubmitButton pendingLabel="Sending…">Send quotation</SubmitButton>
           </form>
+        )}
+        {costBreakdown?.suggestedTotalMinor != null && (
+          <p className="mt-1 text-xs text-mist">
+            Suggested from the cost breakdown: {format(money(costBreakdown.suggestedTotalMinor, costBreakdown.currency))} -- edit the amount above if
+            needed.
+          </p>
         )}
         {booking.status === 'QUOTATION_SENT' && (
           <form action={acceptQuotationAction.bind(null, booking.id)} className="mt-4">

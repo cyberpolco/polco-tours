@@ -7,10 +7,13 @@ export {
   CreateImmigrationCostRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
+  SaveBookingCostBreakdownInput,
   SaveCostBreakdownInput,
 } from './domain';
 export type {
   ActivityFeeView,
+  BookingCostBreakdownView,
+  BookingCostLineItemView,
   FoodBeverageRateView,
   HotelRateView,
   ImmigrationCostRateView,

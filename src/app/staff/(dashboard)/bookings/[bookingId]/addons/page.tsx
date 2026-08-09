@@ -27,31 +27,22 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
   const booking = await bookingService.getById(ctx, bookingId);
 
-  // A TAILOR_MADE booking has no price until a quotation is sent -- add-ons
-  // can't be currency-matched against it yet (setAddons enforces this
-  // server-side too).
-  if (!booking.currency) {
-    return (
-      <div className="max-w-md">
-        <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
-        <PageHeader eyebrow="Booking setup · Add-ons" title="Waiting on a quotation" />
-        <p className="mt-1 text-sm text-mist">Send a quotation for this booking before selecting add-ons.</p>
-      </div>
-    );
-  }
-
   const [allAddons, selected] = await Promise.all([
     catalogService.listActiveAddonServices(ctx),
     booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
   ]);
   // This app has no FX conversion anywhere (BR-02) -- an add-on priced in a
-  // different currency than the booking can never actually be selected
-  // (setAddons rejects the mismatch server-side too). Filter here so staff
-  // never see an option that would fail on submit -- found live in
-  // production: the seeded add-on catalog is USD-only, but several demo
-  // packages are priced in NAD, so every add-on silently failed for those
-  // bookings until this filter existed.
-  const addons = allAddons.filter((a) => a.currency === booking.currency);
+  // different currency than the booking can never actually be selected once
+  // the booking has a fixed currency (setAddons rejects the mismatch
+  // server-side too). Filter here so staff never see an option that would
+  // fail on submit -- found live in production: the seeded add-on catalog is
+  // USD-only, but several demo packages are priced in NAD, so every add-on
+  // silently failed for those bookings until this filter existed. Before a
+  // quotation exists (booking.currency still null, e.g. a fresh TAILOR_MADE
+  // request), there's nothing to filter against yet -- show every active
+  // add-on instead (each price is already currency-labelled by `format`);
+  // setAddons's own internal-consistency check catches a mixed selection.
+  const addons = booking.currency ? allAddons.filter((a) => a.currency === booking.currency) : allAddons;
   const selectedIds = new Set(selected.map((a) => a.addonServiceId));
 
   return (
@@ -59,6 +50,12 @@ export default async function AddonsPage({ params, searchParams }: Props) {
       <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
       <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add traveler details next.</p>
+      {!booking.currency && (
+        <p className="mt-1 text-sm text-mist">
+          This booking has no price yet -- add-ons picked here must share one currency; use the cost breakdown to price
+          the rest before sending a quotation.
+        </p>
+      )}
       {error && (
         <div className="mt-3">
           <Alert tone="error">Something went wrong saving add-ons -- please try again.</Alert>
