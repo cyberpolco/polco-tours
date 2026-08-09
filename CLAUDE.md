@@ -19,11 +19,11 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-092 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-093 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
-> breakdowns — nothing schema-related is pending; DR-090/091 needed no
+> breakdowns — nothing schema-related is pending; DR-090/091/093 needed no
 > schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
@@ -110,8 +110,19 @@ explicit decision to do so.
 > branched: unchanged once `booking.currency` is set, relaxed to
 > "internally consistent" pre-quotation — closing the dead end without
 > weakening the existing already-priced-booking protection. This is a new
-> `finance` → `booking` module dependency (confirmed acyclic). See DR-082
-> through DR-092 for full detail.
+> `finance` → `booking` module dependency (confirmed acyclic). DR-093 stops
+> the add-ons/first-traveler booking-setup pages from re-asking staff for
+> what `/plan-my-trip` already collected: `/staff/bookings/[bookingId]/
+> addons` pre-checks any add-on matching `Booking.preferredAddons` (labelled
+> "Guest requested," only before the first finalize) and `/travelers/new`
+> shows the tour lead's known name/email/country of residence/phone
+> (`authService.getUser(booking.touristUserId)` + `parseE164`) as a
+> read-only summary wired to hidden inputs, each falling back to its normal
+> editable field independently if that piece of data is missing (a legacy
+> booking, or no phone on file); nationality stays editable (only
+> `defaultValue`-preselected from `Booking.citizenship`), since citizenship
+> isn't guaranteed to equal passport nationality. No schema/permission/
+> module-dependency change. See DR-082 through DR-093 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

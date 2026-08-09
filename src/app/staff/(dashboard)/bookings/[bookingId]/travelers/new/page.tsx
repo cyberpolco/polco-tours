@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, parseE164 } from '@lib/country-codes';
+import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
@@ -13,6 +14,10 @@ import { addTravelerAction } from './actions';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+}
+
+function countryName(alpha2: string): string {
+  return COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
 }
 
 export default async function NewTravelerPage({ params }: Props) {
@@ -67,6 +72,24 @@ export default async function NewTravelerPage({ params }: Props) {
   const isAddingTourLead = !hasTourLead;
   const travelerNumber = travelers.length + 1;
 
+  // The plan-my-trip wizard already collected the tour lead's own name/
+  // email/country of residence (Booking.contactFirstName/contactLastName/
+  // contactEmail/countryOfResidence, DR-047/057) and phone (User.phone, set
+  // via authService.updateProfile in that same submission) -- show those as
+  // a read-only summary instead of re-asking, rather than presenting blank
+  // inputs for data already on file. Falls back to an editable field per-
+  // field if a legacy booking is missing one (nothing here is guaranteed
+  // for a TAILOR_MADE booking created before DR-047/057 introduced these
+  // columns). Nothing is known about co-travelers beyond the tour lead --
+  // plan-my-trip only ever collects a seat count for them.
+  const isTailorMade = booking.origin === 'TAILOR_MADE';
+  const knownFirstName = isTailorMade ? booking.contactFirstName : null;
+  const knownLastName = isTailorMade ? booking.contactLastName : null;
+  const knownEmail = isTailorMade ? booking.contactEmail : null;
+  const knownCountryOfResidence = isTailorMade ? booking.countryOfResidence : null;
+  const tourist = isAddingTourLead && isTailorMade ? await authService.getUser(booking.touristUserId) : null;
+  const knownPhone = tourist?.phone ? parseE164(tourist.phone) : null;
+
   return (
     <div className="max-w-lg">
       <BackLink href={`/staff/bookings/${bookingId}/addons`}>back to add-ons</BackLink>
@@ -76,14 +99,25 @@ export default async function NewTravelerPage({ params }: Props) {
       </p>
 
       <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="First name" htmlFor="firstName">
-            <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label="Last name" htmlFor="lastName">
-            <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-        </div>
+        {isAddingTourLead && knownFirstName && knownLastName ? (
+          <div className="rounded-survey border border-rule bg-bone/50 p-3 text-sm">
+            <p className="text-xs uppercase tracking-wide text-mist">From the guest&apos;s plan-my-trip request</p>
+            <p className="mt-1 text-navy">
+              {knownFirstName} {knownLastName}
+            </p>
+            <input type="hidden" name="firstName" value={knownFirstName} />
+            <input type="hidden" name="lastName" value={knownLastName} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="First name" htmlFor="firstName">
+              <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label="Last name" htmlFor="lastName">
+              <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Age" htmlFor="age">
@@ -99,7 +133,11 @@ export default async function NewTravelerPage({ params }: Props) {
         </div>
 
         <FormField label="Nationality" htmlFor="nationality">
-          <Select name="nationality" required>
+          {/* Citizenship (plan-my-trip step 7) isn't guaranteed to equal
+              passport nationality, so this stays an editable field rather
+              than a locked summary -- but it's a reasonable default over
+              silently defaulting to whichever country sorts first. */}
+          <Select name="nationality" required defaultValue={isAddingTourLead ? (booking.citizenship ?? undefined) : undefined}>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
@@ -115,37 +153,64 @@ export default async function NewTravelerPage({ params }: Props) {
         {isAddingTourLead && (
           <div className="space-y-4 rounded-survey border border-rule p-4">
             <p className="text-xs uppercase tracking-wide text-mist">Tour lead contact details</p>
-            <div>
-              <p className="mb-1 block text-sm text-mist">Phone</p>
-              <div className="flex gap-2">
-                <Select name="dialCode" defaultValue="264">
+            {knownPhone ? (
+              <div>
+                <p className="text-sm text-mist">Phone</p>
+                <p className="text-sm text-navy">
+                  +{knownPhone.dialCode} {knownPhone.localNumber}
+                </p>
+                <input type="hidden" name="dialCode" value={knownPhone.dialCode} />
+                <input type="hidden" name="localNumber" value={knownPhone.localNumber} />
+              </div>
+            ) : (
+              <div>
+                <p className="mb-1 block text-sm text-mist">Phone</p>
+                <div className="flex gap-2">
+                  <Select name="dialCode" defaultValue="264">
+                    {COUNTRY_CODES.map((c) => (
+                      <option key={c.alpha2} value={c.dialCode}>
+                        {flagEmoji(c.alpha2)} +{c.dialCode}
+                      </option>
+                    ))}
+                  </Select>
+                  <input
+                    name="localNumber"
+                    type="tel"
+                    required
+                    placeholder="81 234 5678"
+                    className="flex-1 rounded-survey border border-rule px-3 py-2"
+                  />
+                </div>
+              </div>
+            )}
+            {knownEmail ? (
+              <div>
+                <p className="text-sm text-mist">Email</p>
+                <p className="text-sm text-navy">{knownEmail}</p>
+                <input type="hidden" name="email" value={knownEmail} />
+              </div>
+            ) : (
+              <FormField label="Email" htmlFor="email">
+                <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+              </FormField>
+            )}
+            {knownCountryOfResidence ? (
+              <div>
+                <p className="text-sm text-mist">Country of residence</p>
+                <p className="text-sm text-navy">{countryName(knownCountryOfResidence)}</p>
+                <input type="hidden" name="countryOfResidence" value={knownCountryOfResidence} />
+              </div>
+            ) : (
+              <FormField label="Country of residence" htmlFor="countryOfResidence">
+                <Select name="countryOfResidence" required>
                   {COUNTRY_CODES.map((c) => (
-                    <option key={c.alpha2} value={c.dialCode}>
-                      {flagEmoji(c.alpha2)} +{c.dialCode}
+                    <option key={c.alpha2} value={c.alpha2}>
+                      {flagEmoji(c.alpha2)} {c.name}
                     </option>
                   ))}
                 </Select>
-                <input
-                  name="localNumber"
-                  type="tel"
-                  required
-                  placeholder="81 234 5678"
-                  className="flex-1 rounded-survey border border-rule px-3 py-2"
-                />
-              </div>
-            </div>
-            <FormField label="Email" htmlFor="email">
-              <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label="Country of residence" htmlFor="countryOfResidence">
-              <Select name="countryOfResidence" required>
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.alpha2} value={c.alpha2}>
-                    {flagEmoji(c.alpha2)} {c.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+              </FormField>
+            )}
           </div>
         )}
 

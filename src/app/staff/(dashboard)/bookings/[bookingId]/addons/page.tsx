@@ -14,6 +14,20 @@ interface Props {
   searchParams: Promise<{ error?: string }>;
 }
 
+// Matches (guest)/plan-my-trip/plan-my-trip-form.tsx's own titleCase/
+// addonLabel -- AddonCode values are two-word SCREAMING_CASE (e.g.
+// "VISA_ASSISTANCE"), hand-copied per-file like the other staff pages that
+// render this enum (see [bookingId]/page.tsx's own copy).
+function titleCase(tag: string): string {
+  return tag.charAt(0) + tag.slice(1).toLowerCase();
+}
+function addonLabel(code: string): string {
+  return code
+    .split('_')
+    .map(titleCase)
+    .join(' ');
+}
+
 // Add-ons is now the FIRST setup step (right after the booking exists) --
 // whether Visa Assistance is picked here decides if a later Passport step
 // appears at all, and for how many travelers (see bookingService.setAddons
@@ -44,12 +58,23 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   // setAddons's own internal-consistency check catches a mixed selection.
   const addons = booking.currency ? allAddons.filter((a) => a.currency === booking.currency) : allAddons;
   const selectedIds = new Set(selected.map((a) => a.addonServiceId));
+  // Guest-declared interest (plan-my-trip step 7, DR-048) -- pre-check the
+  // matching priced service and flag it below so staff aren't re-asking a
+  // question the guest already answered. Only before the first finalize:
+  // once real add-ons are on file, defer entirely to that actual selection.
+  const requestedCodes = new Set(booking.origin === 'TAILOR_MADE' ? booking.preferredAddons : []);
 
   return (
     <div className="max-w-md">
       <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
       <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
       <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add traveler details next.</p>
+      {requestedCodes.size > 0 && (
+        <p className="mt-1 text-sm text-mist">
+          Guest requested on their plan-my-trip request: {[...requestedCodes].map(addonLabel).join(', ')} -- matching
+          services below are pre-checked.
+        </p>
+      )}
       {!booking.currency && (
         <p className="mt-1 text-sm text-mist">
           This booking has no price yet -- add-ons picked here must share one currency; use the cost breakdown to price
@@ -76,10 +101,15 @@ export default async function AddonsPage({ params, searchParams }: Props) {
               type="checkbox"
               name="addonServiceId"
               value={a.id}
-              defaultChecked={selectedIds.has(a.id)}
+              defaultChecked={booking.addonsFinalizedAt ? selectedIds.has(a.id) : selectedIds.has(a.id) || requestedCodes.has(a.code)}
             >
               <span className="flex flex-1 items-center justify-between">
-                <span>{a.name}</span>
+                <span>
+                  {a.name}
+                  {!booking.addonsFinalizedAt && requestedCodes.has(a.code) && (
+                    <span className="ml-2 text-xs uppercase tracking-wide text-forest">Guest requested</span>
+                  )}
+                </span>
                 <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
               </span>
             </SelectableCard>
