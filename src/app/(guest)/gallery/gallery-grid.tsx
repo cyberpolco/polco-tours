@@ -5,14 +5,12 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { flagEmoji } from '@lib/country-codes';
 import type { DestinationSite } from '@lib/destination-sites';
-import { LinkButton } from '@/components/ui/Button';
 import { PackageImage } from '@/components/ui/PackageImage';
 
 const COUNTRY_NAMES: Record<string, string> = { NA: 'Namibia', CD: 'DR Congo', ZM: 'Zambia', ZW: 'Zimbabwe' };
 
 interface GalleryGridProps {
   sites: DestinationSite[];
-  planTripLabel: string;
   closeLabel: string;
 }
 
@@ -21,7 +19,7 @@ interface GalleryGridProps {
 // the destination name/flag is a Link (unchanged path to booking); the
 // picture itself is a button that opens this in-page preview instead of
 // navigating away.
-export function GalleryGrid({ sites, planTripLabel, closeLabel }: GalleryGridProps) {
+export function GalleryGrid({ sites, closeLabel }: GalleryGridProps) {
   const [active, setActive] = useState<DestinationSite | null>(null);
 
   useEffect(() => {
@@ -64,7 +62,7 @@ export function GalleryGrid({ sites, planTripLabel, closeLabel }: GalleryGridPro
             aria-label={active.name}
           >
             <motion.div
-              className="relative w-full max-w-xl"
+              className="relative w-full max-w-2xl"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
@@ -79,16 +77,11 @@ export function GalleryGrid({ sites, planTripLabel, closeLabel }: GalleryGridPro
                 ×
               </button>
               <PackageImage imageUrl={null} alt={active.name} seed={active.name} />
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-bone">
-                <div>
-                  <p className="text-lg font-bold">{active.name}</p>
-                  <p className="text-sm text-bone/80">
-                    {flagEmoji(active.country)} {COUNTRY_NAMES[active.country]}
-                  </p>
-                </div>
-                <LinkButton href={`/plan-my-trip?destination=${active.country}`} variant="primary" size="compact">
-                  {planTripLabel}
-                </LinkButton>
+              <div className="mt-4 text-bone">
+                <p className="text-lg font-bold">{active.name}</p>
+                <p className="text-sm text-bone/80">
+                  {flagEmoji(active.country)} {COUNTRY_NAMES[active.country]}
+                </p>
               </div>
             </motion.div>
           </motion.div>

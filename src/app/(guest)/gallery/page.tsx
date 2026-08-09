@@ -19,7 +19,7 @@ export default async function GalleryPage() {
         <p className="eyebrow text-mist">{t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
         <p className="mt-1 max-w-2xl text-sm text-mist">{t('subhead')}</p>
-        <GalleryGrid sites={DESTINATION_SITES} planTripLabel={t('planTripCta')} closeLabel={t('close')} />
+        <GalleryGrid sites={DESTINATION_SITES} closeLabel={t('close')} />
       </div>
     </Reveal>
   );
