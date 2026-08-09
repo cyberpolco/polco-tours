@@ -19,14 +19,15 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-090 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-091 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-088 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation — nothing
-> schema-related is pending). DR-089 (the staff Map tab — booking-reference
-> lookup, per-day interactive map, per-day PDF download) is fully deployed
-> on top of DR-088. DR-090 re-anchors Rating Code validity to the tour's own
-> last day (usable the day after it ends, expires 5 days after that) instead
+> schema-related is pending; DR-090/091 needed no schema changes at all).
+> DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
+> map, per-day PDF download) is fully deployed on top of DR-088. DR-090
+> re-anchors Rating Code validity to the tour's own last day (usable the day
+> after it ends, expires 5 days after that) instead
 > of to whenever staff happen to issue the code.
 > DR-082 adds `Vehicle`/`DriverProfile`/`GuideProfile.availability`
 > (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
@@ -86,7 +87,13 @@ explicit decision to do so.
 > validity to the tour's own last day instead of issuance date — usable
 > starting the day after the tour ends, expires exactly 5 days after that
 > (`ratingCodeExpiryFromTourEnd`, replacing the old flat 30-days-from-
-> issuance window). See DR-082 through DR-090 for full detail.
+> issuance window). DR-091 adds search/filter/pagination to the staff admin
+> Users and Clients directories (`src/lib/directory-filters.ts` +
+> `src/components/ui/Pagination.tsx`, both shared by the two pages) — the
+> first pagination anywhere in this app; Users' Status filter can now
+> surface Deactivated accounts, previously hard-excluded at the query level
+> and unreachable via any UI state. See DR-082 through DR-091 for full
+> detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -252,7 +259,9 @@ src/
                               #   guest-guard, primary-org, country-codes, provinces,
                               #   tax, platform-rate, rate-limit, qstash, geo,
                               #   fleet-availability (DR-082 cross-module sync helper),
-                              #   client-deletion (DR-085 cross-module delete guard)
+                              #   client-deletion (DR-085 cross-module delete guard),
+                              #   directory-filters (DR-091: shared search/filter/
+                              #   pagination helpers for the admin Users/Clients pages)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage + PackageTag + Departure + AddonService +

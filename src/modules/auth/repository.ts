@@ -80,16 +80,21 @@ export const authRepository = {
     return toPublicUser(u, await resolveRoles(u));
   },
 
-  /** DR-026: every non-deleted STAFF account in the org (i.e. everyone
-   * except TOURIST, which is exclusively the bare-client-record role -- see
+  /** DR-026: every STAFF account in the org (i.e. everyone except TOURIST,
+   * which is exclusively the bare-client-record role -- see
    * createBareTourist above and listClients below) for the admin
    * user-management page (authService.listUsers). Explicitly excludes
    * TOURIST since staff-created client records and guest anonymous-session
    * accounts would otherwise clutter a page meant for managing staff
-   * roles/passwords, neither of which apply to a client at all. */
+   * roles/passwords, neither of which apply to a client at all.
+   *
+   * Deliberately does NOT filter deletedAt (DR-091: the page's own Status
+   * filter needs to be able to show Deactivated accounts too) -- the page
+   * hides them by default in-memory instead, replicating what used to be a
+   * hard DB-level exclusion. */
   async listStaff(organizationId: string): Promise<PublicUser[]> {
     const users = await withOrg(organizationId, (tx) =>
-      tx.user.findMany({ where: { organizationId, deletedAt: null, role: { not: 'TOURIST' } }, orderBy: { email: 'asc' } }),
+      tx.user.findMany({ where: { organizationId, role: { not: 'TOURIST' } }, orderBy: { email: 'asc' } }),
     );
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },

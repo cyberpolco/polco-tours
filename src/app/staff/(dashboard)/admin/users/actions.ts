@@ -40,16 +40,20 @@ export async function createUserAction(_prevState: CreateUserState, formData: Fo
   }
 }
 
-export async function deactivateUserAction(userId: string): Promise<void> {
+// DR-091: redirectQuery carries the caller's current search/filter/page
+// state back through -- without it, deactivating/reactivating a user from
+// a filtered or paginated view would silently drop back to page 1,
+// unfiltered.
+export async function deactivateUserAction(userId: string, redirectQuery: string): Promise<void> {
   const ctx = await requireStaffContext('admin.all');
   await authService.deactivateUser(ctx, userId);
-  redirect('/staff/admin/users');
+  redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }
 
 // DR-084: the only way a dormant (30+ days no sign-in) account is ever
 // restored -- clears User.inactiveAt so the sign-in block lifts.
-export async function reactivateUserAction(userId: string): Promise<void> {
+export async function reactivateUserAction(userId: string, redirectQuery: string): Promise<void> {
   const ctx = await requireStaffContext('admin.all');
   await authService.reactivateUser(ctx, userId);
-  redirect('/staff/admin/users');
+  redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }
