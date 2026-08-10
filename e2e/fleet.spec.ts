@@ -9,13 +9,25 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     await expect(page).toHaveURL(/\/staff\/login/);
   });
 
-  test('authenticated fleet page renders vehicle and driver sections', async ({ page }) => {
+  // DR-095: the combined all-in-one page split into a card hub + one
+  // dedicated list page per type, each with its own search/filter/
+  // pagination -- verify both the hub's cards and that each card actually
+  // links through to its own list page.
+  test('authenticated fleet page renders a card per fleet type, each linking to its own list', async ({ page }) => {
     const { staffUserId } = await seedStaffForFleet();
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto('/staff/fleet');
     await expect(page.getByRole('heading', { name: 'Vehicles' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Drivers' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Guides' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Starlink Kits' })).toBeVisible();
+
+    // The card's whole body is a Link -- clicking the heading inside it
+    // navigates via the ancestor anchor.
+    await Promise.all([page.waitForURL(/\/staff\/fleet\/vehicles$/), page.getByRole('heading', { name: 'Vehicles' }).click()]);
+    await expect(page.getByRole('heading', { name: 'Vehicles' })).toBeVisible();
+    await expect(page.getByLabel('Search')).toBeVisible();
   });
 
   test('staff registers a vehicle through the form', async ({ page }) => {
@@ -38,7 +50,7 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     // tests/api/fleet.api.test.ts instead).
     await expect(page.getByText('MISSING').first()).toBeVisible();
 
-    await page.goto('/staff/fleet');
+    await page.goto('/staff/fleet/vehicles');
     await expect(page.getByText('E2E-PLATE-1')).toBeVisible();
   });
 
@@ -66,7 +78,7 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     // text -- getByText doesn't match input values.
     await expect(page.getByLabel('License number')).toHaveValue('DL-E2E-1');
 
-    await page.goto('/staff/fleet');
+    await page.goto('/staff/fleet/drivers');
     await expect(page.getByText(driverUser.email)).toBeVisible();
   });
 

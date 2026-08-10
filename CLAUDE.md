@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-094 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-095 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
-> breakdowns — nothing schema-related is pending; DR-090/091/093/094 needed
-> no schema changes at all).
+> breakdowns — nothing schema-related is pending; DR-090/091/093/094/095
+> needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -139,8 +139,24 @@ explicit decision to do so.
 > "one level up from both modules" convention `fleet-availability.ts`
 > itself already follows. Deliberately scoped to the QStash cron path only,
 > not `seatsTakenFor`'s lazy on-read sweep (a hot guest-facing path where a
-> missed resync self-corrects at the next real sweep/action anyway). See
-> DR-082 through DR-094 for full detail.
+> missed resync self-corrects at the next real sweep/action anyway).
+> DR-095 splits the fleet dashboard (previously one page, every Vehicle/
+> Driver/Guide/Starlink-Kit table rendered end to end, unpaginated) into a
+> card hub (`/staff/fleet`, count-only cards linking onward) plus one
+> dedicated list page per type (`/staff/fleet/vehicles`, `/drivers`,
+> `/guides`, `/starlink-kits`), each with its own search/filter/pagination —
+> same query-param/GET-driven, `PER_PAGE = 10` convention DR-091 already
+> established for the admin Users/Clients directories, reusing that DR's
+> generic `paginate`/`Pagination` but with fleet-specific search/filter
+> logic kept local to each page (not folded into `directory-filters.ts`,
+> which stays Users/Clients-shaped). Filters per type are drawn from each
+> type's own displayed columns: Vehicles get Status/Availability/Type
+> (Type derived from the data, like DR-091's email-domain filter); Drivers
+> and Guides get Status/Availability (Guides also get a derived Specialty
+> filter); Starlink Kits get Status/Assignment. The four delete actions now
+> redirect to their own type's list page instead of the old combined route,
+> and every detail/new-form page gained a `BackLink` back to its list page.
+> See DR-082 through DR-095 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

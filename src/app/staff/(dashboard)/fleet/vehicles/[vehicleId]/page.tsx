@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { complianceStatus, fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -42,6 +43,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
 
   return (
     <div className="max-w-2xl space-y-8">
+      <BackLink href="/staff/fleet/vehicles">back to vehicles</BackLink>
       <PageHeader eyebrow="Vehicle" title={`${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}`} />
       <p className="-mt-4 text-sm text-mist">
         Availability: <Badge tone={AVAILABILITY_STATUS_TONE[vehicle.availability]}>{vehicle.availability}</Badge>

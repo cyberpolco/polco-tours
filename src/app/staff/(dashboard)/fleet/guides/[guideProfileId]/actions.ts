@@ -28,7 +28,7 @@ export async function updateGuideProfileAction(guideProfileId: string, formData:
 export async function deleteGuideProfileAction(guideProfileId: string): Promise<void> {
   const ctx = await requireStaffContext('fleet.delete');
   await fleetService.deleteGuideProfile(ctx, guideProfileId);
-  redirect('/staff/fleet');
+  redirect('/staff/fleet/guides');
 }
 
 export async function uploadGuideDocumentAction(guideProfileId: string, formData: FormData): Promise<void> {

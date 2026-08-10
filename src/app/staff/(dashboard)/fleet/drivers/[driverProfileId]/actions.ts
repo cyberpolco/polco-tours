@@ -27,7 +27,7 @@ export async function updateDriverProfileAction(driverProfileId: string, formDat
 export async function deleteDriverProfileAction(driverProfileId: string): Promise<void> {
   const ctx = await requireStaffContext('fleet.delete');
   await fleetService.deleteDriverProfile(ctx, driverProfileId);
-  redirect('/staff/fleet');
+  redirect('/staff/fleet/drivers');
 }
 
 export async function uploadDriverDocumentAction(driverProfileId: string, formData: FormData): Promise<void> {

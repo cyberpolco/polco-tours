@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
@@ -29,6 +30,7 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-md space-y-8">
+      <BackLink href="/staff/fleet/starlink-kits">back to Starlink kits</BackLink>
       <div className="flex items-center gap-3">
         <PageHeader eyebrow="Starlink kit" title={kit.kitId} />
         <Badge tone={STARLINK_STATUS_TONE[kit.status]}>{kit.status}</Badge>

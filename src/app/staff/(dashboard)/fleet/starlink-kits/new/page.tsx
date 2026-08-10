@@ -1,5 +1,6 @@
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
@@ -12,6 +13,7 @@ export default async function NewStarlinkKitPage() {
 
   return (
     <div className="max-w-md">
+      <BackLink href="/staff/fleet/starlink-kits">back to Starlink kits</BackLink>
       <PageHeader eyebrow="Fleet · New Starlink kit" title="Register a Starlink kit" />
       <form action={createStarlinkKitAction} className="mt-6 space-y-4">
         <FormField label="Kit ID (Starlink's own serial)" htmlFor="kitId">

@@ -34,5 +34,5 @@ export async function setStarlinkLocationAction(kitId: string, formData: FormDat
 export async function deleteStarlinkKitAction(kitId: string): Promise<void> {
   const ctx = await requireStaffContext('fleet.delete');
   await fleetService.deleteStarlinkKit(ctx, kitId);
-  redirect('/staff/fleet');
+  redirect('/staff/fleet/starlink-kits');
 }

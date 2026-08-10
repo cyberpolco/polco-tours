@@ -1,5 +1,6 @@
 import { requireStaffContext } from '@lib/staff-guard';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -15,6 +16,7 @@ export default async function NewDriverPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-md">
+      <BackLink href="/staff/fleet/drivers">back to drivers</BackLink>
       <PageHeader eyebrow="Fleet · New driver" title="Add a driver profile" />
       {error === 'driver_not_found' && (
         <div className="mt-3">

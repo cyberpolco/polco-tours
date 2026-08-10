@@ -31,7 +31,7 @@ export async function updateVehicleAction(vehicleId: string, formData: FormData)
 export async function deleteVehicleAction(vehicleId: string): Promise<void> {
   const ctx = await requireStaffContext('fleet.delete');
   await fleetService.deleteVehicle(ctx, vehicleId);
-  redirect('/staff/fleet');
+  redirect('/staff/fleet/vehicles');
 }
 
 export async function addMaintenanceRecordAction(vehicleId: string, formData: FormData): Promise<void> {

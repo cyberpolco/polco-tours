@@ -3,6 +3,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { complianceStatus, fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -38,6 +39,7 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
 
   return (
     <div className="max-w-2xl space-y-8">
+      <BackLink href="/staff/fleet/drivers">back to drivers</BackLink>
       <div>
         <PageHeader eyebrow="Driver" title={user?.name ?? user?.email ?? driver.userId} />
         <p className="mt-1 text-mist">{user?.email}</p>

@@ -1,5 +1,6 @@
 import { requireStaffContext } from '@lib/staff-guard';
 import { Alert } from '@/components/ui/Alert';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -15,6 +16,7 @@ export default async function NewGuidePage({ searchParams }: Props) {
 
   return (
     <div className="max-w-md">
+      <BackLink href="/staff/fleet/guides">back to guides</BackLink>
       <PageHeader eyebrow="Fleet · New guide" title="Add a guide profile" />
       {error === 'guide_not_found' && (
         <div className="mt-3">
