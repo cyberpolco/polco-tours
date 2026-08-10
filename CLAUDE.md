@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-101 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-102 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097/098/099/100/101 needed no schema changes at all).
+> 096/097/098/099/100/101/102 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -201,7 +201,13 @@ explicit decision to do so.
 > page into `schedule/build-schedule-rows.ts`/`assignments-section.tsx`
 > (plain modules, not `page.tsx`/`route.ts`, so the DR-100 export
 > restriction doesn't apply) so the hub and all three list pages share one
-> implementation. See DR-082 through DR-101 for full detail.
+> implementation. DR-102 makes the staff Ratings page's "Agency overall"
+> show 5 grey stars (`RatingStars` at `rating={0}`, not a new empty-state
+> variant) plus a jump-link to the page's own "Individual reviews" section
+> when there are zero reviews yet — deliberately unlike the guest homepage
+> `TrustSummary` (DR-068), which hides itself entirely at zero reviews;
+> that no-fake-social-proof concern doesn't apply to this staff-only view.
+> See DR-082 through DR-102 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

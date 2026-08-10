@@ -2,6 +2,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { ratingsService } from '@modules/ratings';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RatingStars } from '@/components/ui/RatingStars';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 
 function formatAverage(averageRating: number | null, ratingCount: number): string {
@@ -34,9 +35,21 @@ export default async function RatingsPage() {
 
       <div>
         <p className="eyebrow text-mist">Agency overall</p>
-        <p className="mt-1 text-lg font-semibold text-navy">
-          {formatAverage(summary.organization.averageRating, summary.organization.ratingCount)}
-        </p>
+        <div className="mt-1 flex items-center gap-2">
+          {/* rating=0 renders the muted underlying row with the gold overlay
+              clipped to 0% width -- i.e. 5 plain grey stars, the honest
+              "nothing rated yet" state rather than fabricating a positive
+              look (same no-fake-social-proof convention as the guest
+              homepage's TrustSummary, just not hidden entirely here since
+              this is a staff-only insights view, not public marketing). */}
+          <RatingStars rating={summary.organization.averageRating ?? 0} size="md" />
+          <p className="text-lg font-semibold text-navy">
+            {formatAverage(summary.organization.averageRating, summary.organization.ratingCount)}
+          </p>
+        </div>
+        <a href="#individual-reviews" className="mt-1 inline-block text-sm text-forest hover:underline">
+          See users&rsquo; ratings and comments
+        </a>
       </div>
 
       <div>
@@ -71,7 +84,7 @@ export default async function RatingsPage() {
         )}
       </div>
 
-      <div>
+      <div id="individual-reviews">
         <div className="survey-rule mb-4" />
         <p className="eyebrow text-mist">Individual reviews</p>
         {reviews.length === 0 ? (
