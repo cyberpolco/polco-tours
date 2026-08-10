@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-099 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-100 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097/098/099 needed no schema changes at all).
+> 096/097/098/099/100 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -191,8 +191,10 @@ explicit decision to do so.
 > (no card-hub split — neither has a natural sub-category) — a Country
 > filter plus name/address/contact search, applied after each page's
 > existing anti-BOLA access-scoping (TOUR_GUIDE/DRIVER still only ever see
-> what they're allowed to rate), never widening it. See DR-082 through
-> DR-099 for full detail.
+> what they're allowed to rate), never widening it. DR-100 gives the
+> Itineraries list the same treatment (search + Itinerary-status + the
+> joined Booking's own status, no hub — `ItineraryStatus` is only three
+> values). See DR-082 through DR-100 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -864,3 +866,16 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   `NEXT_PUBLIC_*` absolute URL is genuinely unavoidable, remember a Vercel
   env var change alone doesn't fix already-built output — it needs a fresh
   deploy.
+- **A `page.tsx` can only export `default` plus Next's own well-known
+  names** (`generateMetadata`, `generateStaticParams`, `dynamic`,
+  `revalidate`, etc.) — any other named export (e.g. a shared constant a
+  sibling route wants to import) fails `next build`'s own type-checking
+  with "is not a valid Page export field," but plain `tsc --noEmit` does
+  **not** catch it (real incident, DR-098/100: `FILTERABLE_STATUSES`
+  exported from `bookings/page.tsx`, passed local `typecheck`/`lint`,
+  broke CI's Build step). Put anything a page needs to share with a
+  sibling route in `src/lib/` instead of exporting it from the page file.
+  `npm run build` itself may not be runnable to completion in every
+  sandbox (e.g. no network access to fetch Google Fonts for `next/font`)
+  — that's an environment gap, not a signal the code is fine; CI's Build
+  step is the real gate for this class of error.
