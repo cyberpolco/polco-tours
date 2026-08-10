@@ -1,154 +1,42 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
-import { authService, type PublicUser } from '@modules/auth';
-import { assignmentService, type AssignmentView } from '@modules/assignment';
 import { bookingService, type TravelerDutyGroup } from '@modules/booking';
-import { catalogService } from '@modules/catalog';
-import { fleetService, type DriverProfileView, type VehicleView } from '@modules/fleet';
 import { itineraryService } from '@modules/itinerary';
-import { resolveTripProgress, type TripProgress } from '@modules/tracking';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Table, TableHeaderRow, Th, Tr, Td } from '@/components/ui/Table';
-import { DEPARTURE_STATUS_TONE, ITINERARY_STATUS_TONE } from '@lib/status-tones';
-
-interface ScheduleRow {
-  assignment: AssignmentView;
-  detail: Awaited<ReturnType<typeof catalogService.getDepartureDetail>>;
-  vehicle: VehicleView | undefined;
-  driverProfile: DriverProfileView | undefined;
-  guide: PublicUser | null | undefined;
-  progress: TripProgress | null;
-}
-
-// One grouped table (Upcoming/In Progress/Completed) -- split out so the
-// three sections share identical columns/rendering instead of tripling the
-// JSX. Renders nothing at all when empty, so an entirely-upcoming schedule
-// doesn't show two empty "In progress"/"Completed" headings.
-function AssignmentsSection({ title, rows }: { title: string; rows: ScheduleRow[] }) {
-  if (rows.length === 0) return null;
-  return (
-    <div>
-      <h2 className="mb-2 text-sm font-semibold text-navy">{title}</h2>
-      <Table>
-        <thead>
-          <TableHeaderRow>
-            <Th>Departure</Th>
-            <Th>Vehicle</Th>
-            <Th>Driver</Th>
-            <Th>Guide</Th>
-            <Th>Pickup point</Th>
-          </TableHeaderRow>
-        </thead>
-        <tbody>
-          {rows.map(({ assignment, detail, vehicle, driverProfile, guide, progress }) => (
-            <Tr key={assignment.id}>
-              <Td>
-                {detail.departure.startDate.toLocaleDateString()} · {detail.packageCountry}{' '}
-                <Badge tone={DEPARTURE_STATUS_TONE[detail.departure.status]}>{detail.departure.status}</Badge>
-                {progress?.status === 'IN_PROGRESS' && (
-                  <>
-                    <span className="ml-2 text-xs text-mist">
-                      {progress.totalDays != null ? `Day ${progress.dayNumber} of ${progress.totalDays}` : `Day ${progress.dayNumber}`}
-                    </span>
-                    {progress.percentComplete != null && (
-                      <div className="mt-1 h-1.5 w-32 rounded-full bg-rule">
-                        <div
-                          className="h-1.5 rounded-full bg-forest"
-                          style={{ width: `${progress.percentComplete}%` }}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </Td>
-              <Td>{vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : 'Unknown vehicle'}</Td>
-              <Td>{driverProfile ? `License ${driverProfile.licenseNumber}` : 'Unknown driver'}</Td>
-              <Td>{guide ? (guide.name ?? guide.email) : '—'}</Td>
-              <Td>
-                {detail.departure.pickupLatitude != null && detail.departure.pickupLongitude != null
-                  ? `${detail.departure.pickupLatitude.toFixed(4)}, ${detail.departure.pickupLongitude.toFixed(4)}`
-                  : 'Not set'}
-              </Td>
-            </Tr>
-          ))}
-        </tbody>
-      </Table>
-    </div>
-  );
-}
+import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
+import { buildScheduleRows } from './build-schedule-rows';
 
 // Self-service read for TOUR_GUIDE/DRIVER/VEHICLE_OWNER -- closes the gap
 // DR-018/019/020 each deferred. No actions.ts: strictly read-only, same
-// convention as /staff/immigration. Composition (join raw AssignmentView[]
-// against departure/vehicle/driver/guide data) happens right here, same
-// pattern already used by the manager-side departure-detail page, rather
-// than a shared cross-module service method.
+// convention as /staff/immigration.
+//
+// DR-101: the three Upcoming/In Progress/Completed sections that used to
+// render inline here (one flat table each, unpaginated) are now three
+// cards -- Past/In Progress/Future -- linking to their own dedicated list
+// pages, each with search/filter/pagination, mirroring the DR-098 Bookings
+// hub. The row-building (assignment -> departure/vehicle/driver/guide join
+// + tracking progress) moved to build-schedule-rows.ts so the hub (counts
+// only) and all three list pages share one implementation instead of four.
+// The "Daily itinerary & clients"/"Itineraries" sections below are
+// unaffected -- they're not naturally split by time-status the way the
+// assignment list itself is, so they stay here exactly as before.
 export default async function MySchedulePage() {
   const ctx = await requireStaffContext('assignment.read');
-  const assignments = await assignmentService.listMyAssignments(ctx);
+  const rows = await buildScheduleRows(ctx);
 
-  const departureIds = [...new Set(assignments.map((a) => a.departureId))];
-  const vehicleIds = [...new Set(assignments.map((a) => a.vehicleId))];
-  const driverProfileIds = [...new Set(assignments.map((a) => a.driverProfileId))];
-  const guideUserIds = [...new Set(assignments.map((a) => a.guideUserId).filter((id): id is string => Boolean(id)))];
+  const pastCount = rows.filter((r) => r.progress?.status === 'COMPLETED').length;
+  const inProgressCount = rows.filter((r) => r.progress?.status === 'IN_PROGRESS').length;
+  const futureCount = rows.filter((r) => r.progress?.status === 'NOT_STARTED').length;
 
-  // getDepartureDetail 404s for a non-operator role once a departure is no
-  // longer SCHEDULED (catalog/domain.ts's isDepartureVisible) -- routine for
-  // a COMPLETED trip in a TOUR_GUIDE/DRIVER/VEHICLE_OWNER's own history, so
-  // this must tolerate individual failures (allSettled) rather than let one
-  // completed departure 500 the whole page (Promise.all would).
-  //
-  // Every role reaching this page holds fleet.read today (TOUR_GUIDE gained
-  // it in DR-030 for its own GuideProfile self-view, DRIVER/VEHICLE_OWNER
-  // have held it since DR-017) -- this check is a defensive guard against a
-  // future role reaching this page without it, not a real branch today; it
-  // skips the fleet lookups entirely rather than letting fleetService's
-  // assertCan throw and crash the page, falling back to "Unknown
-  // vehicle/driver" the same way a missing lookup already renders.
-  const canReadFleet = can(ctx, 'fleet.read');
-  const [departureResults, vehicles, driverProfiles, guides] = await Promise.all([
-    Promise.allSettled(departureIds.map((id) => catalogService.getDepartureDetail(ctx, id))),
-    canReadFleet ? fleetService.listVehiclesByIds(ctx, vehicleIds) : Promise.resolve<VehicleView[]>([]),
-    canReadFleet ? fleetService.listDriverProfilesByIds(ctx, driverProfileIds) : Promise.resolve<DriverProfileView[]>([]),
-    Promise.all(guideUserIds.map((id) => authService.getUser(id))),
-  ]);
-  const departureDetails = departureResults
-    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof catalogService.getDepartureDetail>>> => r.status === 'fulfilled')
-    .map((r) => r.value);
-
-  const departureById = new Map(departureDetails.map((d) => [d.departure.id, d]));
-  const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
-  const driverProfileById = new Map(driverProfiles.map((d) => [d.id, d]));
-  const guideById = new Map(guides.filter(Boolean).map((g) => [g!.id, g!]));
-
-  const now = new Date();
-  const rows = assignments
-    .map((a) => {
-      const detail = departureById.get(a.departureId);
-      return {
-        assignment: a,
-        detail,
-        vehicle: vehicleById.get(a.vehicleId),
-        driverProfile: driverProfileById.get(a.driverProfileId),
-        guide: a.guideUserId ? guideById.get(a.guideUserId) : null,
-        // Tracking (DR-041): departure-level date-range progress, not
-        // itinerary-day-level -- see tracking/domain.ts's resolveTripProgress
-        // comment for why.
-        progress: detail ? resolveTripProgress(detail.departure.startDate, detail.departure.endDate, now) : null,
-      };
-    })
-    .filter((r): r is typeof r & { detail: NonNullable<typeof r.detail> } => r.detail !== undefined)
-    .sort((a, b) => a.detail.departure.startDate.getTime() - b.detail.departure.startDate.getTime());
-
-  // Grouped Upcoming/In Progress/Completed instead of one flat interleaved
-  // table -- clearer at a glance once someone has more than a handful of
-  // assignments, same status-grouping instinct as /staff/bookings' filter
-  // pills.
-  const upcomingRows = rows.filter((r) => r.progress?.status === 'NOT_STARTED');
-  const inProgressRows = rows.filter((r) => r.progress?.status === 'IN_PROGRESS');
-  const completedRows = rows.filter((r) => r.progress?.status === 'COMPLETED');
+  const sections = [
+    { href: '/staff/schedule/past', title: 'Past', count: pastCount },
+    { href: '/staff/schedule/in-progress', title: 'In Progress', count: inProgressCount },
+    { href: '/staff/schedule/future', title: 'Future', count: futureCount },
+  ];
 
   // Guides Module (DR-030), widened to DRIVER by the "My Schedule" spec
   // section (DR-031): client details for travelers on the caller's own
@@ -196,10 +84,17 @@ export default async function MySchedulePage() {
       {rows.length === 0 ? (
         <p className="text-mist">No assignments yet.</p>
       ) : (
-        <div className="space-y-8">
-          <AssignmentsSection title="In progress" rows={inProgressRows} />
-          <AssignmentsSection title="Upcoming" rows={upcomingRows} />
-          <AssignmentsSection title="Completed" rows={completedRows} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {sections.map((s) => (
+            <Card key={s.href} interactive className="p-0">
+              <Link href={s.href} className="block p-5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-navy">{s.title}</h2>
+                  <span className="text-2xl font-bold text-navy">{s.count}</span>
+                </div>
+              </Link>
+            </Card>
+          ))}
         </div>
       )}
 

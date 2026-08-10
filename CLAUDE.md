@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-100 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-101 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097/098/099/100 needed no schema changes at all).
+> 096/097/098/099/100/101 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -194,7 +194,14 @@ explicit decision to do so.
 > what they're allowed to rate), never widening it. DR-100 gives the
 > Itineraries list the same treatment (search + Itinerary-status + the
 > joined Booking's own status, no hub — `ItineraryStatus` is only three
-> values). See DR-082 through DR-100 for full detail.
+> values). DR-101 gives "My schedule" (self-service TOUR_GUIDE/DRIVER/
+> VEHICLE_OWNER assignments) the same card-hub-plus-lists shape — Past/
+> In Progress/Future cards, each a list page with search + a Departure-
+> status filter + pagination. Row-building/table markup moved out of the
+> page into `schedule/build-schedule-rows.ts`/`assignments-section.tsx`
+> (plain modules, not `page.tsx`/`route.ts`, so the DR-100 export
+> restriction doesn't apply) so the hub and all three list pages share one
+> implementation. See DR-082 through DR-101 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
