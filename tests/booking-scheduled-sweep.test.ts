@@ -143,7 +143,13 @@ describe('bookingService.runScheduledSweep (DR-067)', () => {
     async () => {
       const result = await bookingService.runScheduledSweep();
 
-      const row = await admin.booking.findUniqueOrThrow({ where: { id: confirmedBookingAId } });
+      // Unlike the plain `admin` client used by the purge test above (whose
+      // toBeNull() assertion happens to hold whether the row was actually
+      // deleted or merely RLS-hidden from the unscoped client), this
+      // assertion needs the row's real content back, so it must go through
+      // withOrg -- admin.booking.findUnique alone returns nothing for an
+      // RLS-protected table with no app.org_id GUC set (deny-by-default).
+      const row = await withOrg(orgAId, (tx) => tx.booking.findUniqueOrThrow({ where: { id: confirmedBookingAId } }));
       expect(row.status).toBe('IN_PROGRESS');
       expect(result.transitionedDepartures).toEqual(
         expect.arrayContaining([{ organizationId: orgAId, departureId: departureAId }]),
