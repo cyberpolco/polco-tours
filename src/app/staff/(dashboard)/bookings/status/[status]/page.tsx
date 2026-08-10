@@ -15,7 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { deleteBookingAction } from '../../[bookingId]/actions';
-import { FILTERABLE_STATUSES } from '../../page';
+import { FILTERABLE_BOOKING_STATUSES } from '@lib/booking-statuses';
 
 const PER_PAGE = 10;
 
@@ -37,7 +37,7 @@ function matchesQuery(b: BookingView, query: string): boolean {
 
 export default async function BookingsByStatusPage({ params, searchParams }: Props) {
   const { status: statusParam } = await params;
-  if (!(FILTERABLE_STATUSES as string[]).includes(statusParam)) notFound();
+  if (!(FILTERABLE_BOOKING_STATUSES as string[]).includes(statusParam)) notFound();
   const status = statusParam as BookingStatus;
 
   const ctx = await requireStaffContext('booking.read');

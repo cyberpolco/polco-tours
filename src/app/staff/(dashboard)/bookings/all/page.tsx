@@ -14,7 +14,7 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { deleteBookingAction } from '../[bookingId]/actions';
-import { FILTERABLE_STATUSES } from '../page';
+import { FILTERABLE_BOOKING_STATUSES } from '@lib/booking-statuses';
 
 const PER_PAGE = 10;
 
@@ -37,7 +37,7 @@ export default async function AllBookingsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.read');
   const params = await searchParams;
   const q = params.q ?? '';
-  const status = (FILTERABLE_STATUSES as string[]).includes(params.status ?? '') ? (params.status as BookingStatus) : '';
+  const status = (FILTERABLE_BOOKING_STATUSES as string[]).includes(params.status ?? '') ? (params.status as BookingStatus) : '';
   const origin = params.origin === 'PREDEFINED_PACKAGE' || params.origin === 'TAILOR_MADE' ? params.origin : '';
 
   const allBookings = await bookingService.list(ctx);
@@ -83,7 +83,7 @@ export default async function AllBookingsPage({ searchParams }: Props) {
         <FormField label="Status" htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
             <option value="">All</option>
-            {FILTERABLE_STATUSES.map((s) => (
+            {FILTERABLE_BOOKING_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
