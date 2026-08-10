@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { PrismaClient } from '@prisma/client';
 import { withOrg, prisma } from '../src/lib/db';
 
@@ -29,7 +29,7 @@ async function seedOrg(name: string): Promise<string> {
     tx.tourPackage.create({
       data: {
         organizationId: org.id,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `${name} Safari`,
         description: 'Cross-tenant RLS fixture package.',
         country: 'NA',
@@ -91,7 +91,7 @@ describe('Row-Level Security: tenant isolation', () => {
         tx.tourPackage.create({
           data: {
             organizationId: orgA,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
             title: 'smuggled',
             description: 'n/a',
             country: 'NA',

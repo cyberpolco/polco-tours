@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../helpers/package-reference';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
@@ -78,7 +78,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: 'Invoicing Fixture Safari',
         description: 'Fixture for invoicing API tests.',
         country,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../src/lib/db';
 import { syncFleetAvailabilityForDeparture } from '../src/lib/fleet-availability';
@@ -39,7 +39,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: 'Fleet Sync Fixture Safari',
         description: 'Fixture.',
         country: 'NA',

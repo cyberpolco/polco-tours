@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
 import { ratingsService } from '@modules/ratings';
 import { prisma, withOrg } from '../src/lib/db';
@@ -71,7 +71,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-RATING-${suffix}`,
         description: 'Fixture for ratings tests.',
         country: 'NA',

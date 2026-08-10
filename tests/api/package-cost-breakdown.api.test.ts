@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../helpers/package-reference';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getCostBreakdown, PUT as saveCostBreakdown } from '../../src/app/api/v1/catalog/packages/[packageId]/cost-breakdown/route';
@@ -60,7 +60,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-COST-BREAKDOWN-${suffix}`,
         description: 'Fixture for cost breakdown tests.',
         country: TEST_COUNTRY,

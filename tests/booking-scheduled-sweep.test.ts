@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '../src/modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { prisma, withOrg } from '../src/lib/db';
 import { bookingService, generateBookingReference } from '../src/modules/booking';
 
@@ -73,7 +73,7 @@ async function createConfirmedBookingPastStartDate(organizationId: string, touri
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: 'Sweep Fixture Safari',
         description: 'Fixture.',
         country: 'NA',

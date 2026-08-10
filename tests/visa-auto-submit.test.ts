@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { bookingService, generateBookingReference } from '@modules/booking';
 import { visaService } from '@modules/visa';
 import { prisma, withOrg } from '../src/lib/db';
@@ -36,7 +36,7 @@ async function createVisaBooking(): Promise<{ bookingId: string; travelerId: str
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `Visa Auto-Submit Fixture ${suffix}`,
         description: 'Fixture.',
         country: 'NA',

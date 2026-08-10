@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../src/lib/db';
 import { catalogService } from '../src/modules/catalog';
@@ -28,7 +28,7 @@ beforeAll(async () => {
     const published = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-PUBLIC-PUBLISHED-${suffix}`,
         description: 'Fixture for public catalog tests.',
         country: 'NA',
@@ -44,7 +44,7 @@ beforeAll(async () => {
     const draft = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-PUBLIC-DRAFT-${suffix}`,
         description: 'Should never appear in public results.',
         country: 'NA',

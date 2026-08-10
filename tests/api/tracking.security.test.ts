@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../helpers/package-reference';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getTracking } from '../../src/app/api/v1/tracking/route';
@@ -48,7 +48,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgAId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-TRACKING-SEC-${suffix}`,
         description: 'Fixture.',
         country: 'NA',

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../helpers/package-reference';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
@@ -41,7 +41,7 @@ beforeAll(async () => {
   touristId = tourist.id;
 
   await withOrg(orgId, async (tx) => {
-    packageReference = formatPackageReference(Date.now());
+    packageReference = testPackageReference();
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,

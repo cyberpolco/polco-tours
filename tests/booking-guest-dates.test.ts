@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { bookingService } from '@modules/booking';
 import type { AuthContext } from '@modules/auth';
 import { PrismaClient } from '@prisma/client';
@@ -52,7 +52,7 @@ beforeAll(async () => {
     const published = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-GUEST-DATES-${suffix}`,
         description: 'Fixture for guest-chosen-dates booking tests.',
         country: 'NA',
@@ -67,7 +67,7 @@ beforeAll(async () => {
     const draft = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-GUEST-DATES-DRAFT-${suffix}`,
         description: 'Should never be bookable.',
         country: 'NA',
@@ -82,7 +82,7 @@ beforeAll(async () => {
     const noDuration = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `TEST-GUEST-DATES-NO-DURATION-${suffix}`,
         description: 'Published + priced but no staff-set duration -- must not be guest-bookable.',
         country: 'NA',

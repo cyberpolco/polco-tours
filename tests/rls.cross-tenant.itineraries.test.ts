@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
 import { withOrg, prisma } from '../src/lib/db';
 
@@ -19,7 +19,7 @@ async function seedOrgWithItinerary(name: string): Promise<{ orgId: string; book
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: 'Itinerary RLS Fixture',
         description: 'Fixture for itinerary RLS tests.',
         country: 'NA',

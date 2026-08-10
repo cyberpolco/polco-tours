@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference, catalogService } from '@modules/catalog';
+import { catalogService } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
 import { itineraryService } from '@modules/itinerary';
 import { prisma, withOrg } from '../src/lib/db';
@@ -68,7 +69,7 @@ describe('Package itinerary template', () => {
       tx.tourPackage.create({
         data: {
           organizationId: orgId,
-          packageReference: formatPackageReference(Date.now()),
+          packageReference: testPackageReference(),
           title: 'Template CRUD Fixture',
           description: 'Fixture.',
           country: 'NA',
@@ -100,7 +101,7 @@ describe('Package itinerary template', () => {
       const pkg = await tx.tourPackage.create({
         data: {
           organizationId: orgId,
-          packageReference: formatPackageReference(Date.now()),
+          packageReference: testPackageReference(),
           title: 'Auto-Copy Fixture Safari',
           description: 'Fixture.',
           country: 'NA',

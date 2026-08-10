@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
@@ -53,7 +53,7 @@ beforeAll(async () => {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: orgId,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: 'Itinerary API Fixture Safari',
         description: 'Fixture for itinerary API tests.',
         country: 'NA',

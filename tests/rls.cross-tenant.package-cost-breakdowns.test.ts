@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from './helpers/package-reference';
 import { withOrg, prisma } from '../src/lib/db';
 
 /** Extends the RLS proof to the `package_cost_breakdowns` table added in DR-039. */
@@ -15,7 +15,7 @@ async function seedOrgWithBreakdown(name: string): Promise<string> {
     const pkg = await tx.tourPackage.create({
       data: {
         organizationId: org.id,
-        packageReference: formatPackageReference(Date.now()),
+        packageReference: testPackageReference(),
         title: `RLS-PCB-${name}`,
         description: 'Fixture package for cost-breakdown RLS test.',
         country: 'NA',

@@ -19,12 +19,13 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-102 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-103 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097/098/099/100/101/102 needed no schema changes at all).
+> 096/097/098/099/100/101/102/103 needed no schema changes at all; DR-103
+> touched test infrastructure only, no production code).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -207,7 +208,9 @@ explicit decision to do so.
 > when there are zero reviews yet — deliberately unlike the guest homepage
 > `TrustSummary` (DR-068), which hides itself entirely at zero reviews;
 > that no-fake-social-proof concern doesn't apply to this staff-only view.
-> See DR-082 through DR-102 for full detail.
+> DR-103 is a test-infrastructure-only fix (see Gotchas below for the
+> pattern) — no production code touched. See DR-082 through DR-103 for
+> full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -892,3 +895,14 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   sandbox (e.g. no network access to fetch Google Fonts for `next/font`)
   — that's an environment gap, not a signal the code is fine; CI's Build
   step is the real gate for this class of error.
+- **A test fixture's "unique-enough" id must actually be unique across a
+  full CI run, not just within one file** — `formatPackageReference(Date
+  .now())`, used across ~40 test files (DR-103) as a shortcut to fabricate
+  a throwaway package reference, collided for real once two test files
+  running in parallel read the identical millisecond, tripping
+  `packageReference @unique`. `formatPackageReference()` itself just
+  stringifies+pads whatever's passed — it's meant to be called with a real
+  DB sequence value (`nextval()`), not a timestamp. Use `tests/helpers/
+  package-reference.ts`'s `testPackageReference()` (adds a random
+  component) for any new fixture needing one instead of reintroducing the
+  `Date.now()` shortcut.
