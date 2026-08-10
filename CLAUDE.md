@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-098 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-099 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097/098 needed no schema changes at all).
+> 096/097/098/099 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -186,8 +186,13 @@ explicit decision to do so.
 > zero-count status still gets its own card (CANCELLED/REFUNDED are no
 > longer hidden-by-default). `/staff/bookings/new` also gained an explicit
 > top-level two-card chooser (existing-package vs. tailor-made), replacing
-> a default view that silently favored the package list. See DR-082
-> through DR-098 for full detail.
+> a default view that silently favored the package list. DR-099 adds
+> search/filter/pagination directly to the Hotels and Restaurants lists
+> (no card-hub split — neither has a natural sub-category) — a Country
+> filter plus name/address/contact search, applied after each page's
+> existing anti-BOLA access-scoping (TOUR_GUIDE/DRIVER still only ever see
+> what they're allowed to rate), never widening it. See DR-082 through
+> DR-099 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

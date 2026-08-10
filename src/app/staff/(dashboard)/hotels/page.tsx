@@ -1,10 +1,37 @@
 import Link from 'next/link';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
-import { itineraryService } from '@modules/itinerary';
+import { itineraryService, type HotelView } from '@modules/itinerary';
+import { paginate } from '@lib/directory-filters';
+import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Pagination } from '@/components/ui/Pagination';
+import { Select } from '@/components/ui/Select';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
+
+const PER_PAGE = 10;
+
+interface Props {
+  searchParams: Promise<{ q?: string; country?: string; page?: string }>;
+}
+
+function matchesQuery(h: HotelView, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    h.name.toLowerCase().includes(q) ||
+    (h.address?.toLowerCase().includes(q) ?? false) ||
+    (h.contactName?.toLowerCase().includes(q) ?? false) ||
+    (h.contactEmail?.toLowerCase().includes(q) ?? false) ||
+    (h.contactPhone?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+function listCountries(hotels: HotelView[]): string[] {
+  return [...new Set(hotels.map((h) => h.country))].sort();
+}
 
 // Lightweight reusable reference entities (Itinerary Management, DR-033) --
 // name + contact info only, no compliance tracking like the fleet module.
@@ -13,15 +40,42 @@ import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 // reach here to rate a hotel -- rating moved off the itinerary page onto
 // this one. Non-managers see only hotels they've actually toured
 // (anti-BOLA, same scope rateHotel itself enforces), not the whole org list.
-export default async function HotelsPage() {
+// DR-099: search/filter/pagination added on top of that same access-scoped
+// list, same DR-091/095/097/098 convention.
+export default async function HotelsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('itinerary.read');
   const canWrite = can(ctx, 'itinerary.write');
   const canRate = can(ctx, 'hotel_restaurant_rating.write');
+  const params = await searchParams;
+  const q = params.q ?? '';
+  const country = params.country ?? '';
 
-  let hotels = await itineraryService.listHotels(ctx);
+  let allHotels = await itineraryService.listHotels(ctx);
   if (!canWrite) {
     const rateableIds = new Set(await itineraryService.listMyRateableHotelIds(ctx));
-    hotels = hotels.filter((h) => rateableIds.has(h.id));
+    allHotels = allHotels.filter((h) => rateableIds.has(h.id));
+  }
+  const countryOptions = listCountries(allHotels);
+
+  const filtered = allHotels.filter((h) => {
+    if (country && h.country !== country) return false;
+    if (!matchesQuery(h, q)) return false;
+    return true;
+  });
+  const { items: hotels, page, totalPages, totalItems } = paginate(filtered, Number(params.page ?? '1'), PER_PAGE);
+
+  const baseParams: Record<string, string> = {};
+  if (q) baseParams.q = q;
+  if (country) baseParams.country = country;
+
+  function hrefWith(overrides: Record<string, string | undefined>): string {
+    const merged = { ...baseParams, ...overrides };
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) {
+      if (v) qs.set(k, v);
+    }
+    const s = qs.toString();
+    return s ? `/staff/hotels?${s}` : '/staff/hotels';
   }
 
   return (
@@ -30,8 +84,43 @@ export default async function HotelsPage() {
         <PageHeader eyebrow="Itinerary Management" title="Hotels" />
         {canWrite && <LinkButton href="/staff/hotels/new">Add hotel</LinkButton>}
       </div>
+
+      <form method="get" action="/staff/hotels" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <FormField label="Search" htmlFor="q" optional>
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder="Name, address, or contact"
+            className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
+          />
+        </FormField>
+        <FormField label="Country" htmlFor="country" optional>
+          <Select name="country" defaultValue={country}>
+            <option value="">All</option>
+            {countryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+          <SubmitButton size="compact">Filter</SubmitButton>
+          {(q || country) && (
+            <Link href="/staff/hotels" className="text-sm text-mist hover:underline">
+              Clear filters
+            </Link>
+          )}
+        </div>
+      </form>
+
+      <p className="text-sm text-mist">
+        {totalItems} hotel{totalItems === 1 ? '' : 's'}
+      </p>
+
       {hotels.length === 0 ? (
-        <p className="text-mist">{canWrite ? 'No hotels registered yet.' : 'No hotels to rate yet.'}</p>
+        <p className="text-mist">{totalItems === 0 && !q && !country ? (canWrite ? 'No hotels registered yet.' : 'No hotels to rate yet.') : 'No hotels match these filters.'}</p>
       ) : (
         <Table>
           <thead>
@@ -62,6 +151,8 @@ export default async function HotelsPage() {
           </tbody>
         </Table>
       )}
+
+      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
     </div>
   );
 }
