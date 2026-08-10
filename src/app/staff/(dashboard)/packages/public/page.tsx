@@ -5,6 +5,7 @@ import { paginate } from '@lib/directory-filters';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
+import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
@@ -65,7 +66,10 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <BackLink href="/staff/packages">back to packages</BackLink>
-      <PageHeader eyebrow="Packages" title="Public Packages" />
+      <div className="flex items-center justify-between">
+        <PageHeader eyebrow="Packages" title="Public Packages" />
+        <LinkButton href="/staff/packages/new">New package</LinkButton>
+      </div>
 
       <form method="get" action="/staff/packages/public" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <FormField label="Search" htmlFor="q" optional>
