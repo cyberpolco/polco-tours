@@ -22,8 +22,6 @@ let orgAId: string;
 let orgBId: string;
 let touristAId: string;
 let touristBId: string;
-let departureAId: string;
-let confirmedBookingAId: string;
 
 async function createBackdatedSoftDeletedBooking(organizationId: string, touristUserId: string): Promise<string> {
   return withOrg(organizationId, async (tx) => {
@@ -59,14 +57,22 @@ beforeAll(async () => {
   ]);
   touristAId = touristA.id;
   touristBId = touristB.id;
+});
 
-  // DR-094 fixture: a CONFIRMED booking on a departure whose startDate has
-  // already passed -- sweepLifecycle's own CONFIRMED -> IN_PROGRESS
-  // transition should pick this up and report the departure back.
-  await withOrg(orgAId, async (tx) => {
+// DR-094 fixture: a CONFIRMED booking on a departure whose startDate has
+// already passed -- sweepLifecycle's own CONFIRMED -> IN_PROGRESS
+// transition should pick this up and report the departure back. Created
+// on demand (not in the shared beforeAll above) and consumed immediately
+// by its own test -- the OTHER test in this file also calls
+// runScheduledSweep(), which sweeps every org unconditionally, so a
+// CONFIRMED booking sitting around from beforeAll would already have been
+// flipped to IN_PROGRESS as that test's side effect by the time this one
+// runs, leaving nothing left to transition.
+async function createConfirmedBookingPastStartDate(organizationId: string, touristUserId: string): Promise<{ departureId: string; bookingId: string }> {
+  return withOrg(organizationId, async (tx) => {
     const pkg = await tx.tourPackage.create({
       data: {
-        organizationId: orgAId,
+        organizationId,
         packageReference: formatPackageReference(Date.now()),
         title: 'Sweep Fixture Safari',
         description: 'Fixture.',
@@ -77,14 +83,13 @@ beforeAll(async () => {
       },
     });
     const departure = await tx.departure.create({
-      data: { organizationId: orgAId, tourPackageId: pkg.id, startDate: new Date(Date.now() - 24 * 60 * 60 * 1000), capacity: 5, status: 'SCHEDULED' },
+      data: { organizationId, tourPackageId: pkg.id, startDate: new Date(Date.now() - 24 * 60 * 60 * 1000), capacity: 5, status: 'SCHEDULED' },
     });
-    departureAId = departure.id;
     const booking = await tx.booking.create({
       data: {
-        organizationId: orgAId,
-        departureId: departureAId,
-        touristUserId: touristAId,
+        organizationId,
+        departureId: departure.id,
+        touristUserId,
         bookingReference: generateBookingReference(),
         seats: 1,
         priceMinor: 10000,
@@ -92,9 +97,9 @@ beforeAll(async () => {
         status: 'CONFIRMED',
       },
     });
-    confirmedBookingAId = booking.id;
+    return { departureId: departure.id, bookingId: booking.id };
   });
-});
+}
 
 afterAll(async () => {
   if (!orgAId || !orgBId) {
@@ -141,6 +146,10 @@ describe('bookingService.runScheduledSweep (DR-067)', () => {
   it(
     'advances a CONFIRMED booking past its departure startDate to IN_PROGRESS, and reports the departure back so the caller can resync fleet availability (DR-094)',
     async () => {
+      // Created here, not in the shared beforeAll -- see
+      // createConfirmedBookingPastStartDate's own comment for why.
+      const { departureId, bookingId } = await createConfirmedBookingPastStartDate(orgAId, touristAId);
+
       const result = await bookingService.runScheduledSweep();
 
       // Unlike the plain `admin` client used by the purge test above (whose
@@ -149,10 +158,10 @@ describe('bookingService.runScheduledSweep (DR-067)', () => {
       // assertion needs the row's real content back, so it must go through
       // withOrg -- admin.booking.findUnique alone returns nothing for an
       // RLS-protected table with no app.org_id GUC set (deny-by-default).
-      const row = await withOrg(orgAId, (tx) => tx.booking.findUniqueOrThrow({ where: { id: confirmedBookingAId } }));
+      const row = await withOrg(orgAId, (tx) => tx.booking.findUniqueOrThrow({ where: { id: bookingId } }));
       expect(row.status).toBe('IN_PROGRESS');
       expect(result.transitionedDepartures).toEqual(
-        expect.arrayContaining([{ organizationId: orgAId, departureId: departureAId }]),
+        expect.arrayContaining([{ organizationId: orgAId, departureId }]),
       );
     },
     // Same full-DB-sweep cost as the test above -- see its own comment.
