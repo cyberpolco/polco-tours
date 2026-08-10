@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-097 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-098 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
-> 096/097 needed no schema changes at all).
+> 096/097/098 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -178,7 +178,16 @@ explicit decision to do so.
 > filter/pagination via the same DR-091/095 convention. No schema change —
 > `TourPackage.status` already had exactly these three values. The package
 > detail page's back link is now dynamic (reflects the package's live
-> status), not a fixed hub link. See DR-082 through DR-097 for full detail.
+> status), not a fixed hub link. DR-098 gives Bookings the same shape —
+> `/staff/bookings` is a card hub (All + one card per filterable
+> `BookingStatus`, DRAFT still omitted), backed by `/staff/bookings/all`
+> and the dynamic `/staff/bookings/status/[status]`, both with Status/
+> Source filters + search + pagination. Unlike the old pill row, a
+> zero-count status still gets its own card (CANCELLED/REFUNDED are no
+> longer hidden-by-default). `/staff/bookings/new` also gained an explicit
+> top-level two-card chooser (existing-package vs. tailor-made), replacing
+> a default view that silently favored the package list. See DR-082
+> through DR-098 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

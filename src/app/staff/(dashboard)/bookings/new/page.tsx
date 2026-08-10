@@ -12,7 +12,7 @@ import { createStaffPackageBookingAction } from './actions';
 import StaffPlanMyTripForm from './staff-plan-my-trip-form';
 
 interface Props {
-  searchParams: Promise<{ packageId?: string; tailorMade?: string }>;
+  searchParams: Promise<{ mode?: string; packageId?: string; tailorMade?: string }>;
 }
 
 // Explicit user direction: only SUPERADMIN and TOUR_OPERATOR may create a
@@ -36,11 +36,12 @@ function requireNewBookingAccess(roles: string[]): void {
 export default async function NewBookingPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
   requireNewBookingAccess(ctx.roles);
-  const { packageId, tailorMade } = await searchParams;
+  const { mode, packageId, tailorMade } = await searchParams;
 
   if (tailorMade) {
     return (
       <div className="max-w-md">
+        <BackLink href="/staff/bookings/new">back</BackLink>
         <PageHeader eyebrow="New booking" title="Tailor-made request" />
         <StaffPlanMyTripForm />
       </div>
@@ -88,37 +89,65 @@ export default async function NewBookingPage({ searchParams }: Props) {
           </FormField>
           <SubmitButton>Create booking</SubmitButton>
         </form>
-        <BackLink href="/staff/bookings/new" className="mt-4">back</BackLink>
+        <BackLink href="/staff/bookings/new?mode=packages" className="mt-4">back</BackLink>
       </div>
     );
   }
 
-  const packages = await catalogService.listPackages(ctx);
-  const bookablePackages = packages.filter((p) => p.status === 'PUBLISHED' && p.priceMinor != null && p.durationDays != null);
+  if (mode === 'packages') {
+    const packages = await catalogService.listPackages(ctx);
+    const bookablePackages = packages.filter((p) => p.status === 'PUBLISHED' && p.priceMinor != null && p.durationDays != null);
+
+    return (
+      <div>
+        <BackLink href="/staff/bookings/new">back</BackLink>
+        <PageHeader eyebrow="New booking" title="Choose a package" />
+        {bookablePackages.length === 0 ? (
+          <p className="mt-4 text-mist">No bookable packages yet.</p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {bookablePackages.map((p) => (
+              <Card as="li" key={p.id}>
+                <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
+                  {p.title} · {p.country} · {formatOrPending(p.priceMinor, p.currency)}
+                </Link>
+              </Card>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  // Top-level chooser -- explicit user request for two cards here, rather
+  // than the package list defaulting to the whole page with the
+  // tailor-made path relegated to a small inline text link.
+  const sections = [
+    {
+      href: '/staff/bookings/new?mode=packages',
+      title: 'Make a booking from existing Packages',
+      description: 'Pick a published, priced package -- same flow a guest uses to book it themselves.',
+    },
+    {
+      href: '/staff/bookings/new?tailorMade=1',
+      title: 'Create a tailor-made request',
+      description: "Nothing in the catalog fits -- build a bespoke request, same 9-step wizard the guest site's own plan-my-trip uses.",
+    },
+  ];
 
   return (
-    <div>
-      <PageHeader eyebrow="New booking" title="Choose a package" />
-      <p className="mt-2 text-sm text-mist">
-        Nothing in the catalog fits?{' '}
-        <Link href="/staff/bookings/new?tailorMade=1" className="text-forest hover:underline">
-          Create a tailor-made request
-        </Link>
-        .
-      </p>
-      {bookablePackages.length === 0 ? (
-        <p className="mt-4 text-mist">No bookable packages yet.</p>
-      ) : (
-        <ul className="mt-4 space-y-2">
-          {bookablePackages.map((p) => (
-            <Card as="li" key={p.id}>
-              <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
-                {p.title} · {p.country} · {formatOrPending(p.priceMinor, p.currency)}
-              </Link>
-            </Card>
-          ))}
-        </ul>
-      )}
+    <div className="space-y-8">
+      <PageHeader eyebrow="Dashboard" title="New booking" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {sections.map((s) => (
+          <Card key={s.href} interactive className="p-0">
+            <Link href={s.href} className="block p-5">
+              <h2 className="text-lg font-semibold text-navy">{s.title}</h2>
+              <p className="mt-1 text-sm text-mist">{s.description}</p>
+            </Link>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
