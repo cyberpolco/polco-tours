@@ -7,10 +7,13 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
+import { SelectOrOther } from '@/components/ui/SelectOrOther';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, money } from '@lib/money';
 import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
+import { VEHICLE_TYPES } from '@lib/vehicle-catalog';
 import { deleteVehicleAction, addMaintenanceRecordAction, updateVehicleAction, uploadVehicleDocumentAction } from './actions';
+import { VehicleMakeModelFields } from '../vehicle-make-model-fields';
 
 interface Props {
   params: Promise<{ vehicleId: string }>;
@@ -59,14 +62,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             <input name="vin" defaultValue={vehicle.vin ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Make" htmlFor="make">
-            <input name="make" defaultValue={vehicle.make} required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label="Model" htmlFor="model">
-            <input name="model" defaultValue={vehicle.model} required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-        </div>
+        <VehicleMakeModelFields defaultMake={vehicle.make} defaultModel={vehicle.model} />
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Status" htmlFor="status">
             <Select name="status" defaultValue={vehicle.status}>
@@ -78,7 +74,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
         </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Type" htmlFor="vehicleType">
-            <input name="vehicleType" defaultValue={vehicle.vehicleType} required className="w-full rounded-survey border border-rule px-3 py-2" />
+            <SelectOrOther name="vehicleType" options={VEHICLE_TYPES} defaultValue={vehicle.vehicleType} placeholder="Type the vehicle type" required />
           </FormField>
           <FormField label="Year" htmlFor="year" optional>
             <input

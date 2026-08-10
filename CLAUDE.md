@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-095 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-096 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
-> breakdowns — nothing schema-related is pending; DR-090/091/093/094/095
-> needed no schema changes at all).
+> breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
+> 096 needed no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -156,7 +156,20 @@ explicit decision to do so.
 > filter); Starlink Kits get Status/Assignment. The four delete actions now
 > redirect to their own type's list page instead of the old combined route,
 > and every detail/new-form page gained a `BackLink` back to its list page.
-> See DR-082 through DR-095 for full detail.
+> DR-096 replaces the vehicle Make/Model/Type plain text inputs with a
+> curated `<Select>` + "Other (type your own)" free-text escape hatch —
+> `src/lib/vehicle-catalog.ts` (`VEHICLE_TYPES`/`VEHICLE_MAKES`/
+> `VEHICLE_MODELS_BY_MAKE`), scoped to a realistic Southern/Central-African
+> tourism fleet, not an exhaustive global catalog; `Vehicle.make`/`model`/
+> `vehicleType` stay free-text in the schema, unchanged — this is a UI
+> suggestion layer only, never a constraint, so a value not in the curated
+> list is never blocked. New generic `SelectOrOther` component
+> (`src/components/ui/SelectOrOther.tsx`) backs one hidden input under the
+> field's real `name`, so no server action changed. `VehicleMakeModelFields`
+> couples Make and Model (Model's suggestions follow the chosen Make,
+> remounting via `key={make}` on every Make change so a stale Other-typed
+> model never carries over as a misleading default). See DR-082 through
+> DR-096 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

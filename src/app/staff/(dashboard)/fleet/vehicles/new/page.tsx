@@ -1,10 +1,13 @@
 import { requireStaffContext } from '@lib/staff-guard';
+import { VEHICLE_TYPES } from '@lib/vehicle-catalog';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SelectOrOther } from '@/components/ui/SelectOrOther';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createVehicleAction } from './actions';
+import { VehicleMakeModelFields } from '../vehicle-make-model-fields';
 
 interface Props {
   searchParams: Promise<{ error?: string }>;
@@ -29,22 +32,10 @@ export default async function NewVehiclePage({ searchParams }: Props) {
         <FormField label="Plate number" htmlFor="plateNumber">
           <input name="plateNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Make" htmlFor="make">
-            <input name="make" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label="Model" htmlFor="model">
-            <input name="model" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-        </div>
+        <VehicleMakeModelFields />
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Type" htmlFor="vehicleType">
-            <input
-              name="vehicleType"
-              placeholder="minibus, 4x4, sedan..."
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
+            <SelectOrOther name="vehicleType" options={VEHICLE_TYPES} placeholder="Type the vehicle type" required />
           </FormField>
           <FormField label="Year" htmlFor="year" optional>
             <input name="year" type="number" className="w-full rounded-survey border border-rule px-3 py-2" />

@@ -30,15 +30,22 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     await expect(page.getByLabel('Search')).toBeVisible();
   });
 
+  // DR-096: Make/Model/Type are now SelectOrOther pickers (curated dropdown
+  // + a trailing "Other" that reveals free text) rather than plain inputs --
+  // exercises both modes: Make/Type from the curated list, Model via the
+  // Other escape hatch (Toyota's own curated list only has suffixed Land
+  // Cruiser variants, e.g. "Land Cruiser 300 Series", not the bare name),
+  // which also proves Model's options genuinely follow the chosen Make.
   test('staff registers a vehicle through the form', async ({ page }) => {
     const { staffUserId } = await seedStaffForFleet();
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto('/staff/fleet/vehicles/new');
     await page.getByLabel('Plate number').fill('E2E-PLATE-1');
-    await page.getByLabel('Make').fill('Toyota');
-    await page.getByLabel('Model').fill('Land Cruiser');
-    await page.getByLabel('Type').fill('4x4');
+    await page.getByLabel('Make').selectOption('Toyota');
+    await page.getByLabel('Model').selectOption({ label: 'Other (not listed — type your own)' });
+    await page.getByPlaceholder('Type the model').fill('Land Cruiser');
+    await page.getByLabel('Type').selectOption('4x4 / Off-Road');
     await page.getByLabel('Seat capacity').fill('7');
     await page.getByRole('button', { name: 'Register vehicle' }).click();
 
