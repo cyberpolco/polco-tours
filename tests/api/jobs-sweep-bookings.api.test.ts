@@ -11,6 +11,11 @@ vi.mock('@modules/booking', () => ({
   bookingService: { runScheduledSweep: (...args: unknown[]) => runScheduledSweepMock(...args) },
 }));
 
+const syncFleetAvailabilityForDepartureMock = vi.fn();
+vi.mock('@lib/fleet-availability', () => ({
+  syncFleetAvailabilityForDeparture: (...args: unknown[]) => syncFleetAvailabilityForDepartureMock(...args),
+}));
+
 const { POST } = await import('../../src/app/api/jobs/sweep-bookings/route');
 
 function makeRequest(body: string, signature?: string): NextRequest {
@@ -23,6 +28,7 @@ describe('POST /api/jobs/sweep-bookings (DR-067)', () => {
   beforeEach(() => {
     verifyQstashSignatureMock.mockReset();
     runScheduledSweepMock.mockReset();
+    syncFleetAvailabilityForDepartureMock.mockReset();
   });
 
   it('rejects with 401 when the signature does not verify, and never runs the sweep', async () => {
@@ -45,22 +51,49 @@ describe('POST /api/jobs/sweep-bookings (DR-067)', () => {
 
   it('runs the sweep and returns its result once the signature verifies', async () => {
     verifyQstashSignatureMock.mockResolvedValue(true);
-    runScheduledSweepMock.mockResolvedValue({ organizationsSwept: 3 });
+    runScheduledSweepMock.mockResolvedValue({ organizationsSwept: 3, transitionedDepartures: [] });
 
     const res = await POST(makeRequest('{}', 'good-sig'));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ organizationsSwept: 3 });
+    expect(await res.json()).toEqual({ organizationsSwept: 3, transitionedDepartures: [] });
     expect(runScheduledSweepMock).toHaveBeenCalledOnce();
   });
 
   it('passes the raw body and signature header straight through to verification', async () => {
     verifyQstashSignatureMock.mockResolvedValue(true);
-    runScheduledSweepMock.mockResolvedValue({ organizationsSwept: 0 });
+    runScheduledSweepMock.mockResolvedValue({ organizationsSwept: 0, transitionedDepartures: [] });
 
     await POST(makeRequest('raw-body-text', 'good-sig'));
 
     expect(verifyQstashSignatureMock).toHaveBeenCalledWith('good-sig', 'raw-body-text');
+  });
+
+  it('resyncs fleet availability for every departure the sweep transitioned (DR-094)', async () => {
+    verifyQstashSignatureMock.mockResolvedValue(true);
+    runScheduledSweepMock.mockResolvedValue({
+      organizationsSwept: 2,
+      transitionedDepartures: [
+        { organizationId: 'org-a', departureId: 'dep-1' },
+        { organizationId: 'org-b', departureId: 'dep-2' },
+      ],
+    });
+
+    const res = await POST(makeRequest('{}', 'good-sig'));
+
+    expect(res.status).toBe(200);
+    expect(syncFleetAvailabilityForDepartureMock).toHaveBeenCalledTimes(2);
+    expect(syncFleetAvailabilityForDepartureMock).toHaveBeenNthCalledWith(1, 'org-a', 'dep-1');
+    expect(syncFleetAvailabilityForDepartureMock).toHaveBeenNthCalledWith(2, 'org-b', 'dep-2');
+  });
+
+  it('does not resync fleet availability when nothing transitioned', async () => {
+    verifyQstashSignatureMock.mockResolvedValue(true);
+    runScheduledSweepMock.mockResolvedValue({ organizationsSwept: 5, transitionedDepartures: [] });
+
+    await POST(makeRequest('{}', 'good-sig'));
+
+    expect(syncFleetAvailabilityForDepartureMock).not.toHaveBeenCalled();
   });
 
   it('translates an unhandled service error into a clean 500 problem+json response, never leaking internals', async () => {

@@ -31,7 +31,7 @@ import {
   type TravelerView,
   type VisaCandidateTravelerView,
 } from './domain';
-import { bookingRepository, InvalidTransitionError, SoldOutError } from './repository';
+import { bookingRepository, InvalidTransitionError, SoldOutError, type TransitionedDeparture } from './repository';
 
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
@@ -150,8 +150,10 @@ export const bookingService = {
    * verified job route (src/app/api/jobs/sweep-bookings/route.ts), never
    * from user-facing code. Turns the existing lazy "sweep on next read"
    * sweepLifecycle convention into a real periodic job that runs even for
-   * an organization nobody happens to be actively using right now. */
-  async runScheduledSweep(): Promise<{ organizationsSwept: number }> {
+   * an organization nobody happens to be actively using right now.
+   * DR-094: `transitionedDepartures` lets that same route resync fleet
+   * availability afterward -- see sweepAllOrganizations's own comment. */
+  async runScheduledSweep(): Promise<{ organizationsSwept: number; transitionedDepartures: TransitionedDeparture[] }> {
     return bookingRepository.sweepAllOrganizations();
   },
 

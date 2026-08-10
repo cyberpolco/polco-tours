@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { formatPackageReference } from '../src/modules/catalog';
 import { prisma, withOrg } from '../src/lib/db';
 import { bookingService, generateBookingReference } from '../src/modules/booking';
 
@@ -21,6 +22,8 @@ let orgAId: string;
 let orgBId: string;
 let touristAId: string;
 let touristBId: string;
+let departureAId: string;
+let confirmedBookingAId: string;
 
 async function createBackdatedSoftDeletedBooking(organizationId: string, touristUserId: string): Promise<string> {
   return withOrg(organizationId, async (tx) => {
@@ -56,6 +59,41 @@ beforeAll(async () => {
   ]);
   touristAId = touristA.id;
   touristBId = touristB.id;
+
+  // DR-094 fixture: a CONFIRMED booking on a departure whose startDate has
+  // already passed -- sweepLifecycle's own CONFIRMED -> IN_PROGRESS
+  // transition should pick this up and report the departure back.
+  await withOrg(orgAId, async (tx) => {
+    const pkg = await tx.tourPackage.create({
+      data: {
+        organizationId: orgAId,
+        packageReference: formatPackageReference(Date.now()),
+        title: 'Sweep Fixture Safari',
+        description: 'Fixture.',
+        country: 'NA',
+        priceMinor: 10000,
+        currency: 'USD',
+        status: 'PUBLISHED',
+      },
+    });
+    const departure = await tx.departure.create({
+      data: { organizationId: orgAId, tourPackageId: pkg.id, startDate: new Date(Date.now() - 24 * 60 * 60 * 1000), capacity: 5, status: 'SCHEDULED' },
+    });
+    departureAId = departure.id;
+    const booking = await tx.booking.create({
+      data: {
+        organizationId: orgAId,
+        departureId: departureAId,
+        touristUserId: touristAId,
+        bookingReference: generateBookingReference(),
+        seats: 1,
+        priceMinor: 10000,
+        currency: 'USD',
+        status: 'CONFIRMED',
+      },
+    });
+    confirmedBookingAId = booking.id;
+  });
 });
 
 afterAll(async () => {
@@ -66,6 +104,8 @@ afterAll(async () => {
   }
   await withOrg(orgAId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgAId } }));
   await withOrg(orgBId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgBId } }));
+  await withOrg(orgAId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgAId } }));
+  await withOrg(orgAId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgAId } }));
   await admin.user.deleteMany({ where: { organizationId: { in: [orgAId, orgBId] } } });
   await admin.organization.deleteMany({ where: { id: { in: [orgAId, orgBId] } } });
   await admin.$disconnect();
@@ -92,8 +132,24 @@ describe('bookingService.runScheduledSweep (DR-067)', () => {
     // This sweeps EVERY organization in the shared DB sequentially (by
     // design -- avoids the connection-pool-exhaustion issue Promise.all
     // caused elsewhere, DR-038/041/060/062/064/065), not just the two this
-    // test creates -- this sandbox alone has accumulated 90+ organizations
-    // from past sessions' test runs, well past the 20s default.
-    90_000,
+    // test creates -- this sandbox has accumulated 190+ organizations from
+    // past sessions' test runs (growing over time), well past the 20s
+    // default and, as of this test, past the previous 90s bump too.
+    240_000,
+  );
+
+  it(
+    'advances a CONFIRMED booking past its departure startDate to IN_PROGRESS, and reports the departure back so the caller can resync fleet availability (DR-094)',
+    async () => {
+      const result = await bookingService.runScheduledSweep();
+
+      const row = await admin.booking.findUniqueOrThrow({ where: { id: confirmedBookingAId } });
+      expect(row.status).toBe('IN_PROGRESS');
+      expect(result.transitionedDepartures).toEqual(
+        expect.arrayContaining([{ organizationId: orgAId, departureId: departureAId }]),
+      );
+    },
+    // Same full-DB-sweep cost as the test above -- see its own comment.
+    240_000,
   );
 });

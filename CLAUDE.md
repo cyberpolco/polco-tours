@@ -19,12 +19,12 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-093 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-094 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
-> breakdowns — nothing schema-related is pending; DR-090/091/093 needed no
-> schema changes at all).
+> breakdowns — nothing schema-related is pending; DR-090/091/093/094 needed
+> no schema changes at all).
 > DR-089 (the staff Map tab — booking-reference lookup, per-day interactive
 > map, per-day PDF download) is fully deployed on top of DR-088. DR-090
 > re-anchors Rating Code validity to the tour's own last day (usable the day
@@ -34,9 +34,11 @@ explicit decision to do so.
 > (`AVAILABLE`/`BOOKED`/`INACTIVE`, independent of the existing
 > `VehicleStatus`/`DriverStatus`/`GuideStatus` operational-hold dimension)
 > plus `lastActiveAt` — hook-driven (assignment create/remove, booking
-> confirm/cancel/refund, via `src/lib/fleet-availability.ts`) with a daily
-> QStash sweep (`/api/jobs/sweep-fleet-availability`) as the only path to
-> `INACTIVE`. DR-083 moved itinerary hotel/restaurant assignment to
+> confirm/cancel/refund, **and, since DR-094, the booking lifecycle sweep's
+> own CONFIRMED->IN_PROGRESS->COMPLETED transitions** — all via
+> `src/lib/fleet-availability.ts`) with a daily QStash sweep
+> (`/api/jobs/sweep-fleet-availability`) as the only path to `INACTIVE`.
+> DR-083 moved itinerary hotel/restaurant assignment to
 > per-day (`ItineraryDay.hotelId`/`restaurantId`, replacing the removed
 > `ItineraryHotel`/`ItineraryRestaurant` join tables), added a staff-managed
 > `Site` reference list, auto-computed `dayNumber`, defaulted the emergency
@@ -122,7 +124,23 @@ explicit decision to do so.
 > booking, or no phone on file); nationality stays editable (only
 > `defaultValue`-preselected from `Booking.citizenship`), since citizenship
 > isn't guaranteed to equal passport nationality. No schema/permission/
-> module-dependency change. See DR-082 through DR-093 for full detail.
+> module-dependency change. DR-094 closes a real DR-082 gap found from a
+> live staff report: a booking only ever travels `CONFIRMED` ->
+> `IN_PROGRESS` -> `COMPLETED` via `bookingRepository.sweepLifecycle`'s
+> raw-SQL sweep (the QStash `/api/jobs/sweep-bookings` job), which had no
+> way to call `syncFleetAvailabilityForDeparture` — so a vehicle/driver/
+> guide whose booking only ever advanced through that sweep (the normal
+> case) sat at stale availability indefinitely, not just until "the next
+> assignment/status change" as the hook's own comment promised.
+> `sweepLifecycle` now captures the departures its `CONFIRMED->IN_PROGRESS`/
+> `IN_PROGRESS->COMPLETED` statements touched (`$queryRaw`+`RETURNING`
+> instead of `$executeRaw`) and returns them up through
+> `bookingService.runScheduledSweep`; the route resyncs each one — same
+> "one level up from both modules" convention `fleet-availability.ts`
+> itself already follows. Deliberately scoped to the QStash cron path only,
+> not `seatsTakenFor`'s lazy on-read sweep (a hot guest-facing path where a
+> missed resync self-corrects at the next real sweep/action anyway). See
+> DR-082 through DR-094 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

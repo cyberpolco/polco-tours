@@ -145,6 +145,11 @@ async function createBookingWithUniqueReference(create: (bookingReference: strin
   throw new Error('unreachable');
 }
 
+export interface TransitionedDeparture {
+  organizationId: string;
+  departureId: string;
+}
+
 // Lazy lifecycle sweep -- no queue/cron, same pattern as the old HELD/EXPIRED
 // sweep. Three independent transitions, all scoped by the caller's `withOrg`
 // transaction GUC (no need to duplicate an organizationId filter here):
@@ -155,12 +160,22 @@ async function createBookingWithUniqueReference(create: (bookingReference: strin
 //     for PREDEFINED_PACKAGE, customTravelStart for TAILOR_MADE).
 //  3. IN_PROGRESS -> COMPLETED once travel has ended (departure endDate,
 //     which is optional, or customTravelEnd).
-async function sweepLifecycle(tx: TenantTx): Promise<void> {
+// DR-094: transitions 2 and 3 below are exactly the moments
+// hasActiveBookingForDeparture's answer for a departure can flip (into
+// CONFIRMED/IN_PROGRESS, or out of it into COMPLETED) -- callers use the
+// returned departureIds to resync fleet availability (src/lib/
+// fleet-availability.ts) for whichever vehicle/driver/guide is assigned
+// there, the same way the confirm/cancel/refund routes already do for a
+// manual status change. Using $queryRaw + RETURNING instead of $executeRaw
+// on just these two statements to get the affected rows back; expired-hold
+// cancellation doesn't need this (AWAITING_DEPOSIT was never "active" per
+// hasActiveBookingForDeparture, so it can't change the answer).
+async function sweepLifecycle(tx: TenantTx): Promise<string[]> {
   await tx.$executeRaw`
     UPDATE bookings SET status = 'CANCELLED', "updatedAt" = now()
     WHERE status = 'AWAITING_DEPOSIT' AND "holdExpiresAt" <= now() AND "departureId" IS NOT NULL
   `;
-  await tx.$executeRaw`
+  const startedTravel = await tx.$queryRaw<{ departureId: string | null }[]>`
     UPDATE bookings SET status = 'IN_PROGRESS', "updatedAt" = now()
     WHERE status = 'CONFIRMED' AND (
       ("departureId" IS NOT NULL AND EXISTS (
@@ -168,8 +183,9 @@ async function sweepLifecycle(tx: TenantTx): Promise<void> {
       ))
       OR ("departureId" IS NULL AND "customTravelStart" IS NOT NULL AND "customTravelStart" <= now())
     )
+    RETURNING "departureId"
   `;
-  await tx.$executeRaw`
+  const endedTravel = await tx.$queryRaw<{ departureId: string | null }[]>`
     UPDATE bookings SET status = 'COMPLETED', "updatedAt" = now()
     WHERE status = 'IN_PROGRESS' AND (
       ("departureId" IS NOT NULL AND EXISTS (
@@ -177,6 +193,7 @@ async function sweepLifecycle(tx: TenantTx): Promise<void> {
       ))
       OR ("departureId" IS NULL AND "customTravelEnd" IS NOT NULL AND "customTravelEnd" < now())
     )
+    RETURNING "departureId"
   `;
   // DR-058: same lazy-sweep convention, not a scheduled job -- a
   // soft-deleted booking (deletedAt set by softDelete) past the retention
@@ -187,6 +204,11 @@ async function sweepLifecycle(tx: TenantTx): Promise<void> {
     DELETE FROM bookings
     WHERE "deletedAt" IS NOT NULL AND "deletedAt" < now() - (${BOOKING_DELETION_RETENTION_DAYS} * interval '1 day')
   `;
+
+  const departureIds = [...startedTravel, ...endedTravel]
+    .map((r) => r.departureId)
+    .filter((id): id is string => id !== null);
+  return [...new Set(departureIds)];
 }
 
 // Call only immediately after sweepLifecycle() in the same transaction --
@@ -210,15 +232,31 @@ export const bookingRepository = {
    * itself, same precedent as every other org-enumerating admin script in
    * this codebase), so this plain findMany needs no withOrg wrapper.
    * Sequential per-org, not Promise.all -- same connection-pool-exhaustion
-   * precedent as Insights/Tracking/DR-060/062/064/065. */
-  async sweepAllOrganizations(): Promise<{ organizationsSwept: number }> {
+   * precedent as Insights/Tracking/DR-060/062/064/065.
+   *
+   * DR-094: also returns every departure whose CONFIRMED/IN_PROGRESS
+   * transition just happened here -- the route handler (one level up, same
+   * module-boundary convention as src/lib/fleet-availability.ts) resyncs
+   * fleet availability for each, since this is the *only* path a booking
+   * actually travels CONFIRMED -> IN_PROGRESS -> COMPLETED through; nothing
+   * else ever calls that transition. */
+  async sweepAllOrganizations(): Promise<{ organizationsSwept: number; transitionedDepartures: TransitionedDeparture[] }> {
     const orgs = await prisma.organization.findMany({ select: { id: true } });
+    const transitionedDepartures: TransitionedDeparture[] = [];
     for (const org of orgs) {
-      await withOrg(org.id, (tx) => sweepLifecycle(tx));
+      const departureIds = await withOrg(org.id, (tx) => sweepLifecycle(tx));
+      for (const departureId of departureIds) transitionedDepartures.push({ organizationId: org.id, departureId });
     }
-    return { organizationsSwept: orgs.length };
+    return { organizationsSwept: orgs.length, transitionedDepartures };
   },
 
+  // DR-094: deliberately doesn't resync fleet availability off this lazy,
+  // on-read sweep -- unlike sweepAllOrganizations above, this runs on a hot
+  // guest-facing path (bookingService.getAvailability) and the registered
+  // QStash schedule already sweeps every organization every 15 minutes, so
+  // this path finding a transition to make is the rare edge case, not the
+  // normal one. A resync missed here still self-corrects at the next
+  // confirm/cancel/refund, reassignment, or scheduled sweep run.
   async seatsTakenFor(organizationId: string, departureId: string): Promise<number> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);
