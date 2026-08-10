@@ -16,8 +16,8 @@ export const dynamic = 'force-dynamic';
  * fleet-availability (DR-082): QStash-signature-gated, no AuthContext,
  * sits outside /api/v1.
  *
- * Inert (always 401s) until `npm run qstash:register-schedule` registers a
- * real schedule against this route's deployed URL -- see that script.
+ * Registered and live (`npm run qstash:register-schedule`, 2026-08-10) --
+ * see that script for the full schedule list.
  */
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
   const traceId = req.headers.get('x-trace-id') ?? newTraceId();

@@ -262,7 +262,7 @@ gaps a fresh Postgres would hit).
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — live in production (`src/app/api/jobs/sweep-bookings`); `sweep-fleet-availability` (DR-082) and `sweep-user-dormancy` (DR-084) are code-complete but their own QStash schedules aren't registered yet |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — all three schedules registered and live in production (`sweep-bookings` every 15 min, `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10) |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -605,11 +605,11 @@ visually coherent with the design package.
 - **No generic job runner** — every scheduled job is its own QStash-
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
-  re-running that script. Three exist today, all daily except the first:
-  `/api/jobs/sweep-bookings` (every 15 minutes, live in production),
+  re-running that script (idempotent — fixed `scheduleId`s update in place,
+  never duplicate). Three exist today, all daily except the first, and all
+  three registered and live: `/api/jobs/sweep-bookings` (every 15 minutes),
   `/api/jobs/sweep-fleet-availability` (DR-082), and `/api/jobs/sweep-user-
-  dormancy` (DR-084) — the latter two are inert/401s until their schedules
-  are registered, same bootstrap gap `sweep-bookings` itself once had.
+  dormancy` (DR-084).
 
 ## Roadmap (not yet built)
 
