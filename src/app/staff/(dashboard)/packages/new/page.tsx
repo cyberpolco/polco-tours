@@ -1,4 +1,5 @@
 import { requireStaffContext } from '@lib/staff-guard';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
@@ -13,6 +14,9 @@ export default async function NewPackagePage() {
 
   return (
     <div className="max-w-md">
+      {/* New packages start DRAFT (see createPackageAction) -- always
+          Customized until explicitly published. */}
+      <BackLink href="/staff/packages/customized">back to customized packages</BackLink>
       <PageHeader eyebrow="Packages · New" title="Create a package" />
       <form action={createPackageAction} className="mt-6 space-y-4">
         <FormField label="Title" htmlFor="title">

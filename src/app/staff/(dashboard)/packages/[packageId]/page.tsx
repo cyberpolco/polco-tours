@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
+import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
@@ -40,7 +41,14 @@ export default async function PackageDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-md">
-      <div className="flex items-center gap-3">
+      {/* DR-097: back to wherever this package actually lives right now --
+          PUBLISHED ones came from the Public list, everything else (DRAFT/
+          ARCHIVED) from Customized. Reflects live status, not however the
+          user happened to arrive here. */}
+      <BackLink href={pkg.status === 'PUBLISHED' ? '/staff/packages/public' : '/staff/packages/customized'}>
+        back to {pkg.status === 'PUBLISHED' ? 'public' : 'customized'} packages
+      </BackLink>
+      <div className="mt-4 flex items-center gap-3">
         <PageHeader eyebrow={`Packages · ${pkg.packageReference}`} title={pkg.title} />
         <Badge tone={PACKAGE_STATUS_TONE[pkg.status]}>{pkg.status}</Badge>
       </div>
