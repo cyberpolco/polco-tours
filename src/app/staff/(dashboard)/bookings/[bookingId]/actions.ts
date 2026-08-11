@@ -5,10 +5,12 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
+import { ApiError } from '@lib/errors';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
+import type { CouponActionState } from '@/components/CouponForm';
 
 export async function confirmBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
@@ -37,6 +39,31 @@ export async function initiatePaymentAction(invoiceId: string, kind: PaymentKind
 export async function resolvePaymentAction(paymentId: string, outcome: 'SUCCEEDED' | 'FAILED', bookingId: string) {
   const ctx = await requireStaffContext('payment.resolve');
   await invoicingService.resolvePayment(ctx, paymentId, outcome);
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
+export async function applyCouponAction(
+  invoiceId: string,
+  bookingId: string,
+  _prevState: CouponActionState,
+  formData: FormData,
+): Promise<CouponActionState> {
+  const ctx = await requireStaffContext('payment.initiate');
+  const code = String(formData.get('code') ?? '').trim();
+  if (!code) return { error: 'Enter a coupon code' };
+  try {
+    await invoicingService.applyCoupon(ctx, invoiceId, code);
+  } catch (err) {
+    if (err instanceof ApiError) return { error: err.detail ?? err.title };
+    throw err;
+  }
+  revalidatePath(`/staff/bookings/${bookingId}`);
+  return {};
+}
+
+export async function removeCouponAction(invoiceId: string, bookingId: string): Promise<void> {
+  const ctx = await requireStaffContext('payment.initiate');
+  await invoicingService.removeCoupon(ctx, invoiceId);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 

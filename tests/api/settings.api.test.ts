@@ -7,6 +7,8 @@ import { GET as listTaxRates, POST as createTaxRate } from '../../src/app/api/v1
 import { DELETE as deleteTaxRate } from '../../src/app/api/v1/settings/tax-rates/[id]/route';
 import { GET as listPlatformRates, POST as createPlatformRate } from '../../src/app/api/v1/settings/platform-rates/route';
 import { DELETE as deletePlatformRate } from '../../src/app/api/v1/settings/platform-rates/[id]/route';
+import { GET as listCoupons, POST as createCoupon } from '../../src/app/api/v1/settings/coupons/route';
+import { POST as deactivateCoupon } from '../../src/app/api/v1/settings/coupons/[id]/deactivate/route';
 
 /**
  * Settings Module (DR-042) -- TaxRate + PlatformRate CRUD. Both tables are
@@ -23,6 +25,8 @@ let orgId: string;
 let superadminId: string;
 let createdTaxRateId: string;
 let createdPlatformRateId: string;
+let createdCouponId: string;
+let createdCouponCode: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -55,6 +59,10 @@ afterAll(async () => {
   await admin.taxRate.deleteMany({ where: { country: TEST_COUNTRY } });
   if (createdPlatformRateId) {
     await admin.platformRate.deleteMany({ where: { id: createdPlatformRateId } });
+  }
+  if (createdCouponId) {
+    await admin.couponRedemption.deleteMany({ where: { couponId: createdCouponId } });
+    await admin.coupon.deleteMany({ where: { id: createdCouponId } });
   }
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
@@ -120,5 +128,60 @@ describe('POST/GET/DELETE /api/v1/settings/platform-rates', () => {
     const res = await deletePlatformRate(req, { params: Promise.resolve({ id: createdPlatformRateId }) });
     expect(res.status).toBe(204);
     createdPlatformRateId = ''; // already deleted -- afterAll shouldn't try again
+  });
+});
+
+// DR-104: code is system-generated -- these tests confirm the request body
+// never influences it, even if a caller tries to smuggle one in.
+describe('POST/GET/{id}/deactivate /api/v1/settings/coupons', () => {
+  it('a SUPERADMIN creates a coupon (201) -- code is generated, never client-supplied', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons', headers, 'POST', {
+      discountBp: 1500,
+      code: 'I-SHOULD-BE-IGNORED', // not part of CreateCouponInput -- zod strips unknown keys
+    });
+    const res = await createCoupon(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.coupon.discountBp).toBe(1500);
+    expect(body.coupon.code).not.toBe('I-SHOULD-BE-IGNORED');
+    expect(body.coupon.code).toMatch(/^CPC-\d{2}-\d{6}-[A-Z]{2}$/);
+    expect(body.coupon.redemptionCount).toBe(0);
+    createdCouponId = body.coupon.id;
+    createdCouponCode = body.coupon.code;
+  });
+
+  it('rejects a discountBp above the 50% cap (422)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons', headers, 'POST', { discountBp: 5001 });
+    const res = await createCoupon(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(422);
+  });
+
+  it('lists coupons including the fixture, with its redemptionCount (200)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = new NextRequest('http://localhost/api/v1/settings/coupons', { headers });
+    const res = await listCoupons(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const fixture = body.coupons.find((c: { id: string }) => c.id === createdCouponId);
+    expect(fixture).toBeDefined();
+    expect(fixture.redemptionCount).toBe(0);
+  });
+
+  it('deactivates the coupon (204)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/settings/coupons/${createdCouponId}/deactivate`, headers, 'POST');
+    const res = await deactivateCoupon(req, { params: Promise.resolve({ id: createdCouponId }) });
+    expect(res.status).toBe(204);
+  });
+
+  // Cross-checks against @lib/coupons directly (the exact read path
+  // invoicingService.applyCoupon uses) rather than spinning up a whole
+  // booking/invoice just to prove this -- validateCoupon rejects before
+  // ever touching an invoice.
+  it('the deactivated coupon is immediately unusable via validateCoupon', async () => {
+    const { validateCoupon } = await import('../../src/lib/coupons');
+    expect(await validateCoupon(createdCouponCode)).toEqual({ error: 'INACTIVE' });
   });
 });

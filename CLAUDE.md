@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-103 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-104 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -209,7 +209,27 @@ explicit decision to do so.
 > `TrustSummary` (DR-068), which hides itself entirely at zero reviews;
 > that no-fake-social-proof concern doesn't apply to this staff-only view.
 > DR-103 is a test-infrastructure-only fix (see Gotchas below for the
-> pattern) — no production code touched. See DR-082 through DR-103 for
+> pattern) — no production code touched. DR-104 adds percentage-discount
+> Coupons: SUPERADMIN sets a discount % (50% hard cap) and an optional
+> redemption cap/expiry on `/staff/settings/coupons`; the code is always
+> system-generated (`generateCouponCode`, an exact user-specified format —
+> `CPC-{YY}-{6 digits, never '3'}-{2 letters, never "AK"}`), never staff-
+> typed. Both the guest booking page and the staff booking-detail page get
+> an identical optional coupon field (shared `CouponForm` client component)
+> right above the existing Pay-deposit/Pay-in-full buttons — applying a
+> valid code recomputes and persists `Invoice.discountMinor`/`taxMinor`/
+> `totalMinor`/`depositMinor`/`balanceMinor` in place (tax computed on the
+> *discounted* subtotal), so the existing payment path charges the
+> discounted amount with no changes to `initiatePayment` itself. New
+> platform-wide `Coupon`/`CouponRedemption` tables (third entity in the
+> `settings` module, alongside `TaxRate`/`PlatformRate`) — a redemption is
+> counted at apply time, not payment time, and a `SELECT ... FOR UPDATE`
+> lock on the `Coupon` row (inside `withOrg`'s transaction) makes the
+> `maxRedemptions` cap race-safe under concurrent applies. No new
+> permission: apply/remove reuses `payment.initiate` (the same permission
+> `initiatePayment` itself already uses, not `invoice.read`), and coupon
+> CRUD reuses `platform_settings.read`/`.write` + the existing
+> `requireSettingsWriter` SUPERADMIN gate. See DR-082 through DR-104 for
 > full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
@@ -374,7 +394,7 @@ src/
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
                               #   guest-guard, primary-org, country-codes, provinces,
-                              #   tax, platform-rate, rate-limit, qstash, geo,
+                              #   tax, platform-rate, coupons (DR-104), rate-limit, qstash, geo,
                               #   fleet-availability (DR-082 cross-module sync helper),
                               #   client-deletion (DR-085 cross-module delete guard),
                               #   directory-filters (DR-091: shared search/filter/
@@ -385,7 +405,9 @@ src/
                    #   PackageItineraryDay (per-package itinerary template)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
                    #   bookingReference is the sole guest-facing lookup key
-    invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway)
+    invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
+                   #   Invoice.discountMinor/couponCode/discountBp (DR-104,
+                   #   applied via a shared computeInvoiceAmounts helper)
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
@@ -411,7 +433,8 @@ src/
                    #   (TourPackage) / BookingCostBreakdown (TAILOR_MADE
                    #   Booking, DR-092) sharing one resolveRatesForCost helper
     tracking/      # Fleet location + trip-progress composition, no repository.ts
-    settings/      # TaxRate + PlatformRate CRUD
+    settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
+                   #   generated discount codes, SUPERADMIN-only writes)
     content/       # SiteContent (About page) + FaqEntry CRUD (DR-071),
                    #   SUPERADMIN-only; public no-ctx read path powers the
                    #   guest /about and /faq pages, mirroring catalog's

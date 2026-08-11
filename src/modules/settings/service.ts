@@ -4,7 +4,7 @@ import type { AuthContext } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import type { CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView } from './domain';
+import type { CouponView, CreateCouponInput, CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView } from './domain';
 import { settingsRepository } from './repository';
 
 /** Same layering as financeService's requireRateWriter/immigration's
@@ -54,5 +54,30 @@ export const settingsService = {
     const deleted = await settingsRepository.deletePlatformRate(id);
     if (!deleted) throw Errors.notFound('Platform rate not found');
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.platform_rate_deleted', resourceType: 'PlatformRate', resourceId: id });
+  },
+
+  // -------------------------------------------------------------- Coupon
+  async listCoupons(ctx: AuthContext): Promise<CouponView[]> {
+    assertCan(ctx, 'platform_settings.read');
+    return settingsRepository.listCoupons();
+  },
+  async createCoupon(ctx: AuthContext, input: CreateCouponInput): Promise<CouponView> {
+    requireSettingsWriter(ctx);
+    const coupon = await settingsRepository.createCoupon(input);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'settings.coupon_created',
+      resourceType: 'Coupon',
+      resourceId: coupon.id,
+      metadata: { discountBp: coupon.discountBp, maxRedemptions: coupon.maxRedemptions },
+    });
+    return coupon;
+  },
+  async deactivateCoupon(ctx: AuthContext, id: string): Promise<void> {
+    requireSettingsWriter(ctx);
+    const deactivated = await settingsRepository.deactivateCoupon(id);
+    if (!deactivated) throw Errors.notFound('Coupon not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.coupon_deactivated', resourceType: 'Coupon', resourceId: id });
   },
 };

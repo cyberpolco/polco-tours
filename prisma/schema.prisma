@@ -1342,9 +1342,17 @@ model Invoice {
   bookingId         String        @unique @db.Uuid
   currency          Currency
   subtotalMinor     Int // = Booking.priceMinor at invoice-creation time
+  // Coupons (DR-104): couponCode/discountBp are a snapshot of whichever
+  // Coupon was applied at the time (same "snapshot onto the row, not a
+  // live FK" convention as taxRateBp below) -- null on every invoice that
+  // never had a coupon applied. discountMinor defaults to 0 (always a
+  // valid number in the amount math below, coupon or not).
+  couponCode        String?
+  discountBp        Int?
+  discountMinor     Int           @default(0)
   taxRateBp         Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
-  taxMinor          Int
-  totalMinor        Int // subtotalMinor + taxMinor
+  taxMinor          Int // tax on (subtotalMinor - discountMinor), not subtotalMinor
+  totalMinor        Int // (subtotalMinor - discountMinor) + taxMinor
   depositMinor      Int // 40% of totalMinor, half-up (DR-012)
   balanceMinor      Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
   // Settings module (DR-042): the platform's commission, computed as an
@@ -1361,9 +1369,50 @@ model Invoice {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   payments     Payment[]
+  couponRedemptions CouponRedemption[]
 
   @@index([organizationId])
   @@map("invoices")
+}
+
+// Coupons (DR-104): a SUPERADMIN-managed, platform-wide percentage-discount
+// code -- no organizationId/RLS, same precedent as TaxRate/PlatformRate
+// (settings module). code is system-generated (settingsService.
+// createCoupon / generateCouponCode), never staff-typed.
+model Coupon {
+  id             String    @id @default(uuid()) @db.Uuid
+  code           String    @unique
+  discountBp     Int // basis points off the pre-tax subtotal, e.g. 1500 = 15%; capped at 5000 (50%) app-side
+  maxRedemptions Int? // null = unlimited (until deactivated/expired); N = capped; 1 = single-use
+  expiresAt      DateTime?
+  // Soft off-switch -- deliberately NOT a hard delete like TaxRate/
+  // PlatformRate, since CouponRedemption has a real FK to this row (needed
+  // for the cap count) that a hard delete would either be blocked by or
+  // wrongly cascade-destroy the redemption history of.
+  deactivatedAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+// The "usage" record for a Coupon -- created when it's applied to an
+// Invoice (counted at apply-time, not payment-time -- see DR-104), deleted
+// outright when removed (releases the slot). One row per (coupon, invoice).
+model CouponRedemption {
+  id            String   @id @default(uuid()) @db.Uuid
+  couponId      String   @db.Uuid
+  invoiceId     String   @db.Uuid
+  discountMinor Int // snapshot of the discount amount actually applied
+  redeemedAt    DateTime @default(now())
+
+  coupon  Coupon  @relation(fields: [couponId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, invoiceId])
+  @@index([couponId])
+  @@map("coupon_redemptions")
 }
 
 // A single payment attempt against an Invoice (deposit or balance leg). The

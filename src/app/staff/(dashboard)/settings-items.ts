@@ -8,6 +8,9 @@ import type { SidebarItem } from './sidebar-shell';
 export const SETTINGS_ITEMS: SidebarItem[] = [
   { href: '/staff/settings/tax-rates', labelKey: 'taxRates', permission: 'platform_settings.read' },
   { href: '/staff/settings/platform-rate', labelKey: 'platformRate', permission: 'platform_settings.read' },
+  // Coupons (DR-104): percentage-discount codes, same platform-wide/
+  // SUPERADMIN-write shape as the two rate settings above.
+  { href: '/staff/settings/coupons', labelKey: 'coupons', permission: 'platform_settings.read' },
   // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
   // any role (explicit user choice) -- superadminOnly here is belt-and-
   // suspenders with that, matching Permissions/My Profile below.

@@ -3,6 +3,7 @@
 // hold-folded-into-Booking precedent).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import { z } from 'zod';
+import { discountOf, money, taxOf } from '@lib/money';
 
 export interface InvoiceView {
   id: string;
@@ -10,6 +11,11 @@ export interface InvoiceView {
   bookingId: string;
   currency: Currency;
   subtotalMinor: number;
+  // DR-104: snapshot of whichever Coupon was applied at the time -- null on
+  // every invoice that never had one.
+  couponCode: string | null;
+  discountBp: number | null;
+  discountMinor: number;
   taxRateBp: number;
   taxMinor: number;
   totalMinor: number;
@@ -42,6 +48,9 @@ export interface PaymentView {
 export const InitiatePaymentInput = z.object({ kind: z.enum(['DEPOSIT', 'BALANCE', 'FULL']) });
 export type InitiatePaymentInput = z.infer<typeof InitiatePaymentInput>;
 
+export const ApplyCouponInput = z.object({ code: z.string().min(1) });
+export type ApplyCouponInput = z.infer<typeof ApplyCouponInput>;
+
 export const ResolvePaymentInput = z.object({ outcome: z.enum(['SUCCEEDED', 'FAILED']) });
 export type ResolvePaymentInput = z.infer<typeof ResolvePaymentInput>;
 
@@ -50,6 +59,38 @@ export type ResolvePaymentInput = z.infer<typeof ResolvePaymentInput>;
 export function splitDeposit(totalMinor: number): { depositMinor: number; balanceMinor: number } {
   const depositMinor = Math.round(totalMinor * 0.4);
   return { depositMinor, balanceMinor: totalMinor - depositMinor };
+}
+
+export interface InvoiceAmountsInput {
+  subtotalMinor: number;
+  currency: Currency;
+  taxRateBp: number;
+  discountBp?: number; // omitted/0 = no coupon
+}
+
+export interface InvoiceAmounts {
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  depositMinor: number;
+  balanceMinor: number;
+}
+
+/** DR-104: subtotal -> discount -> discounted subtotal -> tax (on the
+ * DISCOUNTED subtotal, not the original) -> total -> deposit/balance split.
+ * The ONE place this math is written -- used by both
+ * getOrCreateInvoiceForBooking (discountBp omitted) and applyCoupon/
+ * removeCoupon (set/omitted respectively), so the ordering can never drift
+ * between the no-discount and with-discount paths. */
+export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmounts {
+  const subtotal = money(input.subtotalMinor, input.currency);
+  const discountBp = input.discountBp ?? 0;
+  const discountMinor = discountBp > 0 ? discountOf(subtotal, discountBp).minor : 0;
+  const discountedSubtotal = money(subtotal.minor - discountMinor, input.currency);
+  const tax = taxOf(discountedSubtotal, input.taxRateBp);
+  const totalMinor = discountedSubtotal.minor + tax.minor;
+  const { depositMinor, balanceMinor } = splitDeposit(totalMinor);
+  return { discountMinor, taxMinor: tax.minor, totalMinor, depositMinor, balanceMinor };
 }
 
 const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {

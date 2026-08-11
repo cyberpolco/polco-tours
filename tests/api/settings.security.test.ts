@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { POST as createTaxRate } from '../../src/app/api/v1/settings/tax-rates/route';
+import { POST as createCoupon } from '../../src/app/api/v1/settings/coupons/route';
 
 /**
  * Settings Module (DR-042) role-gate coverage. `platform_settings.write` is
@@ -90,6 +91,23 @@ describe('settings routes -- role gate', () => {
       rateBp: 1000,
     });
     const res = await createTaxRate(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+
+  // DR-104: requireSettingsWriter is one shared function -- this proves the
+  // same SUPERADMIN-only backstop applies to the newer Coupon entity too,
+  // not just the two rate tables it originally guarded.
+  it('TOUR_GUIDE cannot create a coupon (403)', async () => {
+    const headers = await loginAs(guideId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons', headers, 'POST', { discountBp: 1000 });
+    const res = await createCoupon(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+
+  it('PLATFORM_ADMIN with a manually granted platform_settings.write still cannot create a coupon (403)', async () => {
+    const headers = await loginAs(platformAdminWithGrantId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons', headers, 'POST', { discountBp: 1000 });
+    const res = await createCoupon(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
   });
 });

@@ -4,6 +4,7 @@ import {
   canInitiatePayment,
   canTransitionInvoice,
   canTransitionPayment,
+  computeInvoiceAmounts,
   nextInvoiceStatusAfterPayment,
   splitDeposit,
 } from '../src/modules/invoicing/domain';
@@ -161,6 +162,43 @@ describe('invoicing domain', () => {
       expect(amountForPaymentKind(invoice, 'DEPOSIT')).toBe(4000);
       expect(amountForPaymentKind(invoice, 'BALANCE')).toBe(6000);
       expect(amountForPaymentKind(invoice, 'FULL')).toBe(10000);
+    });
+  });
+
+  describe('computeInvoiceAmounts (DR-104)', () => {
+    it('with no discount, reproduces the exact pre-coupon-feature numbers (regression guard)', () => {
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000 });
+      expect(amounts).toEqual({ discountMinor: 0, taxMinor: 1000, totalMinor: 11000, depositMinor: 4400, balanceMinor: 6600 });
+    });
+
+    it('discountBp: 0 behaves identically to omitting it', () => {
+      const omitted = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000 });
+      const zero = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 0 });
+      expect(zero).toEqual(omitted);
+    });
+
+    it('computes tax on the DISCOUNTED subtotal, not the original', () => {
+      // subtotal 10000, 15% off -> discount 1500, discounted subtotal 8500;
+      // tax is 10% of 8500 (850), NOT 10% of 10000 (1000).
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 1500 });
+      expect(amounts.discountMinor).toBe(1500);
+      expect(amounts.taxMinor).toBe(850);
+      expect(amounts.totalMinor).toBe(9350); // (10000 - 1500) + 850
+      expect(amounts.depositMinor).toBe(3740); // 40% of 9350
+      expect(amounts.balanceMinor).toBe(5610); // 9350 - 3740
+    });
+
+    it('rounds the discount half-up, same convention as taxOf/splitDeposit', () => {
+      // 9999 * 5% = 499.95 -> rounds to 500.
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 9999, currency: 'USD', taxRateBp: 0, discountBp: 500 });
+      expect(amounts.discountMinor).toBe(500);
+    });
+
+    it('a 50% (max allowed) discount halves the subtotal before tax', () => {
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 5000 });
+      expect(amounts.discountMinor).toBe(5000);
+      expect(amounts.taxMinor).toBe(500); // 10% of the remaining 5000
+      expect(amounts.totalMinor).toBe(5500);
     });
   });
 });

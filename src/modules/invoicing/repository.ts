@@ -1,14 +1,19 @@
 // invoicing module — repository. The only place that touches
-// prisma.invoice/prisma.payment for this module.
+// prisma.invoice/prisma.payment/prisma.couponRedemption for this module.
 import type { Currency, Invoice, InvoiceStatus, Payment, PaymentKind, PaymentStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
-import { canTransitionPayment, nextInvoiceStatusAfterPayment } from './domain';
+import { couponUnavailableReason } from '@lib/coupons';
+import { Errors } from '@lib/errors';
+import { canTransitionPayment, computeInvoiceAmounts, nextInvoiceStatusAfterPayment } from './domain';
 import type { InvoiceView, PaymentView } from './domain';
 
 export interface CreateInvoiceParams {
   bookingId: string;
   currency: Currency;
   subtotalMinor: number;
+  couponCode: string | null;
+  discountBp: number | null;
+  discountMinor: number;
   taxRateBp: number;
   taxMinor: number;
   totalMinor: number;
@@ -16,6 +21,15 @@ export interface CreateInvoiceParams {
   balanceMinor: number;
   platformFeeMinor: number;
   platformFeeRateBp: number;
+}
+
+interface CouponRow {
+  id: string;
+  code: string;
+  discountBp: number;
+  maxRedemptions: number | null;
+  expiresAt: Date | null;
+  deactivatedAt: Date | null;
 }
 
 export interface CreatePaymentParams {
@@ -39,6 +53,9 @@ function toInvoiceView(i: Invoice): InvoiceView {
     bookingId: i.bookingId,
     currency: i.currency,
     subtotalMinor: i.subtotalMinor,
+    couponCode: i.couponCode,
+    discountBp: i.discountBp,
+    discountMinor: i.discountMinor,
     taxRateBp: i.taxRateBp,
     taxMinor: i.taxMinor,
     totalMinor: i.totalMinor,
@@ -155,6 +172,68 @@ export const invoicingRepository = {
         invoice: toInvoiceView(invoice),
         touristUserId: currentInvoice.booking.touristUserId,
       };
+    });
+  },
+
+  // DR-104: Coupon apply/remove. Both re-check usability under a row lock
+  // on the Coupon (not just the service layer's earlier read-only
+  // pre-check) -- Postgres READ COMMITTED alone doesn't stop two
+  // concurrent applies of the same capped code both reading "count < cap"
+  // as true before either inserts; `withOrg` already runs raw SQL for its
+  // own GUC, so this isn't a new pattern in the codebase.
+  async applyCoupon(organizationId: string, invoiceId: string, code: string): Promise<InvoiceView> {
+    return withOrg(organizationId, async (tx) => {
+      const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
+      if (!invoice) throw Errors.notFound('Invoice not found');
+
+      const rows = await tx.$queryRaw<CouponRow[]>`SELECT * FROM coupons WHERE code = ${code} FOR UPDATE`;
+      const coupon = rows[0];
+      if (!coupon) throw Errors.notFound('Coupon code not found');
+
+      const redemptionCount = await tx.couponRedemption.count({ where: { couponId: coupon.id } });
+      if (couponUnavailableReason(coupon, redemptionCount, new Date())) {
+        throw Errors.conflict('This coupon is no longer available');
+      }
+
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: invoice.subtotalMinor,
+        currency: invoice.currency,
+        taxRateBp: invoice.taxRateBp,
+        discountBp: coupon.discountBp,
+      });
+
+      await tx.couponRedemption.create({
+        data: { couponId: coupon.id, invoiceId, discountMinor: amounts.discountMinor },
+      });
+      const updated = await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { couponCode: coupon.code, discountBp: coupon.discountBp, ...amounts },
+      });
+      return toInvoiceView(updated);
+    });
+  },
+
+  async removeCoupon(organizationId: string, invoiceId: string): Promise<InvoiceView> {
+    return withOrg(organizationId, async (tx) => {
+      const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
+      if (!invoice) throw Errors.notFound('Invoice not found');
+      if (!invoice.couponCode) return toInvoiceView(invoice); // no-op, nothing applied
+
+      const coupon = await tx.coupon.findUnique({ where: { code: invoice.couponCode } });
+      if (coupon) {
+        await tx.couponRedemption.deleteMany({ where: { couponId: coupon.id, invoiceId } });
+      }
+
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: invoice.subtotalMinor,
+        currency: invoice.currency,
+        taxRateBp: invoice.taxRateBp,
+      });
+      const updated = await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { couponCode: null, discountBp: null, ...amounts },
+      });
+      return toInvoiceView(updated);
     });
   },
 };

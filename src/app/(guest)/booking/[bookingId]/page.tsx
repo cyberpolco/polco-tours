@@ -14,8 +14,9 @@ import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { BOOKING_STATUS_TONE, PAYMENT_STATUS_TONE } from '@lib/status-tones';
+import { CouponForm } from '@/components/CouponForm';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
-import { acceptQuotationAction, initiatePaymentAction } from './actions';
+import { acceptQuotationAction, applyCouponAction, initiatePaymentAction, removeCouponAction } from './actions';
 import { CancelBookingButton } from './cancel-booking-button';
 import { CancelRequestButton } from './cancel-request-button';
 
@@ -151,6 +152,11 @@ export default async function BookingHomePage({ params }: Props) {
   const payments = await invoicingService.listPayments(ctx, invoice.id);
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
+  // DR-104: a coupon may only be applied/removed before the invoice is
+  // actually paid -- matches invoicingService.applyCoupon/removeCoupon's
+  // own server-side guard, mirrored here just to hide the form once it'd
+  // be rejected anyway.
+  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED');
 
   return (
     <div className="space-y-8">
@@ -218,6 +224,12 @@ export default async function BookingHomePage({ params }: Props) {
             <p className="text-xs text-mist">{t('subtotal')}</p>
             <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
           </div>
+          {invoice.discountMinor > 0 && (
+            <div>
+              <p className="text-xs text-mist">{t('discount')}</p>
+              <p className="text-sm">−{format(money(invoice.discountMinor, invoice.currency))}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-mist">{t('tax')}</p>
             <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
@@ -231,6 +243,12 @@ export default async function BookingHomePage({ params }: Props) {
             <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
           </div>
         </Card>
+        <CouponForm
+          appliedCode={invoice.couponCode}
+          editable={couponEditable}
+          onApply={applyCouponAction.bind(null, invoice.id, booking.id)}
+          onRemove={removeCouponAction.bind(null, invoice.id, booking.id)}
+        />
       </div>
       </Reveal>
 

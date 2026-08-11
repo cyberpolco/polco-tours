@@ -342,6 +342,12 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                   <dt className="text-xs text-mist">{t('subtotal')}</dt>
                   <dd>{format(money(billingSummary.subtotalMinor, billingSummary.currency))}</dd>
                 </div>
+                {billingSummary.discountMinor > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('discount')}</dt>
+                    <dd>−{format(money(billingSummary.discountMinor, billingSummary.currency))}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-xs text-mist">{t('tax')}</dt>
                   <dd>{format(money(billingSummary.taxMinor, billingSummary.currency))}</dd>

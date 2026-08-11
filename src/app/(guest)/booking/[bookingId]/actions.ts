@@ -4,8 +4,10 @@ import type { PaymentKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { requireGuestContext } from '@lib/guest-guard';
 import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
+import { ApiError } from '@lib/errors';
 import { bookingService } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import type { CouponActionState } from '@/components/CouponForm';
 
 export async function cancelBookingAction(bookingId: string) {
   const ctx = await requireGuestContext();
@@ -27,5 +29,30 @@ export async function initiatePaymentAction(invoiceId: string, kind: PaymentKind
 export async function acceptQuotationAction(bookingId: string) {
   const ctx = await requireGuestContext();
   await bookingService.acceptQuotation(ctx, bookingId);
+  revalidatePath(`/booking/${bookingId}`);
+}
+
+export async function applyCouponAction(
+  invoiceId: string,
+  bookingId: string,
+  _prevState: CouponActionState,
+  formData: FormData,
+): Promise<CouponActionState> {
+  const ctx = await requireGuestContext();
+  const code = String(formData.get('code') ?? '').trim();
+  if (!code) return { error: 'Enter a coupon code' };
+  try {
+    await invoicingService.applyCoupon(ctx, invoiceId, code);
+  } catch (err) {
+    if (err instanceof ApiError) return { error: err.detail ?? err.title };
+    throw err;
+  }
+  revalidatePath(`/booking/${bookingId}`);
+  return {};
+}
+
+export async function removeCouponAction(invoiceId: string, bookingId: string): Promise<void> {
+  const ctx = await requireGuestContext();
+  await invoicingService.removeCoupon(ctx, invoiceId);
   revalidatePath(`/booking/${bookingId}`);
 }

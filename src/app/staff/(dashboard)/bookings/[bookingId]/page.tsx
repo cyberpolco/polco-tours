@@ -21,8 +21,10 @@ import { format, formatOrPending, money } from '@lib/money';
 import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { can } from '@lib/rbac';
+import { CouponForm } from '@/components/CouponForm';
 import {
   acceptQuotationAction,
+  applyCouponAction,
   confirmBookingAction,
   cancelBookingAction,
   convertToItineraryAction,
@@ -31,6 +33,7 @@ import {
   issueRatingCodeAction,
   initiatePaymentAction,
   refundBookingAction,
+  removeCouponAction,
   resolvePaymentAction,
   sendQuotationAction,
 } from './actions';
@@ -184,6 +187,7 @@ export default async function BookingDetailPage({ params }: Props) {
   const ratingCode = canIssueRating ? await ratingsService.getRatingCodeForBooking(ctx, bookingId) : null;
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
+  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED');
 
   // Read-only -- visa processing itself is VISA_FACILITATOR's job (DR-019),
   // which has no staff-dashboard access yet. "Not started" just means no
@@ -420,6 +424,12 @@ export default async function BookingDetailPage({ params }: Props) {
             <p className="text-xs text-mist">{t('subtotal')}</p>
             <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
           </div>
+          {invoice.discountMinor > 0 && (
+            <div>
+              <p className="text-xs text-mist">{t('discount')}</p>
+              <p className="text-sm">−{format(money(invoice.discountMinor, invoice.currency))}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-mist">{t('tax')}</p>
             <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
@@ -443,6 +453,12 @@ export default async function BookingDetailPage({ params }: Props) {
             </p>
           </div>
         </Card>
+        <CouponForm
+          appliedCode={invoice.couponCode}
+          editable={couponEditable}
+          onApply={applyCouponAction.bind(null, invoice.id, booking.id)}
+          onRemove={removeCouponAction.bind(null, invoice.id, booking.id)}
+        />
         <p className="mt-2 flex items-center gap-2 text-sm text-mist">
           {t('status')} <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{tInvoiceStatus(invoice.status)}</Badge>
         </p>

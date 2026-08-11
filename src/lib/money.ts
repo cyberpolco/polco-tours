@@ -36,6 +36,13 @@ export function taxOf(base: Money, rateBp: number): Money {
   return { minor: tax, currency: base.currency };
 }
 
+/** Apply a discount rate given in basis points (1500 = 15% off), rounding
+ * half-up -- same convention as taxOf (DR-104). */
+export function discountOf(base: Money, discountBp: number): Money {
+  const discount = Math.round((base.minor * discountBp) / 10000);
+  return { minor: discount, currency: base.currency };
+}
+
 export function format(m: Money, locale = 'en'): string {
   const d = DECIMALS[m.currency];
   const value = m.minor / 10 ** d;

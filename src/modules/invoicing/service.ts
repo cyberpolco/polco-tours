@@ -11,13 +11,15 @@ import { money, taxOf } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
 import { getEffectiveTaxRate } from '@lib/tax';
-import { amountForPaymentKind, canInitiatePayment, splitDeposit, type InvoiceView, type PaymentView } from './domain';
+import { validateCoupon, type CouponUnavailableReason } from '@lib/coupons';
+import { amountForPaymentKind, canInitiatePayment, computeInvoiceAmounts, type InvoiceView, type PaymentView } from './domain';
 import { paymentGateway } from './gateway';
 import { invoicingRepository } from './repository';
 
 export interface BillingSummaryView {
   currency: Currency;
   subtotalMinor: number;
+  discountMinor: number; // DR-104: 0 if no coupon applied
   taxMinor: number;
   depositMinor: number;
   balanceMinor: number;
@@ -129,23 +131,22 @@ export const invoicingService = {
     // invoice's subtotal can never be created before add-ons are decided.
     const billable = await bookingService.getBillableTotal(ctx, bookingId);
     const subtotal = money(billable.totalMinor, billable.currency);
-    const tax = taxOf(subtotal, rateBp);
-    const totalMinor = subtotal.minor + tax.minor;
-    const { depositMinor, balanceMinor } = splitDeposit(totalMinor);
+    // DR-104: no coupon yet at creation time (discountBp omitted) -- same
+    // math computeInvoiceAmounts uses for applyCoupon/removeCoupon later.
+    const amounts = computeInvoiceAmounts({ subtotalMinor: subtotal.minor, currency: subtotal.currency, taxRateBp: rateBp });
     // Platform fee is a computed split of totalMinor, deliberately NOT
     // added to it -- depositMinor/balanceMinor/totalMinor above are the
     // customer's real amounts, unaffected by this.
-    const platformFeeMinor = taxOf(money(totalMinor, billable.currency), platformFeeRateBp).minor;
+    const platformFeeMinor = taxOf(money(amounts.totalMinor, billable.currency), platformFeeRateBp).minor;
 
     const invoice = await invoicingRepository.create(organizationId, {
       bookingId,
       currency: billable.currency,
       subtotalMinor: subtotal.minor,
+      couponCode: null,
+      discountBp: null,
       taxRateBp: rateBp,
-      taxMinor: tax.minor,
-      totalMinor,
-      depositMinor,
-      balanceMinor,
+      ...amounts,
       platformFeeMinor,
       platformFeeRateBp,
     });
@@ -196,6 +197,7 @@ export const invoicingService = {
     return {
       currency: invoice.currency,
       subtotalMinor: invoice.subtotalMinor,
+      discountMinor: invoice.discountMinor,
       taxMinor: invoice.taxMinor,
       depositMinor: invoice.depositMinor,
       balanceMinor: invoice.balanceMinor,
@@ -290,4 +292,69 @@ export const invoicingService = {
     const organizationId = requireOrg(ctx);
     return applyPaymentOutcome(ctx, organizationId, paymentId, outcome);
   },
+
+  /** DR-104: gated by payment.initiate (not invoice.read) -- applying a
+   * coupon decides what will be charged, the same class of action as
+   * initiatePayment itself, which already uses this permission (seeded to
+   * TOURIST "own invoice only" and staff). */
+  async applyCoupon(ctx: AuthContext, invoiceId: string, code: string): Promise<InvoiceView> {
+    assertCan(ctx, 'payment.initiate');
+    const organizationId = requireOrg(ctx);
+    const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
+    if (!detail) throw Errors.notFound('Invoice not found');
+    if (!isStaff(ctx) && detail.touristUserId !== ctx.userId) throw Errors.notFound('Invoice not found');
+    if (detail.payments.some((p) => p.status === 'SUCCEEDED')) {
+      throw Errors.conflict('Cannot apply a coupon once a payment has succeeded on this invoice');
+    }
+
+    const pre = await validateCoupon(code);
+    if ('error' in pre) throw couponErrorToApiError(pre.error);
+
+    const invoice = await invoicingRepository.applyCoupon(organizationId, invoiceId, pre.coupon.code);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'invoice.coupon_applied',
+      resourceType: 'Invoice',
+      resourceId: invoiceId,
+      organizationId,
+      metadata: { code: pre.coupon.code },
+    });
+    return invoice;
+  },
+
+  async removeCoupon(ctx: AuthContext, invoiceId: string): Promise<InvoiceView> {
+    assertCan(ctx, 'payment.initiate');
+    const organizationId = requireOrg(ctx);
+    const detail = await invoicingRepository.findDetail(organizationId, invoiceId);
+    if (!detail) throw Errors.notFound('Invoice not found');
+    if (!isStaff(ctx) && detail.touristUserId !== ctx.userId) throw Errors.notFound('Invoice not found');
+    if (detail.payments.some((p) => p.status === 'SUCCEEDED')) {
+      throw Errors.conflict('Cannot remove a coupon once a payment has succeeded on this invoice');
+    }
+
+    const invoice = await invoicingRepository.removeCoupon(organizationId, invoiceId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'invoice.coupon_removed',
+      resourceType: 'Invoice',
+      resourceId: invoiceId,
+      organizationId,
+    });
+    return invoice;
+  },
 };
+
+function couponErrorToApiError(reason: CouponUnavailableReason) {
+  switch (reason) {
+    case 'NOT_FOUND':
+      return Errors.notFound('Coupon code not found');
+    case 'INACTIVE':
+      return Errors.conflict('This coupon has been deactivated');
+    case 'EXPIRED':
+      return Errors.conflict('This coupon has expired');
+    case 'EXHAUSTED':
+      return Errors.conflict('This coupon has reached its redemption limit');
+  }
+}

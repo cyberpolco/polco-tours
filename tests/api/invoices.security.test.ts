@@ -7,6 +7,7 @@ import { loginAs } from '../helpers/test-auth';
 import { generateBookingReference } from '../../src/modules/booking';
 import { GET as getInvoice } from '../../src/app/api/v1/bookings/[bookingId]/invoice/route';
 import { GET as listPayments, POST as initiatePayment } from '../../src/app/api/v1/invoices/[invoiceId]/payments/route';
+import { POST as applyCoupon, DELETE as removeCoupon } from '../../src/app/api/v1/invoices/[invoiceId]/coupon/route';
 
 /**
  * Anti-BOLA (Vol. 8, API1): RLS only isolates by organizationId -- it does
@@ -138,5 +139,27 @@ describe('anti-BOLA: invoice/payment ownership', () => {
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/invoice`, { headers });
     const res = await getInvoice(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
+  });
+
+  // DR-104: ownership is checked before the coupon code itself is even
+  // looked up, so a fake code is fine here -- proves the anti-BOLA guard
+  // fires first, not a validateCoupon side effect.
+  it("tourist B cannot apply a coupon to tourist A's invoice (404)", async () => {
+    const h = new Headers(await loginAs(touristBId));
+    h.set('Content-Type', 'application/json');
+    const req = new NextRequest(`http://localhost/api/v1/invoices/${invoiceId}/coupon`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ code: 'FAKE-CODE' }),
+    });
+    const res = await applyCoupon(req, { params: Promise.resolve({ invoiceId }) });
+    expect(res.status).toBe(404);
+  });
+
+  it("tourist B cannot remove a coupon from tourist A's invoice (404)", async () => {
+    const headers = await loginAs(touristBId);
+    const req = new NextRequest(`http://localhost/api/v1/invoices/${invoiceId}/coupon`, { method: 'DELETE', headers });
+    const res = await removeCoupon(req, { params: Promise.resolve({ invoiceId }) });
+    expect(res.status).toBe(404);
   });
 });

@@ -26,6 +26,7 @@ vi.mock('@modules/notifications/gateway', () => ({
 const { GET: getInvoice } = await import('../../src/app/api/v1/bookings/[bookingId]/invoice/route');
 const { GET: listPayments, POST: initiatePayment } = await import('../../src/app/api/v1/invoices/[invoiceId]/payments/route');
 const { POST: resolvePayment } = await import('../../src/app/api/v1/payments/[paymentId]/resolve/route');
+const { POST: applyCoupon, DELETE: removeCoupon } = await import('../../src/app/api/v1/invoices/[invoiceId]/coupon/route');
 
 /**
  * Route-handler-level tests (DR-012) against real Postgres, same pattern as
@@ -48,6 +49,9 @@ let touristAId: string;
 let touristBId: string;
 let operatorId: string;
 let guideId: string;
+// DR-104 coupon test codes -- collected here so afterAll can clean up every
+// one regardless of which `it` created it.
+const couponCodes: string[] = [];
 
 function jsonRequest(method: string, url: string, headers: Headers, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -149,6 +153,11 @@ afterAll(async () => {
     await admin.$disconnect();
     await prisma.$disconnect();
     return;
+  }
+  if (couponCodes.length > 0) {
+    const coupons = await admin.coupon.findMany({ where: { code: { in: couponCodes } } });
+    await admin.couponRedemption.deleteMany({ where: { couponId: { in: coupons.map((c) => c.id) } } });
+    await admin.coupon.deleteMany({ where: { code: { in: couponCodes } } });
   }
   await withOrg(orgId, (tx) => tx.payment.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.invoice.deleteMany({ where: { organizationId: orgId } }));
@@ -282,5 +291,178 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     const body = await res.json();
     expect(body.payments).toHaveLength(2);
     expect(body.payments.every((p: { status: string }) => p.status === 'SUCCEEDED')).toBe(true);
+  });
+});
+
+// DR-104. Reuses the same departure/package/tax setup from the outer
+// beforeAll, but each test in this block gets its OWN fresh booking+invoice
+// (via the real GET /invoice endpoint, not a raw fixture) so applying a
+// coupon here never touches invoiceId above, which is already PAID by this
+// point in the file.
+async function createFreshInvoice(touristUserId: string): Promise<string> {
+  return withOrg(orgId, async (tx) => {
+    const booking = await tx.booking.create({
+      data: {
+        organizationId: orgId,
+        departureId: (await tx.departure.findFirstOrThrow({ where: { organizationId: orgId } })).id,
+        touristUserId,
+        bookingReference: generateBookingReference(),
+        seats: 1,
+        priceMinor: 10000,
+        currency: 'USD',
+        status: 'AWAITING_DEPOSIT',
+        addonsFinalizedAt: new Date(),
+      },
+    });
+    const invoice = await tx.invoice.create({
+      data: {
+        organizationId: orgId,
+        bookingId: booking.id,
+        currency: 'USD',
+        subtotalMinor: 10000,
+        taxRateBp: 1000,
+        taxMinor: 1000,
+        totalMinor: 11000,
+        depositMinor: 4400,
+        balanceMinor: 6600,
+        status: 'ISSUED',
+      },
+    });
+    return invoice.id;
+  });
+}
+
+describe('POST/DELETE /api/v1/invoices/:invoiceId/coupon', () => {
+  it('applies a coupon and recomputes discount/tax/total/deposit/balance', async () => {
+    const code = `TEST-APPLY-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1500 } }); // 15%
+
+    const freshInvoiceId = await createFreshInvoice(touristAId);
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, headers, { code });
+    const res = await applyCoupon(req, { params: Promise.resolve({ invoiceId: freshInvoiceId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // subtotal 10000, 15% off -> discount 1500, discounted subtotal 8500;
+    // tax is 10% of 8500 (850), not 10% of 10000.
+    expect(body.invoice.couponCode).toBe(code);
+    expect(body.invoice.discountMinor).toBe(1500);
+    expect(body.invoice.taxMinor).toBe(850);
+    expect(body.invoice.totalMinor).toBe(9350);
+    expect(body.invoice.depositMinor).toBe(3740);
+    expect(body.invoice.balanceMinor).toBe(5610);
+  });
+
+  it('removing a coupon reverts to the exact pre-coupon values', async () => {
+    const code = `TEST-REMOVE-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1500 } });
+
+    const freshInvoiceId = await createFreshInvoice(touristAId);
+    const headers = await loginAs(touristAId);
+    const applyReq = jsonRequest('POST', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, headers, { code });
+    await applyCoupon(applyReq, { params: Promise.resolve({ invoiceId: freshInvoiceId }) });
+
+    const removeHeaders = await loginAs(touristAId);
+    const removeReq = jsonRequest('DELETE', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, removeHeaders);
+    const res = await removeCoupon(removeReq, { params: Promise.resolve({ invoiceId: freshInvoiceId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.invoice.couponCode).toBeNull();
+    expect(body.invoice.discountMinor).toBe(0);
+    expect(body.invoice.taxMinor).toBe(1000);
+    expect(body.invoice.totalMinor).toBe(11000);
+    expect(body.invoice.depositMinor).toBe(4400);
+    expect(body.invoice.balanceMinor).toBe(6600);
+  });
+
+  it('rejects an unknown coupon code (404)', async () => {
+    const freshInvoiceId = await createFreshInvoice(touristAId);
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, headers, {
+      code: 'NOT-A-REAL-CODE',
+    });
+    const res = await applyCoupon(req, { params: Promise.resolve({ invoiceId: freshInvoiceId }) });
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects an expired coupon (409)', async () => {
+    const code = `TEST-EXPIRED-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1000, expiresAt: new Date('2020-01-01') } });
+
+    const freshInvoiceId = await createFreshInvoice(touristAId);
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, headers, { code });
+    const res = await applyCoupon(req, { params: Promise.resolve({ invoiceId: freshInvoiceId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('enforces a maxRedemptions cap across two different invoices', async () => {
+    const code = `TEST-CAP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1000, maxRedemptions: 1 } });
+
+    const invoiceAId = await createFreshInvoice(touristAId);
+    const invoiceBId = await createFreshInvoice(touristBId);
+
+    const firstReq = jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceAId}/coupon`, await loginAs(touristAId), {
+      code,
+    });
+    const firstRes = await applyCoupon(firstReq, { params: Promise.resolve({ invoiceId: invoiceAId }) });
+    expect(firstRes.status).toBe(200);
+
+    const secondReq = jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceBId}/coupon`, await loginAs(touristBId), {
+      code,
+    });
+    const secondRes = await applyCoupon(secondReq, { params: Promise.resolve({ invoiceId: invoiceBId }) });
+    expect(secondRes.status).toBe(409);
+  });
+
+  // Exercises the SELECT ... FOR UPDATE lock in invoicing/repository.ts's
+  // applyCoupon -- without it, both concurrent requests could read
+  // "count < cap" as true before either inserts its CouponRedemption row.
+  it('handles concurrent applies of a single-use coupon -- exactly one succeeds', async () => {
+    const code = `TEST-RACE-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1000, maxRedemptions: 1 } });
+
+    const invoiceAId = await createFreshInvoice(touristAId);
+    const invoiceBId = await createFreshInvoice(touristBId);
+
+    const [resA, resB] = await Promise.all([
+      applyCoupon(
+        jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceAId}/coupon`, await loginAs(touristAId), { code }),
+        { params: Promise.resolve({ invoiceId: invoiceAId }) },
+      ),
+      applyCoupon(
+        jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceBId}/coupon`, await loginAs(touristBId), { code }),
+        { params: Promise.resolve({ invoiceId: invoiceBId }) },
+      ),
+    ]);
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([200, 409]);
+  });
+
+  it('blocks applying/removing a coupon once a payment has succeeded on the invoice (409)', async () => {
+    // Reuses the outer-scope invoiceId, which is already PAID by the end of
+    // the payments describe block above (declaration order matters in this
+    // file -- see the header comment).
+    const code = `TEST-PAID-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    couponCodes.push(code);
+    await admin.coupon.create({ data: { code, discountBp: 1000 } });
+
+    const applyRes = await applyCoupon(
+      jsonRequest('POST', `http://localhost/api/v1/invoices/${invoiceId}/coupon`, await loginAs(touristAId), { code }),
+      { params: Promise.resolve({ invoiceId }) },
+    );
+    expect(applyRes.status).toBe(409);
+
+    const removeRes = await removeCoupon(
+      jsonRequest('DELETE', `http://localhost/api/v1/invoices/${invoiceId}/coupon`, await loginAs(touristAId)),
+      { params: Promise.resolve({ invoiceId }) },
+    );
+    expect(removeRes.status).toBe(409);
   });
 });

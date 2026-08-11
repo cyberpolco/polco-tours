@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.14.0
+  version: 0.15.0
   description: >
     DR-038 adds Insights & Decision Making: a new, read-only `insights`
     module (no new Prisma tables) composing existing booking/invoicing/
@@ -1198,6 +1198,57 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /invoices/{invoiceId}/coupon:
+    parameters:
+      - $ref: '#/components/parameters/invoiceId'
+    post:
+      summary: Apply a percentage-discount coupon to an invoice (DR-104)
+      description: >-
+        Recomputes and persists discountMinor/taxMinor/totalMinor/
+        depositMinor/balanceMinor on the invoice. Blocked once any payment
+        on this invoice has SUCCEEDED. Gated by payment.initiate (the same
+        permission as initiating a payment), not invoice.read -- this
+        decides what will be charged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplyCouponInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The coupon is expired/deactivated/exhausted, or a payment has already succeeded on this invoice
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      summary: Remove a previously applied coupon from an invoice (DR-104)
+      description: A no-op if no coupon is currently applied. Blocked once any payment on this invoice has SUCCEEDED.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A payment has already succeeded on this invoice
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /payments/{paymentId}/resolve:
     parameters:
@@ -2911,7 +2962,10 @@ components:
         bookingId: { type: string, format: uuid }
         currency: { type: string, enum: [USD, EUR, NAD, CDF] }
         subtotalMinor: { type: integer }
-        taxRateBp: { type: integer, description: Snapshotted at invoice-issue time (DR-006) }
+        couponCode: { type: string, nullable: true, description: 'Snapshot of whichever Coupon was applied (DR-104) -- null if none ever was.' }
+        discountBp: { type: integer, nullable: true, description: Snapshotted Coupon.discountBp at apply time (DR-104) }
+        discountMinor: { type: integer, description: '0 if no coupon applied' }
+        taxRateBp: { type: integer, description: Snapshotted at invoice-issue time (DR-006). Computed on (subtotalMinor - discountMinor), not subtotalMinor. }
         taxMinor: { type: integer }
         totalMinor: { type: integer }
         depositMinor: { type: integer, description: 40% of totalMinor, half-up (DR-012) }
@@ -2948,6 +3002,12 @@ components:
       required: [outcome]
       properties:
         outcome: { type: string, enum: [SUCCEEDED, FAILED] }
+
+    ApplyCouponInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, description: 'e.g. CPC-26-019654-HK' }
 
     User:
       type: object
