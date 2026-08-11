@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService, type VehicleView } from '@modules/fleet';
 import { paginate } from '@lib/directory-filters';
@@ -42,6 +43,9 @@ function listVehicleTypes(vehicles: VehicleView[]): string[] {
 export default async function VehiclesListPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('fleet.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffVehicles');
+  const tVehicleStatus = await getTranslations('VehicleStatusLabel');
+  const tAvailabilityStatus = await getTranslations('AvailabilityStatusLabel');
   const q = params.q ?? '';
   const status = params.status ?? '';
   const availability = params.availability ?? '';
@@ -77,74 +81,72 @@ export default async function VehiclesListPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/fleet">back to fleet</BackLink>
+      <BackLink href="/staff/fleet">{t('backToFleet')}</BackLink>
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Fleet" title="Vehicles" />
-        <LinkButton href="/staff/fleet/vehicles/new">Add vehicle</LinkButton>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <LinkButton href="/staff/fleet/vehicles/new">{t('addVehicle')}</LinkButton>
       </div>
 
       <form method="get" action="/staff/fleet/vehicles" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Plate, make, model, or VIN"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Status" htmlFor="status" optional>
+        <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
-            <option value="">All</option>
-            <option value="ACTIVE">Active</option>
-            <option value="MAINTENANCE">Maintenance</option>
-            <option value="RETIRED">Retired</option>
+            <option value="">{t('all')}</option>
+            <option value="ACTIVE">{tVehicleStatus('ACTIVE')}</option>
+            <option value="MAINTENANCE">{tVehicleStatus('MAINTENANCE')}</option>
+            <option value="RETIRED">{tVehicleStatus('RETIRED')}</option>
           </Select>
         </FormField>
-        <FormField label="Availability" htmlFor="availability" optional>
+        <FormField label={t('availability')} htmlFor="availability" optional>
           <Select name="availability" defaultValue={availability}>
-            <option value="">All</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="BOOKED">Booked</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="">{t('all')}</option>
+            <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
+            <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
+            <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
           </Select>
         </FormField>
-        <FormField label="Type" htmlFor="type" optional>
+        <FormField label={t('type')} htmlFor="type" optional>
           <Select name="type" defaultValue={type}>
-            <option value="">All</option>
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            <option value="">{t('all')}</option>
+            {typeOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
               </option>
             ))}
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || status || availability || type) && (
             <Link href="/staff/fleet/vehicles" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} vehicle{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('vehicleCount', { count: totalItems })}</p>
 
       {vehicles.length === 0 ? (
-        <p className="text-mist">No vehicles match these filters.</p>
+        <p className="text-mist">{t('noMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Plate</Th>
-              <Th>Make / model</Th>
-              <Th>Type</Th>
-              <Th>Seats</Th>
-              <Th>Status</Th>
-              <Th>Availability</Th>
+              <Th>{t('plate')}</Th>
+              <Th>{t('makeModel')}</Th>
+              <Th>{t('type')}</Th>
+              <Th>{t('seats')}</Th>
+              <Th>{t('status')}</Th>
+              <Th>{t('availability')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -158,15 +160,15 @@ export default async function VehiclesListPage({ searchParams }: Props) {
                 <Td>{v.vehicleType}</Td>
                 <Td>{v.seatCapacity}</Td>
                 <Td>
-                  <Badge tone={VEHICLE_STATUS_TONE[v.status]}>{v.status}</Badge>
+                  <Badge tone={VEHICLE_STATUS_TONE[v.status]}>{tVehicleStatus(v.status)}</Badge>
                 </Td>
                 <Td>
-                  <Badge tone={AVAILABILITY_STATUS_TONE[v.availability]}>{v.availability}</Badge>
+                  <Badge tone={AVAILABILITY_STATUS_TONE[v.availability]}>{tAvailabilityStatus(v.availability)}</Badge>
                 </Td>
                 <Td>
                   <div className="flex items-center gap-3">
                     <Link href={`/staff/fleet/vehicles/${v.id}`} className="text-forest hover:underline">
-                      View
+                      {t('view')}
                     </Link>
                     {/* DR-059: SUPERADMIN-only -- see the vehicle detail
                         page's own comment on why this role check (not just
@@ -177,10 +179,10 @@ export default async function VehiclesListPage({ searchParams }: Props) {
                         <SubmitButton
                           variant="secondary"
                           size="compact"
-                          pendingLabel="Deleting…"
-                          confirmMessage={`Delete vehicle ${v.plateNumber}? This cannot be undone.`}
+                          pendingLabel={t('deleting')}
+                          confirmMessage={t('deleteConfirm', { plate: v.plateNumber })}
                         >
-                          Delete
+                          {t('delete')}
                         </SubmitButton>
                       </form>
                     )}

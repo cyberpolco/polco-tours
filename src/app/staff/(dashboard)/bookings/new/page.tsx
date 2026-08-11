@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { BackLink } from '@/components/ui/BackLink';
@@ -37,12 +38,15 @@ export default async function NewBookingPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
   requireNewBookingAccess(ctx.roles);
   const { mode, packageId, tailorMade } = await searchParams;
+  const t = await getTranslations('StaffBookings');
+  const tCountries = await getTranslations('Countries');
+  const tBookingStart = await getTranslations('BookingStart');
 
   if (tailorMade) {
     return (
       <div className="max-w-md">
-        <BackLink href="/staff/bookings/new">back</BackLink>
-        <PageHeader eyebrow="New booking" title="Tailor-made request" />
+        <BackLink href="/staff/bookings/new">{t('back')}</BackLink>
+        <PageHeader eyebrow={t('newBookingEyebrow')} title={t('tailorMadeTitle')} />
         <StaffPlanMyTripForm />
       </div>
     );
@@ -57,15 +61,15 @@ export default async function NewBookingPage({ searchParams }: Props) {
     return (
       <div className="max-w-md">
         <PageHeader
-          eyebrow="New booking"
-          title={`${pkg.title} · ${formatOrPending(pkg.priceMinor, pkg.currency)}/seat`}
+          eyebrow={t('newBookingEyebrow')}
+          title={`${pkg.title} · ${formatOrPending(pkg.priceMinor, pkg.currency)}${tBookingStart('perSeat')}`}
         />
-        <p className="mt-1 text-sm text-mist">{pkg.durationDays}-day trip</p>
+        <p className="mt-1 text-sm text-mist">{t('dayTrip', { days: pkg.durationDays })}</p>
         <form action={createStaffPackageBookingAction.bind(null, packageId)} className="mt-6 space-y-4">
-          <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
+          <FormField label={t('clientEmailLabel')} htmlFor="email">
             <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Travel start" htmlFor="startDate">
+          <FormField label={t('travelStart')} htmlFor="startDate">
             <input
               name="startDate"
               type="date"
@@ -74,7 +78,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Seats" htmlFor="seats">
+          <FormField label={t('seats')} htmlFor="seats">
             <input
               name="seats"
               type="number"
@@ -84,12 +88,14 @@ export default async function NewBookingPage({ searchParams }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Special requests" htmlFor="specialRequests" optional>
+          <FormField label={t('specialRequests')} htmlFor="specialRequests" optional>
             <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <SubmitButton>Create booking</SubmitButton>
+          <SubmitButton>{t('createBooking')}</SubmitButton>
         </form>
-        <BackLink href="/staff/bookings/new?mode=packages" className="mt-4">back</BackLink>
+        <BackLink href="/staff/bookings/new?mode=packages" className="mt-4">
+          {t('back')}
+        </BackLink>
       </div>
     );
   }
@@ -100,16 +106,16 @@ export default async function NewBookingPage({ searchParams }: Props) {
 
     return (
       <div>
-        <BackLink href="/staff/bookings/new">back</BackLink>
-        <PageHeader eyebrow="New booking" title="Choose a package" />
+        <BackLink href="/staff/bookings/new">{t('back')}</BackLink>
+        <PageHeader eyebrow={t('newBookingEyebrow')} title={t('choosePackageTitle')} />
         {bookablePackages.length === 0 ? (
-          <p className="mt-4 text-mist">No bookable packages yet.</p>
+          <p className="mt-4 text-mist">{t('noBookablePackages')}</p>
         ) : (
           <ul className="mt-4 space-y-2">
             {bookablePackages.map((p) => (
               <Card as="li" key={p.id}>
                 <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
-                  {p.title} · {p.country} · {formatOrPending(p.priceMinor, p.currency)}
+                  {p.title} · {tCountries(p.country)} · {formatOrPending(p.priceMinor, p.currency)}
                 </Link>
               </Card>
             ))}
@@ -125,19 +131,19 @@ export default async function NewBookingPage({ searchParams }: Props) {
   const sections = [
     {
       href: '/staff/bookings/new?mode=packages',
-      title: 'Make a booking from existing Packages',
-      description: 'Pick a published, priced package -- same flow a guest uses to book it themselves.',
+      title: t('fromPackagesTitle'),
+      description: t('fromPackagesDesc'),
     },
     {
       href: '/staff/bookings/new?tailorMade=1',
-      title: 'Create a tailor-made request',
-      description: "Nothing in the catalog fits -- build a bespoke request, same 9-step wizard the guest site's own plan-my-trip uses.",
+      title: t('tailorMadeChooserTitle'),
+      description: t('tailorMadeChooserDesc'),
     },
   ];
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Dashboard" title="New booking" />
+      <PageHeader eyebrow={t('dashboardEyebrow')} title={t('newBookingEyebrow')} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">

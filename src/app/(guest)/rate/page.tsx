@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Alert } from '@/components/ui/Alert';
@@ -13,25 +14,24 @@ interface Props {
 // was fully paid.
 export default async function RatePage({ searchParams }: Props) {
   const { submitted } = await searchParams;
+  const t = await getTranslations('RatePage');
 
   return (
     <Reveal>
       <div className="max-w-sm">
-        <p className="eyebrow text-mist">Rate your trip</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">Share your feedback</h1>
+        <p className="eyebrow text-mist">{t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
 
         {submitted && (
           <div className="mt-4">
-            <Alert tone="success">Thank you! Your feedback has been recorded.</Alert>
+            <Alert tone="success">{t('thankYou')}</Alert>
           </div>
         )}
 
-        <p className="mt-2 text-sm text-mist">
-          Enter your booking reference and the Rating Code you were sent -- available once your tour is complete.
-        </p>
+        <p className="mt-2 text-sm text-mist">{t('subhead')}</p>
 
         <form method="get" action="/rate/result" className="mt-6 space-y-4">
-          <FormField label="Booking reference" htmlFor="bookingReference">
+          <FormField label={t('bookingReference')} htmlFor="bookingReference">
             <input
               name="bookingReference"
               required
@@ -39,10 +39,10 @@ export default async function RatePage({ searchParams }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
             />
           </FormField>
-          <FormField label="Rating Code" htmlFor="ratingCode">
+          <FormField label={t('ratingCode')} htmlFor="ratingCode">
             <input name="ratingCode" required className="w-full rounded-survey border border-rule px-3 py-2 uppercase" />
           </FormField>
-          <Button type="submit">Continue</Button>
+          <Button type="submit">{t('continueLabel')}</Button>
         </form>
       </div>
     </Reveal>

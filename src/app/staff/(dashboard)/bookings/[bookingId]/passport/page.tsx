@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
@@ -36,17 +37,19 @@ export default async function PassportPage({ params, searchParams }: Props) {
   }
 
   const remaining = travelers.filter((t) => !t.passportDocumentId).length;
+  const t = await getTranslations('StaffPassportPage');
 
   return (
     <div className="max-w-md">
-      <BackLink href={`/staff/bookings/${bookingId}/travelers/new`}>back to travelers</BackLink>
-      <PageHeader eyebrow="Booking setup · Passport" title={`${nextTraveler.firstName} ${nextTraveler.lastName}'s passport`} />
-      <p className="mt-1 text-sm text-mist">
-        Upload a PDF passport for every traveler (required for visa assistance) -- {remaining} of {travelers.length} left.
-      </p>
+      <BackLink href={`/staff/bookings/${bookingId}/travelers/new`}>{t('backToTravelers')}</BackLink>
+      <PageHeader
+        eyebrow={t('setupPassport')}
+        title={t('passportTitle', { firstName: nextTraveler.firstName, lastName: nextTraveler.lastName })}
+      />
+      <p className="mt-1 text-sm text-mist">{t('uploadNotice', { remaining, total: travelers.length })}</p>
       {error === 'missing_file' && (
         <div className="mt-3">
-          <Alert tone="error">Choose a PDF file to upload.</Alert>
+          <Alert tone="error">{t('choosePdfFile')}</Alert>
         </div>
       )}
       <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
@@ -57,7 +60,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
           required
           className="w-full rounded-survey border border-rule px-3 py-2"
         />
-        <SubmitButton pendingLabel="Uploading…">Upload &amp; continue</SubmitButton>
+        <SubmitButton pendingLabel={t('uploading')}>{t('uploadAndContinue')}</SubmitButton>
       </form>
     </div>
   );

@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { complianceStatus, fleetService } from '@modules/fleet';
@@ -36,27 +37,30 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
   const now = new Date();
   const latestCertification = documents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
   const status = complianceStatus(latestCertification?.expiresAt ?? null, now);
+  const t = await getTranslations('StaffGuides');
+  const tAvailabilityStatus = await getTranslations('AvailabilityStatusLabel');
+  const tComplianceStatus = await getTranslations('ComplianceStatusLabel');
 
   return (
     <div className="max-w-2xl space-y-8">
-      <BackLink href="/staff/fleet/guides">back to guides</BackLink>
+      <BackLink href="/staff/fleet/guides">{t('backToFleet')}</BackLink>
       <div>
-        <PageHeader eyebrow="Guide" title={user?.name ?? user?.email ?? guide.userId} />
+        <PageHeader eyebrow={t('detailEyebrow')} title={user?.name ?? user?.email ?? guide.userId} />
         <p className="mt-1 text-mist">{user?.email}</p>
         <p className="mt-1 text-sm text-mist">
-          Availability: <Badge tone={AVAILABILITY_STATUS_TONE[guide.availability]}>{guide.availability}</Badge>
+          {t('availabilityLabel')} <Badge tone={AVAILABILITY_STATUS_TONE[guide.availability]}>{tAvailabilityStatus(guide.availability)}</Badge>
         </p>
       </div>
 
       <form action={updateGuideProfileAction.bind(null, guideProfileId)} className="space-y-4">
         <div className="survey-rule mb-2" />
-        <FormField label="Status" htmlFor="status">
+        <FormField label={t('status')} htmlFor="status">
           <Select name="status" defaultValue={guide.status}>
             <option value="ACTIVE">ACTIVE</option>
             <option value="SUSPENDED">SUSPENDED</option>
           </Select>
         </FormField>
-        <FormField label="Languages (ISO-639-1 codes, comma-separated, e.g. en, fr)" htmlFor="languages" optional>
+        <FormField label={t('languagesLabel')} htmlFor="languages" optional>
           <input
             name="languages"
             defaultValue={guide.languages.join(', ')}
@@ -64,7 +68,7 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Specialties (comma-separated, e.g. wildlife, cultural)" htmlFor="specialties" optional>
+        <FormField label={t('specialtiesLabel')} htmlFor="specialties" optional>
           <input
             name="specialties"
             defaultValue={guide.specialties.join(', ')}
@@ -72,18 +76,18 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <SubmitButton>Save changes</SubmitButton>
+        <SubmitButton>{t('saveChanges')}</SubmitButton>
       </form>
 
       <div>
         <div className="survey-rule mb-6" />
         <div className="flex items-center justify-between">
-          <p className="eyebrow text-mist">Guide certification document</p>
-          <Badge tone={COMPLIANCE_STATUS_TONE[status]}>{status}</Badge>
+          <p className="eyebrow text-mist">{t('guideCertificationDocument')}</p>
+          <Badge tone={COMPLIANCE_STATUS_TONE[status]}>{tComplianceStatus(status)}</Badge>
         </div>
         {error === 'missing_file' && (
           <div className="mt-2">
-            <Alert tone="error">Choose a file to upload.</Alert>
+            <Alert tone="error">{t('chooseFileToUpload')}</Alert>
           </div>
         )}
         {latestCertification && (
@@ -92,9 +96,9 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
               href={`/api/v1/fleet/guides/${guideProfileId}/documents/${latestCertification.id}`}
               className="text-forest hover:underline"
             >
-              Download current file
+              {t('downloadCurrentFile')}
             </a>
-            {latestCertification.expiresAt && ` · expires ${latestCertification.expiresAt.toLocaleDateString()}`}
+            {latestCertification.expiresAt && ` · ${t('expiresOn', { date: latestCertification.expiresAt.toLocaleDateString() })}`}
           </p>
         )}
         <form
@@ -103,11 +107,11 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
         >
           <input type="file" name="file" required className="text-sm" />
           <div>
-            <label className="mb-1 block text-xs text-mist">Expires on</label>
+            <label className="mb-1 block text-xs text-mist">{t('expiresOnLabel')}</label>
             <input type="date" name="expiresAt" className="rounded-survey border border-rule px-2 py-1 text-sm" />
           </div>
-          <SubmitButton variant="secondary" size="compact" pendingLabel="Uploading…">
-            Upload
+          <SubmitButton variant="secondary" size="compact" pendingLabel={t('uploading')}>
+            {t('upload')}
           </SubmitButton>
         </form>
       </div>
@@ -119,8 +123,8 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
         <div>
           <div className="survey-rule mb-6" />
           <form action={deleteGuideProfileAction.bind(null, guideProfileId)}>
-            <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this guide profile? This cannot be undone.">
-              Delete guide
+            <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteGuideConfirm')}>
+              {t('deleteGuide')}
             </SubmitButton>
           </form>
         </div>

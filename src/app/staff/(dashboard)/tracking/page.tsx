@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { trackingService } from '@modules/tracking';
 import { Badge } from '@/components/ui/Badge';
@@ -15,28 +16,28 @@ import { LOCATION_FRESHNESS_TONE } from '@lib/status-tones';
 export default async function TrackingPage() {
   const ctx = await requireStaffContext('tracking.read');
   const { fleet, activeTrips } = await trackingService.getFleetSnapshot(ctx);
+  const t = await getTranslations('StaffTracking');
+  const tFreshness = await getTranslations('LocationFreshnessLabel');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="space-y-10">
-      <PageHeader eyebrow="Tracking" title="Fleet & Trip Tracking" />
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
       <div>
-        <h1 className="text-2xl font-bold text-navy">Fleet Locations</h1>
-        <p className="mt-1 text-xs text-mist">
-          Staff-entered last known position -- there is no live GPS feed yet (real Starlink API access is still
-          pending).
-        </p>
+        <h1 className="text-2xl font-bold text-navy">{t('fleetLocationsTitle')}</h1>
+        <p className="mt-1 text-xs text-mist">{t('fleetLocationsNotice')}</p>
         {fleet.length === 0 ? (
-          <p className="mt-4 text-mist">No Starlink kits registered yet.</p>
+          <p className="mt-4 text-mist">{t('noKitsRegistered')}</p>
         ) : (
           <Table className="mt-4">
             <thead>
               <TableHeaderRow>
-                <Th>Vehicle</Th>
-                <Th>Kit ID</Th>
-                <Th>Location</Th>
-                <Th>Last updated</Th>
-                <Th>Freshness</Th>
+                <Th>{t('vehicle')}</Th>
+                <Th>{t('kitId')}</Th>
+                <Th>{t('location')}</Th>
+                <Th>{t('lastUpdated')}</Th>
+                <Th>{t('freshness')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
@@ -45,15 +46,15 @@ export default async function TrackingPage() {
                 <Tr key={f.starlinkKitId ?? f.vehicleId}>
                   <Td>{f.plateNumber}</Td>
                   <Td>{f.kitId}</Td>
-                  <Td>{f.latitude != null && f.longitude != null ? `${f.latitude}, ${f.longitude}` : 'Not set'}</Td>
+                  <Td>{f.latitude != null && f.longitude != null ? `${f.latitude}, ${f.longitude}` : t('notSet')}</Td>
                   <Td>{f.lastLocationAt ? f.lastLocationAt.toLocaleString() : '—'}</Td>
                   <Td>
-                    <Badge tone={LOCATION_FRESHNESS_TONE[f.freshness]}>{f.freshness}</Badge>
+                    <Badge tone={LOCATION_FRESHNESS_TONE[f.freshness]}>{tFreshness(f.freshness)}</Badge>
                   </Td>
                   <Td>
                     {f.starlinkKitId && (
                       <Link href={`/staff/fleet/starlink-kits/${f.starlinkKitId}`} className="text-forest hover:underline">
-                        Update
+                        {t('update')}
                       </Link>
                     )}
                   </Td>
@@ -66,34 +67,38 @@ export default async function TrackingPage() {
 
       <div>
         <div className="survey-rule mb-4" />
-        <h1 className="text-2xl font-bold text-navy">Active Trips</h1>
-        <p className="mt-1 text-xs text-mist">Departures currently under way -- progress is date-range based.</p>
+        <h1 className="text-2xl font-bold text-navy">{t('activeTripsTitle')}</h1>
+        <p className="mt-1 text-xs text-mist">{t('activeTripsNotice')}</p>
         {activeTrips.length === 0 ? (
-          <p className="mt-4 text-mist">No trips currently in progress.</p>
+          <p className="mt-4 text-mist">{t('noTripsInProgress')}</p>
         ) : (
           <Table className="mt-4">
             <thead>
               <TableHeaderRow>
-                <Th>Trip</Th>
-                <Th>Country</Th>
-                <Th>Vehicle</Th>
-                <Th>Driver</Th>
-                <Th>Guide</Th>
-                <Th>Progress</Th>
+                <Th>{t('trip')}</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('vehicle')}</Th>
+                <Th>{t('driver')}</Th>
+                <Th>{t('guide')}</Th>
+                <Th>{t('progress')}</Th>
               </TableHeaderRow>
             </thead>
             <tbody>
-              {activeTrips.map((t, i) => (
-                <Tr key={`${t.departureId}-${i}`}>
-                  <Td>{t.packageTitle ?? 'Tailor-made'}</Td>
-                  <Td>{t.country}</Td>
-                  <Td>{t.vehiclePlate ?? '—'}</Td>
-                  <Td>{t.driverName ?? '—'}</Td>
-                  <Td>{t.guideName ?? '—'}</Td>
+              {activeTrips.map((trip, i) => (
+                <Tr key={`${trip.departureId}-${i}`}>
+                  <Td>{trip.packageTitle ?? t('tailorMade')}</Td>
+                  <Td>{tCountries(trip.country)}</Td>
+                  <Td>{trip.vehiclePlate ?? '—'}</Td>
+                  <Td>{trip.driverName ?? '—'}</Td>
+                  <Td>{trip.guideName ?? '—'}</Td>
                   <Td>
-                    {t.progress.totalDays != null
-                      ? `Day ${t.progress.dayNumber} of ${t.progress.totalDays} (${t.progress.percentComplete}%)`
-                      : `Day ${t.progress.dayNumber}`}
+                    {trip.progress.totalDays != null
+                      ? t('dayOfTotal', {
+                          day: trip.progress.dayNumber ?? 0,
+                          total: trip.progress.totalDays,
+                          pct: trip.progress.percentComplete ?? 0,
+                        })
+                      : t('dayOnly', { day: trip.progress.dayNumber ?? 0 })}
                   </Td>
                 </Tr>
               ))}

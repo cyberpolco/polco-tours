@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
@@ -40,16 +41,19 @@ export default async function HotelDetailPage({ params }: Props) {
   }
 
   const myRating = canRate ? await itineraryService.getMyHotelRating(ctx, hotelId) : null;
+  const t = await getTranslations('StaffHotels');
+  const tFields = await getTranslations('PlaceFields');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="max-w-md space-y-8">
-      <PageHeader eyebrow="Hotel" title={hotel.name} />
+      <PageHeader eyebrow={t('detailEyebrow')} title={hotel.name} />
       {canWrite ? (
         <form action={updateHotelAction.bind(null, hotelId)} className="space-y-4">
-          <FormField label="Name" htmlFor="name">
+          <FormField label={tFields('name')} htmlFor="name">
             <input name="name" defaultValue={hotel.name} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Country" htmlFor="country">
+          <FormField label={tFields('country')} htmlFor="country">
             <Select name="country" defaultValue={hotel.country} required>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -58,47 +62,51 @@ export default async function HotelDetailPage({ params }: Props) {
               ))}
             </Select>
           </FormField>
-          <FormField label="Address" htmlFor="address" optional>
+          <FormField label={tFields('address')} htmlFor="address" optional>
             <input name="address" defaultValue={hotel.address ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact name" htmlFor="contactName" optional>
+          <FormField label={tFields('contactName')} htmlFor="contactName" optional>
             <input name="contactName" defaultValue={hotel.contactName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact phone" htmlFor="contactPhone" optional>
+          <FormField label={tFields('contactPhone')} htmlFor="contactPhone" optional>
             <input name="contactPhone" defaultValue={hotel.contactPhone ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact email" htmlFor="contactEmail" optional>
+          <FormField label={tFields('contactEmail')} htmlFor="contactEmail" optional>
             <input name="contactEmail" type="email" defaultValue={hotel.contactEmail ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <MapLocationPicker initialLatitude={hotel.latitude} initialLongitude={hotel.longitude} optional />
-          <SubmitButton>Save changes</SubmitButton>
+          <SubmitButton>{tFields('saveChanges')}</SubmitButton>
         </form>
       ) : (
         <div className="space-y-1 text-sm text-mist">
           <p>
-            {flagEmoji(hotel.country)} {COUNTRY_CODES.find((c) => c.alpha2 === hotel.country)?.name ?? hotel.country}
+            {flagEmoji(hotel.country)} {tCountries(hotel.country)}
           </p>
           {hotel.address && <p>{hotel.address}</p>}
-          <p>{hotel.contactPhone ?? hotel.contactEmail ?? 'No contact on file'}</p>
-          <p>{hotel.averageRating != null ? `${hotel.averageRating.toFixed(1)} ★ (${hotel.ratingCount} ratings)` : 'Not yet rated'}</p>
+          <p>{hotel.contactPhone ?? hotel.contactEmail ?? tFields('noContactOnFile')}</p>
+          <p>
+            {hotel.averageRating != null
+              ? tFields('ratedSummary', { rating: hotel.averageRating.toFixed(1), count: hotel.ratingCount })
+              : tFields('notYetRated')}
+          </p>
         </div>
       )}
       {canWrite && (
         <form action={deleteHotelAction.bind(null, hotelId)}>
-          <SubmitButton variant="secondary" pendingLabel="Removing…" confirmMessage="Delete this hotel? This cannot be undone.">
-            Delete hotel
+          <SubmitButton variant="secondary" pendingLabel={tFields('removing')} confirmMessage={t('deleteConfirm')}>
+            {t('deleteHotel')}
           </SubmitButton>
         </form>
       )}
       {canRate && (
         <div>
           <div className="survey-rule mb-4" />
-          <p className="eyebrow text-mist">Your rating</p>
+          <p className="eyebrow text-mist">{tFields('yourRating')}</p>
           <form action={rateHotelAction.bind(null, hotelId)} className="mt-3 flex items-end gap-3">
-            <FormField label="Rating" htmlFor="rating">
+            <FormField label={tFields('rating')} htmlFor="rating">
               <Select name="rating" defaultValue={myRating?.rating ?? ''} required>
                 <option value="" disabled>
-                  Rate…
+                  {tFields('ratePlaceholder')}
                 </option>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>
@@ -107,14 +115,14 @@ export default async function HotelDetailPage({ params }: Props) {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Comment" htmlFor="comment" optional>
+            <FormField label={tFields('comment')} htmlFor="comment" optional>
               <input
                 name="comment"
                 defaultValue={myRating?.comment ?? ''}
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <SubmitButton pendingLabel="Saving…">{myRating ? 'Update' : 'Rate'}</SubmitButton>
+            <SubmitButton pendingLabel={tFields('saving')}>{myRating ? tFields('update') : tFields('rate')}</SubmitButton>
           </form>
         </div>
       )}

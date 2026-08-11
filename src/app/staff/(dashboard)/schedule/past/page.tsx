@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { DepartureStatus } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { paginate } from '@lib/directory-filters';
 import { BackLink } from '@/components/ui/BackLink';
@@ -24,6 +25,8 @@ interface Props {
 export default async function PastAssignmentsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('assignment.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffSchedule');
+  const tDepartureStatus = await getTranslations('DepartureStatusLabel');
   const q = params.q ?? '';
   const departureStatus = (DEPARTURE_STATUSES as string[]).includes(params.departureStatus ?? '')
     ? (params.departureStatus as DepartureStatus)
@@ -55,44 +58,42 @@ export default async function PastAssignmentsPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <BackLink href="/staff/schedule">back to my schedule</BackLink>
-      <PageHeader eyebrow="My schedule" title="Past Assignments" />
+      <BackLink href="/staff/schedule">{t('backToSchedule')}</BackLink>
+      <PageHeader eyebrow={t('eyebrow')} title={t('pastAssignmentsTitle')} />
 
       <form method="get" action="/staff/schedule/past" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Country, vehicle, driver, or guide"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Departure status" htmlFor="departureStatus" optional>
+        <FormField label={t('departureStatus')} htmlFor="departureStatus" optional>
           <Select name="departureStatus" defaultValue={departureStatus}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {DEPARTURE_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {tDepartureStatus(s)}
               </option>
             ))}
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || departureStatus) && (
             <Link href="/staff/schedule/past" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} assignment{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('assignmentCount', { count: totalItems })}</p>
 
-      {rows.length === 0 ? <p className="text-mist">No past assignments match these filters.</p> : <AssignmentsSection rows={rows} />}
+      {rows.length === 0 ? <p className="text-mist">{t('noPastMatches')}</p> : <AssignmentsSection rows={rows} />}
 
       <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
     </div>

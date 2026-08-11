@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService } from '@modules/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -32,10 +33,11 @@ export default async function EditUserPage({ params }: Props) {
 
   const user = await authService.getUser(userId);
   if (!user) notFound();
+  const t = await getTranslations('StaffEditUser');
 
   return (
     <div className="max-w-md space-y-10">
-      <PageHeader eyebrow="Users" title={user.name ?? user.email} />
+      <PageHeader eyebrow={t('eyebrow')} title={user.name ?? user.email} />
       <EditUserForm userId={user.id} user={user} assignableRoles={ASSIGNABLE_ROLES} />
       <ResetPasswordPanel userId={user.id} />
     </div>

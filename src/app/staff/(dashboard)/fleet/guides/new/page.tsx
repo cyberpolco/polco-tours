@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -13,31 +14,32 @@ interface Props {
 export default async function NewGuidePage({ searchParams }: Props) {
   await requireStaffContext('fleet.write');
   const { error } = await searchParams;
+  const t = await getTranslations('StaffGuides');
 
   return (
     <div className="max-w-md">
-      <BackLink href="/staff/fleet/guides">back to guides</BackLink>
-      <PageHeader eyebrow="Fleet · New guide" title="Add a guide profile" />
+      <BackLink href="/staff/fleet/guides">{t('backToFleet')}</BackLink>
+      <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       {error === 'guide_not_found' && (
         <div className="mt-3">
-          <Alert tone="error">No TOUR_GUIDE-role account found for that email.</Alert>
+          <Alert tone="error">{t('guideNotFound')}</Alert>
         </div>
       )}
       <form action={createGuideProfileAction} className="mt-6 space-y-4">
-        <FormField label="Guide's account email" htmlFor="email">
+        <FormField label={t('accountEmail')} htmlFor="email">
           <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Languages (ISO-639-1 codes, comma-separated, e.g. en, fr)" htmlFor="languages" optional>
+        <FormField label={t('languagesLabel')} htmlFor="languages" optional>
           <input name="languages" placeholder="en, fr" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Specialties (comma-separated, e.g. wildlife, cultural)" htmlFor="specialties" optional>
+        <FormField label={t('specialtiesLabel')} htmlFor="specialties" optional>
           <input
             name="specialties"
             placeholder="wildlife, gorilla trekking"
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <SubmitButton>Add guide</SubmitButton>
+        <SubmitButton>{t('addGuideSubmit')}</SubmitButton>
       </form>
     </div>
   );

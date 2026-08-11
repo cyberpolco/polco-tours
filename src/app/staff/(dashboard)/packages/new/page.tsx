@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
@@ -11,29 +12,32 @@ const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE'
 
 export default async function NewPackagePage() {
   await requireStaffContext('catalog.write');
+  const t = await getTranslations('StaffPackages');
+  const tTags = await getTranslations('TripTags');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="max-w-md">
       {/* New packages start DRAFT (see createPackageAction) -- always
           Customized until explicitly published. */}
-      <BackLink href="/staff/packages/customized">back to customized packages</BackLink>
-      <PageHeader eyebrow="Packages · New" title="Create a package" />
+      <BackLink href="/staff/packages/customized">{t('backToCustomized')}</BackLink>
+      <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       <form action={createPackageAction} className="mt-6 space-y-4">
-        <FormField label="Title" htmlFor="title">
+        <FormField label={t('packageTitle')} htmlFor="title">
           <input name="title" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Description" htmlFor="description">
+        <FormField label={t('description')} htmlFor="description">
           <textarea name="description" required rows={4} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Country" htmlFor="country">
+        <FormField label={t('country')} htmlFor="country">
           <Select name="country" required>
-            <option value="NA">🇳🇦 Namibia</option>
-            <option value="CD">🇨🇩 DR Congo</option>
-            <option value="ZM">🇿🇲 Zambia</option>
-            <option value="ZW">🇿🇼 Zimbabwe</option>
+            <option value="NA">🇳🇦 {tCountries('NA')}</option>
+            <option value="CD">🇨🇩 {tCountries('CD')}</option>
+            <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
+            <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
           </Select>
         </FormField>
-        <FormField label="Currency" htmlFor="currency">
+        <FormField label={t('currency')} htmlFor="currency">
           <Select name="currency" required>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
@@ -41,18 +45,15 @@ export default async function NewPackagePage() {
             <option value="CDF">CDF</option>
           </Select>
         </FormField>
-        <p className="text-xs text-mist">
-          No price yet -- a new package starts unpriced. Set one up via its cost breakdown (finance module, DR-039)
-          once it&rsquo;s created.
-        </p>
-        <FormField label="Duration (days)" htmlFor="durationDays" optional>
+        <p className="text-xs text-mist">{t('noPriceYetNotice')}</p>
+        <FormField label={t('durationDays')} htmlFor="durationDays" optional>
           <input name="durationDays" type="number" min={1} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         {/* DR-068: local asset path only (e.g. /images/packages/etosha.jpg) --
             no photography is sourced yet, so this stays empty for every
             existing package until staff add one; the guest UI falls back to
             an illustrated placeholder in the meantime. */}
-        <FormField label="Image URL" htmlFor="imageUrl" optional>
+        <FormField label={t('imageUrl')} htmlFor="imageUrl" optional>
           <input
             name="imageUrl"
             type="text"
@@ -60,21 +61,18 @@ export default async function NewPackagePage() {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <p className="text-xs text-mist">
-          Trip length -- guests pick their own travel start date but not how many days the trip runs; a package
-          needs this set (along with a price) before it can be booked.
-        </p>
+        <p className="text-xs text-mist">{t('durationNotice')}</p>
         <div>
-          <p className="mb-1 text-sm text-mist">Tags</p>
+          <p className="mb-1 text-sm text-mist">{t('tags')}</p>
           <div className="flex flex-wrap gap-2">
             {PACKAGE_TAGS.map((tag) => (
               <SelectableCard key={tag} type="checkbox" name="tags" value={tag}>
-                {tag}
+                {tTags(tag)}
               </SelectableCard>
             ))}
           </div>
         </div>
-        <SubmitButton>Create package</SubmitButton>
+        <SubmitButton>{t('createPackage')}</SubmitButton>
       </form>
     </div>
   );

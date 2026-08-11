@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { contentService, type ContentLocale } from '@modules/content';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
@@ -15,14 +16,15 @@ async function resolveLocale(): Promise<ContentLocale> {
 export default async function FaqPage() {
   const locale = await resolveLocale();
   const faqs = await contentService.listPublicFaqEntries(locale);
+  const t = await getTranslations('FaqPage');
 
   return (
     <Reveal>
       <div className="max-w-3xl">
-        <p className="eyebrow text-mist">FAQ</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">Frequently asked questions</h1>
+        <p className="eyebrow text-mist">{t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
         {faqs.length === 0 ? (
-          <p className="mt-6 text-mist">No questions added yet.</p>
+          <p className="mt-6 text-mist">{t('noQuestions')}</p>
         ) : (
           <dl className="mt-6 space-y-4">
             {faqs.map(({ id, question, answer }) => (
@@ -34,9 +36,9 @@ export default async function FaqPage() {
           </dl>
         )}
         <p className="mt-6 text-sm text-mist">
-          Still have a question?{' '}
+          {t('stillHaveQuestion')}{' '}
           <Link href="/contact" className="text-forest hover:underline">
-            Get in touch
+            {t('getInTouch')}
           </Link>
           .
         </p>

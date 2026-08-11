@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
 import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
@@ -26,6 +27,7 @@ export default async function NewTravelerPage({ params }: Props) {
     bookingService.getById(ctx, bookingId),
     bookingService.listTravelers(ctx, bookingId),
   ]);
+  const t = await getTranslations('TravelersPage');
 
   // Add-ons now comes first -- a guest landing here directly (stale link,
   // back button) before finishing that step gets bounced back to it.
@@ -44,26 +46,26 @@ export default async function NewTravelerPage({ params }: Props) {
     return (
       <Reveal>
         <div className="max-w-lg">
-          <BackLink href={`/booking/${bookingId}/addons`}>back to add-ons</BackLink>
-          <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
-          <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
+          <BackLink href={`/booking/${bookingId}/addons`}>{t('backToAddons')}</BackLink>
+          <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
+          <p className="eyebrow mt-4 text-mist">{t('setupTravelers')}</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">
-            Travelers ({travelers.length} of {booking.seats})
+            {t('travelersOf', { current: travelers.length, total: booking.seats })}
           </h1>
-          <p className="mt-1 text-sm text-mist">All travelers are already entered.</p>
+          <p className="mt-1 text-sm text-mist">{t('allEntered')}</p>
           <ul className="mt-4 space-y-2">
-            {travelers.map((t) => (
-              <Card as="li" key={t.id} className="text-sm">
+            {travelers.map((tv) => (
+              <Card as="li" key={tv.id} className="text-sm">
                 <span className="font-medium text-navy">
-                  {t.firstName} {t.lastName}
+                  {tv.firstName} {tv.lastName}
                 </span>
-                {t.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">Tour lead</span>}
+                {tv.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">{t('tourLead')}</span>}
               </Card>
             ))}
           </ul>
           <div className="mt-6">
             <LinkButton href={booking.requiresPassportUpload ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`}>
-              Continue
+              {t('continueLabel')}
             </LinkButton>
           </div>
         </div>
@@ -108,19 +110,15 @@ export default async function NewTravelerPage({ params }: Props) {
   return (
     <Reveal>
     <div className="max-w-lg">
-      <BackLink href={`/booking/${bookingId}/addons`}>back to add-ons</BackLink>
-      <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
-      <p className="eyebrow mt-4 text-mist">Booking setup · Travelers</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">
-        Traveler {travelerNumber} of {booking.seats}
-      </h1>
-      <p className="mt-1 text-sm text-mist">
-        {travelers.length} of {booking.seats} entered
-      </p>
+      <BackLink href={`/booking/${bookingId}/addons`}>{t('backToAddons')}</BackLink>
+      <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
+      <p className="eyebrow mt-4 text-mist">{t('setupTravelers')}</p>
+      <h1 className="mt-1 text-2xl font-bold text-navy">{t('travelerOf', { number: travelerNumber, total: booking.seats })}</h1>
+      <p className="mt-1 text-sm text-mist">{t('enteredOf', { current: travelers.length, total: booking.seats })}</p>
 
       <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="First name" htmlFor="firstName">
+          <FormField label={t('firstName')} htmlFor="firstName">
             <input
               name="firstName"
               required
@@ -128,7 +126,7 @@ export default async function NewTravelerPage({ params }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Last name" htmlFor="lastName">
+          <FormField label={t('lastName')} htmlFor="lastName">
             <input
               name="lastName"
               required
@@ -139,10 +137,10 @@ export default async function NewTravelerPage({ params }: Props) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Age" htmlFor="age">
+          <FormField label={t('age')} htmlFor="age">
             <input name="age" type="number" min={0} max={120} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Sex" htmlFor="sex">
+          <FormField label={t('sex')} htmlFor="sex">
             <Select name="sex" required>
               <option value="M">M</option>
               <option value="F">F</option>
@@ -151,7 +149,7 @@ export default async function NewTravelerPage({ params }: Props) {
           </FormField>
         </div>
 
-        <FormField label="Nationality" htmlFor="nationality">
+        <FormField label={t('nationality')} htmlFor="nationality">
           <Select name="nationality" required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
@@ -161,15 +159,15 @@ export default async function NewTravelerPage({ params }: Props) {
           </Select>
         </FormField>
 
-        <FormField label="ID / passport number" htmlFor="idOrPassportNumber">
+        <FormField label={t('idOrPassportNumber')} htmlFor="idOrPassportNumber">
           <input name="idOrPassportNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
         {isAddingTourLead && (
           <div className="space-y-4 rounded-survey border border-rule p-4">
-            <p className="text-xs uppercase tracking-wide text-mist">Tour lead contact details</p>
+            <p className="text-xs uppercase tracking-wide text-mist">{t('tourLeadContactDetails')}</p>
             <div>
-              <p className="mb-1 block text-sm text-mist">Phone</p>
+              <p className="mb-1 block text-sm text-mist">{t('phone')}</p>
               <div className="flex gap-2">
                 <Select name="dialCode" defaultValue={prefillDialCode}>
                   {COUNTRY_CODES.map((c) => (
@@ -183,15 +181,15 @@ export default async function NewTravelerPage({ params }: Props) {
                   type="tel"
                   required
                   defaultValue={prefillLocalNumber}
-                  placeholder="81 234 5678"
+                  placeholder={t('phonePlaceholder')}
                   className="flex-1 rounded-survey border border-rule px-3 py-2"
                 />
               </div>
             </div>
-            <FormField label="Email" htmlFor="email">
+            <FormField label={t('email')} htmlFor="email">
               <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Country of residence" htmlFor="countryOfResidence">
+            <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
               <Select name="countryOfResidence" required>
                 {COUNTRY_CODES.map((c) => (
                   <option key={c.alpha2} value={c.alpha2}>
@@ -203,27 +201,31 @@ export default async function NewTravelerPage({ params }: Props) {
           </div>
         )}
 
-        <FormField label="Allergies" htmlFor="allergies" optional>
+        <FormField label={t('allergies')} htmlFor="allergies" optional>
           <input name="allergies" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
         <div className="grid grid-cols-3 gap-4">
-          <FormField label="Emergency contact name" htmlFor="emergencyContactName" optional>
+          <FormField label={t('emergencyContactName')} htmlFor="emergencyContactName" optional>
             <input name="emergencyContactName" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Emergency contact phone" htmlFor="emergencyContactPhone" optional>
+          <FormField label={t('emergencyContactPhone')} htmlFor="emergencyContactPhone" optional>
             <input name="emergencyContactPhone" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Relation" htmlFor="emergencyContactRelation" optional>
-            <input name="emergencyContactRelation" placeholder="Spouse, parent…" className="w-full rounded-survey border border-rule px-3 py-2" />
+          <FormField label={t('relation')} htmlFor="emergencyContactRelation" optional>
+            <input
+              name="emergencyContactRelation"
+              placeholder={t('relationPlaceholder')}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
         </div>
 
         <SelectableCard type="checkbox" name="isTourLead" defaultChecked={!hasTourLead} disabled={hasTourLead}>
-          Tour lead (our main point of contact for the group)
+          {t('tourLeadCheckboxLabel')}
         </SelectableCard>
 
-        <SubmitButton>{travelerNumber === booking.seats ? 'Finish travelers' : 'Add traveler & continue'}</SubmitButton>
+        <SubmitButton>{travelerNumber === booking.seats ? t('finishTravelers') : t('addTravelerContinue')}</SubmitButton>
       </form>
     </div>
     </Reveal>

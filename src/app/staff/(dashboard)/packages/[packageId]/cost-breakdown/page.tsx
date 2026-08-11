@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
@@ -51,35 +52,40 @@ export default async function CostBreakdownPage({ params }: Props) {
 
   const defaultNights = breakdown?.nights ?? pkg.durationDays ?? 1;
   const action = saveCostBreakdownAction.bind(null, packageId);
+  const t = await getTranslations('StaffCostBreakdown');
+  const tPkg = await getTranslations('StaffPackageCostBreakdown');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <PageHeader eyebrow={`Packages · ${pkg.packageReference}`} title={`${pkg.title} — Cost breakdown`} />
+        <PageHeader eyebrow={tPkg('eyebrow', { ref: pkg.packageReference })} title={tPkg('titleSuffix', { title: pkg.title })} />
         <p className="mt-1 text-sm text-mist">
-          <BackLink href={`/staff/packages/${packageId}`}>back to package</BackLink>
+          <BackLink href={`/staff/packages/${packageId}`}>{tPkg('backToPackage')}</BackLink>
         </p>
       </div>
 
       {breakdown && (
         <Card className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
-            <p className="text-xs text-mist">Base cost (whole group)</p>
+            <p className="text-xs text-mist">{t('baseCost')}</p>
             <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedBaseCostMinor, breakdown.currency)}</p>
           </div>
           <div>
-            <p className="text-xs text-mist">Selling price (whole group)</p>
+            <p className="text-xs text-mist">{t('sellingPrice')}</p>
             <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedSellingPriceMinor, breakdown.currency)}</p>
           </div>
           <div>
-            <p className="text-xs text-mist">Current price per seat</p>
+            <p className="text-xs text-mist">{tPkg('currentPricePerSeat')}</p>
             <p className="text-lg font-semibold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency)}</p>
           </div>
           {breakdown.overridePriceMinor != null && (
             <div className="col-span-full">
               <p className="text-xs text-amber">
-                Manually overridden ({format(money(breakdown.overridePriceMinor, breakdown.currency))}) -- reason on file: &ldquo;
-                {breakdown.overrideReason}&rdquo;
+                {t('manuallyOverridden', {
+                  amount: format(money(breakdown.overridePriceMinor, breakdown.currency)),
+                  reason: breakdown.overrideReason ?? '',
+                })}
               </p>
             </div>
           )}
@@ -90,7 +96,7 @@ export default async function CostBreakdownPage({ params }: Props) {
         <input type="hidden" name="currency" value={pkg.currency} />
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Reference group size" htmlFor="referenceGroupSize">
+          <FormField label={tPkg('referenceGroupSize')} htmlFor="referenceGroupSize">
             <input
               name="referenceGroupSize"
               type="number"
@@ -100,61 +106,59 @@ export default async function CostBreakdownPage({ params }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Nights" htmlFor="nights">
+          <FormField label={t('nights')} htmlFor="nights">
             <input name="nights" type="number" min={0} required defaultValue={defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
         </div>
 
         <div>
-          <p className="eyebrow text-mist">Staff Costs</p>
-          <p className="mt-1 text-xs text-mist">
-            Rates are resolved automatically for {pkg.country} -- configure them under Operational Rates.
-          </p>
+          <p className="eyebrow text-mist">{t('staffCosts')}</p>
+          <p className="mt-1 text-xs text-mist">{t('ratesResolvedNotice', { country: tCountries(pkg.country) })}</p>
           <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <FormField label="Driver days" htmlFor="driverDays">
+            <FormField label={t('driverDays')} htmlFor="driverDays">
               <input name="driverDays" type="number" min={0} defaultValue={breakdown?.driverDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Guide days" htmlFor="guideDays">
+            <FormField label={t('guideDays')} htmlFor="guideDays">
               <input name="guideDays" type="number" min={0} defaultValue={breakdown?.guideDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Photographer days" htmlFor="photographerDays" optional>
+            <FormField label={t('photographerDays')} htmlFor="photographerDays" optional>
               <input name="photographerDays" type="number" min={0} defaultValue={breakdown?.photographerDays ?? 0} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Videographer days" htmlFor="videographerDays" optional>
+            <FormField label={t('videographerDays')} htmlFor="videographerDays" optional>
               <input name="videographerDays" type="number" min={0} defaultValue={breakdown?.videographerDays ?? 0} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
         </div>
 
         <div>
-          <p className="eyebrow text-mist">Accommodation</p>
+          <p className="eyebrow text-mist">{t('accommodation')}</p>
           <div className="mt-2 grid grid-cols-2 gap-4">
-            <FormField label="Hotel / room category" htmlFor="hotelRateId" optional>
+            <FormField label={t('hotelRoomCategory')} htmlFor="hotelRateId" optional>
               <Select name="hotelRateId" defaultValue={breakdown?.hotelRateId ?? ''}>
-                <option value="">None</option>
+                <option value="">{t('none')}</option>
                 {countryHotelRates.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.roomCategory} — {format(money(r.nightlyRateMinor, r.currency))}/night
+                    {r.roomCategory} — {format(money(r.nightlyRateMinor, r.currency))}{t('perNight')}
                   </option>
                 ))}
               </Select>
             </FormField>
-            <FormField label="Rooms needed" htmlFor="roomsNeeded">
+            <FormField label={t('roomsNeeded')} htmlFor="roomsNeeded">
               <input name="roomsNeeded" type="number" min={1} defaultValue={breakdown?.roomsNeeded ?? 1} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
         </div>
 
         <div>
-          <p className="eyebrow text-mist">Restaurant Costs (per person)</p>
+          <p className="eyebrow text-mist">{t('restaurantCosts')}</p>
           <div className="mt-2 grid grid-cols-3 gap-4">
-            <FormField label="Breakfasts" htmlFor="breakfastCount">
+            <FormField label={t('breakfasts')} htmlFor="breakfastCount">
               <input name="breakfastCount" type="number" min={0} defaultValue={breakdown?.breakfastCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Lunches" htmlFor="lunchCount">
+            <FormField label={t('lunches')} htmlFor="lunchCount">
               <input name="lunchCount" type="number" min={0} defaultValue={breakdown?.lunchCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Dinners" htmlFor="dinnerCount">
+            <FormField label={t('dinners')} htmlFor="dinnerCount">
               <input name="dinnerCount" type="number" min={0} defaultValue={breakdown?.dinnerCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
@@ -162,7 +166,7 @@ export default async function CostBreakdownPage({ params }: Props) {
 
         {drinkRates.length > 0 && (
           <div>
-            <p className="eyebrow text-mist">Drinks (quantity per person, leave blank to skip)</p>
+            <p className="eyebrow text-mist">{t('drinks')}</p>
             <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {drinkRates.map((r) => (
                 <FormField key={r.id} label={`${r.category} (${format(money(r.perUnitMinor, r.currency))})`} htmlFor={`lineItem_food_${r.id}`} optional>
@@ -180,19 +184,19 @@ export default async function CostBreakdownPage({ params }: Props) {
         )}
 
         <div>
-          <p className="eyebrow text-mist">Transportation</p>
+          <p className="eyebrow text-mist">{t('transportation')}</p>
           <div className="mt-2 grid grid-cols-2 gap-4">
-            <FormField label="Transport rate" htmlFor="transportRateId" optional>
+            <FormField label={t('transportRate')} htmlFor="transportRateId" optional>
               <Select name="transportRateId" defaultValue={breakdown?.transportRateId ?? ''}>
-                <option value="">None</option>
+                <option value="">{t('none')}</option>
                 {countryTransportRates.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.country} — {format(money(r.fuelEstimateMinor + r.tollFeesMinor + r.parkingFeesMinor + r.vehicleOperatingCostMinor, r.currency))}/day
+                    {tCountries(r.country)} — {format(money(r.fuelEstimateMinor + r.tollFeesMinor + r.parkingFeesMinor + r.vehicleOperatingCostMinor, r.currency))}{t('perDay')}
                   </option>
                 ))}
               </Select>
             </FormField>
-            <FormField label="Transport days" htmlFor="transportDays">
+            <FormField label={t('transportDays')} htmlFor="transportDays">
               <input name="transportDays" type="number" min={0} defaultValue={breakdown?.transportDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
@@ -200,7 +204,7 @@ export default async function CostBreakdownPage({ params }: Props) {
 
         {countryActivityFees.length > 0 && (
           <div>
-            <p className="eyebrow text-mist">Activity Fees (quantity per person, leave blank to skip)</p>
+            <p className="eyebrow text-mist">{t('activityFees')}</p>
             <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {countryActivityFees.map((r) => (
                 <FormField key={r.id} label={`${r.name} (${format(money(r.feeMinor, r.currency))})`} htmlFor={`lineItem_activity_${r.id}`} optional>
@@ -218,23 +222,23 @@ export default async function CostBreakdownPage({ params }: Props) {
         )}
 
         <div>
-          <p className="eyebrow text-mist">Immigration / Visa Costs</p>
+          <p className="eyebrow text-mist">{t('immigrationVisaCosts')}</p>
           <div className="mt-2 flex items-center gap-3">
             <input type="checkbox" name="requiresVisa" id="requiresVisa" defaultChecked={breakdown?.requiresVisa ?? false} className="h-4 w-4" />
             <label htmlFor="requiresVisa" className="text-sm">
-              This package requires a visa
+              {tPkg('requiresVisaLabel')}
             </label>
           </div>
           {countryImmigrationRates.length > 0 && (
             <div className="mt-2">
-              <FormField label="Immigration cost rate" htmlFor="immigrationCostRateId" optional>
+              <FormField label={t('immigrationCostRate')} htmlFor="immigrationCostRateId" optional>
                 <Select name="immigrationCostRateId" defaultValue={breakdown?.immigrationCostRateId ?? ''}>
-                  <option value="">None</option>
+                  <option value="">{t('none')}</option>
                   {countryImmigrationRates.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.country} —{' '}
+                      {tCountries(r.country)} —{' '}
                       {format(money(r.visaFeeMinor + r.processingFeeMinor + r.invitationLetterFeeMinor + r.borderPermitFeeMinor, r.currency))}
-                      /person
+                      {t('perPerson')}
                     </option>
                   ))}
                 </Select>
@@ -244,8 +248,8 @@ export default async function CostBreakdownPage({ params }: Props) {
         </div>
 
         <div>
-          <p className="eyebrow text-mist">Agency Margin</p>
-          <FormField label="Margin (%)" htmlFor="agencyMarginPercent">
+          <p className="eyebrow text-mist">{t('agencyMargin')}</p>
+          <FormField label={t('marginPercent')} htmlFor="agencyMarginPercent">
             <input
               name="agencyMarginPercent"
               type="number"
@@ -260,13 +264,10 @@ export default async function CostBreakdownPage({ params }: Props) {
 
         <div>
           <div className="survey-rule mb-4" />
-          <p className="eyebrow text-mist">Override (optional)</p>
-          <p className="mt-1 text-xs text-mist">
-            Leave blank to use the computed price. Setting an override requires a reason and is recorded in the audit
-            log.
-          </p>
+          <p className="eyebrow text-mist">{t('overrideOptional')}</p>
+          <p className="mt-1 text-xs text-mist">{tPkg('overrideNotice')}</p>
           <div className="mt-2 grid grid-cols-2 gap-4">
-            <FormField label="Override price per seat" htmlFor="overridePriceMinor" optional>
+            <FormField label={tPkg('overridePricePerSeat')} htmlFor="overridePriceMinor" optional>
               <input
                 name="overridePriceMinor"
                 type="number"
@@ -276,13 +277,13 @@ export default async function CostBreakdownPage({ params }: Props) {
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <FormField label="Reason" htmlFor="overrideReason" optional>
+            <FormField label={t('reason')} htmlFor="overrideReason" optional>
               <input name="overrideReason" defaultValue={breakdown?.overrideReason ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
         </div>
 
-        <SubmitButton pendingLabel="Saving…">Save cost breakdown</SubmitButton>
+        <SubmitButton pendingLabel={t('saving')}>{t('saveCostBreakdown')}</SubmitButton>
       </form>
     </div>
   );

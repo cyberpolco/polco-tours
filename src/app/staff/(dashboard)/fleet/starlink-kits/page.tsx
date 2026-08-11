@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService, type StarlinkKitView } from '@modules/fleet';
 import { paginate } from '@lib/directory-filters';
@@ -30,6 +31,8 @@ function matchesQuery(k: StarlinkKitView, query: string): boolean {
 export default async function StarlinkKitsListPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('fleet.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffStarlinkKits');
+  const tStarlinkStatus = await getTranslations('StarlinkStatusLabel');
   const q = params.q ?? '';
   const status = params.status ?? '';
   const assigned: AssignedFilter | '' = params.assigned === 'assigned' || params.assigned === 'unassigned' ? params.assigned : '';
@@ -65,61 +68,59 @@ export default async function StarlinkKitsListPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/fleet">back to fleet</BackLink>
+      <BackLink href="/staff/fleet">{t('backToFleet')}</BackLink>
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Fleet" title="Starlink Kits" />
-        <LinkButton href="/staff/fleet/starlink-kits/new">Add kit</LinkButton>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <LinkButton href="/staff/fleet/starlink-kits/new">{t('addKit')}</LinkButton>
       </div>
 
       <form method="get" action="/staff/fleet/starlink-kits" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Kit ID"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Status" htmlFor="status" optional>
+        <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
-            <option value="">All</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="MAINTENANCE">Maintenance</option>
+            <option value="">{t('all')}</option>
+            <option value="ACTIVE">{tStarlinkStatus('ACTIVE')}</option>
+            <option value="INACTIVE">{tStarlinkStatus('INACTIVE')}</option>
+            <option value="MAINTENANCE">{tStarlinkStatus('MAINTENANCE')}</option>
           </Select>
         </FormField>
-        <FormField label="Assignment" htmlFor="assigned" optional>
+        <FormField label={t('assignment')} htmlFor="assigned" optional>
           <Select name="assigned" defaultValue={assigned}>
-            <option value="">All</option>
-            <option value="assigned">Assigned</option>
-            <option value="unassigned">Unassigned</option>
+            <option value="">{t('all')}</option>
+            <option value="assigned">{t('assigned')}</option>
+            <option value="unassigned">{t('unassigned')}</option>
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-3">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || status || assigned) && (
             <Link href="/staff/fleet/starlink-kits" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} kit{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('kitCount', { count: totalItems })}</p>
 
       {kits.length === 0 ? (
-        <p className="text-mist">No Starlink kits match these filters.</p>
+        <p className="text-mist">{t('noMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Kit ID</Th>
-              <Th>Status</Th>
-              <Th>Assigned vehicle</Th>
-              <Th>Last location</Th>
+              <Th>{t('kitId')}</Th>
+              <Th>{t('status')}</Th>
+              <Th>{t('assignedVehicle')}</Th>
+              <Th>{t('lastLocation')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -130,28 +131,28 @@ export default async function StarlinkKitsListPage({ searchParams }: Props) {
                 <Tr key={k.id}>
                   <Td className="font-mono text-xs">{k.kitId}</Td>
                   <Td>
-                    <Badge tone={STARLINK_STATUS_TONE[k.status]}>{k.status}</Badge>
+                    <Badge tone={STARLINK_STATUS_TONE[k.status]}>{tStarlinkStatus(k.status)}</Badge>
                   </Td>
                   <Td>{vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : '—'}</Td>
                   <Td>
                     {k.lastLatitude != null && k.lastLongitude != null
                       ? `${k.lastLatitude.toFixed(4)}, ${k.lastLongitude.toFixed(4)}`
-                      : 'Not set'}
+                      : t('notSet')}
                   </Td>
                   <Td>
                     <div className="flex items-center gap-3">
                       <Link href={`/staff/fleet/starlink-kits/${k.id}`} className="text-forest hover:underline">
-                        View
+                        {t('view')}
                       </Link>
                       {ctx.roles.includes('SUPERADMIN') && (
                         <form action={deleteStarlinkKitAction.bind(null, k.id)}>
                           <SubmitButton
                             variant="secondary"
                             size="compact"
-                            pendingLabel="Deleting…"
-                            confirmMessage={`Delete Starlink kit ${k.kitId}? This cannot be undone.`}
+                            pendingLabel={t('deleting')}
+                            confirmMessage={t('deleteConfirm', { kitId: k.kitId })}
                           >
-                            Delete
+                            {t('delete')}
                           </SubmitButton>
                         </form>
                       )}

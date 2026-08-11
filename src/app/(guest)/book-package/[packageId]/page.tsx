@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
@@ -32,16 +33,20 @@ export default async function BookPackagePage({ params }: Props) {
     notFound();
   }
   if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) notFound();
+  const t = await getTranslations('BookingStart');
 
   return (
     <div className="max-w-md">
-      <BackLink href={`/packages/${packageId}`}>back to package</BackLink>
-      <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
+      <BackLink href={`/packages/${packageId}`}>{t('backToPackage')}</BackLink>
+      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} />
 
       <Card className="mt-4">
-        <p className="eyebrow text-mist">New booking</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency)}/seat</h1>
-        <p className="mt-1 text-sm text-mist">{pkg.durationDays}-day trip</p>
+        <p className="eyebrow text-mist">{t('newBooking')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">
+          {formatOrPending(pkg.priceMinor, pkg.currency)}
+          {t('perSeat')}
+        </h1>
+        <p className="mt-1 text-sm text-mist">{t('dayTrip', { days: pkg.durationDays })}</p>
       </Card>
 
       <BookingForm packageId={packageId} durationDays={pkg.durationDays} />

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { BackButton } from './back-button';
 import { StaffNav } from './nav';
 import { SignOutButton } from './sign-out-button';
@@ -10,6 +12,7 @@ import { SignOutButton } from './sign-out-button';
 // redirect-loop warning: don't move this gate up to src/app/staff/layout.tsx).
 export default async function StaffDashboardLayout({ children }: { children: ReactNode }) {
   const ctx = await requireStaffContext(); // baseline "are you staff" gate -- any staff-side role
+  const t = await getTranslations('StaffChrome');
 
   return (
     <div className="min-h-screen bg-bone text-ink">
@@ -19,10 +22,11 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
             never touches the session cookie/sign-out flow; the staff
             session stays live if they come back to /staff/* afterward. */}
         <Link href="/" className="eyebrow hover:text-amber">
-          Polco Tours · Staff
+          {t('brand')}
         </Link>
         <div className="flex items-center gap-6 text-sm">
           <StaffNav roles={ctx.roles} permissions={[...ctx.permissions]} />
+          <LanguageSwitcher />
           <SignOutButton />
         </div>
       </nav>

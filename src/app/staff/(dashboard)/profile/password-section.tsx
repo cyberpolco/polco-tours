@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -14,6 +15,7 @@ import { authClient } from '@lib/auth-client';
 // reaching this page voluntarily, so there's nothing server-side left to
 // clear once better-auth's own change succeeds.
 export function PasswordSection() {
+  const t = useTranslations('StaffProfile');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,11 +29,11 @@ export function PasswordSection() {
     setSuccess(false);
 
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setError(t('errorMismatch'));
       return;
     }
     if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
+      setError(t('errorTooShort'));
       return;
     }
 
@@ -43,7 +45,7 @@ export function PasswordSection() {
     });
     setPending(false);
     if (changeError) {
-      setError(changeError.message ?? 'Could not change password');
+      setError(changeError.message ?? t('errorGeneric'));
       return;
     }
     setCurrentPassword('');
@@ -54,7 +56,7 @@ export function PasswordSection() {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-      <FormField label="Current password" htmlFor="currentPassword">
+      <FormField label={t('currentPassword')} htmlFor="currentPassword">
         <input
           type="password"
           required
@@ -63,7 +65,7 @@ export function PasswordSection() {
           className="w-full rounded-survey border border-rule px-3 py-2"
         />
       </FormField>
-      <FormField label="New password" htmlFor="newPassword">
+      <FormField label={t('newPassword')} htmlFor="newPassword">
         <input
           type="password"
           required
@@ -73,7 +75,7 @@ export function PasswordSection() {
           className="w-full rounded-survey border border-rule px-3 py-2"
         />
       </FormField>
-      <FormField label="Confirm new password" htmlFor="confirmPassword">
+      <FormField label={t('confirmNewPassword')} htmlFor="confirmPassword">
         <input
           type="password"
           required
@@ -84,9 +86,9 @@ export function PasswordSection() {
         />
       </FormField>
       {error && <Alert tone="error">{error}</Alert>}
-      {success && <Alert tone="success">Password changed.</Alert>}
+      {success && <Alert tone="success">{t('passwordChanged')}</Alert>}
       <Button type="submit" disabled={pending}>
-        {pending ? 'Saving…' : 'Save new password'}
+        {pending ? t('saving') : t('saveNewPassword')}
       </Button>
     </form>
   );

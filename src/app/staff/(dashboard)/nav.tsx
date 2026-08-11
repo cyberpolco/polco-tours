@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import type { Permission } from '@lib/rbac';
 
 interface NavLink {
   href: string;
-  label: string;
+  labelKey: string;
   // Exactly one of these is set: a single-permission link, or an aggregate
   // link (Settings/Content, DR-042/043) visible if the caller holds ANY of
   // several underlying permissions -- the sub-pages it points into each
@@ -28,40 +29,40 @@ interface NavLink {
 }
 
 const LINKS: NavLink[] = [
-  { href: '/staff/bookings', label: 'Bookings', permission: 'booking.read' },
-  { href: '/staff/bookings/new', label: 'New booking', requiresAnyRole: ['TOUR_OPERATOR'] },
-  { href: '/staff/packages', label: 'Packages', permission: 'catalog.read' },
-  { href: '/staff/fleet', label: 'Fleet', permission: 'fleet.read' },
-  { href: '/staff/itineraries', label: 'Itineraries', permission: 'itinerary.write' },
+  { href: '/staff/bookings', labelKey: 'bookings', permission: 'booking.read' },
+  { href: '/staff/bookings/new', labelKey: 'newBooking', requiresAnyRole: ['TOUR_OPERATOR'] },
+  { href: '/staff/packages', labelKey: 'packages', permission: 'catalog.read' },
+  { href: '/staff/fleet', labelKey: 'fleet', permission: 'fleet.read' },
+  { href: '/staff/itineraries', labelKey: 'itineraries', permission: 'itinerary.write' },
   // DR-083: also visible to TOUR_GUIDE/DRIVER (hotel_restaurant_rating.write,
   // no itinerary.write) -- they now rate a hotel/restaurant from its own
   // profile page rather than the itinerary page, so they need a way in.
   {
     href: '/staff/hotels',
-    label: 'Hotels',
+    labelKey: 'hotels',
     anyOfPermissions: ['itinerary.write', 'hotel_restaurant_rating.write'],
   },
   {
     href: '/staff/restaurants',
-    label: 'Restaurants',
+    labelKey: 'restaurants',
     anyOfPermissions: ['itinerary.write', 'hotel_restaurant_rating.write'],
   },
-  { href: '/staff/schedule', label: 'My schedule', permission: 'assignment.read' },
-  { href: '/staff/visa-queue', label: 'Visa queue', permission: 'visa.process' },
-  { href: '/staff/tracking', label: 'Tracking', permission: 'tracking.read' },
+  { href: '/staff/schedule', labelKey: 'mySchedule', permission: 'assignment.read' },
+  { href: '/staff/visa-queue', labelKey: 'visaQueue', permission: 'visa.process' },
+  { href: '/staff/tracking', labelKey: 'tracking', permission: 'tracking.read' },
   // DR-089: deliberately itinerary.read, not itinerary.write (unlike the
   // "Itineraries" link above) -- TOUR_GUIDE/DRIVER's first nav-level entry
   // point into itinerary data; before this they could only reach a day's
   // detail by direct URL.
-  { href: '/staff/map', label: 'Map', permission: 'itinerary.read' },
-  { href: '/staff/ratings', label: 'Ratings', permission: 'rating.read' },
+  { href: '/staff/map', labelKey: 'map', permission: 'itinerary.read' },
+  { href: '/staff/ratings', labelKey: 'ratings', permission: 'rating.read' },
   // Settings (DR-042): reorganizes 5 pre-existing tabs (Country
   // Regulations, Operational Rates, Insights, Users, Permissions -- URLs
   // unchanged) plus 2 new pages (Tax Rates, Platform Rate) into a left
   // vertical sub-nav (SidebarShell), reached from this one aggregate link.
   {
     href: '/staff/settings/tax-rates',
-    label: 'Settings',
+    labelKey: 'settings',
     anyOfPermissions: [
       'platform_settings.read',
       'country_regulation.read',
@@ -99,6 +100,7 @@ const LINKS: NavLink[] = [
 // resolution once, in resolveSession.
 export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: Permission[] }) {
   const pathname = usePathname();
+  const t = useTranslations('StaffNav');
   const isSuperadmin = roles.includes('SUPERADMIN');
   const permissionSet = new Set(permissions);
   const visibleLinks = LINKS.filter((l) => {
@@ -117,9 +119,9 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
 
   return (
     <div className="flex items-center gap-6 text-sm">
-      {visibleLinks.map(({ href, label }) => (
+      {visibleLinks.map(({ href, labelKey }) => (
         <Link key={href} href={href} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
-          {label}
+          {t(labelKey)}
         </Link>
       ))}
     </div>

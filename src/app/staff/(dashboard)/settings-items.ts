@@ -6,36 +6,36 @@
 import type { SidebarItem } from './sidebar-shell';
 
 export const SETTINGS_ITEMS: SidebarItem[] = [
-  { href: '/staff/settings/tax-rates', label: 'Tax Rates', permission: 'platform_settings.read' },
-  { href: '/staff/settings/platform-rate', label: 'Platform Rate', permission: 'platform_settings.read' },
+  { href: '/staff/settings/tax-rates', labelKey: 'taxRates', permission: 'platform_settings.read' },
+  { href: '/staff/settings/platform-rate', labelKey: 'platformRate', permission: 'platform_settings.read' },
   // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
   // any role (explicit user choice) -- superadminOnly here is belt-and-
   // suspenders with that, matching Permissions/My Profile below.
-  { href: '/staff/content', label: 'Site Content', permission: 'content.read', superadminOnly: true },
-  { href: '/staff/country-regulations', label: 'Country Regulations', permission: 'country_regulation.read' },
-  { href: '/staff/finance/rates', label: 'Operational Rates', permission: 'finance_config.read' },
+  { href: '/staff/content', labelKey: 'siteContent', permission: 'content.read', superadminOnly: true },
+  { href: '/staff/country-regulations', labelKey: 'countryRegulations', permission: 'country_regulation.read' },
+  { href: '/staff/finance/rates', labelKey: 'operationalRates', permission: 'finance_config.read' },
   // Sites (DR-083): staff-managed reference list powering the itinerary
   // day form's "planned sites" picker -- moved here from the top-level nav
   // per explicit user direction (a reference-data admin screen, same
   // category as Hotels/Restaurants conceptually, but those stayed
   // top-level since they're edited far more often day-to-day).
-  { href: '/staff/sites', label: 'Sites', permission: 'itinerary.write' },
-  { href: '/staff/insights', label: 'Insights', permission: 'insights.read' },
-  { href: '/staff/admin/users', label: 'Users', permission: 'admin.all' },
+  { href: '/staff/sites', labelKey: 'sites', permission: 'itinerary.write' },
+  { href: '/staff/insights', labelKey: 'insights', permission: 'insights.read' },
+  { href: '/staff/admin/users', labelKey: 'users', permission: 'admin.all' },
   // Contact directory for bare/anonymous TOURIST records (DR-036) --
   // SUPERADMIN/TOUR_OPERATOR-only, the roles that actually create/interact
   // with these via /staff/bookings/new. Deliberately not gated on
   // admin.all like Users above -- these aren't staff accounts at all, and
   // TOUR_OPERATOR (who creates most of them) doesn't hold admin.all.
-  { href: '/staff/admin/clients', label: 'Clients', requiresAnyRole: ['TOUR_OPERATOR'] },
+  { href: '/staff/admin/clients', labelKey: 'clients', requiresAnyRole: ['TOUR_OPERATOR'] },
   // DR-035: SUPERADMIN-only regardless of who else holds admin.all --
   // PLATFORM_ADMIN is seeded with admin.all by default but must NOT see
   // this link, matching the page's own explicit SUPERADMIN-only gate.
-  { href: '/staff/admin/permissions', label: 'Permissions', permission: 'admin.all', superadminOnly: true },
+  { href: '/staff/admin/permissions', labelKey: 'permissions', permission: 'admin.all', superadminOnly: true },
   // SUPERADMIN-only (explicit user correction to DR-059's original "any
   // staff role" design) -- every other role's name/phone is instead edited
   // by an admin via /staff/admin/users/{userId}. `permission` is left unset
   // (profile.write is still held by every role) since the real narrowing
   // happens on the page itself, same layering as Permissions below.
-  { href: '/staff/profile', label: 'My Profile', superadminOnly: true },
+  { href: '/staff/profile', labelKey: 'myProfile', superadminOnly: true },
 ];

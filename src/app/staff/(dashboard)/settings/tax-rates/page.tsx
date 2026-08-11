@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
 import { FormField } from '@/components/ui/FormField';
@@ -9,25 +10,32 @@ import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 import { createTaxRateAction, deleteTaxRateAction } from './actions';
 
-const COUNTRY_OPTIONS = (
-  <>
-    <option value="NA">🇳🇦 Namibia</option>
-    <option value="CD">🇨🇩 DR Congo</option>
-    <option value="ZM">🇿🇲 Zambia</option>
-    <option value="ZW">🇿🇼 Zimbabwe</option>
-  </>
-);
+function countryOptions(tCountries: (code: string) => string) {
+  return (
+    <>
+      <option value="NA">🇳🇦 {tCountries('NA')}</option>
+      <option value="CD">🇨🇩 {tCountries('CD')}</option>
+      <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
+      <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
+    </>
+  );
+}
 
-function DeleteButton({ action }: { action: () => Promise<void> }) {
+function DeleteButton({
+  action,
+  removingLabel,
+  removeConfirm,
+  removeLabel,
+}: {
+  action: () => Promise<void>;
+  removingLabel: string;
+  removeConfirm: string;
+  removeLabel: string;
+}) {
   return (
     <form action={action}>
-      <SubmitButton
-        variant="secondary"
-        size="compact"
-        pendingLabel="Removing…"
-        confirmMessage="Remove this tax rate? This cannot be undone."
-      >
-        Remove
+      <SubmitButton variant="secondary" size="compact" pendingLabel={removingLabel} confirmMessage={removeConfirm}>
+        {removeLabel}
       </SubmitButton>
     </form>
   );
@@ -43,38 +51,47 @@ export default async function TaxRatesPage() {
   const ctx = await requireStaffContext('platform_settings.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const taxRates = await settingsService.listTaxRates(ctx);
+  const t = await getTranslations('StaffTaxRates');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
+  const tCountries = await getTranslations('Countries');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
-        <PageHeader eyebrow="Settings" title="Tax Rates" />
-        <p className="text-xs text-mist">
-          Per-country VAT/sales tax applied to every invoice (BR-01). Effective-dated -- add a new row rather than
-          editing an old one when a rate changes; the most recent row still in its validity window wins.
-        </p>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <p className="text-xs text-mist">{t('intro')}</p>
         {taxRates.length === 0 ? (
-          <p className="text-mist">No tax rates configured yet.</p>
+          <p className="text-mist">{t('noneYet')}</p>
         ) : (
           <Table>
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Type</Th>
-                <Th>Rate</Th>
-                <Th>Valid from</Th>
-                <Th>Valid to</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('type')}</Th>
+                <Th>{t('rate')}</Th>
+                <Th>{t('validFrom')}</Th>
+                <Th>{t('validTo')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {taxRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{r.taxType}</Td>
                   <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
                   <Td>{r.validFrom.toLocaleDateString()}</Td>
                   <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteTaxRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteTaxRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -82,15 +99,15 @@ export default async function TaxRatesPage() {
         )}
         {canWrite && (
           <form action={createTaxRateAction} className="flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Tax type" htmlFor="taxType" optional>
-              <input name="taxType" placeholder="VAT" className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
+            <FormField label={t('taxType')} htmlFor="taxType" optional>
+              <input name="taxType" placeholder={t('taxTypePlaceholder')} className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Rate (%)" htmlFor="ratePercent">
+            <FormField label={t('ratePercent')} htmlFor="ratePercent">
               <input
                 name="ratePercent"
                 type="number"
@@ -100,8 +117,8 @@ export default async function TaxRatesPage() {
                 className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
               />
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}

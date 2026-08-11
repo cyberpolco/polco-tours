@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService, type TourPackageView } from '@modules/catalog';
 import { paginate } from '@lib/directory-filters';
@@ -34,6 +35,9 @@ function matchesQuery(p: TourPackageView, query: string): boolean {
 export default async function CustomizedPackagesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('catalog.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffPackages');
+  const tCountries = await getTranslations('Countries');
+  const tPackageStatus = await getTranslations('PackageStatusLabel');
   const q = params.q ?? '';
   const status = params.status === 'DRAFT' || params.status === 'ARCHIVED' ? params.status : '';
 
@@ -63,55 +67,53 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/packages">back to packages</BackLink>
+      <BackLink href="/staff/packages">{t('backToPackages')}</BackLink>
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Packages" title="Customized Packages" />
-        <LinkButton href="/staff/packages/new">New package</LinkButton>
+        <PageHeader eyebrow={t('eyebrow')} title={t('customizedTitle')} />
+        <LinkButton href="/staff/packages/new">{t('newPackage')}</LinkButton>
       </div>
-      <p className="-mt-4 text-sm text-mist">Draft or archived -- staff-only, never shown on the guest site.</p>
+      <p className="-mt-4 text-sm text-mist">{t('customizedNotice')}</p>
 
       <form method="get" action="/staff/packages/customized" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Title, reference, or country"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Status" htmlFor="status" optional>
+        <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
-            <option value="">All</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ARCHIVED">Archived</option>
+            <option value="">{t('all')}</option>
+            <option value="DRAFT">{t('draft')}</option>
+            <option value="ARCHIVED">{t('archived')}</option>
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || status) && (
             <Link href="/staff/packages/customized" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} package{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('packageCount', { count: totalItems })}</p>
 
       {packages.length === 0 ? (
-        <p className="text-mist">No customized packages match these filters.</p>
+        <p className="text-mist">{t('noCustomizedMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Reference</Th>
-              <Th>Title</Th>
-              <Th>Country</Th>
-              <Th>Price</Th>
-              <Th>Status</Th>
+              <Th>{t('reference')}</Th>
+              <Th>{t('packageTitle')}</Th>
+              <Th>{t('country')}</Th>
+              <Th>{t('price')}</Th>
+              <Th>{t('status')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -120,14 +122,14 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
               <Tr key={p.id}>
                 <Td className="font-mono text-xs">{p.packageReference}</Td>
                 <Td>{p.title}</Td>
-                <Td>{p.country}</Td>
-                <Td>{formatOrPending(p.priceMinor, p.currency, 'Not yet priced')}</Td>
+                <Td>{tCountries(p.country)}</Td>
+                <Td>{formatOrPending(p.priceMinor, p.currency, t('notYetPriced'))}</Td>
                 <Td>
-                  <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{p.status}</Badge>
+                  <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{tPackageStatus(p.status)}</Badge>
                 </Td>
                 <Td>
                   <Link href={`/staff/packages/${p.id}`} className="text-forest hover:underline">
-                    View
+                    {t('view')}
                   </Link>
                 </Td>
               </Tr>

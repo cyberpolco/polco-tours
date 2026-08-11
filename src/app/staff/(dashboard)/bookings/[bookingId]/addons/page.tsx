@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -14,20 +15,6 @@ interface Props {
   searchParams: Promise<{ error?: string }>;
 }
 
-// Matches (guest)/plan-my-trip/plan-my-trip-form.tsx's own titleCase/
-// addonLabel -- AddonCode values are two-word SCREAMING_CASE (e.g.
-// "VISA_ASSISTANCE"), hand-copied per-file like the other staff pages that
-// render this enum (see [bookingId]/page.tsx's own copy).
-function titleCase(tag: string): string {
-  return tag.charAt(0) + tag.slice(1).toLowerCase();
-}
-function addonLabel(code: string): string {
-  return code
-    .split('_')
-    .map(titleCase)
-    .join(' ');
-}
-
 // Add-ons is now the FIRST setup step (right after the booking exists) --
 // whether Visa Assistance is picked here decides if a later Passport step
 // appears at all, and for how many travelers (see bookingService.setAddons
@@ -40,6 +27,8 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   const { error } = await searchParams;
   const ctx = await requireStaffContext('booking.create');
   const booking = await bookingService.getById(ctx, bookingId);
+  const t = await getTranslations('StaffAddonsPage');
+  const tAddons = await getTranslations('TripAddons');
 
   const [allAddons, selected] = await Promise.all([
     catalogService.listActiveAddonServices(ctx),
@@ -66,33 +55,25 @@ export default async function AddonsPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-md">
-      <BackLink href={`/staff/bookings/${bookingId}`}>back to booking</BackLink>
-      <PageHeader eyebrow="Booking setup · Add-ons" title="Optional add-on services" />
-      <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add traveler details next.</p>
+      <BackLink href={`/staff/bookings/${bookingId}`}>{t('backToBooking')}</BackLink>
+      <PageHeader eyebrow={t('setupAddons')} title={t('optionalAddons')} />
+      <p className="mt-1 text-sm text-mist">{t('selectingNoneFine')}</p>
       {requestedCodes.size > 0 && (
         <p className="mt-1 text-sm text-mist">
-          Guest requested on their plan-my-trip request: {[...requestedCodes].map(addonLabel).join(', ')} -- matching
-          services below are pre-checked.
+          {t('guestRequestedNotice', { list: [...requestedCodes].map((code) => tAddons(code)).join(', ') })}
         </p>
       )}
-      {!booking.currency && (
-        <p className="mt-1 text-sm text-mist">
-          This booking has no price yet -- add-ons picked here must share one currency; use the cost breakdown to price
-          the rest before sending a quotation.
-        </p>
-      )}
+      {!booking.currency && <p className="mt-1 text-sm text-mist">{t('noPriceYetNotice')}</p>}
       {error && (
         <div className="mt-3">
-          <Alert tone="error">Something went wrong saving add-ons -- please try again.</Alert>
+          <Alert tone="error">{t('saveError')}</Alert>
         </div>
       )}
 
       <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
         {addons.length === 0 ? (
           <p className="text-sm text-mist">
-            {allAddons.length === 0
-              ? 'No add-on services configured.'
-              : `No add-on services are currently available in ${booking.currency}.`}
+            {allAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency ?? '' })}
           </p>
         ) : (
           addons.map((a) => (
@@ -107,7 +88,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
                 <span>
                   {a.name}
                   {!booking.addonsFinalizedAt && requestedCodes.has(a.code) && (
-                    <span className="ml-2 text-xs uppercase tracking-wide text-forest">Guest requested</span>
+                    <span className="ml-2 text-xs uppercase tracking-wide text-forest">{t('guestRequestedBadge')}</span>
                   )}
                 </span>
                 <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
@@ -115,7 +96,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
             </SelectableCard>
           ))
         )}
-        <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Continue'}</SubmitButton>
+        <SubmitButton>{booking.addonsFinalizedAt ? t('saveChanges') : t('continueLabel')}</SubmitButton>
       </form>
     </div>
   );

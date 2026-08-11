@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export interface SearchableOption {
   value: string;
@@ -47,6 +48,7 @@ export function SearchableSelect({
   id,
   required,
 }: SearchableSelectProps) {
+  const t = useTranslations('Common');
   const initial = options.find((o) => o.value === defaultValue);
   const [query, setQuery] = useState(initial?.label ?? '');
   const [selectedValue, setSelectedValue] = useState(defaultValue ?? '');
@@ -63,8 +65,8 @@ export function SearchableSelect({
 
   useEffect(() => {
     if (!required) return;
-    inputRef.current?.setCustomValidity(selectedValue ? '' : 'Please select an option from the list.');
-  }, [required, selectedValue]);
+    inputRef.current?.setCustomValidity(selectedValue ? '' : t('selectFromListRequired'));
+  }, [required, selectedValue, t]);
 
   // The dropdown is absolutely positioned and can overlap page content below
   // it (e.g. a submit button) -- relying on the input's own onBlur to close
@@ -159,7 +161,7 @@ export function SearchableSelect({
           ))}
         </ul>
       )}
-      {open && !emptyLabel && filtered.length === 0 && <p className="mt-1 text-sm text-mist">No matches</p>}
+      {open && !emptyLabel && filtered.length === 0 && <p className="mt-1 text-sm text-mist">{t('noMatches')}</p>}
     </div>
   );
 }

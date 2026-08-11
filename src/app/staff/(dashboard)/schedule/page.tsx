@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { bookingService, type TravelerDutyGroup } from '@modules/booking';
@@ -27,15 +28,17 @@ import { buildScheduleRows } from './build-schedule-rows';
 export default async function MySchedulePage() {
   const ctx = await requireStaffContext('assignment.read');
   const rows = await buildScheduleRows(ctx);
+  const t = await getTranslations('StaffSchedule');
+  const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
 
   const pastCount = rows.filter((r) => r.progress?.status === 'COMPLETED').length;
   const inProgressCount = rows.filter((r) => r.progress?.status === 'IN_PROGRESS').length;
   const futureCount = rows.filter((r) => r.progress?.status === 'NOT_STARTED').length;
 
   const sections = [
-    { href: '/staff/schedule/past', title: 'Past', count: pastCount },
-    { href: '/staff/schedule/in-progress', title: 'In Progress', count: inProgressCount },
-    { href: '/staff/schedule/future', title: 'Future', count: futureCount },
+    { href: '/staff/schedule/past', title: t('pastTitle'), count: pastCount },
+    { href: '/staff/schedule/in-progress', title: t('inProgressTitle'), count: inProgressCount },
+    { href: '/staff/schedule/future', title: t('futureTitle'), count: futureCount },
   ];
 
   // Guides Module (DR-030), widened to DRIVER by the "My Schedule" spec
@@ -79,10 +82,10 @@ export default async function MySchedulePage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <PageHeader eyebrow="My schedule" title="Assignments" />
+      <PageHeader eyebrow={t('eyebrow')} title={t('assignmentsTitle')} />
 
       {rows.length === 0 ? (
-        <p className="text-mist">No assignments yet.</p>
+        <p className="text-mist">{t('noAssignmentsYet')}</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {sections.map((s) => (
@@ -101,7 +104,7 @@ export default async function MySchedulePage() {
       {showClientDetails && rows.length > 0 && (
         <div className="space-y-8">
           <div className="survey-rule" />
-          <PageHeader eyebrow="My schedule" title="Daily itinerary & clients" />
+          <PageHeader eyebrow={t('eyebrow')} title={t('dailyItineraryClients')} />
           {rows.map(({ assignment, detail }) => {
             const groups = clientGroupsByDeparture.get(detail.departure.id) ?? [];
             return (
@@ -110,43 +113,45 @@ export default async function MySchedulePage() {
                   {detail.departure.startDate.toLocaleDateString()} · {detail.packageCountry}
                   {detail.departure.pickupLatitude != null && detail.departure.pickupLongitude != null && (
                     <span className="ml-2 text-sm font-normal text-mist">
-                      Pickup: {detail.departure.pickupLatitude.toFixed(4)}, {detail.departure.pickupLongitude.toFixed(4)}
+                      {t('pickupLabel', {
+                        coords: `${detail.departure.pickupLatitude.toFixed(4)}, ${detail.departure.pickupLongitude.toFixed(4)}`,
+                      })}
                     </span>
                   )}
                 </h2>
                 {groups.length === 0 ? (
-                  <p className="text-sm text-mist">No paid bookings on this departure yet.</p>
+                  <p className="text-sm text-mist">{t('noPaidBookings')}</p>
                 ) : (
                   groups.map((group) => (
                     <div key={group.booking.id} className="rounded-survey border border-rule p-4">
                       <p className="text-sm font-medium text-navy">
                         {group.booking.bookingReference}
                         {group.booking.specialRequests && (
-                          <span className="ml-2 font-normal text-mist">Tour notes: {group.booking.specialRequests}</span>
+                          <span className="ml-2 font-normal text-mist">{t('tourNotes', { text: group.booking.specialRequests })}</span>
                         )}
                       </p>
                       <Table className="mt-3">
                         <thead>
                           <TableHeaderRow>
-                            <Th>Name</Th>
-                            <Th>Nationality</Th>
-                            <Th>Notes</Th>
-                            <Th>Emergency contact</Th>
+                            <Th>{t('name')}</Th>
+                            <Th>{t('nationality')}</Th>
+                            <Th>{t('notes')}</Th>
+                            <Th>{t('emergencyContact')}</Th>
                           </TableHeaderRow>
                         </thead>
                         <tbody>
-                          {group.travelers.map((t) => (
-                            <Tr key={t.id}>
+                          {group.travelers.map((tv) => (
+                            <Tr key={tv.id}>
                               <Td>
-                                {t.firstName} {t.lastName} {t.isTourLead && <Badge tone="neutral">Tour lead</Badge>}
+                                {tv.firstName} {tv.lastName} {tv.isTourLead && <Badge tone="neutral">{t('tourLead')}</Badge>}
                               </Td>
-                              <Td>{t.nationality}</Td>
+                              <Td>{tv.nationality}</Td>
                               <Td>
-                                {[t.disabilities, t.allergies, t.drinkPreference].filter(Boolean).join(' · ') || '—'}
+                                {[tv.disabilities, tv.allergies, tv.drinkPreference].filter(Boolean).join(' · ') || '—'}
                               </Td>
                               <Td>
-                                {t.emergencyContactName
-                                  ? `${t.emergencyContactName}${t.emergencyContactRelation ? ` (${t.emergencyContactRelation})` : ''}${t.emergencyContactPhone ? ` · ${t.emergencyContactPhone}` : ''}`
+                                {tv.emergencyContactName
+                                  ? `${tv.emergencyContactName}${tv.emergencyContactRelation ? ` (${tv.emergencyContactRelation})` : ''}${tv.emergencyContactPhone ? ` · ${tv.emergencyContactPhone}` : ''}`
                                   : '—'}
                               </Td>
                             </Tr>
@@ -165,15 +170,15 @@ export default async function MySchedulePage() {
       {canReadItineraries && myItineraries.length > 0 && (
         <div className="space-y-4">
           <div className="survey-rule" />
-          <PageHeader eyebrow="My schedule" title="Itineraries" />
+          <PageHeader eyebrow={t('eyebrow')} title={t('itinerariesTitle')} />
           <ul className="space-y-2 text-sm">
             {myItineraries.map((itinerary) => (
               <li key={itinerary.id} className="flex items-center justify-between border-b border-rule pb-2">
                 <span>{itineraryBookingRefs.get(itinerary.id)}</span>
                 <span className="flex items-center gap-3">
-                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>
+                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
                   <Link href={`/staff/itineraries/${itinerary.id}`} className="text-forest hover:underline">
-                    View
+                    {t('view')}
                   </Link>
                 </span>
               </li>

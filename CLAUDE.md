@@ -340,7 +340,7 @@ gaps a fresh Postgres would hit).
 | Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryDayMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only per-day map on the staff Map tab (DR-089); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
 | Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's per-day PDF map image; `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
 | PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's per-day PDF (Static Maps image + stop list) |
-| i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing; guest site only, partial coverage (Nav/Footer/HomePage) |
+| i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (country-regulations text, package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
 Do not swap any of these without a DR entry.
@@ -526,8 +526,14 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   admin client.
 - **Errors:** RFC 9457 `application/problem+json` via `src/lib/errors.ts`. No
   internals/stack traces to clients.
-- **i18n:** full EN + FR parity for every user-facing string on the guest
-  site (partial coverage today — Nav/Footer/HomePage only).
+- **i18n:** full EN + FR parity for UI chrome (labels, buttons, headings,
+  errors) across the guest site *and* the staff dashboard. Staff-authored
+  prose (country-regulation text, package marketing copy, About/FAQ body
+  content) and large static reference lists (world country names, provinces,
+  permission slugs, `Role` values) are deliberately left untranslated — see
+  the i18n row in the tech stack table. A future bilingual field on those
+  content tables (rather than chrome-only translation) is a possible later
+  enhancement, not yet decided.
 
 ---
 

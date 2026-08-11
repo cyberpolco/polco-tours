@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Permission, RoleName } from '@lib/rbac';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { saveRolePermissionChangesAction } from './actions';
@@ -38,6 +39,7 @@ export function PermissionMatrixForm({
   roles: readonly EditableRole[];
   permissions: readonly Permission[];
 }) {
+  const t = useTranslations('StaffPermissions');
   const savedCells = useMemo(() => toCellMap(matrix, roles, permissions), [matrix, roles, permissions]);
   const [cells, setCells] = useState(savedCells);
   const [isPending, startTransition] = useTransition();
@@ -63,7 +65,7 @@ export function PermissionMatrixForm({
       try {
         await saveRolePermissionChangesAction(changes);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not save changes');
+        setError(e instanceof Error ? e.message : t('saveError'));
       }
     });
   }
@@ -82,11 +84,11 @@ export function PermissionMatrixForm({
           disabled={isPending || dirtyCount === 0}
           className="rounded-survey bg-amber px-4 py-2 text-sm font-semibold text-navy disabled:opacity-50"
         >
-          {isPending ? 'Saving…' : dirtyCount > 0 ? `Save ${dirtyCount} change${dirtyCount === 1 ? '' : 's'}` : 'Save changes'}
+          {isPending ? t('saving') : dirtyCount > 0 ? t('saveNChanges', { count: dirtyCount }) : t('saveChanges')}
         </button>
         {dirtyCount > 0 && !isPending && (
           <button type="button" onClick={handleDiscard} className="text-sm text-mist hover:text-ink">
-            Discard changes
+            {t('discardChanges')}
           </button>
         )}
         {error && <p className="text-sm text-amber">{error}</p>}
@@ -110,7 +112,7 @@ export function PermissionMatrixForm({
           </colgroup>
           <thead>
             <TableHeaderRow>
-              <Th>Permission</Th>
+              <Th>{t('permission')}</Th>
               {roles.map((role) => (
                 <Th key={role} className="px-2 text-center text-sm leading-tight">
                   {role}

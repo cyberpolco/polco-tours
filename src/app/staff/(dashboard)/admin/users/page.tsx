@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService, type PublicUser } from '@modules/auth';
 import { emailDomain, listEmailDomains, listPhoneDialCodes, matchesPhoneDialCode, matchesSearch, paginate } from '@lib/directory-filters';
@@ -66,6 +67,8 @@ export default async function UsersPage({ searchParams }: Props) {
   const sort: SortKey = params.sort === 'name' || params.sort === 'lastLogin' ? params.sort : 'email';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
+  const t = await getTranslations('StaffUsers');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
   const allUsers = await authService.listUsers(ctx);
   const domainOptions = listEmailDomains(allUsers);
   const dialOptions = listPhoneDialCodes(allUsers);
@@ -109,23 +112,23 @@ export default async function UsersPage({ searchParams }: Props) {
   const currentQuery = hrefWith({ page: page === 1 ? undefined : String(page) }).split('?')[1] ?? '';
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-8">
-        <PageHeader eyebrow="Admin" title="Users" />
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
         <form method="get" action="/staff/admin/users" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <FormField label="Search" htmlFor="q" optional>
+          <FormField label={t('search')} htmlFor="q" optional>
             <input
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Name, email, or phone"
+              placeholder={t('searchPlaceholder')}
               className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
             />
           </FormField>
-          <FormField label="Email domain" htmlFor="domain" optional>
+          <FormField label={t('emailDomain')} htmlFor="domain" optional>
             <Select name="domain" defaultValue={domain}>
-              <option value="">All</option>
+              <option value="">{t('all')}</option>
               {domainOptions.map((d) => (
                 <option key={d} value={d}>
                   @{d}
@@ -133,9 +136,9 @@ export default async function UsersPage({ searchParams }: Props) {
               ))}
             </Select>
           </FormField>
-          <FormField label="Phone country" htmlFor="dial" optional>
+          <FormField label={t('phoneCountry')} htmlFor="dial" optional>
             <Select name="dial" defaultValue={dial}>
-              <option value="">All</option>
+              <option value="">{t('all')}</option>
               {dialOptions.map((d) => (
                 <option key={d.dialCode} value={d.dialCode}>
                   {d.label}
@@ -143,47 +146,45 @@ export default async function UsersPage({ searchParams }: Props) {
               ))}
             </Select>
           </FormField>
-          <FormField label="Status" htmlFor="status" optional>
+          <FormField label={t('status')} htmlFor="status" optional>
             <Select name="status" defaultValue={status}>
-              <option value="">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="deactivated">Deactivated</option>
+              <option value="">{t('all')}</option>
+              <option value="active">{t('active')}</option>
+              <option value="inactive">{t('inactive')}</option>
+              <option value="deactivated">{t('deactivated')}</option>
             </Select>
           </FormField>
           <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
-            <SubmitButton size="compact">Filter</SubmitButton>
+            <SubmitButton size="compact">{t('filter')}</SubmitButton>
             {(q || domain || dial || status) && (
               <Link href="/staff/admin/users" className="text-sm text-mist hover:underline">
-                Clear filters
+                {t('clearFilters')}
               </Link>
             )}
           </div>
         </form>
 
-        <p className="text-sm text-mist">
-          {totalItems} user{totalItems === 1 ? '' : 's'}
-        </p>
+        <p className="text-sm text-mist">{t('userCount', { count: totalItems })}</p>
 
         <Table>
           <thead>
             <TableHeaderRow>
               <Th>
                 <Link href={sortHref('name')} className="hover:text-navy">
-                  Name{sort === 'name' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  {t('name')}{sort === 'name' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </Link>
               </Th>
               <Th>
                 <Link href={sortHref('email')} className="hover:text-navy">
-                  Email{sort === 'email' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  {t('email')}{sort === 'email' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </Link>
               </Th>
-              <Th>Phone</Th>
-              <Th>Roles</Th>
-              <Th>Status</Th>
+              <Th>{t('phone')}</Th>
+              <Th>{t('roles')}</Th>
+              <Th>{t('status')}</Th>
               <Th>
                 <Link href={sortHref('lastLogin')} className="hover:text-navy">
-                  Last login{sort === 'lastLogin' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  {t('lastLogin')}{sort === 'lastLogin' ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </Link>
               </Th>
               <Th />
@@ -211,15 +212,15 @@ export default async function UsersPage({ searchParams }: Props) {
                       true, since that user can't sign in regardless of
                       dormancy. */}
                   <Badge tone={u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
-                    {u.deletedAt ? 'Deactivated' : u.inactiveAt ? 'Inactive' : 'Active'}
+                    {u.deletedAt ? t('deactivated') : u.inactiveAt ? t('inactive') : t('active')}
                   </Badge>
                 </Td>
-                <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : 'Never'}</Td>
+                <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : t('never')}</Td>
                 <Td>
                   <div className="flex items-center gap-3">
                     {u.id !== ctx.userId && (
                       <Link href={`/staff/admin/users/${u.id}`} className="text-forest hover:underline">
-                        Edit
+                        {t('edit')}
                       </Link>
                     )}
                     {u.id !== ctx.userId && !u.deletedAt && !u.inactiveAt && (
@@ -227,16 +228,16 @@ export default async function UsersPage({ searchParams }: Props) {
                         <SubmitButton
                           variant="secondary"
                           size="compact"
-                          confirmMessage={`Deactivate ${u.name ?? u.email}? They will no longer be able to sign in.`}
+                          confirmMessage={t('deactivateConfirm', { name: u.name ?? u.email })}
                         >
-                          Deactivate
+                          {t('deactivate')}
                         </SubmitButton>
                       </form>
                     )}
                     {!u.deletedAt && u.inactiveAt && (
                       <form action={reactivateUserAction.bind(null, u.id, currentQuery)}>
                         <SubmitButton variant="success" size="compact">
-                          Reactivate
+                          {t('reactivate')}
                         </SubmitButton>
                       </form>
                     )}
@@ -247,7 +248,7 @@ export default async function UsersPage({ searchParams }: Props) {
             {users.length === 0 && (
               <Tr>
                 <td colSpan={7} className="py-3 text-mist">
-                  No users match these filters.
+                  {t('noMatches')}
                 </td>
               </Tr>
             )}
@@ -257,7 +258,7 @@ export default async function UsersPage({ searchParams }: Props) {
         <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
 
         <div>
-          <h2 className="mb-3 text-lg font-semibold text-navy">Create a new user</h2>
+          <h2 className="mb-3 text-lg font-semibold text-navy">{t('createNewUser')}</h2>
           <CreateUserForm assignableRoles={ASSIGNABLE_ROLES} />
         </div>
       </div>

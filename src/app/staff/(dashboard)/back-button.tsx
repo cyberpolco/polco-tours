@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { BackAction } from '@/components/ui/BackLink';
 
 // Rendered once, in layout.tsx, so every staff dashboard page gets a
@@ -10,10 +11,11 @@ import { BackAction } from '@/components/ui/BackLink';
 // not a fixed hierarchy.
 export function BackButton() {
   const router = useRouter();
+  const t = useTranslations('Common');
 
   return (
     <BackAction onClick={() => router.back()} className="mb-4">
-      Back
+      {t('back')}
     </BackAction>
   );
 }

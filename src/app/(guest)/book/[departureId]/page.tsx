@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { AvailabilityBadge } from '@/components/ui/AvailabilityBadge';
 import { BackLink } from '@/components/ui/BackLink';
@@ -22,23 +23,25 @@ export default async function BookDeparturePage({ params }: Props) {
     notFound();
   }
   if (!detail.bookable) notFound();
+  const t = await getTranslations('BookingStart');
 
   return (
     <div className="max-w-md">
       {detail.departure.tourPackageId && (
-        <BackLink href={`/packages/${detail.departure.tourPackageId}`}>back to package</BackLink>
+        <BackLink href={`/packages/${detail.departure.tourPackageId}`}>{t('backToPackage')}</BackLink>
       )}
-      <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={0} />
+      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} />
 
       <Card className="mt-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow text-mist">New booking</p>
+          <p className="eyebrow text-mist">{t('newBooking')}</p>
           <AvailabilityBadge bookable={detail.bookable} />
         </div>
         {/* Departure dates are staff-only information (visible in the staff
             dashboard) -- only the price is shown here. */}
         <h1 className="mt-1 text-2xl font-bold text-navy">
-          {formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null)}/seat
+          {formatOrPending(detail.effectiveUnitPrice?.minor ?? null, detail.effectiveUnitPrice?.currency ?? null)}
+          {t('perSeat')}
         </h1>
       </Card>
 

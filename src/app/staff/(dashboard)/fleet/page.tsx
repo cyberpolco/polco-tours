@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
 import { Card } from '@/components/ui/Card';
@@ -21,16 +22,17 @@ export default async function FleetPage() {
     fleetService.listStarlinkKits(ctx),
   ]);
 
+  const t = await getTranslations('StaffFleetHub');
   const sections = [
-    { href: '/staff/fleet/vehicles', title: 'Vehicles', count: vehicles.length, description: 'Registration, compliance documents, maintenance history.' },
-    { href: '/staff/fleet/drivers', title: 'Drivers', count: drivers.length, description: 'License details, availability, compliance documents.' },
-    { href: '/staff/fleet/guides', title: 'Guides', count: guides.length, description: 'Languages, specialties, availability.' },
-    { href: '/staff/fleet/starlink-kits', title: 'Starlink Kits', count: starlinkKits.length, description: 'Vehicle assignment and last known location.' },
+    { href: '/staff/fleet/vehicles', title: t('vehiclesTitle'), count: vehicles.length, description: t('vehiclesDesc') },
+    { href: '/staff/fleet/drivers', title: t('driversTitle'), count: drivers.length, description: t('driversDesc') },
+    { href: '/staff/fleet/guides', title: t('guidesTitle'), count: guides.length, description: t('guidesDesc') },
+    { href: '/staff/fleet/starlink-kits', title: t('starlinkKitsTitle'), count: starlinkKits.length, description: t('starlinkKitsDesc') },
   ];
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Fleet" title="Fleet" />
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">

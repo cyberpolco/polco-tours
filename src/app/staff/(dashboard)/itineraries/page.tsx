@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { BookingStatus, ItineraryStatus } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService, type BookingView } from '@modules/booking';
 import { itineraryService, type ItineraryView } from '@modules/itinerary';
@@ -54,6 +55,9 @@ interface Props {
 export default async function ItinerariesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('itinerary.write');
   const params = await searchParams;
+  const t = await getTranslations('StaffItinerariesPage');
+  const tBookingStatus = await getTranslations('BookingStatusLabel');
+  const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
   const q = params.q ?? '';
   const itineraryStatus = (ITINERARY_STATUSES as string[]).includes(params.itineraryStatus ?? '')
     ? (params.itineraryStatus as ItineraryStatus)
@@ -104,65 +108,61 @@ export default async function ItinerariesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Itineraries" title="Operational plans" />
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
       <form method="get" action="/staff/itineraries" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Booking reference"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Itinerary status" htmlFor="itineraryStatus" optional>
+        <FormField label={t('itineraryStatus')} htmlFor="itineraryStatus" optional>
           <Select name="itineraryStatus" defaultValue={itineraryStatus}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {ITINERARY_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {tItineraryStatus(s)}
               </option>
             ))}
           </Select>
         </FormField>
-        <FormField label="Booking status" htmlFor="bookingStatus" optional>
+        <FormField label={t('bookingStatus')} htmlFor="bookingStatus" optional>
           <Select name="bookingStatus" defaultValue={bookingStatus}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {BOOKING_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {tBookingStatus(s)}
               </option>
             ))}
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || itineraryStatus || bookingStatus) && (
             <Link href="/staff/itineraries" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} itinerar{totalItems === 1 ? 'y' : 'ies'}
-      </p>
+      <p className="text-sm text-mist">{t('itineraryCount', { count: totalItems })}</p>
 
       {rows.length === 0 ? (
         <p className="text-mist">
-          {totalItems === 0 && !q && !itineraryStatus && !bookingStatus
-            ? "No itineraries created yet -- create one from a booking's detail page."
-            : 'No itineraries match these filters.'}
+          {totalItems === 0 && !q && !itineraryStatus && !bookingStatus ? t('noItinerariesYet') : t('noMatches')}
         </p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Booking</Th>
-              <Th>Booking status</Th>
-              <Th>Itinerary status</Th>
+              <Th>{t('booking')}</Th>
+              <Th>{t('bookingStatus')}</Th>
+              <Th>{t('itineraryStatus')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -171,14 +171,14 @@ export default async function ItinerariesPage({ searchParams }: Props) {
               <Tr key={itinerary.id}>
                 <Td>{booking?.bookingReference ?? itinerary.bookingId}</Td>
                 <Td>
-                  {booking ? <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> : '—'}
+                  {booking ? <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> : '—'}
                 </Td>
                 <Td>
-                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>
+                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
                 </Td>
                 <Td>
                   <Link href={`/staff/itineraries/${itinerary.id}`} className="text-forest hover:underline">
-                    Open
+                    {t('open')}
                   </Link>
                 </Td>
               </Tr>

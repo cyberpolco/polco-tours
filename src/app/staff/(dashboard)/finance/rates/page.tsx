@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { financeService } from '@modules/finance';
 import { FormField } from '@/components/ui/FormField';
@@ -23,14 +24,16 @@ import {
   deleteTransportRateAction,
 } from './actions';
 
-const COUNTRY_OPTIONS = (
-  <>
-    <option value="NA">🇳🇦 Namibia</option>
-    <option value="CD">🇨🇩 DR Congo</option>
-    <option value="ZM">🇿🇲 Zambia</option>
-    <option value="ZW">🇿🇼 Zimbabwe</option>
-  </>
-);
+function countryOptions(tCountries: (code: string) => string) {
+  return (
+    <>
+      <option value="NA">🇳🇦 {tCountries('NA')}</option>
+      <option value="CD">🇨🇩 {tCountries('CD')}</option>
+      <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
+      <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
+    </>
+  );
+}
 
 const CURRENCY_OPTIONS = (
   <>
@@ -41,16 +44,21 @@ const CURRENCY_OPTIONS = (
   </>
 );
 
-function DeleteButton({ action }: { action: () => Promise<void> }) {
+function DeleteButton({
+  action,
+  removingLabel,
+  removeConfirm,
+  removeLabel,
+}: {
+  action: () => Promise<void>;
+  removingLabel: string;
+  removeConfirm: string;
+  removeLabel: string;
+}) {
   return (
     <form action={action}>
-      <SubmitButton
-        variant="secondary"
-        size="compact"
-        pendingLabel="Removing…"
-        confirmMessage="Remove this rate? This cannot be undone."
-      >
-        Remove
+      <SubmitButton variant="secondary" size="compact" pendingLabel={removingLabel} confirmMessage={removeConfirm}>
+        {removeLabel}
       </SubmitButton>
     </form>
   );
@@ -66,6 +74,9 @@ function DeleteButton({ action }: { action: () => Promise<void> }) {
 export default async function FinanceRatesPage() {
   const ctx = await requireStaffContext('finance_config.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
+  const t = await getTranslations('StaffFinanceRates');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
+  const tCountries = await getTranslations('Countries');
 
   const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates] = await Promise.all([
     financeService.listStaffRates(ctx),
@@ -77,36 +88,41 @@ export default async function FinanceRatesPage() {
   ]);
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-10">
-      <PageHeader eyebrow="Finance" title="Operational Rates" />
-      <p className="text-xs text-mist">
-        Feeds every package&rsquo;s cost breakdown (Base Cost + Agency Margin = Selling Price). Rates are effective-dated
-        -- add a new row rather than editing an old one when a rate changes; the most recent row still in its validity
-        window wins.
-      </p>
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+      <p className="text-xs text-mist">{t('intro')}</p>
 
       <section>
-        <p className="eyebrow text-mist">Human Resources (staff daily rates)</p>
+        <p className="eyebrow text-mist">{t('humanResources')}</p>
         {staffRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No staff rates yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noStaffRates')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Role</Th>
-                <Th>Daily rate</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('role')}</Th>
+                <Th>{t('dailyRate')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {staffRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{r.role}</Td>
                   <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteStaffRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteStaffRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -114,29 +130,29 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createStaffRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Role" htmlFor="role">
+            <FormField label={t('role')} htmlFor="role">
               <Select name="role" required className="text-sm">
-                <option value="DRIVER">Driver</option>
-                <option value="GUIDE">Tour Guide</option>
-                <option value="PHOTOGRAPHER">Photographer</option>
-                <option value="VIDEOGRAPHER">Videographer</option>
+                <option value="DRIVER">{t('roleDriver')}</option>
+                <option value="GUIDE">{t('roleGuide')}</option>
+                <option value="PHOTOGRAPHER">{t('rolePhotographer')}</option>
+                <option value="VIDEOGRAPHER">{t('roleVideographer')}</option>
               </Select>
             </FormField>
-            <FormField label="Daily rate" htmlFor="dailyRate">
+            <FormField label={t('dailyRate')} htmlFor="dailyRate">
               <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}
@@ -144,26 +160,35 @@ export default async function FinanceRatesPage() {
 
       <section>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Accommodation (hotel nightly rates)</p>
+        <p className="eyebrow text-mist">{t('accommodation')}</p>
         {hotelRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No hotel rates yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noHotelRates')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Room category</Th>
-                <Th>Nightly rate</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('roomCategory')}</Th>
+                <Th>{t('nightlyRate')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {hotelRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{r.roomCategory}</Td>
                   <Td>{format(money(r.nightlyRateMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteHotelRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteHotelRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -171,24 +196,24 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createHotelRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Room category" htmlFor="roomCategory">
-              <input name="roomCategory" placeholder="Standard" required className="w-36 rounded-survey border border-rule px-2 py-2 text-sm" />
+            <FormField label={t('roomCategory')} htmlFor="roomCategory">
+              <input name="roomCategory" placeholder={t('roomCategoryPlaceholder')} required className="w-36 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Nightly rate" htmlFor="nightlyRate">
+            <FormField label={t('nightlyRate')} htmlFor="nightlyRate">
               <input name="nightlyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}
@@ -196,30 +221,39 @@ export default async function FinanceRatesPage() {
 
       <section>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Transportation (per-day estimates)</p>
+        <p className="eyebrow text-mist">{t('transportation')}</p>
         {transportRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No transport rates yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noTransportRates')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Fuel</Th>
-                <Th>Tolls</Th>
-                <Th>Parking</Th>
-                <Th>Vehicle operating</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('fuel')}</Th>
+                <Th>{t('tolls')}</Th>
+                <Th>{t('parking')}</Th>
+                <Th>{t('vehicleOperating')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {transportRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{format(money(r.fuelEstimateMinor, r.currency))}</Td>
                   <Td>{format(money(r.tollFeesMinor, r.currency))}</Td>
                   <Td>{format(money(r.parkingFeesMinor, r.currency))}</Td>
                   <Td>{format(money(r.vehicleOperatingCostMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteTransportRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteTransportRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -227,30 +261,30 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createTransportRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Fuel/day" htmlFor="fuelEstimate">
+            <FormField label={t('fuelPerDay')} htmlFor="fuelEstimate">
               <input name="fuelEstimate" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Tolls/day" htmlFor="tollFees">
+            <FormField label={t('tollsPerDay')} htmlFor="tollFees">
               <input name="tollFees" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Parking/day" htmlFor="parkingFees">
+            <FormField label={t('parkingPerDay')} htmlFor="parkingFees">
               <input name="parkingFees" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Vehicle op./day" htmlFor="vehicleOperatingCost">
+            <FormField label={t('vehicleOpPerDay')} htmlFor="vehicleOperatingCost">
               <input name="vehicleOperatingCost" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}
@@ -258,26 +292,35 @@ export default async function FinanceRatesPage() {
 
       <section>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Food &amp; Beverage (per-person estimates)</p>
+        <p className="eyebrow text-mist">{t('foodBeverage')}</p>
         {foodBeverageRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No food/beverage rates yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noFoodBeverageRates')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Category</Th>
-                <Th>Per unit</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('category')}</Th>
+                <Th>{t('perUnit')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {foodBeverageRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{r.category}</Td>
                   <Td>{format(money(r.perUnitMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteFoodBeverageRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteFoodBeverageRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -285,33 +328,33 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createFoodBeverageRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Category" htmlFor="category">
+            <FormField label={t('category')} htmlFor="category">
               <Select name="category" required className="text-sm">
-                <option value="BREAKFAST">Breakfast</option>
-                <option value="LUNCH">Lunch</option>
-                <option value="DINNER">Dinner</option>
-                <option value="WATER">Water bottle</option>
-                <option value="SOFT_DRINK">Soft drink</option>
-                <option value="JUICE">Juice</option>
-                <option value="LOCAL_BEVERAGE">Local beverage</option>
-                <option value="ALCOHOLIC">Alcoholic beverage</option>
+                <option value="BREAKFAST">{t('categoryBreakfast')}</option>
+                <option value="LUNCH">{t('categoryLunch')}</option>
+                <option value="DINNER">{t('categoryDinner')}</option>
+                <option value="WATER">{t('categoryWater')}</option>
+                <option value="SOFT_DRINK">{t('categorySoftDrink')}</option>
+                <option value="JUICE">{t('categoryJuice')}</option>
+                <option value="LOCAL_BEVERAGE">{t('categoryLocalBeverage')}</option>
+                <option value="ALCOHOLIC">{t('categoryAlcoholic')}</option>
               </Select>
             </FormField>
-            <FormField label="Per unit" htmlFor="perUnit">
+            <FormField label={t('perUnit')} htmlFor="perUnit">
               <input name="perUnit" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}
@@ -319,26 +362,35 @@ export default async function FinanceRatesPage() {
 
       <section>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Tourist Activities</p>
+        <p className="eyebrow text-mist">{t('touristActivities')}</p>
         {activityFees.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No activity fees yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noActivityFees')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Activity</Th>
-                <Th>Fee</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('activity')}</Th>
+                <Th>{t('fee')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {activityFees.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{r.name}</Td>
                   <Td>{format(money(r.feeMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteActivityFeeAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteActivityFeeAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -346,24 +398,24 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createActivityFeeAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Activity name" htmlFor="name">
-              <input name="name" placeholder="Etosha entrance" required className="w-48 rounded-survey border border-rule px-2 py-2 text-sm" />
+            <FormField label={t('activityName')} htmlFor="name">
+              <input name="name" placeholder={t('activityNamePlaceholder')} required className="w-48 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Fee" htmlFor="fee">
+            <FormField label={t('fee')} htmlFor="fee">
               <input name="fee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}
@@ -371,30 +423,39 @@ export default async function FinanceRatesPage() {
 
       <section>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Immigration Costs</p>
+        <p className="eyebrow text-mist">{t('immigrationCosts')}</p>
         {immigrationCostRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No immigration cost rates yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noImmigrationCostRates')}</p>
         ) : (
           <Table className="mt-2">
             <thead>
               <TableHeaderRow>
-                <Th>Country</Th>
-                <Th>Visa fee</Th>
-                <Th>Processing fee</Th>
-                <Th>Invitation letter</Th>
-                <Th>Border permit</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('visaFee')}</Th>
+                <Th>{t('processingFee')}</Th>
+                <Th>{t('invitationLetter')}</Th>
+                <Th>{t('borderPermit')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
             <tbody>
               {immigrationCostRates.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.country}</Td>
+                  <Td>{tCountries(r.country)}</Td>
                   <Td>{format(money(r.visaFeeMinor, r.currency))}</Td>
                   <Td>{format(money(r.processingFeeMinor, r.currency))}</Td>
                   <Td>{format(money(r.invitationLetterFeeMinor, r.currency))}</Td>
                   <Td>{format(money(r.borderPermitFeeMinor, r.currency))}</Td>
-                  <Td>{canWrite && <DeleteButton action={deleteImmigrationCostRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteImmigrationCostRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -402,30 +463,30 @@ export default async function FinanceRatesPage() {
         )}
         {canWrite && (
           <form action={createImmigrationCostRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label="Country" htmlFor="country">
+            <FormField label={t('country')} htmlFor="country">
               <Select name="country" required className="text-sm">
-                {COUNTRY_OPTIONS}
+                {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label="Visa fee" htmlFor="visaFee">
+            <FormField label={t('visaFee')} htmlFor="visaFee">
               <input name="visaFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Processing fee" htmlFor="processingFee">
+            <FormField label={t('processingFee')} htmlFor="processingFee">
               <input name="processingFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Invitation letter" htmlFor="invitationLetterFee">
+            <FormField label={t('invitationLetter')} htmlFor="invitationLetterFee">
               <input name="invitationLetterFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Border permit" htmlFor="borderPermitFee">
+            <FormField label={t('borderPermit')} htmlFor="borderPermitFee">
               <input name="borderPermitFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}

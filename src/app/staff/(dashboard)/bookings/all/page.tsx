@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { BookingStatus } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService, type BookingView } from '@modules/booking';
 import { paginate } from '@lib/directory-filters';
@@ -18,24 +19,25 @@ import { FILTERABLE_BOOKING_STATUSES } from '@lib/booking-statuses';
 
 const PER_PAGE = 10;
 
-const ORIGIN_LABEL: Record<string, string> = {
-  PREDEFINED_PACKAGE: 'Package',
-  TAILOR_MADE: 'Plan my trip',
-};
-
 interface Props {
   searchParams: Promise<{ q?: string; status?: string; origin?: string; page?: string }>;
 }
 
-function matchesQuery(b: BookingView, query: string): boolean {
+function matchesQuery(b: BookingView, query: string, originLabel: Record<string, string>): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return b.bookingReference.toLowerCase().includes(q) || (ORIGIN_LABEL[b.origin] ?? b.origin).toLowerCase().includes(q);
+  return b.bookingReference.toLowerCase().includes(q) || (originLabel[b.origin] ?? b.origin).toLowerCase().includes(q);
 }
 
 export default async function AllBookingsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffBookings');
+  const tStatus = await getTranslations('BookingStatusLabel');
+  const ORIGIN_LABEL: Record<string, string> = {
+    PREDEFINED_PACKAGE: t('packageLabel'),
+    TAILOR_MADE: t('planMyTripLabel'),
+  };
   const q = params.q ?? '';
   const status = (FILTERABLE_BOOKING_STATUSES as string[]).includes(params.status ?? '') ? (params.status as BookingStatus) : '';
   const origin = params.origin === 'PREDEFINED_PACKAGE' || params.origin === 'TAILOR_MADE' ? params.origin : '';
@@ -45,7 +47,7 @@ export default async function AllBookingsPage({ searchParams }: Props) {
   const filtered = allBookings.filter((b) => {
     if (status && b.status !== status) return false;
     if (origin && b.origin !== origin) return false;
-    if (!matchesQuery(b, q)) return false;
+    if (!matchesQuery(b, q, ORIGIN_LABEL)) return false;
     return true;
   });
   const { items: bookings, page, totalPages, totalItems } = paginate(filtered, Number(params.page ?? '1'), PER_PAGE);
@@ -67,62 +69,60 @@ export default async function AllBookingsPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/bookings">back to bookings</BackLink>
-      <PageHeader eyebrow="Bookings" title="All Bookings" />
+      <BackLink href="/staff/bookings">{t('backToBookings')}</BackLink>
+      <PageHeader eyebrow={t('bookingsEyebrow')} title={t('allBookingsTitle')} />
 
       <form method="get" action="/staff/bookings/all" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Reference or source"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Status" htmlFor="status" optional>
+        <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {FILTERABLE_BOOKING_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {tStatus(s)}
               </option>
             ))}
           </Select>
         </FormField>
-        <FormField label="Source" htmlFor="origin" optional>
+        <FormField label={t('source')} htmlFor="origin" optional>
           <Select name="origin" defaultValue={origin}>
-            <option value="">All</option>
-            <option value="PREDEFINED_PACKAGE">Package</option>
-            <option value="TAILOR_MADE">Plan my trip</option>
+            <option value="">{t('all')}</option>
+            <option value="PREDEFINED_PACKAGE">{t('packageLabel')}</option>
+            <option value="TAILOR_MADE">{t('planMyTripLabel')}</option>
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || status || origin) && (
             <Link href="/staff/bookings/all" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} booking{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('bookingCount', { count: totalItems })}</p>
 
       {bookings.length === 0 ? (
-        <p className="text-mist">No bookings match these filters.</p>
+        <p className="text-mist">{t('noMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Reference</Th>
-              <Th>Source</Th>
-              <Th>Status</Th>
-              <Th>Seats</Th>
-              <Th>Price</Th>
-              <Th>Created</Th>
+              <Th>{t('reference')}</Th>
+              <Th>{t('source')}</Th>
+              <Th>{t('status')}</Th>
+              <Th>{t('seats')}</Th>
+              <Th>{t('price')}</Th>
+              <Th>{t('created')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -132,7 +132,7 @@ export default async function AllBookingsPage({ searchParams }: Props) {
                 <Td className="font-mono text-xs">{b.bookingReference}</Td>
                 <Td className="text-xs text-mist">{ORIGIN_LABEL[b.origin] ?? b.origin}</Td>
                 <Td>
-                  <Badge tone={BOOKING_STATUS_TONE[b.status]}>{b.status}</Badge>
+                  <Badge tone={BOOKING_STATUS_TONE[b.status]}>{tStatus(b.status)}</Badge>
                 </Td>
                 <Td>{b.seats}</Td>
                 <Td>{formatOrPending(b.priceMinor, b.currency)}</Td>
@@ -140,7 +140,7 @@ export default async function AllBookingsPage({ searchParams }: Props) {
                 <Td>
                   <div className="flex items-center gap-3">
                     <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
-                      View
+                      {t('view')}
                     </Link>
                     {/* DR-058: SUPERADMIN-only, any status -- see the detail
                         page's own comment on why this role check (not just
@@ -151,10 +151,10 @@ export default async function AllBookingsPage({ searchParams }: Props) {
                         <SubmitButton
                           variant="secondary"
                           size="compact"
-                          pendingLabel="Deleting…"
-                          confirmMessage={`Delete booking ${b.bookingReference}? This cannot be undone.`}
+                          pendingLabel={t('deleting')}
+                          confirmMessage={t('deleteConfirm', { ref: b.bookingReference })}
                         >
-                          Delete
+                          {t('delete')}
                         </SubmitButton>
                       </form>
                     )}

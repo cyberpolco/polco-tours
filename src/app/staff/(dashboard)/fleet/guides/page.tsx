@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService, type PublicUser } from '@modules/auth';
 import { fleetService, type GuideProfileView } from '@modules/fleet';
@@ -46,6 +47,9 @@ function listSpecialties(guides: GuideProfileView[]): string[] {
 export default async function GuidesListPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('fleet.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffGuides');
+  const tGuideStatus = await getTranslations('GuideStatusLabel');
+  const tAvailabilityStatus = await getTranslations('AvailabilityStatusLabel');
   const q = params.q ?? '';
   const status = params.status ?? '';
   const availability = params.availability ?? '';
@@ -83,40 +87,40 @@ export default async function GuidesListPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/fleet">back to fleet</BackLink>
+      <BackLink href="/staff/fleet">{t('backToFleet')}</BackLink>
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Fleet" title="Guides" />
-        <LinkButton href="/staff/fleet/guides/new">Add guide</LinkButton>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <LinkButton href="/staff/fleet/guides/new">{t('addGuide')}</LinkButton>
       </div>
 
       <form method="get" action="/staff/fleet/guides" className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Name, email, language, specialty"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Status" htmlFor="status" optional>
+        <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>
-            <option value="">All</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
+            <option value="">{t('all')}</option>
+            <option value="ACTIVE">{tGuideStatus('ACTIVE')}</option>
+            <option value="SUSPENDED">{tGuideStatus('SUSPENDED')}</option>
           </Select>
         </FormField>
-        <FormField label="Availability" htmlFor="availability" optional>
+        <FormField label={t('availability')} htmlFor="availability" optional>
           <Select name="availability" defaultValue={availability}>
-            <option value="">All</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="BOOKED">Booked</option>
-            <option value="INACTIVE">Inactive</option>
+            <option value="">{t('all')}</option>
+            <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
+            <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
+            <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
           </Select>
         </FormField>
-        <FormField label="Specialty" htmlFor="specialty" optional>
+        <FormField label={t('specialty')} htmlFor="specialty" optional>
           <Select name="specialty" defaultValue={specialty}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {specialtyOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -125,31 +129,29 @@ export default async function GuidesListPage({ searchParams }: Props) {
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || status || availability || specialty) && (
             <Link href="/staff/fleet/guides" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} guide{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('guideCount', { count: totalItems })}</p>
 
       {guides.length === 0 ? (
-        <p className="text-mist">No guide profiles match these filters.</p>
+        <p className="text-mist">{t('noMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Name</Th>
-              <Th>Email</Th>
-              <Th>Languages</Th>
-              <Th>Specialties</Th>
-              <Th>Status</Th>
-              <Th>Availability</Th>
+              <Th>{t('name')}</Th>
+              <Th>{t('email')}</Th>
+              <Th>{t('languages')}</Th>
+              <Th>{t('specialties')}</Th>
+              <Th>{t('status')}</Th>
+              <Th>{t('availability')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -163,25 +165,25 @@ export default async function GuidesListPage({ searchParams }: Props) {
                   <Td>{g.languages.join(', ') || '—'}</Td>
                   <Td>{g.specialties.join(', ') || '—'}</Td>
                   <Td>
-                    <Badge tone={GUIDE_STATUS_TONE[g.status]}>{g.status}</Badge>
+                    <Badge tone={GUIDE_STATUS_TONE[g.status]}>{tGuideStatus(g.status)}</Badge>
                   </Td>
                   <Td>
-                    <Badge tone={AVAILABILITY_STATUS_TONE[g.availability]}>{g.availability}</Badge>
+                    <Badge tone={AVAILABILITY_STATUS_TONE[g.availability]}>{tAvailabilityStatus(g.availability)}</Badge>
                   </Td>
                   <Td>
                     <div className="flex items-center gap-3">
                       <Link href={`/staff/fleet/guides/${g.id}`} className="text-forest hover:underline">
-                        View
+                        {t('view')}
                       </Link>
                       {ctx.roles.includes('SUPERADMIN') && (
                         <form action={deleteGuideProfileAction.bind(null, g.id)}>
                           <SubmitButton
                             variant="secondary"
                             size="compact"
-                            pendingLabel="Deleting…"
-                            confirmMessage="Delete this guide profile? This cannot be undone."
+                            pendingLabel={t('deleting')}
+                            confirmMessage={t('deleteConfirm')}
                           >
-                            Delete
+                            {t('delete')}
                           </SubmitButton>
                         </form>
                       )}

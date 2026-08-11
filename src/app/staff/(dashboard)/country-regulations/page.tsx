@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
 import { LinkButton } from '@/components/ui/Button';
@@ -17,35 +18,38 @@ export default async function CountryRegulationsPage() {
   const ctx = await requireStaffContext('country_regulation.read');
   const regulations = await immigrationService.listRegulations(ctx);
   const canWrite = ctx.roles.includes('SUPERADMIN');
+  const t = await getTranslations('StaffCountryRegulations');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
+  const tCountries = await getTranslations('Countries');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Immigration" title="Country regulations" />
-        {canWrite && <LinkButton href="/staff/country-regulations/new">Add country</LinkButton>}
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        {canWrite && <LinkButton href="/staff/country-regulations/new">{t('addCountry')}</LinkButton>}
       </div>
       {regulations.length === 0 ? (
-        <p className="text-mist">No country regulations on file yet.</p>
+        <p className="text-mist">{t('noneYet')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Country</Th>
-              <Th>Processing time</Th>
-              <Th>Embassy</Th>
+              <Th>{t('country')}</Th>
+              <Th>{t('processingTime')}</Th>
+              <Th>{t('embassy')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
           <tbody>
             {regulations.map((r) => (
               <Tr key={r.id}>
-                <Td>{r.country}</Td>
-                <Td>{r.processingTimeDays != null ? `${r.processingTimeDays} days` : '—'}</Td>
+                <Td>{tCountries(r.country)}</Td>
+                <Td>{r.processingTimeDays != null ? t('processingTimeDays', { days: r.processingTimeDays }) : '—'}</Td>
                 <Td>{r.embassyName ?? '—'}</Td>
                 <Td>
                   <Link href={`/staff/country-regulations/${r.country}`} className="text-forest hover:underline">
-                    {canWrite ? 'Edit' : 'View'}
+                    {canWrite ? t('edit') : t('view')}
                   </Link>
                 </Td>
               </Tr>

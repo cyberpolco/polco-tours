@@ -3,15 +3,19 @@
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { setLocaleAction } from './set-locale-action';
+import { setLocaleAction } from '@lib/set-locale-action';
 
 const OPTIONS = [
   { code: 'en', label: 'EN' },
   { code: 'fr', label: 'FR' },
 ] as const;
 
-// Opens on hover, not click (confirmed decision, DR-023 item 3) -- a plain
-// Tailwind group-hover dropdown, no client-side open/close state needed.
+// Shared by the guest site header and the staff dashboard (nav bar, login,
+// change-password) -- full EN/FR coverage now spans both trees under one
+// cookie-based locale (src/app/layout.tsx). Opens on hover, not click
+// (confirmed decision, DR-023 item 3) -- a plain Tailwind group-hover
+// dropdown, no client-side open/close state needed. Styled for a dark
+// (navy) surface, which every current call site is.
 export function LanguageSwitcher() {
   const locale = useLocale();
   const router = useRouter();

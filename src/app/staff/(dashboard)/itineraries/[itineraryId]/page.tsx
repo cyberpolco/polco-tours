@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
@@ -76,8 +77,11 @@ export default async function ItineraryDetailPage({ params }: Props) {
   }
 
   const days = await itineraryService.listDays(ctx, itineraryId);
+  const t = await getTranslations('StaffItineraryDetail');
+  const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
+  const tCountries = await getTranslations('Countries');
 
-  let travelDates = 'Not scheduled yet';
+  let travelDates = t('notScheduledYet');
   // Falls back to the TAILOR_MADE booking's own custom country when there's
   // no real departure/package yet -- feeds the "planned sites" datalist
   // below, scoped to wherever this trip actually is.
@@ -126,13 +130,13 @@ export default async function ItineraryDetailPage({ params }: Props) {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <PageHeader eyebrow="Itinerary" title={booking.bookingReference} />
+        <PageHeader eyebrow={t('itineraryEyebrow')} title={booking.bookingReference} />
         <p className="mt-1 flex items-center gap-2 text-mist">
-          {travelDates} · <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>
+          {travelDates} · <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
         </p>
         {booking.departureId && (
           <p className="mt-2 text-sm">
-            <LinkButton href={`/staff/departures/${booking.departureId}`}>Assign vehicle/driver/guide</LinkButton>
+            <LinkButton href={`/staff/departures/${booking.departureId}`}>{t('assignVehicleDriverGuide')}</LinkButton>
           </p>
         )}
 
@@ -140,22 +144,22 @@ export default async function ItineraryDetailPage({ params }: Props) {
           <div className="mt-4 flex gap-3">
             {itinerary.status === 'DRAFT' && (
               <form action={submitForReviewAction.bind(null, itineraryId)}>
-                <SubmitButton variant="secondary" pendingLabel="Submitting…">
-                  Submit for review
+                <SubmitButton variant="secondary" pendingLabel={t('submitting')}>
+                  {t('submitForReview')}
                 </SubmitButton>
               </form>
             )}
             {itinerary.status === 'IN_REVIEW' && (
               <form action={sendBackToDraftAction.bind(null, itineraryId)}>
-                <SubmitButton variant="secondary" pendingLabel="Sending back…">
-                  Send back to draft
+                <SubmitButton variant="secondary" pendingLabel={t('sendingBack')}>
+                  {t('sendBackToDraft')}
                 </SubmitButton>
               </form>
             )}
             {canApprove && itinerary.status !== 'APPROVED' && (
               <form action={approveItineraryAction.bind(null, itineraryId)}>
-                <SubmitButton variant="success" pendingLabel="Approving…">
-                  Approve
+                <SubmitButton variant="success" pendingLabel={t('approving')}>
+                  {t('approve')}
                 </SubmitButton>
               </form>
             )}
@@ -165,10 +169,10 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Notes &amp; emergency contact</p>
+        <p className="eyebrow text-mist">{t('notesAndEmergencyContact')}</p>
         {canWrite ? (
           <form action={updateItineraryAction.bind(null, itineraryId)} className="mt-3 space-y-4">
-            <FormField label="Notes / special instructions" htmlFor="notes" optional>
+            <FormField label={t('notesLabel')} htmlFor="notes" optional>
               <textarea
                 name="notes"
                 defaultValue={itinerary.notes ?? ''}
@@ -177,41 +181,41 @@ export default async function ItineraryDetailPage({ params }: Props) {
               />
             </FormField>
             <div className="grid grid-cols-3 gap-4">
-              <FormField label="Emergency contact name" htmlFor="emergencyContactName" optional>
+              <FormField label={t('emergencyContactName')} htmlFor="emergencyContactName" optional>
                 <input
                   name="emergencyContactName"
                   defaultValue={itinerary.emergencyContactName ?? ''}
                   className="w-full rounded-survey border border-rule px-3 py-2"
                 />
               </FormField>
-              <FormField label="Phone" htmlFor="emergencyContactPhone" optional>
+              <FormField label={t('phone')} htmlFor="emergencyContactPhone" optional>
                 <input
                   name="emergencyContactPhone"
                   defaultValue={itinerary.emergencyContactPhone ?? ''}
                   className="w-full rounded-survey border border-rule px-3 py-2"
                 />
               </FormField>
-              <FormField label="Relation" htmlFor="emergencyContactRelation" optional>
+              <FormField label={t('relation')} htmlFor="emergencyContactRelation" optional>
                 <input
                   name="emergencyContactRelation"
                   defaultValue={itinerary.emergencyContactRelation ?? ''}
-                  placeholder="e.g. local ranger station"
+                  placeholder={t('relationPlaceholder')}
                   className="w-full rounded-survey border border-rule px-3 py-2"
                 />
               </FormField>
             </div>
-            <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
-              Save
+            <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+              {t('save')}
             </SubmitButton>
           </form>
         ) : (
           <div className="mt-2 text-sm text-mist">
-            <p>{itinerary.notes || 'No notes.'}</p>
+            <p>{itinerary.notes || t('noNotes')}</p>
             <p className="mt-1">
-              Emergency contact:{' '}
+              {t('emergencyContactPrefix')}{' '}
               {itinerary.emergencyContactName
                 ? `${itinerary.emergencyContactName}${itinerary.emergencyContactRelation ? ` (${itinerary.emergencyContactRelation})` : ''}${itinerary.emergencyContactPhone ? ` · ${itinerary.emergencyContactPhone}` : ''}`
-                : 'None on file'}
+                : t('noneOnFile')}
             </p>
           </div>
         )}
@@ -219,21 +223,21 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Daily schedule</p>
+        <p className="eyebrow text-mist">{t('dailySchedule')}</p>
         {days.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No days added yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noDaysYet')}</p>
         ) : (
           <div className="mt-3 space-y-4">
             {days.map((day) => (
               <div key={day.id} className="rounded-survey border border-rule p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-navy">
-                    Day {day.dayNumber} · {day.date.toLocaleDateString()}
+                    {t('dayLabel', { number: day.dayNumber, date: day.date.toLocaleDateString() })}
                     {(day.departureTime || day.arrivalTime) && (
                       <span className="ml-2 font-normal text-mist">
-                        {day.departureTime && `Depart ${day.departureTime}`}
+                        {day.departureTime && t('depart', { time: day.departureTime })}
                         {day.departureTime && day.arrivalTime && ' · '}
-                        {day.arrivalTime && `Arrive ${day.arrivalTime}`}
+                        {day.arrivalTime && t('arrive', { time: day.arrivalTime })}
                       </span>
                     )}
                   </p>
@@ -242,10 +246,10 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       <SubmitButton
                         variant="secondary"
                         size="compact"
-                        pendingLabel="Removing…"
-                        confirmMessage={`Remove day ${day.dayNumber} from this itinerary? This cannot be undone.`}
+                        pendingLabel={t('removing')}
+                        confirmMessage={t('removeDayConfirm', { number: day.dayNumber })}
                       >
-                        Remove
+                        {t('remove')}
                       </SubmitButton>
                     </form>
                   )}
@@ -253,31 +257,31 @@ export default async function ItineraryDetailPage({ params }: Props) {
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm text-mist">
                   {day.hotelId && (
                     <div>
-                      <dt className="text-xs">Hotel</dt>
+                      <dt className="text-xs">{t('hotel')}</dt>
                       <dd>{hotelNameById.get(day.hotelId) ?? '—'}</dd>
                     </div>
                   )}
                   {day.restaurantId && (
                     <div>
-                      <dt className="text-xs">Restaurant</dt>
+                      <dt className="text-xs">{t('restaurant')}</dt>
                       <dd>{restaurantNameById.get(day.restaurantId) ?? '—'}</dd>
                     </div>
                   )}
                   {day.pickupLocation && (
                     <div>
-                      <dt className="text-xs">Pickup</dt>
+                      <dt className="text-xs">{t('pickup')}</dt>
                       <dd>{day.pickupLocation}</dd>
                     </div>
                   )}
                   {day.dropoffLocation && (
                     <div>
-                      <dt className="text-xs">Drop-off</dt>
+                      <dt className="text-xs">{t('dropoff')}</dt>
                       <dd>{day.dropoffLocation}</dd>
                     </div>
                   )}
                   {(daySitesByDayId.get(day.id) ?? []).length > 0 && (
                     <div className="col-span-2">
-                      <dt className="text-xs">Planned sites</dt>
+                      <dt className="text-xs">{t('plannedSites')}</dt>
                       <dd>
                         {(daySitesByDayId.get(day.id) ?? [])
                           .map((ds) => siteNameById.get(ds.siteId) ?? '—')
@@ -287,29 +291,29 @@ export default async function ItineraryDetailPage({ params }: Props) {
                   )}
                   {day.activities && (
                     <div className="col-span-2">
-                      <dt className="text-xs">Activities</dt>
+                      <dt className="text-xs">{t('activities')}</dt>
                       <dd>{day.activities}</dd>
                     </div>
                   )}
                   {day.estimatedTravelMinutes != null && (
                     <div>
-                      <dt className="text-xs">Estimated travel</dt>
-                      <dd>{day.estimatedTravelMinutes} min</dd>
+                      <dt className="text-xs">{t('estimatedTravel')}</dt>
+                      <dd>{t('minutesSuffix', { minutes: day.estimatedTravelMinutes })}</dd>
                     </div>
                   )}
                   {day.notes && (
                     <div className="col-span-2">
-                      <dt className="text-xs">Notes</dt>
+                      <dt className="text-xs">{t('notes')}</dt>
                       <dd>{day.notes}</dd>
                     </div>
                   )}
                 </dl>
                 {canWrite && (
                   <details className="mt-3">
-                    <summary className="cursor-pointer text-xs text-forest">Edit day</summary>
+                    <summary className="cursor-pointer text-xs text-forest">{t('editDay')}</summary>
                     <form action={updateDayAction.bind(null, itineraryId, day.id)} className="mt-3 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Date" htmlFor={`date-${day.id}`}>
+                        <FormField label={t('date')} htmlFor={`date-${day.id}`}>
                           <input
                             name="date"
                             type="date"
@@ -317,7 +321,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                             className="w-full rounded-survey border border-rule px-3 py-2"
                           />
                         </FormField>
-                        <FormField label="Estimated travel (min)" htmlFor={`travel-${day.id}`} optional>
+                        <FormField label={t('estimatedTravelMin')} htmlFor={`travel-${day.id}`} optional>
                           <input
                             name="estimatedTravelMinutes"
                             type="number"
@@ -328,7 +332,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Departure time" htmlFor={`dep-${day.id}`} optional>
+                        <FormField label={t('departureTime')} htmlFor={`dep-${day.id}`} optional>
                           <input
                             name="departureTime"
                             type="time"
@@ -336,7 +340,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                             className="w-full rounded-survey border border-rule px-3 py-2"
                           />
                         </FormField>
-                        <FormField label="Arrival time" htmlFor={`arr-${day.id}`} optional>
+                        <FormField label={t('arrivalTime')} htmlFor={`arr-${day.id}`} optional>
                           <input
                             name="arrivalTime"
                             type="time"
@@ -346,36 +350,36 @@ export default async function ItineraryDetailPage({ params }: Props) {
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Hotel" htmlFor={`hotel-${day.id}`} optional>
+                        <FormField label={t('hotel')} htmlFor={`hotel-${day.id}`} optional>
                           <Select name="hotelId" defaultValue={day.hotelId ?? ''}>
-                            <option value="">— none —</option>
+                            <option value="">{t('none')}</option>
                             {allHotels.map((h) => (
                               <option key={h.id} value={h.id}>
-                                {h.name} ({h.country})
+                                {h.name} ({tCountries(h.country)})
                               </option>
                             ))}
                           </Select>
                         </FormField>
-                        <FormField label="Restaurant" htmlFor={`restaurant-${day.id}`} optional>
+                        <FormField label={t('restaurant')} htmlFor={`restaurant-${day.id}`} optional>
                           <Select name="restaurantId" defaultValue={day.restaurantId ?? ''}>
-                            <option value="">— none —</option>
+                            <option value="">{t('none')}</option>
                             {allRestaurants.map((r) => (
                               <option key={r.id} value={r.id}>
-                                {r.name} ({r.country})
+                                {r.name} ({tCountries(r.country)})
                               </option>
                             ))}
                           </Select>
                         </FormField>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Pickup location" htmlFor={`pickup-${day.id}`} optional>
+                        <FormField label={t('pickupLocation')} htmlFor={`pickup-${day.id}`} optional>
                           <input
                             name="pickupLocation"
                             defaultValue={day.pickupLocation ?? ''}
                             className="w-full rounded-survey border border-rule px-3 py-2"
                           />
                         </FormField>
-                        <FormField label="Drop-off location" htmlFor={`dropoff-${day.id}`} optional>
+                        <FormField label={t('dropoffLocation')} htmlFor={`dropoff-${day.id}`} optional>
                           <input
                             name="dropoffLocation"
                             defaultValue={day.dropoffLocation ?? ''}
@@ -385,7 +389,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="mb-1 text-xs text-mist">Pickup pin</p>
+                          <p className="mb-1 text-xs text-mist">{t('pickupPin')}</p>
                           <MapLocationPicker
                             latitudeName="pickupLatitude"
                             longitudeName="pickupLongitude"
@@ -395,7 +399,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           />
                         </div>
                         <div>
-                          <p className="mb-1 text-xs text-mist">Drop-off pin</p>
+                          <p className="mb-1 text-xs text-mist">{t('dropoffPin')}</p>
                           <MapLocationPicker
                             latitudeName="dropoffLatitude"
                             longitudeName="dropoffLongitude"
@@ -405,7 +409,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           />
                         </div>
                       </div>
-                      <FormField label="Activities" htmlFor={`activities-${day.id}`} optional>
+                      <FormField label={t('activities')} htmlFor={`activities-${day.id}`} optional>
                         <textarea
                           name="activities"
                           defaultValue={day.activities ?? ''}
@@ -413,7 +417,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
-                      <FormField label="Notes" htmlFor={`notes-${day.id}`} optional>
+                      <FormField label={t('notes')} htmlFor={`notes-${day.id}`} optional>
                         <textarea
                           name="notes"
                           defaultValue={day.notes ?? ''}
@@ -421,13 +425,13 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
-                        Save day
+                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                        {t('saveDay')}
                       </SubmitButton>
                     </form>
 
                     <div className="mt-4">
-                      <p className="text-xs text-mist">Planned sites / attractions</p>
+                      <p className="text-xs text-mist">{t('plannedSitesAttractions')}</p>
                       {(daySitesByDayId.get(day.id) ?? []).length > 0 && (
                         <ul className="mt-2 space-y-1">
                           {(daySitesByDayId.get(day.id) ?? []).map((ds, index, all) => (
@@ -448,8 +452,8 @@ export default async function ItineraryDetailPage({ params }: Props) {
                                 </form>
                               )}
                               <form action={removeDaySiteAction.bind(null, itineraryId, day.id, ds.siteId)}>
-                                <SubmitButton variant="secondary" size="compact" pendingLabel="Removing…">
-                                  Remove
+                                <SubmitButton variant="secondary" size="compact" pendingLabel={t('removing')}>
+                                  {t('remove')}
                                 </SubmitButton>
                               </form>
                             </li>
@@ -459,16 +463,16 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       <form action={addDaySiteAction.bind(null, itineraryId, day.id)} className="mt-2 flex items-end gap-2">
                         <div className="flex-1">
                           <Select name="siteId" defaultValue="">
-                            <option value="">— choose a site to add —</option>
+                            <option value="">{t('chooseSiteToAdd')}</option>
                             {siteOptions.map((s) => (
                               <option key={s.id} value={s.id}>
-                                {s.name} ({s.country})
+                                {s.name} ({tCountries(s.country)})
                               </option>
                             ))}
                           </Select>
                         </div>
-                        <SubmitButton variant="secondary" size="compact" pendingLabel="Adding…">
-                          Add site
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('adding')}>
+                          {t('addSite')}
                         </SubmitButton>
                       </form>
                     </div>
@@ -482,64 +486,62 @@ export default async function ItineraryDetailPage({ params }: Props) {
         {canWrite && (
           <>
             <details className="mt-6">
-              <summary className="cursor-pointer text-sm text-forest">Add a day</summary>
+              <summary className="cursor-pointer text-sm text-forest">{t('addADay')}</summary>
               <form action={addDayAction.bind(null, itineraryId)} className="mt-4 space-y-3">
                 {/* Day number is computed server-side from this date relative to
                     the trip's own start date (DR-083) -- no longer a form field. */}
-                <FormField label="Date" htmlFor="date">
+                <FormField label={t('date')} htmlFor="date">
                   <input name="date" type="date" required className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Departure time" htmlFor="departureTime" optional>
+                  <FormField label={t('departureTime')} htmlFor="departureTime" optional>
                     <input name="departureTime" type="time" className="w-full rounded-survey border border-rule px-3 py-2" />
                   </FormField>
-                  <FormField label="Arrival time" htmlFor="arrivalTime" optional>
+                  <FormField label={t('arrivalTime')} htmlFor="arrivalTime" optional>
                     <input name="arrivalTime" type="time" className="w-full rounded-survey border border-rule px-3 py-2" />
                   </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Hotel" htmlFor="hotelId" optional>
+                  <FormField label={t('hotel')} htmlFor="hotelId" optional>
                     <Select name="hotelId" defaultValue="">
-                      <option value="">— none —</option>
+                      <option value="">{t('none')}</option>
                       {allHotels.map((h) => (
                         <option key={h.id} value={h.id}>
-                          {h.name} ({h.country})
+                          {h.name} ({tCountries(h.country)})
                         </option>
                       ))}
                     </Select>
                   </FormField>
-                  <FormField label="Restaurant" htmlFor="restaurantId" optional>
+                  <FormField label={t('restaurant')} htmlFor="restaurantId" optional>
                     <Select name="restaurantId" defaultValue="">
-                      <option value="">— none —</option>
+                      <option value="">{t('none')}</option>
                       {allRestaurants.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name} ({r.country})
+                          {r.name} ({tCountries(r.country)})
                         </option>
                       ))}
                     </Select>
                   </FormField>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField label="Pickup location" htmlFor="pickupLocation" optional>
+                  <FormField label={t('pickupLocation')} htmlFor="pickupLocation" optional>
                     <input name="pickupLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
                   </FormField>
-                  <FormField label="Drop-off location" htmlFor="dropoffLocation" optional>
+                  <FormField label={t('dropoffLocation')} htmlFor="dropoffLocation" optional>
                     <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
                   </FormField>
                 </div>
-                <p className="text-xs text-mist">
-                  Planned sites, pickup/drop-off pins are added after the day is created, from &quot;Edit day&quot; below.
-                </p>
-                <FormField label="Activities" htmlFor="activities" optional>
+                <p className="text-xs text-mist">{t('plannedSitesAfterCreateNotice')}</p>
+                <FormField label={t('activities')} htmlFor="activities" optional>
                   <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-                <FormField label="Estimated travel (minutes)" htmlFor="estimatedTravelMinutes" optional>
+                <FormField label={t('estimatedTravelMinutesLabel')} htmlFor="estimatedTravelMinutes" optional>
                   <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-                <FormField label="Notes" htmlFor="notes" optional>
+                <FormField label={t('notes')} htmlFor="notes" optional>
                   <textarea name="notes" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
                 </FormField>
-                <SubmitButton pendingLabel="Adding…">Add day</SubmitButton>
+                <SubmitButton pendingLabel={t('adding')}>{t('addDay')}</SubmitButton>
               </form>
             </details>
           </>

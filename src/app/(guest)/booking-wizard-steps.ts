@@ -17,9 +17,12 @@
 // deliberately stays indicator-free too: it's also used by plain
 // browse-without-a-plan visitors, so a progress bar there would
 // misrepresent non-wizard traffic.
-export function getBookingWizardSteps(requiresPassportUpload: boolean): string[] {
-  const steps = ['Your details', 'Add-ons', 'Travelers'];
-  if (requiresPassportUpload) steps.push('Passport');
-  steps.push('Confirm & Pay');
+import { getTranslations } from 'next-intl/server';
+
+export async function getBookingWizardSteps(requiresPassportUpload: boolean): Promise<string[]> {
+  const t = await getTranslations('BookingWizardSteps');
+  const steps = [t('yourDetails'), t('addOns'), t('travelers')];
+  if (requiresPassportUpload) steps.push(t('passport'));
+  steps.push(t('confirmAndPay'));
   return steps;
 }

@@ -2,9 +2,11 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { authClient } from '@lib/auth-client';
 import { BrandMark } from '@/components/BrandMark';
 import { BackLink } from '@/components/ui/BackLink';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 
 function EyeIcon() {
   return (
@@ -44,6 +46,8 @@ function EyeOffIcon() {
 // this stays the plain credential form.
 export function StaffLoginForm() {
   const router = useRouter();
+  const t = useTranslations('StaffLogin');
+  const tChrome = useTranslations('StaffChrome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -57,7 +61,7 @@ export function StaffLoginForm() {
     const { error: signInError } = await authClient.signIn.email({ email, password });
     setPending(false);
     if (signInError) {
-      setError(signInError.message ?? 'Sign in failed');
+      setError(signInError.message ?? t('signInFailed'));
       return;
     }
     router.push('/staff/bookings');
@@ -66,18 +70,21 @@ export function StaffLoginForm() {
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
       <BackLink href="/" tone="dark" className="absolute left-8 top-8">
-        Back
+        {t('back')}
       </BackLink>
+      <div className="absolute right-8 top-8">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <BrandMark className="h-8 w-8 text-amber" />
-          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">POLCO TOURS · STAFF</p>
-          <h1 className="mt-4 text-2xl font-bold">Sign in</h1>
+          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">{tChrome('brandEyebrow')}</p>
+          <h1 className="mt-4 text-2xl font-bold">{t('signIn')}</h1>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="mb-1 block text-sm text-mist">
-              Email
+              {t('email')}
             </label>
             <input
               id="email"
@@ -91,7 +98,7 @@ export function StaffLoginForm() {
           </div>
           <div>
             <label htmlFor="password" className="mb-1 block text-sm text-mist">
-              Password
+              {t('password')}
             </label>
             <div className="relative">
               <input
@@ -106,7 +113,7 @@ export function StaffLoginForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 aria-pressed={showPassword}
                 className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-mist hover:text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/60"
               >
@@ -120,12 +127,10 @@ export function StaffLoginForm() {
             disabled={pending}
             className="w-full rounded-survey bg-amber px-4 py-2 font-semibold text-navy disabled:opacity-50"
           >
-            {pending ? 'Signing in…' : 'Sign in'}
+            {pending ? t('signingIn') : t('signIn')}
           </button>
         </form>
-        <p className="mt-6 text-center text-xs text-mist">
-          Forgot your password? Contact your admin to reset it.
-        </p>
+        <p className="mt-6 text-center text-xs text-mist">{t('forgotPassword')}</p>
       </div>
     </main>
   );

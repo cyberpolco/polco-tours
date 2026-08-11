@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { Card } from '@/components/ui/Card';
@@ -14,25 +15,26 @@ export default async function PackagesPage() {
   const packages = await catalogService.listPackages(ctx);
   const publicCount = packages.filter((p) => p.status === 'PUBLISHED').length;
   const customizedCount = packages.length - publicCount;
+  const t = await getTranslations('StaffPackages');
 
   const sections = [
     {
       href: '/staff/packages/public',
-      title: 'Public Packages',
+      title: t('publicTitle'),
       count: publicCount,
-      description: 'Published -- visible to guests browsing the website.',
+      description: t('publicDesc'),
     },
     {
       href: '/staff/packages/customized',
-      title: 'Customized Packages',
+      title: t('customizedTitle'),
       count: customizedCount,
-      description: 'Draft or archived -- staff-only, never shown on the guest site.',
+      description: t('customizedDesc'),
     },
   ];
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Dashboard" title="Packages" />
+      <PageHeader eyebrow={t('dashboardEyebrow')} title={t('title')} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">

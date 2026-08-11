@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { BookingOrigin } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService, type CountryRegulationView } from '@modules/immigration';
 import { visaService } from '@modules/visa';
@@ -11,11 +12,6 @@ import { VISA_STATUS_TONE } from '@lib/status-tones';
 import { contactTravelerAction, requestMissingDocumentsAction, startApplicationAction } from './actions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-const ORIGIN_LABEL: Record<string, string> = {
-  PREDEFINED_PACKAGE: 'Package',
-  TAILOR_MADE: 'Plan my trip',
-};
 
 function daysUntil(date: Date, now: Date): number {
   return Math.ceil((date.getTime() - now.getTime()) / MS_PER_DAY);
@@ -38,6 +34,13 @@ interface Props {
 export default async function VisaQueuePage({ searchParams }: Props) {
   const ctx = await requireStaffContext('visa.process');
   const { origin } = await searchParams;
+  const t = await getTranslations('StaffVisaQueue');
+  const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const tCountries = await getTranslations('Countries');
+  const ORIGIN_LABEL: Record<string, string> = {
+    PREDEFINED_PACKAGE: t('packageLabel'),
+    TAILOR_MADE: t('planMyTripLabel'),
+  };
   const [allApplications, needingApplication] = await Promise.all([
     visaService.listForFacilitator(ctx),
     visaService.listNeedingApplication(ctx),
@@ -73,35 +76,32 @@ export default async function VisaQueuePage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <div className="space-y-6">
-        <PageHeader eyebrow="My schedule" title="Visa queue" />
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
         <div className="flex flex-wrap gap-6 text-sm text-mist">
           <p>
-            <span className="font-semibold text-navy">{pendingCount}</span> immigration task{pendingCount === 1 ? '' : 's'} awaiting decision
+            <span className="font-semibold text-navy">{pendingCount}</span> {t('tasksAwaitingDecision', { count: pendingCount })}
           </p>
           <p>
-            <span className="font-semibold text-navy">{missingDocCount}</span> missing document{missingDocCount === 1 ? '' : 's'}
+            <span className="font-semibold text-navy">{missingDocCount}</span> {t('missingDocuments', { count: missingDocCount })}
           </p>
           <p>
-            <span className="font-semibold text-navy">{needingApplication.length}</span> traveler{needingApplication.length === 1 ? '' : 's'} needing an application started
+            <span className="font-semibold text-navy">{needingApplication.length}</span>{' '}
+            {t('travelersNeedingApplication', { count: needingApplication.length })}
           </p>
         </div>
 
         {needingApplication.length > 0 && (
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-navy">Needs application</h2>
-            <p className="mb-3 text-xs text-mist">
-              These travelers have an uploaded passport on a booking that requires visa assistance, but no application
-              exists yet -- normally this is automatic on passport upload, so this list should stay empty; it&apos;s a
-              safety net for anything that predates or slipped past that.
-            </p>
+            <h2 className="mb-2 text-sm font-semibold text-navy">{t('needsApplication')}</h2>
+            <p className="mb-3 text-xs text-mist">{t('needsApplicationNotice')}</p>
             <Table>
               <thead>
                 <TableHeaderRow>
-                  <Th>Traveler</Th>
-                  <Th>Nationality</Th>
-                  <Th>Source</Th>
-                  <Th>Passport</Th>
-                  <Th>Actions</Th>
+                  <Th>{t('traveler')}</Th>
+                  <Th>{t('nationality')}</Th>
+                  <Th>{t('source')}</Th>
+                  <Th>{t('passport')}</Th>
+                  <Th>{t('actions')}</Th>
                 </TableHeaderRow>
               </thead>
               <tbody>
@@ -122,13 +122,13 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                         rel="noopener noreferrer"
                         className="text-forest hover:underline"
                       >
-                        View
+                        {t('view')}
                       </a>
                     </Td>
                     <Td>
                       <form action={startApplicationAction.bind(null, n.bookingId, n.travelerId)}>
-                        <SubmitButton size="compact" pendingLabel="Starting…">
-                          Start application
+                        <SubmitButton size="compact" pendingLabel={t('starting')}>
+                          {t('startApplication')}
                         </SubmitButton>
                       </form>
                     </Td>
@@ -146,7 +146,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
             href={pillHref(undefined)}
             className={`rounded-survey border border-rule px-3 py-1 ${!origin ? 'bg-navy text-bone' : 'text-ink'}`}
           >
-            All ({allApplications.length})
+            {t('all')} ({allApplications.length})
           </Link>
           {(['PREDEFINED_PACKAGE', 'TAILOR_MADE'] satisfies BookingOrigin[]).map((o) => {
             const count = allApplications.filter((a) => a.origin === o).length;
@@ -164,22 +164,22 @@ export default async function VisaQueuePage({ searchParams }: Props) {
         </div>
 
         {applications.length === 0 ? (
-          <p className="text-mist">No visa applications match that filter.</p>
+          <p className="text-mist">{t('noMatches')}</p>
         ) : (
           <Table>
             <thead>
               <TableHeaderRow>
-                <Th>Traveler</Th>
-                <Th>Reference</Th>
-                <Th>Nationality</Th>
-                <Th>Source</Th>
-                <Th>Country</Th>
-                <Th>Status</Th>
-                <Th>Travel date</Th>
-                <Th>Document</Th>
-                <Th>Passport</Th>
-                <Th>Rejection reason</Th>
-                <Th>Actions</Th>
+                <Th>{t('traveler')}</Th>
+                <Th>{t('reference')}</Th>
+                <Th>{t('nationality')}</Th>
+                <Th>{t('source')}</Th>
+                <Th>{t('country')}</Th>
+                <Th>{t('status')}</Th>
+                <Th>{t('travelDate')}</Th>
+                <Th>{t('document')}</Th>
+                <Th>{t('passport')}</Th>
+                <Th>{t('rejectionReason')}</Th>
+                <Th>{t('actions')}</Th>
               </TableHeaderRow>
             </thead>
             <tbody>
@@ -206,31 +206,31 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                   <Td>{a.travelerNationality}</Td>
                   <Td className="text-xs text-mist">{a.origin ? (ORIGIN_LABEL[a.origin] ?? a.origin) : '—'}</Td>
                   <Td>
-                    {a.country}
+                    {tCountries(a.country)}
                     <div className="mt-1 text-xs">
                       {regulation?.processingTimeDays != null && (
-                        <span className="text-mist">{regulation.processingTimeDays}d processing · </span>
+                        <span className="text-mist">{t('daysProcessing', { days: regulation.processingTimeDays })}</span>
                       )}
                       <Link href={`/staff/country-regulations/${a.country}`} className="text-forest hover:underline">
-                        {regulation ? 'View requirements' : 'Add requirements'}
+                        {regulation ? t('viewRequirements') : t('addRequirements')}
                       </Link>
                     </div>
                   </Td>
                   <Td>
-                    <Badge tone={VISA_STATUS_TONE[a.status]}>{a.status}</Badge>
+                    <Badge tone={VISA_STATUS_TONE[a.status]}>{tVisaStatus(a.status)}</Badge>
                   </Td>
                   <Td>
                     {a.travelStartDate ? (
                       <>
                         {a.travelStartDate.toLocaleDateString()}{' '}
-                        <span className="text-xs text-mist">({daysUntil(a.travelStartDate, now)}d)</span>
+                        <span className="text-xs text-mist">{t('daysSuffix', { days: daysUntil(a.travelStartDate, now) })}</span>
                       </>
                     ) : (
                       '—'
                     )}
                   </Td>
                   <Td>
-                    {a.hasDocument ? 'Yes' : <Badge tone="warning">Missing</Badge>}
+                    {a.hasDocument ? t('yes') : <Badge tone="warning">{t('missing')}</Badge>}
                   </Td>
                   <Td>
                     {a.bookingId && a.hasPassport ? (
@@ -240,10 +240,10 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                         rel="noopener noreferrer"
                         className="text-forest hover:underline"
                       >
-                        View
+                        {t('view')}
                       </a>
                     ) : (
-                      <span className="text-xs text-mist">Not uploaded</span>
+                      <span className="text-xs text-mist">{t('notUploaded')}</span>
                     )}
                   </Td>
                   <Td>{a.rejectionReason ?? '—'}</Td>
@@ -254,17 +254,17 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                           <input
                             name="message"
                             required
-                            placeholder="Message…"
+                            placeholder={t('messagePlaceholder')}
                             className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
                           />
-                          <SubmitButton size="compact" pendingLabel="Sending…">
-                            Contact
+                          <SubmitButton size="compact" pendingLabel={t('sending')}>
+                            {t('contact')}
                           </SubmitButton>
                         </form>
                         {!a.hasDocument && (
                           <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
-                            <SubmitButton size="compact" variant="secondary" pendingLabel="Sending…">
-                              Request documents
+                            <SubmitButton size="compact" variant="secondary" pendingLabel={t('sending')}>
+                              {t('requestDocuments')}
                             </SubmitButton>
                           </form>
                         )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { Button } from './Button';
 
 interface SubmitButtonProps {
@@ -22,6 +23,7 @@ interface SubmitButtonProps {
 // gave no indication a submit was in flight.
 export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage }: SubmitButtonProps) {
   const { pending } = useFormStatus();
+  const t = useTranslations('Common');
   return (
     <Button
       type="submit"
@@ -36,7 +38,7 @@ export function SubmitButton({ children, pendingLabel, variant, size, confirmMes
           : undefined
       }
     >
-      {pending ? (pendingLabel ?? 'Saving…') : children}
+      {pending ? (pendingLabel ?? t('saving')) : children}
     </Button>
   );
 }

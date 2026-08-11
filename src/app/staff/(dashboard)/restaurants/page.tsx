@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { itineraryService, type RestaurantView } from '@modules/itinerary';
@@ -43,6 +44,9 @@ export default async function RestaurantsPage({ searchParams }: Props) {
   const canWrite = can(ctx, 'itinerary.write');
   const canRate = can(ctx, 'hotel_restaurant_rating.write');
   const params = await searchParams;
+  const t = await getTranslations('StaffRestaurants');
+  const tFields = await getTranslations('PlaceFields');
+  const tCountries = await getTranslations('Countries');
   const q = params.q ?? '';
   const country = params.country ?? '';
 
@@ -77,57 +81,55 @@ export default async function RestaurantsPage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Itinerary Management" title="Restaurants" />
-        {canWrite && <LinkButton href="/staff/restaurants/new">Add restaurant</LinkButton>}
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        {canWrite && <LinkButton href="/staff/restaurants/new">{t('addRestaurant')}</LinkButton>}
       </div>
 
       <form method="get" action="/staff/restaurants" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={tFields('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Name, address, or contact"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Country" htmlFor="country" optional>
+        <FormField label={tFields('country')} htmlFor="country" optional>
           <Select name="country" defaultValue={country}>
-            <option value="">All</option>
+            <option value="">{tFields('all')}</option>
             {countryOptions.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {tCountries(c)}
               </option>
             ))}
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
           {(q || country) && (
             <Link href="/staff/restaurants" className="text-sm text-mist hover:underline">
-              Clear filters
+              {tFields('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} restaurant{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('restaurantCount', { count: totalItems })}</p>
 
       {restaurants.length === 0 ? (
         <p className="text-mist">
-          {totalItems === 0 && !q && !country ? (canWrite ? 'No restaurants registered yet.' : 'No restaurants to rate yet.') : 'No restaurants match these filters.'}
+          {totalItems === 0 && !q && !country ? (canWrite ? t('noneRegistered') : t('noneToRate')) : t('noMatches')}
         </p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Name</Th>
-              <Th>Country</Th>
-              <Th>Address</Th>
-              <Th>Contact</Th>
-              <Th>Rating</Th>
+              <Th>{tFields('name')}</Th>
+              <Th>{tFields('country')}</Th>
+              <Th>{tFields('address')}</Th>
+              <Th>{t('contactCol')}</Th>
+              <Th>{t('ratingCol')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -135,13 +137,15 @@ export default async function RestaurantsPage({ searchParams }: Props) {
             {restaurants.map((r) => (
               <Tr key={r.id}>
                 <Td>{r.name}</Td>
-                <Td>{r.country}</Td>
+                <Td>{tCountries(r.country)}</Td>
                 <Td>{r.address ?? '—'}</Td>
                 <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
-                <Td>{r.averageRating != null ? `${r.averageRating.toFixed(1)} ★ (${r.ratingCount})` : '—'}</Td>
+                <Td>
+                  {r.averageRating != null ? tFields('ratedSummary', { rating: r.averageRating.toFixed(1), count: r.ratingCount }) : '—'}
+                </Td>
                 <Td>
                   <Link href={`/staff/restaurants/${r.id}`} className="text-forest hover:underline">
-                    {canWrite ? 'Edit' : canRate ? 'Rate' : 'View'}
+                    {canWrite ? tFields('edit') : canRate ? tFields('rate') : tFields('view')}
                   </Link>
                 </Td>
               </Tr>

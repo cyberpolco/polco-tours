@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { LinkButton } from '@/components/ui/Button';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { cancelBookingAction } from './actions';
@@ -25,6 +26,7 @@ function secondsRemaining(createdAt: string): number {
 // off Booking.createdAt (server truth), not this component's own mount
 // time, so a refresh/re-open doesn't reset the window.
 export function CancelRequestButton({ bookingId, createdAt }: Props) {
+  const t = useTranslations('CancelButtons');
   const [secondsLeft, setSecondsLeft] = useState(() => secondsRemaining(createdAt));
 
   useEffect(() => {
@@ -39,15 +41,15 @@ export function CancelRequestButton({ bookingId, createdAt }: Props) {
   if (secondsLeft <= 0) {
     return (
       <LinkButton href="/" variant="secondary">
-        Return home
+        {t('returnHome')}
       </LinkButton>
     );
   }
 
   return (
     <form action={cancelBookingAction.bind(null, bookingId)}>
-      <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-        Cancel request ({secondsLeft}s)
+      <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>
+        {t('cancelRequestCountdown', { seconds: secondsLeft })}
       </SubmitButton>
     </form>
   );

@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import type { Permission } from '@lib/rbac';
 
 export interface SidebarItem {
   href: string;
-  label: string;
+  labelKey: string;
   // Omit for an item every staff role should see regardless of permission
   // (e.g. Change Password, DR-043) -- same "no permission arg = any staff
   // role" convention as staff-guard.ts's requireStaffContext.
@@ -43,6 +44,7 @@ export function SidebarShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useTranslations('StaffSettingsSidebar');
   const isSuperadmin = roles.includes('SUPERADMIN');
   const permissionSet = new Set(permissions);
   const visibleItems = items.filter((item) => {
@@ -60,13 +62,13 @@ export function SidebarShell({
     <div className="flex gap-10">
       <nav className="w-48 shrink-0 space-y-1 text-sm">
         <p className="eyebrow mb-3 text-mist">{sectionTitle}</p>
-        {visibleItems.map(({ href, label }) => (
+        {visibleItems.map(({ href, labelKey }) => (
           <Link
             key={href}
             href={href}
             className={`block rounded-survey px-2 py-1 ${href === activeHref ? 'bg-bone font-medium text-navy' : 'text-mist hover:text-navy'}`}
           >
-            {label}
+            {t(labelKey)}
           </Link>
         ))}
       </nav>

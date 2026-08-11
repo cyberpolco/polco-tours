@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { FormField } from '@/components/ui/FormField';
@@ -26,13 +27,15 @@ export default async function MyProfilePage() {
   if (!ctx.roles.includes('SUPERADMIN')) redirect('/staff/forbidden');
   const user = await authService.getUser(ctx.userId);
   const parsedPhone = user?.phone ? parseE164(user.phone) : null;
+  const t = await getTranslations('StaffProfile');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="max-w-md">
-        <PageHeader eyebrow="Settings" title="My Profile" />
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
         <form action={updateMyProfileAction} className="mt-6 space-y-4">
-          <FormField label="Name" htmlFor="name">
+          <FormField label={t('name')} htmlFor="name">
             <input
               name="name"
               defaultValue={user?.name ?? ''}
@@ -42,7 +45,7 @@ export default async function MyProfilePage() {
           </FormField>
           <p className="text-xs text-mist">{user?.email}</p>
           <div>
-            <p className="mb-1 text-sm text-mist">Phone</p>
+            <p className="mb-1 text-sm text-mist">{t('phone')}</p>
             <div className="flex gap-2">
               <Select name="dialCode" defaultValue={parsedPhone?.dialCode ?? '264'}>
                 {COUNTRY_CODES.map((c) => (
@@ -55,16 +58,16 @@ export default async function MyProfilePage() {
                 name="localNumber"
                 type="tel"
                 defaultValue={parsedPhone?.localNumber ?? ''}
-                placeholder="81 234 5678"
+                placeholder={t('phonePlaceholder')}
                 className="flex-1 rounded-survey border border-rule px-3 py-2"
               />
             </div>
           </div>
-          <SubmitButton pendingLabel="Saving…">Save changes</SubmitButton>
+          <SubmitButton pendingLabel={t('saving')}>{t('saveChanges')}</SubmitButton>
         </form>
 
         <div className="survey-rule my-8" />
-        <h2 className="text-lg font-semibold text-navy">Password</h2>
+        <h2 className="text-lg font-semibold text-navy">{t('password')}</h2>
         <PasswordSection />
       </div>
     </SidebarShell>

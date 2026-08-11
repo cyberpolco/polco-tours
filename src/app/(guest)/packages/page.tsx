@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { Reveal } from '@/components/ui/Reveal';
 import { PackageCard } from '../package-card';
@@ -7,16 +8,13 @@ interface Props {
   searchParams: Promise<{ country?: string; q?: string }>;
 }
 
-const COUNTRIES = [
-  { code: 'NA', name: 'Namibia' },
-  { code: 'CD', name: 'DR Congo' },
-  { code: 'ZM', name: 'Zambia' },
-  { code: 'ZW', name: 'Zimbabwe' },
-];
+const COUNTRY_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
 
 export default async function PackagesPage({ searchParams }: Props) {
   const { country, q } = await searchParams;
   const packages = await catalogService.listPublicPackages({ country, search: q });
+  const t = await getTranslations('PackagesPage');
+  const tCountries = await getTranslations('Countries');
 
   function pillHref(nextCountry?: string): string {
     const params = new URLSearchParams();
@@ -28,8 +26,8 @@ export default async function PackagesPage({ searchParams }: Props) {
 
   return (
     <div>
-      <p className="eyebrow text-mist">Browse</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">Tour packages</h1>
+      <p className="eyebrow text-mist">{t('eyebrow')}</p>
+      <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
 
       <Reveal>
         <form method="get" action="/packages" className="mt-6 flex flex-wrap items-center gap-3">
@@ -38,14 +36,14 @@ export default async function PackagesPage({ searchParams }: Props) {
             type="search"
             name="q"
             defaultValue={q ?? ''}
-            placeholder="Search packages…"
+            placeholder={t('searchPlaceholder')}
             className="w-full max-w-xs rounded-pill border border-rule px-4 py-1.5 text-sm transition-colors focus:border-amber focus:outline-none sm:w-auto"
           />
           <button
             type="submit"
             className="rounded-pill border border-navy px-4 py-1.5 text-sm font-semibold text-navy transition-colors hover:bg-navy hover:text-bone"
           >
-            Search
+            {t('search')}
           </button>
         </form>
 
@@ -56,24 +54,24 @@ export default async function PackagesPage({ searchParams }: Props) {
               !country ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'
             }`}
           >
-            All
+            {t('all')}
           </Link>
-          {COUNTRIES.map((c) => (
+          {COUNTRY_CODES.map((code) => (
             <Link
-              key={c.code}
-              href={pillHref(c.code)}
+              key={code}
+              href={pillHref(code)}
               className={`rounded-pill border px-3 py-1 transition-colors ${
-                country === c.code ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'
+                country === code ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'
               }`}
             >
-              {c.name}
+              {tCountries(code)}
             </Link>
           ))}
         </div>
       </Reveal>
 
       {packages.length === 0 ? (
-        <p className="mt-6 text-mist">No packages match that filter yet.</p>
+        <p className="mt-6 text-mist">{t('empty')}</p>
       ) : (
         <Reveal delay={0.1}>
           <ul className="mt-6 grid gap-4 sm:grid-cols-2">

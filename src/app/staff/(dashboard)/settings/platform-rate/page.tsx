@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
 import { FormField } from '@/components/ui/FormField';
@@ -8,16 +9,21 @@ import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 import { createPlatformRateAction, deletePlatformRateAction } from './actions';
 
-function DeleteButton({ action }: { action: () => Promise<void> }) {
+function DeleteButton({
+  action,
+  removingLabel,
+  removeConfirm,
+  removeLabel,
+}: {
+  action: () => Promise<void>;
+  removingLabel: string;
+  removeConfirm: string;
+  removeLabel: string;
+}) {
   return (
     <form action={action}>
-      <SubmitButton
-        variant="secondary"
-        size="compact"
-        pendingLabel="Removing…"
-        confirmMessage="Remove this platform rate? This cannot be undone."
-      >
-        Remove
+      <SubmitButton variant="secondary" size="compact" pendingLabel={removingLabel} confirmMessage={removeConfirm}>
+        {removeLabel}
       </SubmitButton>
     </form>
   );
@@ -34,24 +40,23 @@ export default async function PlatformRatePage() {
   const ctx = await requireStaffContext('platform_settings.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const platformRates = await settingsService.listPlatformRates(ctx);
+  const t = await getTranslations('StaffPlatformRate');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
-        <PageHeader eyebrow="Settings" title="Platform Rate" />
-        <p className="text-xs text-mist">
-          The platform&rsquo;s own commission on every online payment processed, shown as an informational split on
-          each invoice -- it never changes what the customer pays. Effective-dated, same convention as Tax Rates.
-        </p>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <p className="text-xs text-mist">{t('intro')}</p>
         {platformRates.length === 0 ? (
-          <p className="text-mist">No platform rate configured yet.</p>
+          <p className="text-mist">{t('noneYet')}</p>
         ) : (
           <Table>
             <thead>
               <TableHeaderRow>
-                <Th>Rate</Th>
-                <Th>Valid from</Th>
-                <Th>Valid to</Th>
+                <Th>{t('rate')}</Th>
+                <Th>{t('validFrom')}</Th>
+                <Th>{t('validTo')}</Th>
                 <Th />
               </TableHeaderRow>
             </thead>
@@ -61,7 +66,16 @@ export default async function PlatformRatePage() {
                   <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
                   <Td>{r.validFrom.toLocaleDateString()}</Td>
                   <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
-                  <Td>{canWrite && <DeleteButton action={deletePlatformRateAction.bind(null, r.id)} />}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deletePlatformRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>
@@ -69,7 +83,7 @@ export default async function PlatformRatePage() {
         )}
         {canWrite && (
           <form action={createPlatformRateAction} className="flex flex-wrap items-end gap-3">
-            <FormField label="Rate (%)" htmlFor="ratePercent">
+            <FormField label={t('ratePercent')} htmlFor="ratePercent">
               <input
                 name="ratePercent"
                 type="number"
@@ -79,8 +93,8 @@ export default async function PlatformRatePage() {
                 className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
               />
             </FormField>
-            <SubmitButton size="compact" pendingLabel="Adding…">
-              Add
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
             </SubmitButton>
           </form>
         )}

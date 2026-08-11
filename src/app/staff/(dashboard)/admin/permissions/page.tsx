@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ALL_PERMISSIONS, EDITABLE_ROLES } from '@lib/rbac';
 import { authService } from '@modules/auth';
@@ -20,16 +21,14 @@ export default async function PermissionsPage() {
   if (!ctx.roles.includes('SUPERADMIN')) redirect('/staff/forbidden');
 
   const matrix = await authService.getPermissionMatrix(ctx);
+  const t = await getTranslations('StaffPermissions');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
-        <PageHeader eyebrow="Admin" title="Permission matrix" />
-        <p className="max-w-2xl text-sm text-mist">
-          Toggle checkboxes below, then press &quot;Save changes&quot; to apply them -- nothing is written until
-          you save. SUPERADMIN itself never appears here -- it&apos;s a fixed, permanent role that can never be
-          edited or locked out of the system.
-        </p>
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <p className="max-w-2xl text-sm text-mist">{t('intro')}</p>
         <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
       </div>
     </SidebarShell>

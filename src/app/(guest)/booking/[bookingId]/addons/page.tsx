@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, money } from '@lib/money';
 import { bookingService } from '@modules/booking';
@@ -28,6 +29,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   const { error } = await searchParams;
   const ctx = await requireGuestContext();
   const booking = await bookingService.getById(ctx, bookingId);
+  const t = await getTranslations('AddonsPage');
 
   // A TAILOR_MADE booking has no price until staff sends a quotation --
   // add-ons can't be currency-matched against it yet (setAddons enforces
@@ -38,12 +40,12 @@ export default async function AddonsPage({ params, searchParams }: Props) {
     return (
       <Reveal>
         <div className="max-w-md">
-          <BackLink href={`/booking/${bookingId}`}>back to your booking</BackLink>
-          <StepIndicator steps={getBookingWizardSteps(false)} currentIndex={1} />
-          <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
-          <h1 className="mt-1 text-2xl font-bold text-navy">Waiting on your quotation</h1>
+          <BackLink href={`/booking/${bookingId}`}>{t('backToBooking')}</BackLink>
+          <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={1} />
+          <p className="eyebrow mt-4 text-mist">{t('setupAddons')}</p>
+          <h1 className="mt-1 text-2xl font-bold text-navy">{t('waitingOnQuotation')}</h1>
           <div className="mt-3">
-            <Alert tone="info">Add-ons open up once our team sends a price for your trip -- we&apos;ll notify you.</Alert>
+            <Alert tone="info">{t('addonsOpenNotice')}</Alert>
           </div>
         </div>
       </Reveal>
@@ -67,23 +69,21 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   return (
     <Reveal>
       <div className="max-w-md">
-        <BackLink href={`/booking/${bookingId}`}>back to your booking</BackLink>
-        <StepIndicator steps={getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
-        <p className="eyebrow mt-4 text-mist">Booking setup · Add-ons</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">Optional add-on services</h1>
-        <p className="mt-1 text-sm text-mist">Selecting none is fine -- continue to add your traveler details next.</p>
+        <BackLink href={`/booking/${bookingId}`}>{t('backToBooking')}</BackLink>
+        <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
+        <p className="eyebrow mt-4 text-mist">{t('setupAddons')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('optionalAddons')}</h1>
+        <p className="mt-1 text-sm text-mist">{t('selectingNoneFine')}</p>
         {error && (
           <div className="mt-3">
-            <Alert tone="error">Something went wrong saving your add-ons -- please try again.</Alert>
+            <Alert tone="error">{t('saveError')}</Alert>
           </div>
         )}
 
         <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
           {addons.length === 0 ? (
             <p className="text-sm text-mist">
-              {allAddons.length === 0
-                ? 'No add-on services configured.'
-                : `No add-on services are currently available in ${booking.currency}.`}
+              {allAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency })}
             </p>
           ) : (
             addons.map((a) => (
@@ -101,7 +101,7 @@ export default async function AddonsPage({ params, searchParams }: Props) {
               </SelectableCard>
             ))
           )}
-          <SubmitButton>{booking.addonsFinalizedAt ? 'Save changes' : 'Continue'}</SubmitButton>
+          <SubmitButton>{booking.addonsFinalizedAt ? t('saveChanges') : t('continueLabel')}</SubmitButton>
         </form>
       </div>
     </Reveal>

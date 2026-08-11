@@ -1,4 +1,5 @@
 import type { Currency } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { insightsService, type MoneyByCurrency } from '@modules/insights';
 import { Card } from '@/components/ui/Card';
@@ -31,53 +32,53 @@ function StatTile({ label, value }: { label: string; value: string }) {
 export default async function InsightsPage() {
   const ctx = await requireStaffContext('insights.read');
   const summary = await insightsService.getDashboardSummary(ctx);
+  const t = await getTranslations('StaffInsights');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
+  const tCountries = await getTranslations('Countries');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-8">
-      <PageHeader eyebrow="Insights" title="Executive Dashboard" />
-      <p className="text-xs text-mist">
-        Revenue figures are shown per currency and never combined across them -- this platform prices in USD/EUR/NAD/CDF
-        with no FX conversion anywhere.
-      </p>
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+      <p className="text-xs text-mist">{t('currencyNotice')}</p>
 
       <div>
-        <p className="eyebrow text-mist">Bookings</p>
+        <p className="eyebrow text-mist">{t('bookings')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Total bookings" value={String(summary.bookings.totalBookings)} />
-          <StatTile label="Active tours" value={String(summary.bookings.activeTours)} />
-          <StatTile label="Pending quotations" value={String(summary.bookings.pendingQuotations)} />
-          <StatTile label="Conversion rate" value={`${Math.round(summary.bookings.conversionRate * 100)}%`} />
+          <StatTile label={t('totalBookings')} value={String(summary.bookings.totalBookings)} />
+          <StatTile label={t('activeTours')} value={String(summary.bookings.activeTours)} />
+          <StatTile label={t('pendingQuotations')} value={String(summary.bookings.pendingQuotations)} />
+          <StatTile label={t('conversionRate')} value={`${Math.round(summary.bookings.conversionRate * 100)}%`} />
         </Card>
       </div>
 
       <div>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Revenue</p>
+        <p className="eyebrow text-mist">{t('revenue')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Revenue" value={formatMoneyByCurrency(summary.revenue.revenue)} />
-          <StatTile label="Outstanding" value={formatMoneyByCurrency(summary.revenue.outstanding)} />
+          <StatTile label={t('revenueLabel')} value={formatMoneyByCurrency(summary.revenue.revenue)} />
+          <StatTile label={t('outstanding')} value={formatMoneyByCurrency(summary.revenue.outstanding)} />
         </Card>
         <div className="mt-4 grid gap-6 sm:grid-cols-2">
           <div>
-            <p className="text-xs text-mist">By country</p>
+            <p className="text-xs text-mist">{t('byCountry')}</p>
             <ul className="mt-1 space-y-1 text-sm">
               {Object.entries(summary.revenue.revenueByCountry).length === 0 ? (
-                <li className="text-mist">No revenue yet.</li>
+                <li className="text-mist">{t('noRevenueYet')}</li>
               ) : (
                 Object.entries(summary.revenue.revenueByCountry).map(([country, bucket]) => (
                   <li key={country}>
-                    {country}: {formatMoneyByCurrency(bucket)}
+                    {tCountries(country)}: {formatMoneyByCurrency(bucket)}
                   </li>
                 ))
               )}
             </ul>
           </div>
           <div>
-            <p className="text-xs text-mist">By package</p>
+            <p className="text-xs text-mist">{t('byPackage')}</p>
             <ul className="mt-1 space-y-1 text-sm">
               {Object.entries(summary.revenue.revenueByPackage).length === 0 ? (
-                <li className="text-mist">No revenue yet.</li>
+                <li className="text-mist">{t('noRevenueYet')}</li>
               ) : (
                 Object.entries(summary.revenue.revenueByPackage).map(([pkg, bucket]) => (
                   <li key={pkg}>
@@ -92,21 +93,21 @@ export default async function InsightsPage() {
 
       <div>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Operations</p>
+        <p className="eyebrow text-mist">{t('operations')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Fleet utilization" value={`${Math.round(summary.operations.fleetUtilization * 100)}%`} />
-          <StatTile label="Driver utilization" value={`${Math.round(summary.operations.driverUtilization * 100)}%`} />
-          <StatTile label="Guide utilization" value={`${Math.round(summary.operations.guideUtilization * 100)}%`} />
+          <StatTile label={t('fleetUtilization')} value={`${Math.round(summary.operations.fleetUtilization * 100)}%`} />
+          <StatTile label={t('driverUtilization')} value={`${Math.round(summary.operations.driverUtilization * 100)}%`} />
+          <StatTile label={t('guideUtilization')} value={`${Math.round(summary.operations.guideUtilization * 100)}%`} />
         </Card>
         <div className="mt-4">
-          <p className="text-xs text-mist">Most booked destinations</p>
+          <p className="text-xs text-mist">{t('mostBookedDestinations')}</p>
           <ul className="mt-1 space-y-1 text-sm">
             {summary.operations.mostBookedDestinations.length === 0 ? (
-              <li className="text-mist">No bookings yet.</li>
+              <li className="text-mist">{t('noBookingsYet')}</li>
             ) : (
               summary.operations.mostBookedDestinations.map((d) => (
                 <li key={d.country}>
-                  {d.country}: {d.count}
+                  {tCountries(d.country)}: {d.count}
                 </li>
               ))
             )}
@@ -116,24 +117,24 @@ export default async function InsightsPage() {
 
       <div>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Customer Experience</p>
+        <p className="eyebrow text-mist">{t('customerExperience')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatTile
-            label="Average rating"
+            label={t('averageRating')}
             value={
               summary.customerExperience.averageRating != null
                 ? `${summary.customerExperience.averageRating.toFixed(1)} ★ (${summary.customerExperience.ratingCount})`
-                : 'No ratings yet'
+                : t('noRatingsYet')
             }
           />
-          <StatTile label="Repeat customers" value={String(summary.customerExperience.repeatCustomers)} />
+          <StatTile label={t('repeatCustomers')} value={String(summary.customerExperience.repeatCustomers)} />
         </Card>
         <div className="mt-4 grid gap-6 sm:grid-cols-2">
           <div>
-            <p className="text-xs text-mist">Top-performing guides</p>
+            <p className="text-xs text-mist">{t('topGuides')}</p>
             <ul className="mt-1 space-y-1 text-sm">
               {summary.customerExperience.topGuides.length === 0 ? (
-                <li className="text-mist">No rated guides yet.</li>
+                <li className="text-mist">{t('noRatedGuidesYet')}</li>
               ) : (
                 summary.customerExperience.topGuides.map((g, i) => (
                   <li key={i}>
@@ -144,10 +145,10 @@ export default async function InsightsPage() {
             </ul>
           </div>
           <div>
-            <p className="text-xs text-mist">Top-performing drivers</p>
+            <p className="text-xs text-mist">{t('topDrivers')}</p>
             <ul className="mt-1 space-y-1 text-sm">
               {summary.customerExperience.topDrivers.length === 0 ? (
-                <li className="text-mist">No rated drivers yet.</li>
+                <li className="text-mist">{t('noRatedDriversYet')}</li>
               ) : (
                 summary.customerExperience.topDrivers.map((d, i) => (
                   <li key={i}>
@@ -162,12 +163,12 @@ export default async function InsightsPage() {
 
       <div>
         <div className="survey-rule mb-4" />
-        <p className="eyebrow text-mist">Immigration</p>
+        <p className="eyebrow text-mist">{t('immigration')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Pending visas" value={String(summary.immigration.pendingVisas)} />
-          <StatTile label="Approved visas" value={String(summary.immigration.approvedVisas)} />
-          <StatTile label="Rejected visas" value={String(summary.immigration.rejectedVisas)} />
-          <StatTile label="Missing documents" value={String(summary.immigration.missingDocuments)} />
+          <StatTile label={t('pendingVisas')} value={String(summary.immigration.pendingVisas)} />
+          <StatTile label={t('approvedVisas')} value={String(summary.immigration.approvedVisas)} />
+          <StatTile label={t('rejectedVisas')} value={String(summary.immigration.rejectedVisas)} />
+          <StatTile label={t('missingDocuments')} value={String(summary.immigration.missingDocuments)} />
         </Card>
       </div>
     </div>

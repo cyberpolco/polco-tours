@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -27,6 +28,7 @@ interface Props {
 // component only echoes it back for the guest's own planning.
 export default function BookingForm({ packageId, durationDays }: Props) {
   const router = useRouter();
+  const t = useTranslations('BookingStart');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
@@ -49,7 +51,7 @@ export default function BookingForm({ packageId, durationDays }: Props) {
       if (!session.data) {
         const { error: signInError } = await authClient.signIn.anonymous();
         if (signInError) {
-          setError(signInError.message ?? 'Could not start your booking -- try again.');
+          setError(signInError.message ?? t('errorCouldNotStart'));
           return;
         }
       }
@@ -61,7 +63,7 @@ export default function BookingForm({ packageId, durationDays }: Props) {
       }
       router.push(`/booking/${result.bookingId}`);
     } catch {
-      setError('Something went wrong starting your booking -- please try again.');
+      setError(t('errorGeneric'));
     } finally {
       setPending(false);
     }
@@ -69,7 +71,7 @@ export default function BookingForm({ packageId, durationDays }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-      <FormField label="Travel start" htmlFor="startDate">
+      <FormField label={t('travelStart')} htmlFor="startDate">
         <input
           name="startDate"
           type="date"
@@ -81,11 +83,11 @@ export default function BookingForm({ packageId, durationDays }: Props) {
         />
       </FormField>
       <p className="text-sm text-mist">
-        This is a {durationDays}-day trip.
-        {previewReturnDate && ` You'll return on ${previewReturnDate}.`}
+        {t('tripLengthNotice', { days: durationDays })}
+        {previewReturnDate && t('returnDateNotice', { date: previewReturnDate })}
       </p>
 
-      <FormField label="Seats" htmlFor="seats">
+      <FormField label={t('seats')} htmlFor="seats">
         <input
           name="seats"
           type="number"
@@ -97,16 +99,16 @@ export default function BookingForm({ packageId, durationDays }: Props) {
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="First name" htmlFor="firstName">
+        <FormField label={t('firstName')} htmlFor="firstName">
           <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Last name" htmlFor="lastName">
+        <FormField label={t('lastName')} htmlFor="lastName">
           <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
       </div>
 
       <div>
-        <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your booking)</p>
+        <p className="mb-1 text-sm text-mist">{t('phoneNotice')}</p>
         <div className="flex gap-2">
           <Select name="dialCode" defaultValue="264">
             {COUNTRY_CODES.map((c) => (
@@ -119,7 +121,7 @@ export default function BookingForm({ packageId, durationDays }: Props) {
             name="localNumber"
             type="tel"
             required
-            placeholder="81 234 5678"
+            placeholder={t('phonePlaceholder')}
             className="flex-1 rounded-survey border border-rule px-3 py-2"
           />
         </div>
@@ -128,7 +130,7 @@ export default function BookingForm({ packageId, durationDays }: Props) {
       {error && <Alert tone="error">{error}</Alert>}
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Starting your booking…' : 'Start my booking'}
+        {pending ? t('startingBooking') : t('startMyBooking')}
       </Button>
     </form>
   );

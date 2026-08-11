@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
 import { BackLink } from '@/components/ui/BackLink';
@@ -28,28 +29,32 @@ export default async function PackageDetailPage({ params }: Props) {
   // duration set), not "is there an open slot right now". Trip length
   // (durationDays) is staff-set at package creation, never a guest choice.
   const bookable = pkg.status === 'PUBLISHED' && pkg.priceMinor != null && pkg.durationDays != null;
+  const t = await getTranslations('PackageDetail');
+  const tCommon = await getTranslations('Common');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div>
-      <BackLink href="/packages">all packages</BackLink>
+      <BackLink href="/packages">{t('allPackages')}</BackLink>
       <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 max-h-96" />
-      <p className="eyebrow mt-4 text-mist">{pkg.country}</p>
+      <p className="eyebrow mt-4 text-mist">{tCountries(pkg.country)}</p>
       <h1 className="mt-1 text-3xl font-bold text-navy">{pkg.title}</h1>
       <p className="mt-3 max-w-2xl text-mist">{pkg.description}</p>
       {pkg.tags.length > 0 && <p className="eyebrow mt-2 text-forest">{pkg.tags.join(' · ')}</p>}
 
       <div className="survey-rule mt-8" />
       <div className="pt-6">
-        <p className="eyebrow text-mist">Availability</p>
+        <p className="eyebrow text-mist">{t('availability')}</p>
         <Card className="flex items-center justify-between">
           <div>
-            <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? 'Available' : 'Unavailable'}</Badge>
+            <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? tCommon('available') : tCommon('unavailable')}</Badge>
             <p className="mt-1 text-sm text-mist">
-              {formatOrPending(pkg.priceMinor, pkg.currency)}/seat
-              {pkg.durationDays != null && ` · ${pkg.durationDays}-day trip`} · choose your own travel start date
+              {formatOrPending(pkg.priceMinor, pkg.currency)}
+              {t('perSeat')}
+              {pkg.durationDays != null && ` · ${t('dayTrip', { days: pkg.durationDays })}`} · {t('chooseOwnStartDate')}
             </p>
           </div>
-          {bookable && <LinkButton href={`/book-package/${pkg.id}`}>Book this trip</LinkButton>}
+          {bookable && <LinkButton href={`/book-package/${pkg.id}`}>{t('bookThisTrip')}</LinkButton>}
         </Card>
       </div>
     </div>

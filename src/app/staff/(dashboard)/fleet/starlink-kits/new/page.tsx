@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
 import { BackLink } from '@/components/ui/BackLink';
@@ -10,18 +11,19 @@ import { createStarlinkKitAction } from './actions';
 export default async function NewStarlinkKitPage() {
   const ctx = await requireStaffContext('fleet.write');
   const vehicles = await fleetService.listVehicles(ctx);
+  const t = await getTranslations('StaffStarlinkKits');
 
   return (
     <div className="max-w-md">
-      <BackLink href="/staff/fleet/starlink-kits">back to Starlink kits</BackLink>
-      <PageHeader eyebrow="Fleet · New Starlink kit" title="Register a Starlink kit" />
+      <BackLink href="/staff/fleet/starlink-kits">{t('backToFleet')}</BackLink>
+      <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       <form action={createStarlinkKitAction} className="mt-6 space-y-4">
-        <FormField label="Kit ID (Starlink's own serial)" htmlFor="kitId">
+        <FormField label={t('kitIdLabel')} htmlFor="kitId">
           <input name="kitId" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Assign to vehicle" htmlFor="vehicleId" optional>
+        <FormField label={t('assignToVehicle')} htmlFor="vehicleId" optional>
           <Select name="vehicleId">
-            <option value="">Unassigned</option>
+            <option value="">{t('unassigned')}</option>
             {vehicles.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.make} {v.model} ({v.plateNumber})
@@ -29,7 +31,7 @@ export default async function NewStarlinkKitPage() {
             ))}
           </Select>
         </FormField>
-        <SubmitButton>Register kit</SubmitButton>
+        <SubmitButton>{t('registerKit')}</SubmitButton>
       </form>
     </div>
   );

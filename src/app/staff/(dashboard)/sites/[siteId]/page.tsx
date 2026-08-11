@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { itineraryService } from '@modules/itinerary';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -22,11 +23,13 @@ export default async function SiteDetailPage({ params }: Props) {
   } catch {
     notFound();
   }
+  const t = await getTranslations('StaffSites');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="max-w-md space-y-8">
-        <PageHeader eyebrow="Site" title={site.name} />
+        <PageHeader eyebrow={t('detailEyebrow')} title={site.name} />
         <SiteForm
           action={updateSiteAction.bind(null, siteId)}
           defaultValues={{
@@ -37,12 +40,12 @@ export default async function SiteDetailPage({ params }: Props) {
             latitude: site.latitude,
             longitude: site.longitude,
           }}
-          submitLabel="Save changes"
-          pendingLabel="Saving…"
+          submitLabel={t('saveChanges')}
+          pendingLabel={t('saving')}
         />
         <form action={deleteSiteAction.bind(null, siteId)}>
-          <SubmitButton variant="secondary" pendingLabel="Removing…" confirmMessage="Delete this site? This cannot be undone.">
-            Delete site
+          <SubmitButton variant="secondary" pendingLabel={t('removing')} confirmMessage={t('deleteConfirm')}>
+            {t('deleteSite')}
           </SubmitButton>
         </form>
       </div>

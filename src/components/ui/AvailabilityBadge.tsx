@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/Badge';
 
 // DR-068: extends the existing plain Available/Unavailable badge with a
@@ -24,20 +25,19 @@ interface AvailabilityBadgeProps {
   lowStockThreshold?: number;
 }
 
-export function AvailabilityBadge({
+export async function AvailabilityBadge({
   bookable,
   seatsAvailable = null,
   lowStockThreshold = DEFAULT_LOW_STOCK_THRESHOLD,
 }: AvailabilityBadgeProps) {
-  if (!bookable) return <Badge tone="neutral">Unavailable</Badge>;
+  const t = await getTranslations('Common');
+  if (!bookable) return <Badge tone="neutral">{t('unavailable')}</Badge>;
 
   if (seatsAvailable != null && seatsAvailable > 0 && seatsAvailable <= lowStockThreshold) {
     return (
-      <Badge tone="scarcity">
-        {seatsAvailable} {seatsAvailable === 1 ? 'seat' : 'seats'} left
-      </Badge>
+      <Badge tone="scarcity">{t('seatsLeft', { count: seatsAvailable })}</Badge>
     );
   }
 
-  return <Badge tone="success">Available</Badge>;
+  return <Badge tone="success">{t('available')}</Badge>;
 }

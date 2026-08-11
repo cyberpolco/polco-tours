@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
 import { BackChevron, BackLink } from '@/components/ui/BackLink';
 import { Button } from '@/components/ui/Button';
@@ -21,29 +22,7 @@ const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXUR
 // validating vocabulary for AddonCode yet, only PACKAGE_TAGS).
 const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
 
-const DESTINATIONS = [
-  { code: 'NA', label: '🇳🇦 Namibia' },
-  { code: 'CD', label: '🇨🇩 DR Congo' },
-  { code: 'ZM', label: '🇿🇲 Zambia' },
-  { code: 'ZW', label: '🇿🇼 Zimbabwe' },
-] as const;
-
-// DR-047: one question per step, gradual with a progress indicator on top --
-// replaces the old single-page layout. State lives here (not native form
-// fields) since later steps (sites) depend on an earlier answer (countries)
-// and the final submit needs everything assembled into one payload.
-const STEPS = ['Destination', 'Dates', 'Travelers', 'Preferences', 'Sites', 'Your trip', 'Add-ons', 'Special requests', 'Contact'];
-
-function titleCase(tag: string): string {
-  return tag.charAt(0) + tag.slice(1).toLowerCase();
-}
-
-function addonLabel(code: string): string {
-  return code
-    .split('_')
-    .map(titleCase)
-    .join(' ');
-}
+const DESTINATION_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -67,6 +46,22 @@ interface PlanMyTripFormProps {
 
 export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormProps) {
   const router = useRouter();
+  const t = useTranslations('PlanMyTripForm');
+  const tSteps = useTranslations('PlanMyTripSteps');
+  const tTags = useTranslations('TripTags');
+  const tAddons = useTranslations('TripAddons');
+  const tCountries = useTranslations('Countries');
+  const STEPS = [
+    tSteps('destination'),
+    tSteps('dates'),
+    tSteps('travelers'),
+    tSteps('preferences'),
+    tSteps('sites'),
+    tSteps('yourTrip'),
+    tSteps('addOns'),
+    tSteps('specialRequests'),
+    tSteps('contact'),
+  ];
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +119,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       if (!session.data) {
         const { error: signInError } = await authClient.signIn.anonymous();
         if (signInError) {
-          setError(signInError.message ?? 'Could not start your request -- try again.');
+          setError(signInError.message ?? t('errorCouldNotStart'));
           return;
         }
       }
@@ -156,7 +151,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       // DR-047) -- no separate confirmation route needed.
       router.push(`/booking/${result.bookingId}`);
     } catch {
-      setError('Something went wrong submitting your request -- please try again.');
+      setError(t('errorGeneric'));
     } finally {
       setPending(false);
     }
@@ -168,21 +163,21 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
           state, nothing lost); step 0 has nowhere in-wizard to go back to,
           so it gets a real link out instead, same convention as the other
           wizards' entry-point back links. */}
-      {step === 0 && <BackLink href="/">back to homepage</BackLink>}
+      {step === 0 && <BackLink href="/">{t('backToHomepage')}</BackLink>}
       <StepIndicator steps={STEPS} currentIndex={step} />
 
       {step === 0 && (
         <div>
-          <p className="mb-2 text-sm text-mist">Which countries? (pick at least one)</p>
+          <p className="mb-2 text-sm text-mist">{t('whichCountries')}</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {DESTINATIONS.map(({ code, label }) => (
+            {DESTINATION_CODES.map((code) => (
               <SelectableCard
                 key={code}
                 type="checkbox"
                 checked={countries.includes(code)}
                 onChange={() => setCountries((c) => toggle(c, code))}
               >
-                {label}
+                {flagEmoji(code)} {tCountries(code)}
               </SelectableCard>
             ))}
           </div>
@@ -191,7 +186,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
 
       {step === 1 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField label="Travel start" htmlFor="customTravelStart">
+          <FormField label={t('travelStart')} htmlFor="customTravelStart">
             <input
               type="date"
               value={customTravelStart}
@@ -199,7 +194,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Travel end" htmlFor="customTravelEnd">
+          <FormField label={t('travelEnd')} htmlFor="customTravelEnd">
             <input
               type="date"
               value={customTravelEnd}
@@ -208,13 +203,13 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
             />
           </FormField>
           {customTravelStart && customTravelEnd && !datesValid && (
-            <p className="col-span-2 text-xs text-amber">Travel end must be on or after travel start.</p>
+            <p className="col-span-2 text-xs text-amber">{t('endBeforeStartError')}</p>
           )}
         </div>
       )}
 
       {step === 2 && (
-        <FormField label="Travelers" htmlFor="seats">
+        <FormField label={t('travelers')} htmlFor="seats">
           <input
             type="number"
             min={1}
@@ -227,11 +222,16 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
 
       {step === 3 && (
         <div>
-          <p className="mb-2 text-sm text-mist">What matters most? (pick any)</p>
+          <p className="mb-2 text-sm text-mist">{t('whatMattersMost')}</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {TAGS.map((tag) => (
-              <SelectableCard key={tag} type="checkbox" checked={tags.includes(tag)} onChange={() => setTags((t) => toggleTag(t, tag))}>
-                {titleCase(tag)}
+              <SelectableCard
+                key={tag}
+                type="checkbox"
+                checked={tags.includes(tag)}
+                onChange={() => setTags((tg) => toggleTag(tg, tag))}
+              >
+                {tTags(tag)}
               </SelectableCard>
             ))}
           </div>
@@ -241,8 +241,8 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       {step === 4 && (
         <div>
           <p className="mb-2 text-sm text-mist">
-            Sites you&apos;d like to visit (pick any)
-            {availableSites.length === 0 && ' -- go back and pick a country to see options here'}
+            {t('sitesToVisit')}
+            {availableSites.length === 0 && t('goBackForSites')}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {availableSites.map(({ name }) => (
@@ -255,7 +255,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       )}
 
       {step === 5 && (
-        <FormField label="Tell us about the trip you have in mind" htmlFor="customDescription" optional>
+        <FormField label={t('tellUsAboutTrip')} htmlFor="customDescription" optional>
           <textarea
             value={customDescription}
             onChange={(e) => setCustomDescription(e.target.value)}
@@ -268,7 +268,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       {step === 6 && (
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-sm text-mist">Add-ons you might want (pick any)</p>
+            <p className="mb-2 text-sm text-mist">{t('addonsYouMightWant')}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ADDONS.map((code) => (
                 <SelectableCard
@@ -277,15 +277,15 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
                   checked={preferredAddons.includes(code)}
                   onChange={() => setPreferredAddons((a) => toggle(a, code))}
                 >
-                  {addonLabel(code)}
+                  {tAddons(code)}
                 </SelectableCard>
               ))}
             </div>
           </div>
-          <FormField label="Country of residence" htmlFor="countryOfResidence">
+          <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
             <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)} required>
               <option value="" disabled>
-                Select a country
+                {t('selectACountry')}
               </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -294,10 +294,10 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               ))}
             </Select>
           </FormField>
-          <FormField label="Citizenship" htmlFor="citizenship">
+          <FormField label={t('citizenship')} htmlFor="citizenship">
             <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)} required>
               <option value="" disabled>
-                Select a country
+                {t('selectACountry')}
               </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -306,12 +306,12 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               ))}
             </Select>
           </FormField>
-          <p className="text-xs text-mist">Your residence/citizenship helps our team scope visa assistance accurately.</p>
+          <p className="text-xs text-mist">{t('residenceCitizenshipNotice')}</p>
         </div>
       )}
 
       {step === 7 && (
-        <FormField label="Special requests" htmlFor="specialRequests" optional>
+        <FormField label={t('specialRequests')} htmlFor="specialRequests" optional>
           <textarea
             value={specialRequests}
             onChange={(e) => setSpecialRequests(e.target.value)}
@@ -324,14 +324,14 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
       {step === 8 && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="First name" htmlFor="firstName">
+            <FormField label={t('firstName')} htmlFor="firstName">
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <FormField label="Last name" htmlFor="lastName">
+            <FormField label={t('lastName')} htmlFor="lastName">
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -339,11 +339,8 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
               />
             </FormField>
           </div>
-          <p className="text-xs text-mist">
-            Keep your last name handy -- along with the booking reference we&apos;ll give you next, it&apos;s what we&apos;ll ask for
-            any time you contact us about this trip.
-          </p>
-          <FormField label="Email" htmlFor="email">
+          <p className="text-xs text-mist">{t('keepLastNameHandy')}</p>
+          <FormField label={t('email')} htmlFor="email">
             <input
               type="email"
               value={email}
@@ -352,7 +349,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
             />
           </FormField>
           <div>
-            <p className="mb-1 text-sm text-mist">Phone (so we can reach you about your trip)</p>
+            <p className="mb-1 text-sm text-mist">{t('phoneNotice')}</p>
             <div className="flex gap-2">
               <Select value={dialCode} onChange={(e) => setDialCode(e.target.value)}>
                 {COUNTRY_CODES.map((c) => (
@@ -365,7 +362,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
                 type="tel"
                 value={localNumber}
                 onChange={(e) => setLocalNumber(e.target.value)}
-                placeholder="81 234 5678"
+                placeholder={t('phonePlaceholder')}
                 className="flex-1 rounded-survey border border-rule px-3 py-2"
               />
             </div>
@@ -379,16 +376,16 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
         {step > 0 && (
           <Button type="button" variant="secondary" onClick={back} disabled={pending} className="gap-1.5">
             <BackChevron />
-            Back
+            {t('back')}
           </Button>
         )}
         {step < STEPS.length - 1 ? (
           <Button type="button" onClick={next} disabled={!canAdvance}>
-            Next
+            {t('next')}
           </Button>
         ) : (
           <Button type="button" onClick={handleSubmit} disabled={pending || !canAdvance}>
-            {pending ? 'Submitting…' : 'Request my quotation'}
+            {pending ? t('submitting') : t('requestQuotation')}
           </Button>
         )}
       </div>

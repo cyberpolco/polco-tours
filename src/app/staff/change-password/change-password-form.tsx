@@ -2,8 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { authClient } from '@lib/auth-client';
 import { BrandMark } from '@/components/BrandMark';
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { SignOutButton } from '../(dashboard)/sign-out-button';
 import { clearMustChangePasswordAction } from './actions';
 
@@ -15,6 +17,9 @@ import { clearMustChangePasswordAction } from './actions';
 // choosing to change their own already-real password) can bail back out.
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const router = useRouter();
+  const t = useTranslations('ChangePassword');
+  const tChrome = useTranslations('StaffChrome');
+  const tCommon = useTranslations('Common');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,11 +31,11 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
     setError(null);
 
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match');
+      setError(t('errorMismatch'));
       return;
     }
     if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters');
+      setError(t('errorTooShort'));
       return;
     }
 
@@ -42,7 +47,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
     });
     if (changeError) {
       setPending(false);
-      setError(changeError.message ?? 'Could not change password');
+      setError(changeError.message ?? t('errorGeneric'));
       return;
     }
 
@@ -51,24 +56,21 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
-      <div className="absolute right-8 top-8 text-sm">
+      <div className="absolute right-8 top-8 flex items-center gap-4 text-sm">
+        <LanguageSwitcher />
         <SignOutButton />
       </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <BrandMark className="h-8 w-8 text-amber" />
-          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">POLCO TOURS · STAFF</p>
-          <h1 className="mt-4 text-2xl font-bold">{forced ? 'Choose a new password' : 'Change your password'}</h1>
-          <p className="mt-2 text-sm text-mist">
-            {forced
-              ? 'Your account was created with a temporary password. Set a new one to continue.'
-              : 'Enter your current password and choose a new one.'}
-          </p>
+          <p className="mt-2 text-xs font-semibold tracking-survey text-amber">{tChrome('brandEyebrow')}</p>
+          <h1 className="mt-4 text-2xl font-bold">{forced ? t('titleForced') : t('titleVoluntary')}</h1>
+          <p className="mt-2 text-sm text-mist">{forced ? t('subtitleForced') : t('subtitleVoluntary')}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="currentPassword" className="mb-1 block text-sm text-mist">
-              {forced ? 'Temporary password' : 'Current password'}
+              {forced ? t('temporaryPassword') : t('currentPassword')}
             </label>
             <input
               id="currentPassword"
@@ -82,7 +84,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           </div>
           <div>
             <label htmlFor="newPassword" className="mb-1 block text-sm text-mist">
-              New password
+              {t('newPassword')}
             </label>
             <input
               id="newPassword"
@@ -97,7 +99,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           </div>
           <div>
             <label htmlFor="confirmPassword" className="mb-1 block text-sm text-mist">
-              Confirm new password
+              {t('confirmNewPassword')}
             </label>
             <input
               id="confirmPassword"
@@ -116,7 +118,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
             disabled={pending}
             className="w-full rounded-survey bg-amber px-4 py-2 font-semibold text-navy disabled:opacity-50"
           >
-            {pending ? 'Saving…' : 'Save new password'}
+            {pending ? tCommon('saving') : t('save')}
           </button>
           {!forced && (
             <button
@@ -125,7 +127,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
               disabled={pending}
               className="w-full text-center text-sm text-mist hover:text-bone disabled:opacity-50"
             >
-              Cancel
+              {tCommon('cancel')}
             </button>
           )}
         </form>

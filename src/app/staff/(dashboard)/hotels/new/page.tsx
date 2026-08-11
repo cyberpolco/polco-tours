@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { FormField } from '@/components/ui/FormField';
@@ -9,15 +10,17 @@ import { createHotelAction } from './actions';
 
 export default async function NewHotelPage() {
   await requireStaffContext('itinerary.write');
+  const t = await getTranslations('StaffHotels');
+  const tFields = await getTranslations('PlaceFields');
 
   return (
     <div className="max-w-md">
-      <PageHeader eyebrow="Itinerary Management · New hotel" title="Add a hotel" />
+      <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       <form action={createHotelAction} className="mt-6 space-y-4">
-        <FormField label="Name" htmlFor="name">
+        <FormField label={tFields('name')} htmlFor="name">
           <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Country" htmlFor="country">
+        <FormField label={tFields('country')} htmlFor="country">
           <Select name="country" required>
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
@@ -26,20 +29,20 @@ export default async function NewHotelPage() {
             ))}
           </Select>
         </FormField>
-        <FormField label="Address" htmlFor="address" optional>
+        <FormField label={tFields('address')} htmlFor="address" optional>
           <input name="address" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Contact name" htmlFor="contactName" optional>
+        <FormField label={tFields('contactName')} htmlFor="contactName" optional>
           <input name="contactName" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Contact phone" htmlFor="contactPhone" optional>
+        <FormField label={tFields('contactPhone')} htmlFor="contactPhone" optional>
           <input name="contactPhone" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Contact email" htmlFor="contactEmail" optional>
+        <FormField label={tFields('contactEmail')} htmlFor="contactEmail" optional>
           <input name="contactEmail" type="email" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <MapLocationPicker optional />
-        <SubmitButton>Add hotel</SubmitButton>
+        <SubmitButton>{t('addHotel')}</SubmitButton>
       </form>
     </div>
   );

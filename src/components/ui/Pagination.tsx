@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 interface PaginationProps {
   page: number;
@@ -12,15 +13,17 @@ interface PaginationProps {
 // links at once. Plain <Link>s (no client JS) -- hrefFor is responsible for
 // carrying every other active filter/search param along with the page
 // number, same "GET-driven, server-rendered" convention as the rest of this
-// app's list filtering.
-export function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
+// app's list filtering. Async server component (every call site is a
+// server-rendered list page) so it can read Common.previous/next directly.
+export async function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
   if (totalPages <= 1) return null;
 
+  const t = await getTranslations('Common');
   const pages = pageWindow(page, totalPages);
 
   return (
     <nav aria-label="Pagination" className="flex items-center justify-center gap-1 text-sm">
-      <PageStepLink href={hrefFor(page - 1)} disabled={page <= 1} label="Previous" />
+      <PageStepLink href={hrefFor(page - 1)} disabled={page <= 1} label={t('previous')} />
       {pages.map((p, i) =>
         p === 'ellipsis' ? (
           <span key={`ellipsis-${i}`} className="px-2 text-mist">
@@ -41,7 +44,7 @@ export function Pagination({ page, totalPages, hrefFor }: PaginationProps) {
           </Link>
         ),
       )}
-      <PageStepLink href={hrefFor(page + 1)} disabled={page >= totalPages} label="Next" />
+      <PageStepLink href={hrefFor(page + 1)} disabled={page >= totalPages} label={t('next')} />
     </nav>
   );
 }

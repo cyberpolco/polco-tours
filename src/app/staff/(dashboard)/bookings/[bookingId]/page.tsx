@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Currency } from '@prisma/client';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -42,24 +43,10 @@ function visaTone(status: string): BadgeTone {
   return (VISA_STATUS_TONE as Record<string, BadgeTone>)[status] ?? 'neutral';
 }
 
-// Matches (guest)/plan-my-trip/plan-my-trip-form.tsx's own titleCase --
-// PackageTag values are SCREAMING_CASE at the DB layer (e.g. "WILDLIFE").
-function titleCase(tag: string): string {
-  return tag.charAt(0) + tag.slice(1).toLowerCase();
-}
+const OPERATING_COUNTRY_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
 
-// Matches plan-my-trip-form.tsx's own addonLabel -- AddonCode values are
-// two-word SCREAMING_CASE (e.g. "VISA_ASSISTANCE"), titleCase alone
-// wouldn't split the underscore.
-function addonLabel(code: string): string {
-  return code
-    .split('_')
-    .map(titleCase)
-    .join(' ');
-}
-
-function countryName(alpha2: string): string {
-  return COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
+function countryName(alpha2: string, tCountries: (code: string) => string): string {
+  return OPERATING_COUNTRY_CODES.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
 }
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
@@ -71,6 +58,17 @@ const CANCELLABLE_STATUSES = ['AWAITING_QUOTATION', 'QUOTATION_SENT', 'AWAITING_
 export default async function BookingDetailPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireStaffContext('booking.read');
+  const t = await getTranslations('StaffBookingDetail');
+  const tCommon = await getTranslations('Common');
+  const tBookingStatus = await getTranslations('BookingStatusLabel');
+  const tInvoiceStatus = await getTranslations('InvoiceStatusLabel');
+  const tPaymentStatus = await getTranslations('PaymentStatusLabel');
+  const tPaymentKind = await getTranslations('PaymentKindLabel');
+  const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
+  const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const tCountries = await getTranslations('Countries');
+  const tTags = await getTranslations('TripTags');
+  const tAddons = await getTranslations('TripAddons');
 
   let booking;
   try {
@@ -90,7 +88,7 @@ export default async function BookingDetailPage({ params }: Props) {
   // Passports are only collected at all if the finalized add-ons included
   // Visa Assistance (booking.requiresPassportUpload) -- and when they are,
   // EVERY traveler needs one, not just the tour lead.
-  const passportDone = !booking.requiresPassportUpload || travelers.every((t) => !!t.passportDocumentId);
+  const passportDone = !booking.requiresPassportUpload || travelers.every((tv) => !!tv.passportDocumentId);
   const setupComplete = addonsDone && travelersDone && passportDone;
 
   if (!setupComplete) {
@@ -103,24 +101,31 @@ export default async function BookingDetailPage({ params }: Props) {
     return (
       <div className="max-w-md space-y-6">
         <div>
-          <PageHeader eyebrow="Booking setup" title={booking.bookingReference} />
+          <PageHeader eyebrow={t('setupEyebrow')} title={booking.bookingReference} />
           <p className="mt-1 flex items-center gap-2 text-mist">
-            {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+            {t('seats', { count: booking.seats })} ·{' '}
+            <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> ·{' '}
             {formatOrPending(booking.priceMinor, booking.currency)}
           </p>
         </div>
         <ul className="space-y-2 text-sm">
-          <li className={addonsDone ? 'text-forest' : 'text-ink'}>{addonsDone ? '✓' : '○'} Add-ons</li>
+          <li className={addonsDone ? 'text-forest' : 'text-ink'}>
+            {addonsDone ? '✓' : '○'} {t('addOns')}
+          </li>
           <li className={travelersDone ? 'text-forest' : 'text-ink'}>
-            {travelersDone ? '✓' : '○'} Travelers ({travelers.length}/{booking.seats})
+            {travelersDone ? '✓' : '○'} {t('travelersCount', { current: travelers.length, total: booking.seats })}
           </li>
           {booking.requiresPassportUpload && (
             <li className={passportDone ? 'text-forest' : 'text-ink'}>
-              {passportDone ? '✓' : '○'} Passports ({travelers.filter((t) => !!t.passportDocumentId).length}/{travelers.length})
+              {passportDone ? '✓' : '○'}{' '}
+              {t('passportsCount', {
+                current: travelers.filter((tv) => !!tv.passportDocumentId).length,
+                total: travelers.length,
+              })}
             </li>
           )}
         </ul>
-        <LinkButton href={nextHref}>Continue setup</LinkButton>
+        <LinkButton href={nextHref}>{t('continueSetup')}</LinkButton>
       </div>
     );
   }
@@ -167,7 +172,7 @@ export default async function BookingDetailPage({ params }: Props) {
     const addonNameById = new Map(addonServices.map((a) => [a.id, a.name]));
     bookingAddonsWithNames = addons.map((a) => ({
       id: a.id,
-      name: addonNameById.get(a.addonServiceId) ?? 'Add-on',
+      name: addonNameById.get(a.addonServiceId) ?? t('addonFallbackName'),
       priceMinor: a.priceMinor,
       currency: a.currency,
     }));
@@ -185,17 +190,17 @@ export default async function BookingDetailPage({ params }: Props) {
   // VisaApplication row exists (visaService.getApplication 404s), same
   // convention as passportDocumentId being null meaning "not uploaded".
   const visaStatuses = await Promise.all(
-    travelers.map(async (t) => {
+    travelers.map(async (tv) => {
       try {
-        const application = await visaService.getApplication(ctx, bookingId, t.id);
+        const application = await visaService.getApplication(ctx, bookingId, tv.id);
         return {
-          traveler: t,
+          traveler: tv,
           status: application.status as string,
           rejectionReason: application.rejectionReason,
           resubmissionCount: application.resubmissionCount,
         };
       } catch {
-        return { traveler: t, status: 'Not started', rejectionReason: null, resubmissionCount: 0 };
+        return { traveler: tv, status: t('notStarted'), rejectionReason: null, resubmissionCount: 0 };
       }
     }),
   );
@@ -209,20 +214,23 @@ export default async function BookingDetailPage({ params }: Props) {
             actually succeeded avoids inviting an edit that can no longer
             affect what was billed. */}
         {booking.status === 'AWAITING_DEPOSIT' && (
-          <BackLink href={`/staff/bookings/${bookingId}/addons`}>review setup details</BackLink>
+          <BackLink href={`/staff/bookings/${bookingId}/addons`}>{t('reviewSetupDetails')}</BackLink>
         )}
-        <PageHeader eyebrow="Booking" title={booking.bookingReference} />
-        <p className="mt-1 text-xs text-mist">{booking.origin === 'TAILOR_MADE' ? 'Tailor-made request' : 'Predefined package'}</p>
+        <PageHeader eyebrow={t('bookingEyebrow')} title={booking.bookingReference} />
+        <p className="mt-1 text-xs text-mist">
+          {booking.origin === 'TAILOR_MADE' ? t('tailorMadeRequest') : t('predefinedPackage')}
+        </p>
         <p className="mt-1 flex items-center gap-2 text-mist">
-          {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+          {t('seats', { count: booking.seats })} ·{' '}
+          <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> ·{' '}
           {formatOrPending(booking.priceMinor, booking.currency)}
         </p>
         {booking.specialRequests && (
-          <p className="mt-1 text-sm text-mist">Special requests: {booking.specialRequests}</p>
+          <p className="mt-1 text-sm text-mist">{t('specialRequestsLabel', { text: booking.specialRequests })}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && (
           <p className="mt-1 text-sm text-mist">
-            {booking.customCountry} · {booking.customTravelStart?.toLocaleDateString()} –{' '}
+            {booking.customCountry && countryName(booking.customCountry, tCountries)} · {booking.customTravelStart?.toLocaleDateString()} –{' '}
             {booking.customTravelEnd?.toLocaleDateString()}
             {booking.customDescription && <> · {booking.customDescription}</>}
           </p>
@@ -231,50 +239,54 @@ export default async function BookingDetailPage({ params }: Props) {
             derived, DR-047) -- only show this line when the guest picked
             more than one, so it doesn't just repeat the line above. */}
         {booking.origin === 'TAILOR_MADE' && booking.preferredCountries.length > 1 && (
-          <p className="mt-1 text-sm text-mist">Also considering: {booking.preferredCountries.slice(1).join(', ')}</p>
+          <p className="mt-1 text-sm text-mist">
+            {t('alsoConsidering', { list: booking.preferredCountries.slice(1).map((c) => countryName(c, tCountries)).join(', ') })}
+          </p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.contactEmail && (
-          <p className="mt-1 text-sm text-mist">Contact email: {booking.contactEmail}</p>
+          <p className="mt-1 text-sm text-mist">{t('contactEmailLabel', { email: booking.contactEmail })}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.preferredTags.length > 0 && (
-          <p className="mt-1 text-sm text-mist">Interested in: {booking.preferredTags.map(titleCase).join(', ')}</p>
+          <p className="mt-1 text-sm text-mist">{t('interestedIn', { list: booking.preferredTags.map((tag) => tTags(tag)).join(', ') })}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.preferredSites.length > 0 && (
-          <p className="mt-1 text-sm text-mist">Sites of interest: {booking.preferredSites.join(', ')}</p>
+          <p className="mt-1 text-sm text-mist">{t('sitesOfInterest', { list: booking.preferredSites.join(', ') })}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.preferredAddons.length > 0 && (
-          <p className="mt-1 text-sm text-mist">Add-ons of interest: {booking.preferredAddons.map(addonLabel).join(', ')}</p>
+          <p className="mt-1 text-sm text-mist">
+            {t('addonsOfInterest', { list: booking.preferredAddons.map((code) => tAddons(code)).join(', ') })}
+          </p>
         )}
         {booking.origin === 'TAILOR_MADE' && (booking.countryOfResidence || booking.citizenship) && (
           <p className="mt-1 text-sm text-mist">
-            {booking.countryOfResidence && <>Residence: {countryName(booking.countryOfResidence)}</>}
+            {booking.countryOfResidence && t('residence', { country: countryName(booking.countryOfResidence, tCountries) })}
             {booking.countryOfResidence && booking.citizenship && ' · '}
-            {booking.citizenship && <>Citizenship: {countryName(booking.citizenship)}</>}
+            {booking.citizenship && t('citizenship', { country: countryName(booking.citizenship, tCountries) })}
           </p>
         )}
         {booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
           <form action={convertToItineraryAction.bind(null, booking.id)} className="mt-3">
-            <SubmitButton variant="secondary" pendingLabel="Converting…">
-              Convert to operational itinerary
+            <SubmitButton variant="secondary" pendingLabel={t('convertingToItinerary')}>
+              {t('convertToItinerary')}
             </SubmitButton>
           </form>
         )}
         {booking.departureId && (
           <p className="mt-3 text-sm">
-            <LinkButton href={`/staff/departures/${booking.departureId}`}>Assign vehicle/driver/guide</LinkButton>
+            <LinkButton href={`/staff/departures/${booking.departureId}`}>{t('assignVehicleDriverGuide')}</LinkButton>
           </p>
         )}
 
         {booking.status === 'AWAITING_QUOTATION' && booking.origin === 'TAILOR_MADE' && can(ctx, 'booking.confirm') && (
           <p className="mt-4 text-sm">
             <LinkButton href={`/staff/bookings/${bookingId}/cost-breakdown`}>
-              {costBreakdown ? 'Edit cost breakdown' : 'Build a cost breakdown'}
+              {costBreakdown ? t('editCostBreakdown') : t('buildCostBreakdown')}
             </LinkButton>
           </p>
         )}
         {booking.status === 'AWAITING_QUOTATION' && (
           <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm items-end gap-3">
-            <FormField label="Quote amount" htmlFor="amount">
+            <FormField label={t('quoteAmount')} htmlFor="amount">
               <input
                 name="amount"
                 type="number"
@@ -285,7 +297,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <FormField label="Currency" htmlFor="currency">
+            <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" required defaultValue={costBreakdown?.currency}>
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
@@ -293,47 +305,43 @@ export default async function BookingDetailPage({ params }: Props) {
                 <option value="CDF">CDF</option>
               </Select>
             </FormField>
-            <SubmitButton pendingLabel="Sending…">Send quotation</SubmitButton>
+            <SubmitButton pendingLabel={t('sending')}>{t('sendQuotation')}</SubmitButton>
           </form>
         )}
         {costBreakdown?.suggestedTotalMinor != null && (
           <p className="mt-1 text-xs text-mist">
-            Suggested from the cost breakdown: {format(money(costBreakdown.suggestedTotalMinor, costBreakdown.currency))} -- edit the amount above if
-            needed.
+            {t('suggestedFromBreakdown', { amount: format(money(costBreakdown.suggestedTotalMinor, costBreakdown.currency)) })}
           </p>
         )}
         {booking.status === 'QUOTATION_SENT' && (
           <form action={acceptQuotationAction.bind(null, booking.id)} className="mt-4">
-            <SubmitButton pendingLabel="Accepting…">Accept quotation on client&apos;s behalf</SubmitButton>
+            <SubmitButton pendingLabel={t('accepting')}>{t('acceptQuotationOnBehalf')}</SubmitButton>
           </form>
         )}
         {booking.origin === 'PREDEFINED_PACKAGE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT') && (
-          <p className="mt-2 text-xs text-amber">
-            This came from a released seat hold — seat availability hasn&apos;t been re-checked automatically if the
-            client later accepts and proceeds to pay.
-          </p>
+          <p className="mt-2 text-xs text-amber">{t('releasedSeatHoldWarning')}</p>
         )}
 
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex gap-3">
             {(booking.status === 'DEPOSIT_PAID' || booking.status === 'FULLY_PAID') && (
               <form action={confirmBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="success" pendingLabel="Confirming…">
-                  Confirm
+                <SubmitButton variant="success" pendingLabel={t('confirming')}>
+                  {t('confirm')}
                 </SubmitButton>
               </form>
             )}
             {CANCELLABLE_STATUSES.includes(booking.status) && (
               <form action={cancelBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-                  Cancel
+                <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>
+                  {t('cancel')}
                 </SubmitButton>
               </form>
             )}
             {booking.status === 'CANCELLED' && (
               <form action={refundBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="secondary" pendingLabel="Refunding…">
-                  Mark refunded
+                <SubmitButton variant="secondary" pendingLabel={t('refunding')}>
+                  {t('markRefunded')}
                 </SubmitButton>
               </form>
             )}
@@ -347,10 +355,10 @@ export default async function BookingDetailPage({ params }: Props) {
             <form action={deleteBookingAction.bind(null, booking.id)}>
               <SubmitButton
                 variant="secondary"
-                pendingLabel="Deleting…"
-                confirmMessage="Delete this booking? This cannot be undone."
+                pendingLabel={t('deleting')}
+                confirmMessage={t('deleteBookingConfirm')}
               >
-                Delete booking
+                {t('deleteBooking')}
               </SubmitButton>
             </form>
           )}
@@ -360,26 +368,26 @@ export default async function BookingDetailPage({ params }: Props) {
       {packageSummary && (
         <div>
           <div className="survey-rule mb-6" />
-          <p className="eyebrow text-mist">Trip summary</p>
+          <p className="eyebrow text-mist">{t('tripSummary')}</p>
           <Card className="mt-2">
             <p className="font-semibold text-navy">{packageSummary.title}</p>
             <p className="mt-1 text-sm text-mist">
-              {countryName(packageSummary.country)} · {packageSummary.startDate.toLocaleDateString()}
+              {countryName(packageSummary.country, tCountries)} · {packageSummary.startDate.toLocaleDateString()}
               {packageSummary.endDate && <> – {packageSummary.endDate.toLocaleDateString()}</>}
             </p>
           </Card>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <p className="eyebrow text-mist">Travelers ({travelers.length}/{booking.seats})</p>
+              <p className="eyebrow text-mist">{t('travelersCount', { current: travelers.length, total: booking.seats })}</p>
               <ul className="mt-2 space-y-1 text-sm">
-                {travelers.map((t) => (
-                  <li key={t.id}>
-                    {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
-                    {t.isTourLead && t.emergencyContactName && (
+                {travelers.map((tv) => (
+                  <li key={tv.id}>
+                    {tv.firstName} {tv.lastName} {tv.isTourLead && <span className="text-forest">{t('tourLeadParenthetical')}</span>}
+                    {tv.isTourLead && tv.emergencyContactName && (
                       <div className="text-xs text-mist">
-                        Emergency: {t.emergencyContactName}
-                        {t.emergencyContactRelation && ` (${t.emergencyContactRelation})`}
-                        {t.emergencyContactPhone && ` · ${t.emergencyContactPhone}`}
+                        {t('emergency', { name: tv.emergencyContactName })}
+                        {tv.emergencyContactRelation && ` (${tv.emergencyContactRelation})`}
+                        {tv.emergencyContactPhone && ` · ${tv.emergencyContactPhone}`}
                       </div>
                     )}
                   </li>
@@ -387,9 +395,9 @@ export default async function BookingDetailPage({ params }: Props) {
               </ul>
             </div>
             <div>
-              <p className="eyebrow text-mist">Add-ons</p>
+              <p className="eyebrow text-mist">{t('addOns')}</p>
               {bookingAddonsWithNames.length === 0 ? (
-                <p className="mt-2 text-sm text-mist">None selected.</p>
+                <p className="mt-2 text-sm text-mist">{t('addOnsNone')}</p>
               ) : (
                 <ul className="mt-2 space-y-1 text-sm">
                   {bookingAddonsWithNames.map((a) => (
@@ -406,22 +414,22 @@ export default async function BookingDetailPage({ params }: Props) {
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Invoice</p>
+        <p className="eyebrow text-mist">{t('invoice')}</p>
         <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div>
-            <p className="text-xs text-mist">Subtotal</p>
+            <p className="text-xs text-mist">{t('subtotal')}</p>
             <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
           </div>
           <div>
-            <p className="text-xs text-mist">Tax</p>
+            <p className="text-xs text-mist">{t('tax')}</p>
             <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
           </div>
           <div>
-            <p className="text-xs text-mist">Deposit (40%)</p>
+            <p className="text-xs text-mist">{t('depositPct')}</p>
             <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
           </div>
           <div>
-            <p className="text-xs text-mist">Balance (60%)</p>
+            <p className="text-xs text-mist">{t('balancePct')}</p>
             <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
           </div>
           <div>
@@ -429,40 +437,40 @@ export default async function BookingDetailPage({ params }: Props) {
                 above, not an extra charge -- staff-only, deliberately not
                 shown on the guest-facing booking page (a customer could
                 otherwise misread this as something they owe on top). */}
-            <p className="text-xs text-mist">Platform fee</p>
+            <p className="text-xs text-mist">{t('platformFee')}</p>
             <p className="text-sm">
               {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
             </p>
           </div>
         </Card>
         <p className="mt-2 flex items-center gap-2 text-sm text-mist">
-          Status: <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{invoice.status}</Badge>
+          {t('status')} <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{tInvoiceStatus(invoice.status)}</Badge>
         </p>
       </div>
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Payments</p>
+        <p className="eyebrow text-mist">{t('payments')}</p>
         {payments.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">No payment attempts yet.</p>
+          <p className="mt-2 text-sm text-mist">{t('noPaymentAttempts')}</p>
         ) : (
           <ul className="mt-2 space-y-2 text-sm">
             {payments.map((p) => (
               <li key={p.id} className="flex items-center justify-between border-b border-rule pb-2">
                 <span className="flex items-center gap-2">
-                  {p.kind} · {format(money(p.amountMinor, p.currency))}
-                  <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{p.status}</Badge>
+                  {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))}
+                  <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
                 </span>
                 {p.status === 'PENDING' && (
                   <div className="flex gap-2">
                     <form action={resolvePaymentAction.bind(null, p.id, 'SUCCEEDED', booking.id)}>
-                      <SubmitButton variant="success" size="compact" pendingLabel="Saving…">
-                        Mark paid
+                      <SubmitButton variant="success" size="compact" pendingLabel={tCommon('saving')}>
+                        {t('markPaid')}
                       </SubmitButton>
                     </form>
                     <form action={resolvePaymentAction.bind(null, p.id, 'FAILED', booking.id)}>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
-                        Mark failed
+                      <SubmitButton variant="secondary" size="compact" pendingLabel={tCommon('saving')}>
+                        {t('markFailed')}
                       </SubmitButton>
                     </form>
                   </div>
@@ -476,16 +484,16 @@ export default async function BookingDetailPage({ params }: Props) {
           {booking.status === 'AWAITING_DEPOSIT' && !pendingPayment && (
             <>
               <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
-                <SubmitButton pendingLabel="Sending…">Send deposit link</SubmitButton>
+                <SubmitButton pendingLabel={t('sending')}>{t('sendDepositLink')}</SubmitButton>
               </form>
               <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
-                <SubmitButton pendingLabel="Sending…">Send full-payment link</SubmitButton>
+                <SubmitButton pendingLabel={t('sending')}>{t('sendFullPaymentLink')}</SubmitButton>
               </form>
             </>
           )}
           {booking.status === 'DEPOSIT_PAID' && !pendingPayment && (
             <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
-              <SubmitButton pendingLabel="Sending…">Send balance link</SubmitButton>
+              <SubmitButton pendingLabel={t('sending')}>{t('sendBalanceLink')}</SubmitButton>
             </form>
           )}
         </div>
@@ -493,16 +501,19 @@ export default async function BookingDetailPage({ params }: Props) {
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Visa</p>
+        <p className="eyebrow text-mist">{t('visa')}</p>
         <ul className="mt-2 space-y-1 text-sm">
           {visaStatuses.map(({ traveler, status, rejectionReason, resubmissionCount }) => (
             <li key={traveler.id} className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2">
-                {traveler.firstName} {traveler.lastName}: <Badge tone={visaTone(status)}>{status}</Badge>
-                {resubmissionCount > 0 && <span className="text-xs text-mist">(resubmitted {resubmissionCount}x)</span>}
+                {traveler.firstName} {traveler.lastName}:{' '}
+                <Badge tone={visaTone(status)}>
+                  {status === 'SUBMITTED' || status === 'APPROVED' || status === 'REJECTED' ? tVisaStatus(status) : status}
+                </Badge>
+                {resubmissionCount > 0 && <span className="text-xs text-mist">{t('resubmitted', { count: resubmissionCount })}</span>}
               </span>
               {status === 'REJECTED' && rejectionReason && (
-                <span className="text-xs text-mist">Reason: {rejectionReason}</span>
+                <span className="text-xs text-mist">{t('reason', { reason: rejectionReason })}</span>
               )}
             </li>
           ))}
@@ -511,16 +522,16 @@ export default async function BookingDetailPage({ params }: Props) {
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Itinerary</p>
+        <p className="eyebrow text-mist">{t('itinerary')}</p>
         {itinerary ? (
           <p className="mt-2 text-sm">
-            <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{itinerary.status}</Badge>{' '}
-            <LinkButton href={`/staff/itineraries/${itinerary.id}`}>Open itinerary</LinkButton>
+            <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>{' '}
+            <LinkButton href={`/staff/itineraries/${itinerary.id}`}>{t('openItinerary')}</LinkButton>
           </p>
         ) : (
           <form action={createItineraryAction.bind(null, booking.id)} className="mt-2">
-            <SubmitButton variant="secondary" pendingLabel="Creating…">
-              Create itinerary
+            <SubmitButton variant="secondary" pendingLabel={t('creatingItinerary')}>
+              {t('createItinerary')}
             </SubmitButton>
           </form>
         )}
@@ -529,26 +540,26 @@ export default async function BookingDetailPage({ params }: Props) {
       {canIssueRating && (
         <div>
           <div className="survey-rule mb-6" />
-          <p className="eyebrow text-mist">Rating Code</p>
+          <p className="eyebrow text-mist">{t('ratingCode')}</p>
           {ratingCode ? (
             <p className="mt-2 text-sm">
               <span className="font-mono">{ratingCode.code}</span>{' '}
               {ratingCode.usedAt ? (
-                <Badge tone="neutral">Used</Badge>
+                <Badge tone="neutral">{t('used')}</Badge>
               ) : ratingCode.expiresAt < new Date() ? (
-                <Badge tone="warning">Expired</Badge>
+                <Badge tone="warning">{t('expired')}</Badge>
               ) : (
-                <Badge tone="success">Active until {ratingCode.expiresAt.toLocaleDateString()}</Badge>
+                <Badge tone="success">{t('activeUntil', { date: ratingCode.expiresAt.toLocaleDateString() })}</Badge>
               )}
             </p>
           ) : invoice.status === 'PAID' ? (
             <form action={issueRatingCodeAction.bind(null, booking.id)} className="mt-2">
-              <SubmitButton variant="secondary" pendingLabel="Generating…">
-                Generate Rating Code
+              <SubmitButton variant="secondary" pendingLabel={t('generating')}>
+                {t('generateRatingCode')}
               </SubmitButton>
             </form>
           ) : (
-            <p className="mt-2 text-sm text-mist">Available once the invoice is fully paid.</p>
+            <p className="mt-2 text-sm text-mist">{t('availableOncePaid')}</p>
           )}
         </div>
       )}

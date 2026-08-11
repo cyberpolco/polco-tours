@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import type { PublicUser } from '@modules/auth';
 import { Alert } from '@/components/ui/Alert';
@@ -20,16 +21,17 @@ export function EditUserForm({
   assignableRoles: readonly Role[];
 }) {
   const [state, formAction] = useActionState(updateUserAction.bind(null, userId), INITIAL_STATE);
+  const t = useTranslations('StaffEditUser');
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-navy">Edit user</h2>
+      <h2 className="text-lg font-semibold text-navy">{t('editUser')}</h2>
       {state.error && <Alert tone="error">{state.error}</Alert>}
       <form action={formAction} className="space-y-4">
-        <FormField label="Name" htmlFor="name">
+        <FormField label={t('name')} htmlFor="name">
           <input name="name" defaultValue={user.name ?? ''} required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Email" htmlFor="email">
+        <FormField label={t('email')} htmlFor="email">
           <input
             name="email"
             type="email"
@@ -38,7 +40,7 @@ export function EditUserForm({
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Phone" htmlFor="phone" optional>
+        <FormField label={t('phone')} htmlFor="phone" optional>
           <input
             name="phone"
             defaultValue={user.phone ?? ''}
@@ -47,7 +49,7 @@ export function EditUserForm({
           />
         </FormField>
         <div>
-          <p className="mb-1 text-sm text-mist">Roles (select one or more)</p>
+          <p className="mb-1 text-sm text-mist">{t('rolesLabel')}</p>
           <div className="grid grid-cols-2 gap-2">
             {assignableRoles.map((r) => (
               <label key={r} className="flex items-center gap-2 text-sm">
@@ -57,7 +59,7 @@ export function EditUserForm({
             ))}
           </div>
         </div>
-        <SubmitButton>Save changes</SubmitButton>
+        <SubmitButton>{t('saveChanges')}</SubmitButton>
       </form>
     </div>
   );

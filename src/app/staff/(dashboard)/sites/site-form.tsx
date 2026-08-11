@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { flagEmoji } from '@lib/country-codes';
 import { PROVINCES_BY_COUNTRY, SITE_COUNTRIES, type SiteCountryCode } from '@lib/provinces';
 import { FormField } from '@/components/ui/FormField';
@@ -30,32 +31,34 @@ interface SiteFormProps {
 // list Hotel/Restaurant use -- so every possible selection always has a
 // real province list, no free-text fallback needed.
 export function SiteForm({ action, defaultValues, submitLabel, pendingLabel }: SiteFormProps) {
+  const t = useTranslations('StaffSites');
+  const tCountries = useTranslations('Countries');
   const [country, setCountry] = useState<SiteCountryCode | ''>((defaultValues?.country as SiteCountryCode) ?? '');
   const provinces = country ? PROVINCES_BY_COUNTRY[country] : [];
 
   return (
     <form action={action} className="space-y-4">
-      <FormField label="Name" htmlFor="name">
+      <FormField label={t('name')} htmlFor="name">
         <input name="name" defaultValue={defaultValues?.name} required className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
-      <FormField label="Country" htmlFor="country">
+      <FormField label={t('country')} htmlFor="country">
         <Select name="country" value={country} onChange={(e) => setCountry(e.target.value as SiteCountryCode)} required>
           <option value="" disabled>
-            Select a country
+            {t('selectACountry')}
           </option>
           {SITE_COUNTRIES.map((c) => (
             <option key={c.code} value={c.code}>
-              {flagEmoji(c.code)} {c.name}
+              {flagEmoji(c.code)} {tCountries(c.code)}
             </option>
           ))}
         </Select>
       </FormField>
-      <FormField label="Province" htmlFor="province">
+      <FormField label={t('province')} htmlFor="province">
         {/* Remounted on country change (key=country) so a province from a
             previously selected country never lingers as a stale value. */}
         <Select key={country} name="province" defaultValue={defaultValues?.province} required disabled={!country}>
           <option value="" disabled>
-            {country ? 'Select a province' : 'Select a country first'}
+            {country ? t('selectAProvince') : t('selectACountryFirst')}
           </option>
           {provinces.map((p) => (
             <option key={p} value={p}>
@@ -64,7 +67,7 @@ export function SiteForm({ action, defaultValues, submitLabel, pendingLabel }: S
           ))}
         </Select>
       </FormField>
-      <FormField label="City / Town" htmlFor="city" optional>
+      <FormField label={t('cityTown')} htmlFor="city" optional>
         <input name="city" defaultValue={defaultValues?.city ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
       <MapLocationPicker

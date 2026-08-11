@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
 import { BackChevron } from '@/components/ui/BackLink';
 import { Button } from '@/components/ui/Button';
@@ -18,12 +19,7 @@ const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXUR
 // Mirrors (guest)/plan-my-trip/plan-my-trip-form.tsx's local ADDON_CODES.
 const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
 
-const DESTINATIONS = [
-  { code: 'NA', label: '🇳🇦 Namibia' },
-  { code: 'CD', label: '🇨🇩 DR Congo' },
-  { code: 'ZM', label: '🇿🇲 Zambia' },
-  { code: 'ZW', label: '🇿🇼 Zimbabwe' },
-] as const;
+const DESTINATION_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
 
 // Staff copy of (guest)/plan-my-trip/plan-my-trip-form.tsx -- same 9 steps,
 // same fields/labels/validation, so filling this out feels identical to the
@@ -35,19 +31,6 @@ const DESTINATIONS = [
 // self-service authService.updateProfile call does, so this form only
 // collects what CreateTailorMadeInput actually uses directly (email doubles
 // as both the booking's contactEmail AND the staff lookup key, DR-036).
-const STEPS = ['Destination', 'Dates', 'Travelers', 'Preferences', 'Sites', 'Your trip', 'Add-ons', 'Special requests', 'Contact'];
-
-function titleCase(tag: string): string {
-  return tag.charAt(0) + tag.slice(1).toLowerCase();
-}
-
-function addonLabel(code: string): string {
-  return code
-    .split('_')
-    .map(titleCase)
-    .join(' ');
-}
-
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
@@ -64,6 +47,24 @@ function toggleTag(list: string[], value: string): string[] {
 
 export default function StaffPlanMyTripForm() {
   const router = useRouter();
+  const t = useTranslations('PlanMyTripForm');
+  const tStaff = useTranslations('StaffPlanMyTripForm');
+  const tSteps = useTranslations('PlanMyTripSteps');
+  const tTags = useTranslations('TripTags');
+  const tAddons = useTranslations('TripAddons');
+  const tCountries = useTranslations('Countries');
+  const tBookings = useTranslations('StaffBookings');
+  const STEPS = [
+    tSteps('destination'),
+    tSteps('dates'),
+    tSteps('travelers'),
+    tSteps('preferences'),
+    tSteps('sites'),
+    tSteps('yourTrip'),
+    tSteps('addOns'),
+    tSteps('specialRequests'),
+    tSteps('contact'),
+  ];
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +135,7 @@ export default function StaffPlanMyTripForm() {
       }
       router.push(`/staff/bookings/${result.bookingId}`);
     } catch {
-      setError('Something went wrong creating this request -- please try again.');
+      setError(tStaff('errorGeneric'));
     } finally {
       setPending(false);
     }
@@ -146,16 +147,16 @@ export default function StaffPlanMyTripForm() {
 
       {step === 0 && (
         <div>
-          <p className="mb-2 text-sm text-mist">Which countries? (pick at least one)</p>
+          <p className="mb-2 text-sm text-mist">{t('whichCountries')}</p>
           <div className="grid grid-cols-2 gap-2">
-            {DESTINATIONS.map(({ code, label }) => (
+            {DESTINATION_CODES.map((code) => (
               <SelectableCard
                 key={code}
                 type="checkbox"
                 checked={countries.includes(code)}
                 onChange={() => setCountries((c) => toggle(c, code))}
               >
-                {label}
+                {flagEmoji(code)} {tCountries(code)}
               </SelectableCard>
             ))}
           </div>
@@ -164,7 +165,7 @@ export default function StaffPlanMyTripForm() {
 
       {step === 1 && (
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Travel start" htmlFor="customTravelStart">
+          <FormField label={t('travelStart')} htmlFor="customTravelStart">
             <input
               type="date"
               value={customTravelStart}
@@ -172,7 +173,7 @@ export default function StaffPlanMyTripForm() {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Travel end" htmlFor="customTravelEnd">
+          <FormField label={t('travelEnd')} htmlFor="customTravelEnd">
             <input
               type="date"
               value={customTravelEnd}
@@ -181,13 +182,13 @@ export default function StaffPlanMyTripForm() {
             />
           </FormField>
           {customTravelStart && customTravelEnd && !datesValid && (
-            <p className="col-span-2 text-xs text-amber">Travel end must be on or after travel start.</p>
+            <p className="col-span-2 text-xs text-amber">{t('endBeforeStartError')}</p>
           )}
         </div>
       )}
 
       {step === 2 && (
-        <FormField label="Travelers" htmlFor="seats">
+        <FormField label={t('travelers')} htmlFor="seats">
           <input
             type="number"
             min={1}
@@ -200,11 +201,16 @@ export default function StaffPlanMyTripForm() {
 
       {step === 3 && (
         <div>
-          <p className="mb-2 text-sm text-mist">What matters most? (pick any)</p>
+          <p className="mb-2 text-sm text-mist">{t('whatMattersMost')}</p>
           <div className="grid grid-cols-2 gap-2">
             {TAGS.map((tag) => (
-              <SelectableCard key={tag} type="checkbox" checked={tags.includes(tag)} onChange={() => setTags((t) => toggleTag(t, tag))}>
-                {titleCase(tag)}
+              <SelectableCard
+                key={tag}
+                type="checkbox"
+                checked={tags.includes(tag)}
+                onChange={() => setTags((tg) => toggleTag(tg, tag))}
+              >
+                {tTags(tag)}
               </SelectableCard>
             ))}
           </div>
@@ -214,8 +220,8 @@ export default function StaffPlanMyTripForm() {
       {step === 4 && (
         <div>
           <p className="mb-2 text-sm text-mist">
-            Sites the client would like to visit (pick any)
-            {availableSites.length === 0 && ' -- go back and pick a country to see options here'}
+            {tStaff('sitesToVisit')}
+            {availableSites.length === 0 && t('goBackForSites')}
           </p>
           <div className="grid grid-cols-2 gap-2">
             {availableSites.map(({ name }) => (
@@ -228,7 +234,7 @@ export default function StaffPlanMyTripForm() {
       )}
 
       {step === 5 && (
-        <FormField label="Tell us about the trip the client has in mind" htmlFor="customDescription" optional>
+        <FormField label={tStaff('tellUsAboutTrip')} htmlFor="customDescription" optional>
           <textarea
             value={customDescription}
             onChange={(e) => setCustomDescription(e.target.value)}
@@ -241,7 +247,7 @@ export default function StaffPlanMyTripForm() {
       {step === 6 && (
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-sm text-mist">Add-ons the client might want (pick any)</p>
+            <p className="mb-2 text-sm text-mist">{tStaff('addonsClientMightWant')}</p>
             <div className="grid grid-cols-2 gap-2">
               {ADDONS.map((code) => (
                 <SelectableCard
@@ -250,15 +256,15 @@ export default function StaffPlanMyTripForm() {
                   checked={preferredAddons.includes(code)}
                   onChange={() => setPreferredAddons((a) => toggle(a, code))}
                 >
-                  {addonLabel(code)}
+                  {tAddons(code)}
                 </SelectableCard>
               ))}
             </div>
           </div>
-          <FormField label="Country of residence" htmlFor="countryOfResidence">
+          <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
             <Select value={countryOfResidence} onChange={(e) => setCountryOfResidence(e.target.value)} required>
               <option value="" disabled>
-                Select a country
+                {t('selectACountry')}
               </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -267,10 +273,10 @@ export default function StaffPlanMyTripForm() {
               ))}
             </Select>
           </FormField>
-          <FormField label="Citizenship" htmlFor="citizenship">
+          <FormField label={t('citizenship')} htmlFor="citizenship">
             <Select value={citizenship} onChange={(e) => setCitizenship(e.target.value)} required>
               <option value="" disabled>
-                Select a country
+                {t('selectACountry')}
               </option>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -279,12 +285,12 @@ export default function StaffPlanMyTripForm() {
               ))}
             </Select>
           </FormField>
-          <p className="text-xs text-mist">Residence/citizenship helps scope visa assistance accurately.</p>
+          <p className="text-xs text-mist">{tStaff('residenceCitizenshipNotice')}</p>
         </div>
       )}
 
       {step === 7 && (
-        <FormField label="Special requests" htmlFor="specialRequests" optional>
+        <FormField label={t('specialRequests')} htmlFor="specialRequests" optional>
           <textarea
             value={specialRequests}
             onChange={(e) => setSpecialRequests(e.target.value)}
@@ -297,14 +303,14 @@ export default function StaffPlanMyTripForm() {
       {step === 8 && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Client first name" htmlFor="firstName">
+            <FormField label={tStaff('clientFirstName')} htmlFor="firstName">
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <FormField label="Client last name" htmlFor="lastName">
+            <FormField label={tStaff('clientLastName')} htmlFor="lastName">
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
@@ -312,7 +318,7 @@ export default function StaffPlanMyTripForm() {
               />
             </FormField>
           </div>
-          <FormField label="Client email (or the tour lead's email, for a group)" htmlFor="email">
+          <FormField label={tBookings('clientEmailLabel')} htmlFor="email">
             <input
               type="email"
               value={email}
@@ -329,16 +335,16 @@ export default function StaffPlanMyTripForm() {
         {step > 0 && (
           <Button type="button" variant="secondary" onClick={back} disabled={pending} className="gap-1.5">
             <BackChevron />
-            Back
+            {t('back')}
           </Button>
         )}
         {step < STEPS.length - 1 ? (
           <Button type="button" onClick={next} disabled={!canAdvance}>
-            Next
+            {t('next')}
           </Button>
         ) : (
           <Button type="button" onClick={handleSubmit} disabled={pending || !canAdvance}>
-            {pending ? 'Creating…' : 'Create request'}
+            {pending ? tStaff('creating') : tStaff('createRequest')}
           </Button>
         )}
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@lib/vehicle-catalog';
 import { SelectOrOther } from '@/components/ui/SelectOrOther';
 
@@ -18,6 +19,7 @@ interface VehicleMakeModelFieldsProps {
 // clones a single label's htmlFor onto one child -- not applicable when
 // this one component renders two separately-labelled fields.
 export function VehicleMakeModelFields({ defaultMake = '', defaultModel = '' }: VehicleMakeModelFieldsProps) {
+  const t = useTranslations('StaffVehicles');
   const [make, setMake] = useState(defaultMake);
   const modelOptions = VEHICLE_MODELS_BY_MAKE[make] ?? [];
 
@@ -25,21 +27,21 @@ export function VehicleMakeModelFields({ defaultMake = '', defaultModel = '' }: 
     <div className="grid grid-cols-2 gap-4">
       <div>
         <label htmlFor="make" className="mb-1 block text-sm text-mist">
-          Make
+          {t('make')}
         </label>
         <SelectOrOther
           id="make"
           name="make"
           options={VEHICLE_MAKES}
           defaultValue={defaultMake}
-          placeholder="Type the make"
+          placeholder={t('makePlaceholder')}
           required
           onValueChange={setMake}
         />
       </div>
       <div>
         <label htmlFor="model" className="mb-1 block text-sm text-mist">
-          Model
+          {t('model')}
         </label>
         {/* Keyed by `make` -- when the make changes, any previously-typed
             "Other" model text for the old make would be a stale/misleading
@@ -53,7 +55,7 @@ export function VehicleMakeModelFields({ defaultMake = '', defaultModel = '' }: 
           name="model"
           options={modelOptions}
           defaultValue={make === defaultMake ? defaultModel : ''}
-          placeholder="Type the model"
+          placeholder={t('modelPlaceholder')}
           required
         />
       </div>

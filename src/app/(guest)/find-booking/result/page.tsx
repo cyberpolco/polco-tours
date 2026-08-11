@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { assignmentService } from '@modules/assignment';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
@@ -25,13 +26,15 @@ import {
   VISA_STATUS_TONE,
 } from '@lib/status-tones';
 
-function countryLabel(alpha2: string): string {
-  const name = COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
+const OPERATING_COUNTRY_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
+
+function countryLabel(alpha2: string, tCountries: (code: string) => string): string {
+  const name = OPERATING_COUNTRY_CODES.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
   return `${flagEmoji(alpha2)} ${name}`;
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(date);
+function formatDate(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-US', { dateStyle: 'long' }).format(date);
 }
 
 interface Props {
@@ -40,13 +43,24 @@ interface Props {
 
 export default async function FindBookingResultPage({ searchParams }: Props) {
   const { bookingReference, lastName } = await searchParams;
+  const t = await getTranslations('FindBookingResult');
+  const tCountries = await getTranslations('Countries');
+  const tBookingStatus = await getTranslations('BookingStatusLabel');
+  const tInvoiceStatus = await getTranslations('InvoiceStatusLabel');
+  const tPaymentStatus = await getTranslations('PaymentStatusLabel');
+  const tPaymentKind = await getTranslations('PaymentKindLabel');
+  const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
+  const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const locale = await getLocale();
 
   if (!bookingReference || !lastName) {
     return (
       <Reveal>
         <div className="max-w-sm">
-          <Alert tone="info">Enter a booking reference and last name.</Alert>
-          <BackLink href="/find-booking" className="mt-4">try again</BackLink>
+          <Alert tone="info">{t('enterRefAndLastName')}</Alert>
+          <BackLink href="/find-booking" className="mt-4">
+            {t('tryAgain')}
+          </BackLink>
         </div>
       </Reveal>
     );
@@ -61,15 +75,14 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       ip,
     );
   } catch (err) {
-    const message =
-      err instanceof ApiError && err.status === 429
-        ? 'Too many attempts -- please try again later.'
-        : "We couldn't find a booking matching that code and last name.";
+    const message = err instanceof ApiError && err.status === 429 ? t('tooManyAttempts') : t('notFound');
     return (
       <Reveal>
         <div className="max-w-sm">
           <Alert tone="error">{message}</Alert>
-          <BackLink href="/find-booking" className="mt-4">try again</BackLink>
+          <BackLink href="/find-booking" className="mt-4">
+            {t('tryAgain')}
+          </BackLink>
         </div>
       </Reveal>
     );
@@ -174,10 +187,11 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   return (
     <div className="max-w-md">
       <Reveal>
-        <p className="eyebrow text-mist">{isTailorMadeInquiry ? 'Your trip request' : 'Your booking'}</p>
+        <p className="eyebrow text-mist">{isTailorMadeInquiry ? t('yourTripRequest') : t('yourBooking')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{booking.bookingReference}</h1>
         <p className="mt-1 flex items-center gap-2 text-mist">
-          {booking.seats} seat(s) · <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{booking.status}</Badge> ·{' '}
+          {t('seats', { count: booking.seats })} ·{' '}
+          <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> ·{' '}
           {formatOrPending(booking.priceMinor, booking.currency)}
         </p>
       </Reveal>
@@ -185,37 +199,34 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       {isTailorMadeInquiry && (
         <Reveal delay={0.1}>
         <div className="pt-4">
-          {booking.status === 'AWAITING_QUOTATION' && (
-            <Alert tone="success">We&apos;ve received your trip request -- our team will be in touch soon with a quotation.</Alert>
-          )}
+          {booking.status === 'AWAITING_QUOTATION' && <Alert tone="success">{t('receivedTripRequest')}</Alert>}
           {booking.status === 'QUOTATION_SENT' && (
             <Alert tone="success">
-              Your quotation is ready: {formatOrPending(booking.priceMinor, booking.currency)}. Sign back in on the device you
-              requested from to accept it and continue.
+              {t('quotationReadySignIn', { price: formatOrPending(booking.priceMinor, booking.currency) })}
             </Alert>
           )}
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Request summary</p>
+            <p className="eyebrow text-mist">{t('requestSummary')}</p>
             <Card className="mt-2">
               <dl className="space-y-2 text-sm">
                 {booking.preferredCountries.length > 0 && (
                   <div>
-                    <dt className="text-xs text-mist">Destination(s)</dt>
-                    <dd>{booking.preferredCountries.map(countryLabel).join(', ')}</dd>
+                    <dt className="text-xs text-mist">{t('destinations')}</dt>
+                    <dd>{booking.preferredCountries.map((c) => countryLabel(c, tCountries)).join(', ')}</dd>
                   </div>
                 )}
                 {booking.customTravelStart && booking.customTravelEnd && (
                   <div>
-                    <dt className="text-xs text-mist">Travel dates</dt>
+                    <dt className="text-xs text-mist">{t('travelDates')}</dt>
                     <dd>
-                      {formatDate(booking.customTravelStart)} to {formatDate(booking.customTravelEnd)}
+                      {formatDate(booking.customTravelStart, locale)} – {formatDate(booking.customTravelEnd, locale)}
                     </dd>
                   </div>
                 )}
                 {booking.customDescription && (
                   <div>
-                    <dt className="text-xs text-mist">Trip description</dt>
+                    <dt className="text-xs text-mist">{t('tripDescription')}</dt>
                     <dd>{booking.customDescription}</dd>
                   </div>
                 )}
@@ -230,7 +241,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         <Reveal delay={0.15}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Trip details</p>
+            <p className="eyebrow text-mist">{t('tripDetails')}</p>
             {tripSummary ? (
               <Card className="mt-2">
                 <PackageImage
@@ -241,12 +252,12 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                 />
                 <p className="font-semibold text-navy">{tripSummary.title}</p>
                 <p className="mt-1 text-sm text-mist">
-                  {countryLabel(tripSummary.country)}
-                  {tripSummary.durationDays != null && ` · ${tripSummary.durationDays}-day trip`}
+                  {countryLabel(tripSummary.country, tCountries)}
+                  {tripSummary.durationDays != null && ` · ${t('dayTrip', { days: tripSummary.durationDays })}`}
                 </p>
                 <p className="mt-2 text-sm">
-                  {formatDate(tripSummary.startDate)}
-                  {tripSummary.endDate && <> – {formatDate(tripSummary.endDate)}</>}
+                  {formatDate(tripSummary.startDate, locale)}
+                  {tripSummary.endDate && <> – {formatDate(tripSummary.endDate, locale)}</>}
                 </p>
                 <p className="mt-2 text-sm text-mist">{tripSummary.description}</p>
               </Card>
@@ -255,21 +266,21 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                 <dl className="space-y-2 text-sm">
                   {booking.customCountry && (
                     <div>
-                      <dt className="text-xs text-mist">Destination</dt>
-                      <dd>{countryLabel(booking.customCountry)}</dd>
+                      <dt className="text-xs text-mist">{t('destination')}</dt>
+                      <dd>{countryLabel(booking.customCountry, tCountries)}</dd>
                     </div>
                   )}
                   {booking.customTravelStart && booking.customTravelEnd && (
                     <div>
-                      <dt className="text-xs text-mist">Travel dates</dt>
+                      <dt className="text-xs text-mist">{t('travelDates')}</dt>
                       <dd>
-                        {formatDate(booking.customTravelStart)} to {formatDate(booking.customTravelEnd)}
+                        {formatDate(booking.customTravelStart, locale)} – {formatDate(booking.customTravelEnd, locale)}
                       </dd>
                     </div>
                   )}
                   {booking.customDescription && (
                     <div>
-                      <dt className="text-xs text-mist">Trip description</dt>
+                      <dt className="text-xs text-mist">{t('tripDescription')}</dt>
                       <dd>{booking.customDescription}</dd>
                     </div>
                   )}
@@ -284,14 +295,15 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         <Reveal delay={0.2}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Travelers</p>
+            <p className="eyebrow text-mist">{t('travelers')}</p>
             <Card className="mt-2">
               <ul className="space-y-1 text-sm">
-                {travelers.map((t) => (
-                  <li key={t.id}>
-                    {t.firstName} {t.lastName} {t.isTourLead && <span className="text-forest">(tour lead)</span>}
-                    {t.isTourLead && (t.phone || t.email) && (
-                      <div className="text-xs text-mist">{[t.phone, t.email].filter(Boolean).join(' · ')}</div>
+                {travelers.map((tv) => (
+                  <li key={tv.id}>
+                    {tv.firstName} {tv.lastName}{' '}
+                    {tv.isTourLead && <span className="text-forest">{t('tourLeadParenthetical')}</span>}
+                    {tv.isTourLead && (tv.phone || tv.email) && (
+                      <div className="text-xs text-mist">{[tv.phone, tv.email].filter(Boolean).join(' · ')}</div>
                     )}
                   </li>
                 ))}
@@ -305,12 +317,12 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         <Reveal delay={0.25}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Add-ons</p>
+            <p className="eyebrow text-mist">{t('addOns')}</p>
             <Card className="mt-2">
               <ul className="space-y-1 text-sm">
                 {addons.map((a) => (
                   <li key={a.id}>
-                    {addonNames.get(a.addonServiceId) ?? 'Add-on'} · {format(money(a.priceMinor, a.currency))}
+                    {addonNames.get(a.addonServiceId) ?? t('addonFallbackName')} · {format(money(a.priceMinor, a.currency))}
                   </li>
                 ))}
               </ul>
@@ -323,44 +335,44 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         <Reveal delay={0.28}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Price &amp; payment</p>
+            <p className="eyebrow text-mist">{t('priceAndPayment')}</p>
             <Card className="mt-2 space-y-3 text-sm">
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div>
-                  <dt className="text-xs text-mist">Subtotal</dt>
+                  <dt className="text-xs text-mist">{t('subtotal')}</dt>
                   <dd>{format(money(billingSummary.subtotalMinor, billingSummary.currency))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-mist">Tax</dt>
+                  <dt className="text-xs text-mist">{t('tax')}</dt>
                   <dd>{format(money(billingSummary.taxMinor, billingSummary.currency))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-mist">Deposit</dt>
+                  <dt className="text-xs text-mist">{t('deposit')}</dt>
                   <dd>{format(money(billingSummary.depositMinor, billingSummary.currency))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-mist">Balance</dt>
+                  <dt className="text-xs text-mist">{t('balance')}</dt>
                   <dd>{format(money(billingSummary.balanceMinor, billingSummary.currency))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-mist">Total</dt>
+                  <dt className="text-xs text-mist">{t('total')}</dt>
                   <dd className="font-semibold text-navy">{format(money(billingSummary.totalMinor, billingSummary.currency))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-mist">Status</dt>
+                  <dt className="text-xs text-mist">{t('status')}</dt>
                   <dd>
-                    <Badge tone={INVOICE_STATUS_TONE[billingSummary.status]}>{billingSummary.status}</Badge>
+                    <Badge tone={INVOICE_STATUS_TONE[billingSummary.status]}>{tInvoiceStatus(billingSummary.status)}</Badge>
                   </dd>
                 </div>
               </dl>
               {billingSummary.payments.length > 0 && (
                 <div>
-                  <p className="text-xs text-mist">Payments</p>
+                  <p className="text-xs text-mist">{t('payments')}</p>
                   <ul className="mt-1 space-y-1">
                     {billingSummary.payments.map((p) => (
                       <li key={p.id}>
-                        {p.kind} · {format(money(p.amountMinor, p.currency))} ·{' '}
-                        <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{p.status}</Badge>
+                        {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))} ·{' '}
+                        <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
                       </li>
                     ))}
                   </ul>
@@ -375,20 +387,20 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         <Reveal delay={0.35}>
           <div className="survey-rule mt-6" />
           <div className="pt-6">
-            <p className="eyebrow text-mist">Trip status</p>
+            <p className="eyebrow text-mist">{t('tripStatus')}</p>
             <Card className="mt-2">
             <dl className="space-y-3 text-sm">
               {itineraryStatus && (
                 <div>
-                  <dt className="text-xs text-mist">Itinerary</dt>
+                  <dt className="text-xs text-mist">{t('itinerary')}</dt>
                   <dd>
-                    <Badge tone={ITINERARY_STATUS_TONE[itineraryStatus]}>{itineraryStatus}</Badge>
+                    <Badge tone={ITINERARY_STATUS_TONE[itineraryStatus]}>{tItineraryStatus(itineraryStatus)}</Badge>
                   </dd>
                 </div>
               )}
               {vehicles.length > 0 && (
                 <div>
-                  <dt className="text-xs text-mist">Vehicle{vehicles.length > 1 ? 's' : ''}</dt>
+                  <dt className="text-xs text-mist">{t('vehicleCount', { count: vehicles.length })}</dt>
                   <dd>
                     {vehicles
                       .map((v) => `${v.make} ${v.model} (${v.plateNumber})`)
@@ -398,34 +410,34 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
               )}
               {driverNames.length > 0 && (
                 <div>
-                  <dt className="text-xs text-mist">Driver{driverNames.length > 1 ? 's' : ''}</dt>
+                  <dt className="text-xs text-mist">{t('driverCount', { count: driverNames.length })}</dt>
                   <dd>{driverNames.join(', ')}</dd>
                 </div>
               )}
               {guideNames.length > 0 && (
                 <div>
-                  <dt className="text-xs text-mist">Guide{guideNames.length > 1 ? 's' : ''}</dt>
+                  <dt className="text-xs text-mist">{t('guideCount', { count: guideNames.length })}</dt>
                   <dd>{guideNames.join(', ')}</dd>
                 </div>
               )}
               {starlinkKits.size > 0 && (
                 <div>
-                  <dt className="text-xs text-mist">Vehicle tracking</dt>
-                  <dd>Starlink kit assigned to your vehicle{starlinkKits.size > 1 ? 's' : ''}.</dd>
+                  <dt className="text-xs text-mist">{t('vehicleTracking')}</dt>
+                  <dd>{t('starlinkAssigned', { count: starlinkKits.size })}</dd>
                 </div>
               )}
               {visaStatuses.size > 0 && (
                 <div>
-                  <dt className="text-xs text-mist">Visa status</dt>
+                  <dt className="text-xs text-mist">{t('visaStatus')}</dt>
                   <dd className="space-y-1">
                     {travelers
-                      .filter((t) => visaStatuses.has(t.id))
-                      .map((t) => (
-                        <div key={t.id} className="flex items-center gap-2">
+                      .filter((tv) => visaStatuses.has(tv.id))
+                      .map((tv) => (
+                        <div key={tv.id} className="flex items-center gap-2">
                           <span>
-                            {t.firstName} {t.lastName}
+                            {tv.firstName} {tv.lastName}
                           </span>
-                          <Badge tone={VISA_STATUS_TONE[visaStatuses.get(t.id)!]}>{visaStatuses.get(t.id)}</Badge>
+                          <Badge tone={VISA_STATUS_TONE[visaStatuses.get(tv.id)!]}>{tVisaStatus(visaStatuses.get(tv.id)!)}</Badge>
                         </div>
                       ))}
                   </dd>
@@ -433,12 +445,8 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
               )}
               {ratingCodeStatus && (
                 <div>
-                  <dt className="text-xs text-mist">Feedback</dt>
-                  <dd>
-                    {ratingCodeStatus.available
-                      ? 'A rating code has been issued for your trip -- check your confirmation email or contact our team for it.'
-                      : 'Your rating code has already been used or has expired.'}
-                  </dd>
+                  <dt className="text-xs text-mist">{t('feedback')}</dt>
+                  <dd>{ratingCodeStatus.available ? t('ratingCodeAvailable') : t('ratingCodeUnavailable')}</dd>
                 </div>
               )}
             </dl>

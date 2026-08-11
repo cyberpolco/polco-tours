@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
@@ -21,15 +22,18 @@ interface Props {
   searchParams: Promise<{ error?: string; detail?: string }>;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
-  conflict: 'Could not create the assignment.',
-  'validation-failed': 'Could not create the assignment -- one of the selected options is no longer valid. Pick a different guide, driver, or vehicle and try again.',
-};
-
 export default async function DepartureDetailPage({ params, searchParams }: Props) {
   const { departureId } = await params;
   const { error, detail } = await searchParams;
   const ctx = await requireStaffContext('assignment.write');
+  const t = await getTranslations('StaffDepartureDetail');
+  const tDepartureStatus = await getTranslations('DepartureStatusLabel');
+  const tCountries = await getTranslations('Countries');
+
+  const ERROR_MESSAGES: Record<string, string> = {
+    conflict: t('errorConflict'),
+    'validation-failed': t('errorValidationFailed'),
+  };
 
   let detailView;
   try {
@@ -92,45 +96,45 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <PageHeader eyebrow="Departure" title={`${departure.startDate.toLocaleDateString()} · ${packageCountry}`} />
+        <PageHeader eyebrow={t('eyebrow')} title={`${departure.startDate.toLocaleDateString()} · ${tCountries(packageCountry)}`} />
         <p className="mt-1 flex items-center gap-2 text-mist">
-          Capacity {departure.capacity} · <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{departure.status}</Badge> ·{' '}
-          {formatOrPending(effectiveUnitPrice?.minor ?? null, effectiveUnitPrice?.currency ?? null)}/seat
+          {t('capacity', { capacity: departure.capacity })} ·{' '}
+          <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{tDepartureStatus(departure.status)}</Badge> ·{' '}
+          {formatOrPending(effectiveUnitPrice?.minor ?? null, effectiveUnitPrice?.currency ?? null)}
+          {t('perSeat')}
         </p>
-        <p className="mt-1 text-sm text-mist">
-          Seats covered by assigned vehicles: {seatsCovered}/{departure.capacity}
-        </p>
+        <p className="mt-1 text-sm text-mist">{t('seatsCovered', { covered: seatsCovered, capacity: departure.capacity })}</p>
       </div>
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Pickup location</p>
+        <p className="eyebrow text-mist">{t('pickupLocation')}</p>
         <p className="mt-1 text-sm text-mist">
           {departure.pickupLatitude != null && departure.pickupLongitude != null
             ? `${departure.pickupLatitude}, ${departure.pickupLongitude}`
-            : 'Not set -- distance-from-pickup scoring is skipped until this is entered.'}
+            : t('pickupLocationNotSet')}
         </p>
         <form action={setPickupLocationAction.bind(null, departureId)} className="mt-3 max-w-md space-y-3">
           <MapLocationPicker initialLatitude={departure.pickupLatitude} initialLongitude={departure.pickupLongitude} />
-          <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
-            Set pickup location
+          <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+            {t('setPickupLocation')}
           </SubmitButton>
         </form>
       </div>
 
       <div>
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Assignments</p>
+        <p className="eyebrow text-mist">{t('assignments')}</p>
         {error && (
           <div className="mt-2">
             <Alert tone="error">
-              {ERROR_MESSAGES[error] ?? 'Something went wrong.'}
+              {ERROR_MESSAGES[error] ?? t('errorGeneric')}
               {detail ? ` (${detail})` : ''}
             </Alert>
           </div>
         )}
         {assignments.length === 0 ? (
-          <p className="mt-4 text-mist">No assignments yet.</p>
+          <p className="mt-4 text-mist">{t('noAssignmentsYet')}</p>
         ) : (
           <ul className="mt-4 space-y-3">
             {assignments.map((a, i) => {
@@ -140,18 +144,18 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
               return (
                 <li key={a.id} className="flex items-center justify-between border-b border-rule pb-3 text-sm">
                   <span>
-                    {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : 'Unknown vehicle'} ·{' '}
-                    {driverProfile ? `License ${driverProfile.licenseNumber}` : 'Unknown driver'}
-                    {guide && ` · Guide: ${guide.name ?? guide.email}`}
+                    {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : t('unknownVehicle')} ·{' '}
+                    {driverProfile ? t('licensePrefix', { number: driverProfile.licenseNumber }) : t('unknownDriver')}
+                    {guide && ` · ${t('guidePrefix', { name: guide.name ?? guide.email })}`}
                   </span>
                   <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
                     <SubmitButton
                       variant="secondary"
                       size="compact"
-                      pendingLabel="Removing…"
-                      confirmMessage="Remove this vehicle/driver/guide assignment from the departure?"
+                      pendingLabel={t('removing')}
+                      confirmMessage={t('removeAssignmentConfirm')}
                     >
-                      Remove
+                      {t('remove')}
                     </SubmitButton>
                   </form>
                 </li>
@@ -161,52 +165,46 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
         )}
 
         <form action={createAssignmentAction.bind(null, departureId)} className="mt-6 space-y-4">
-          <p className="text-xs text-mist">
-            Recommended options -- vehicle/driver by capacity fit, maintenance recency, and distance from pickup
-            where known; guide by average rating -- sort first and are pre-selected below, a simple rules-based
-            suggestion, not real AI. Pick anything else to override.
-          </p>
-          <FormField label="Vehicle" htmlFor="vehicleId">
+          <p className="text-xs text-mist">{t('recommendationNotice')}</p>
+          <FormField label={t('vehicleLabel')} htmlFor="vehicleId">
             <Select name="vehicleId" required defaultValue={recommendation.recommendedVehicleId ?? ''}>
-              <option value="">Select a vehicle</option>
+              <option value="">{t('selectVehicle')}</option>
               {sortedVehicles.map((v) => {
                 const score = vehicleScoreById.get(v.id);
                 const isTop = v.id === recommendation.recommendedVehicleId;
                 return (
                   <option key={v.id} value={v.id}>
                     {isTop ? '★ ' : ''}
-                    {v.make} {v.model} ({v.plateNumber}) · {v.seatCapacity} seats
-                    {score != null ? ` · fit ${Math.round(score * 100)}%` : ''}
+                    {v.make} {v.model} ({v.plateNumber}) · {v.seatCapacity} {t('seatsSuffix')}
+                    {score != null ? ` · ${t('fitSuffix', { pct: Math.round(score * 100) })}` : ''}
                   </option>
                 );
               })}
             </Select>
           </FormField>
-          <FormField label="Driver" htmlFor="driverProfileId">
+          <FormField label={t('driverLabel')} htmlFor="driverProfileId">
             <Select name="driverProfileId" required defaultValue={recommendation.recommendedDriverId ?? ''}>
-              <option value="">Select a driver</option>
+              <option value="">{t('selectDriver')}</option>
               {sortedDrivers.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.id === recommendation.recommendedDriverId ? '★ ' : ''}
-                  License {d.licenseNumber}
-                  {!eligibleDriverIds.has(d.id) ? ' · already booked these dates' : ''}
+                  {t('licensePrefix', { number: d.licenseNumber })}
+                  {!eligibleDriverIds.has(d.id) ? ` · ${t('alreadyBookedSuffix')}` : ''}
                 </option>
               ))}
             </Select>
           </FormField>
-          {guideOptions.length === 0 && (
-            <Alert tone="info">No eligible guides available -- an assignment can&apos;t be created until one exists.</Alert>
-          )}
-          <FormField label="Guide (search by name or email)" htmlFor="guideUserId">
+          {guideOptions.length === 0 && <Alert tone="info">{t('noEligibleGuides')}</Alert>}
+          <FormField label={t('guideLabel')} htmlFor="guideUserId">
             <SearchableSelect
               name="guideUserId"
               options={guideOptions}
               defaultValue={recommendation.recommendedGuideId ?? undefined}
-              placeholder="Search guides by name or email…"
+              placeholder={t('searchGuidesPlaceholder')}
               required
             />
           </FormField>
-          <SubmitButton>Add assignment</SubmitButton>
+          <SubmitButton>{t('addAssignment')}</SubmitButton>
         </form>
       </div>
     </div>

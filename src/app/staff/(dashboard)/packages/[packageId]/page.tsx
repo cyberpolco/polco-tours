@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
 import { BackLink } from '@/components/ui/BackLink';
@@ -38,6 +39,10 @@ export default async function PackageDetailPage({ params }: Props) {
     notFound();
   }
   const templateDays = await catalogService.listTemplateDays(ctx, packageId);
+  const t = await getTranslations('StaffPackageDetail');
+  const tPackageStatus = await getTranslations('PackageStatusLabel');
+  const tTags = await getTranslations('TripTags');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="max-w-md">
@@ -46,49 +51,47 @@ export default async function PackageDetailPage({ params }: Props) {
           ARCHIVED) from Customized. Reflects live status, not however the
           user happened to arrive here. */}
       <BackLink href={pkg.status === 'PUBLISHED' ? '/staff/packages/public' : '/staff/packages/customized'}>
-        back to {pkg.status === 'PUBLISHED' ? 'public' : 'customized'} packages
+        {pkg.status === 'PUBLISHED' ? t('backToPublic') : t('backToCustomized')}
       </BackLink>
       <div className="mt-4 flex items-center gap-3">
-        <PageHeader eyebrow={`Packages · ${pkg.packageReference}`} title={pkg.title} />
-        <Badge tone={PACKAGE_STATUS_TONE[pkg.status]}>{pkg.status}</Badge>
+        <PageHeader eyebrow={t('eyebrow', { ref: pkg.packageReference })} title={pkg.title} />
+        <Badge tone={PACKAGE_STATUS_TONE[pkg.status]}>{tPackageStatus(pkg.status)}</Badge>
       </div>
 
       <div className="mt-4 flex gap-3">
         <form action={duplicatePackageAction.bind(null, packageId)}>
-          <SubmitButton variant="secondary" pendingLabel="Duplicating…">
-            Duplicate
+          <SubmitButton variant="secondary" pendingLabel={t('duplicating')}>
+            {t('duplicate')}
           </SubmitButton>
         </form>
         {pkg.status !== 'ARCHIVED' && (
           <form action={archivePackageAction.bind(null, packageId)}>
-            <SubmitButton variant="secondary" pendingLabel="Archiving…">
-              Archive
+            <SubmitButton variant="secondary" pendingLabel={t('archiving')}>
+              {t('archive')}
             </SubmitButton>
           </form>
         )}
         <form action={deletePackageAction.bind(null, packageId)}>
-          <SubmitButton variant="secondary" pendingLabel="Deleting…" confirmMessage="Delete this package? This cannot be undone.">
-            Delete
+          <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteConfirm')}>
+            {t('delete')}
           </SubmitButton>
         </form>
       </div>
 
       <div className="mt-6 rounded-survey border border-rule p-4">
-        <p className="text-xs text-mist">Price per seat</p>
-        <p className="text-lg font-semibold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency, 'Not yet priced')}</p>
-        <p className="mt-1 text-xs text-mist">
-          Computed by the finance module&rsquo;s cost breakdown (DR-039) -- no longer typed directly here.
-        </p>
+        <p className="text-xs text-mist">{t('pricePerSeat')}</p>
+        <p className="text-lg font-semibold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency, t('notYetPriced'))}</p>
+        <p className="mt-1 text-xs text-mist">{t('priceComputedNotice')}</p>
         <LinkButton href={`/staff/packages/${packageId}/cost-breakdown`} variant="secondary" size="compact" className="mt-2">
-          Manage cost breakdown
+          {t('manageCostBreakdown')}
         </LinkButton>
       </div>
 
       <form action={updatePackageAction.bind(null, packageId)} className="mt-6 space-y-4">
-        <FormField label="Title" htmlFor="title">
+        <FormField label={t('title')} htmlFor="title">
           <input name="title" defaultValue={pkg.title} required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Description" htmlFor="description">
+        <FormField label={t('description')} htmlFor="description">
           <textarea
             name="description"
             defaultValue={pkg.description}
@@ -97,15 +100,15 @@ export default async function PackageDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Country" htmlFor="country">
+        <FormField label={t('country')} htmlFor="country">
           <Select name="country" defaultValue={pkg.country} required>
-            <option value="NA">🇳🇦 Namibia</option>
-            <option value="CD">🇨🇩 DR Congo</option>
-            <option value="ZM">🇿🇲 Zambia</option>
-            <option value="ZW">🇿🇼 Zimbabwe</option>
+            <option value="NA">🇳🇦 {tCountries('NA')}</option>
+            <option value="CD">🇨🇩 {tCountries('CD')}</option>
+            <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
+            <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
           </Select>
         </FormField>
-        <FormField label="Currency" htmlFor="currency">
+        <FormField label={t('currency')} htmlFor="currency">
           <Select name="currency" defaultValue={pkg.currency} required>
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
@@ -113,7 +116,7 @@ export default async function PackageDetailPage({ params }: Props) {
             <option value="CDF">CDF</option>
           </Select>
         </FormField>
-        <FormField label="Duration (days)" htmlFor="durationDays" optional>
+        <FormField label={t('durationDays')} htmlFor="durationDays" optional>
           <input
             name="durationDays"
             type="number"
@@ -124,7 +127,7 @@ export default async function PackageDetailPage({ params }: Props) {
         </FormField>
         {/* DR-068: local asset path only -- see next.config.mjs, no remote
             image host is allowlisted. */}
-        <FormField label="Image URL" htmlFor="imageUrl" optional>
+        <FormField label={t('imageUrl')} htmlFor="imageUrl" optional>
           <input
             name="imageUrl"
             type="text"
@@ -133,52 +136,45 @@ export default async function PackageDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <p className="text-xs text-mist">
-          Trip length -- guests pick their own travel start date but not how many days the trip runs; a package
-          needs this set (along with a price) before it can be booked.
-        </p>
+        <p className="text-xs text-mist">{t('durationNotice')}</p>
         <div>
-          <p className="mb-1 text-sm text-mist">Tags</p>
+          <p className="mb-1 text-sm text-mist">{t('tags')}</p>
           <div className="flex flex-wrap gap-2">
             {PACKAGE_TAGS.map((tag) => (
               <SelectableCard key={tag} type="checkbox" name="tags" value={tag} defaultChecked={pkg.tags.includes(tag)}>
-                {tag}
+                {tTags(tag)}
               </SelectableCard>
             ))}
           </div>
         </div>
-        <FormField label="Status" htmlFor="status">
+        <FormField label={t('status')} htmlFor="status">
           <Select name="status" defaultValue={pkg.status} required>
-            <option value="DRAFT">DRAFT</option>
-            <option value="PUBLISHED">PUBLISHED</option>
-            <option value="ARCHIVED">ARCHIVED</option>
+            <option value="DRAFT">{tPackageStatus('DRAFT')}</option>
+            <option value="PUBLISHED">{tPackageStatus('PUBLISHED')}</option>
+            <option value="ARCHIVED">{tPackageStatus('ARCHIVED')}</option>
           </Select>
         </FormField>
-        <SubmitButton>Save changes</SubmitButton>
+        <SubmitButton>{t('saveChanges')}</SubmitButton>
       </form>
 
       <div className="mt-8">
         <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">Itinerary template</p>
-        <p className="mt-2 text-sm text-mist">
-          A reusable day-by-day plan for this package -- copied onto a fresh Itinerary the moment one is created for
-          a booking against it (real dates computed from that booking&rsquo;s own travel start date), so staff review
-          and adjust an already-populated plan instead of starting from scratch every time.
-        </p>
+        <p className="eyebrow text-mist">{t('itineraryTemplate')}</p>
+        <p className="mt-2 text-sm text-mist">{t('itineraryTemplateNotice')}</p>
         {templateDays.length === 0 ? (
-          <p className="mt-3 text-sm text-mist">No template days yet.</p>
+          <p className="mt-3 text-sm text-mist">{t('noTemplateDaysYet')}</p>
         ) : (
           <div className="mt-4 space-y-3">
             {templateDays.map((day) => (
               <div key={day.id} className="rounded-survey border border-rule p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-navy">
-                    Day {day.dayNumber}
+                    {t('dayLabel', { number: day.dayNumber })}
                     {(day.departureTime || day.arrivalTime) && (
                       <span className="ml-2 font-normal text-mist">
-                        {day.departureTime && `Depart ${day.departureTime}`}
+                        {day.departureTime && t('depart', { time: day.departureTime })}
                         {day.departureTime && day.arrivalTime && ' · '}
-                        {day.arrivalTime && `Arrive ${day.arrivalTime}`}
+                        {day.arrivalTime && t('arrive', { time: day.arrivalTime })}
                       </span>
                     )}
                   </p>
@@ -186,32 +182,32 @@ export default async function PackageDetailPage({ params }: Props) {
                     <SubmitButton
                       variant="secondary"
                       size="compact"
-                      pendingLabel="Removing…"
-                      confirmMessage="Remove this day from the package's itinerary template?"
+                      pendingLabel={t('removing')}
+                      confirmMessage={t('removeDayConfirm')}
                     >
-                      Remove
+                      {t('remove')}
                     </SubmitButton>
                   </form>
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm text-mist">
                   {day.plannedSites && (
                     <div className="col-span-2">
-                      <dt className="text-xs">Planned sites</dt>
+                      <dt className="text-xs">{t('plannedSites')}</dt>
                       <dd>{day.plannedSites}</dd>
                     </div>
                   )}
                   {day.activities && (
                     <div className="col-span-2">
-                      <dt className="text-xs">Activities</dt>
+                      <dt className="text-xs">{t('activities')}</dt>
                       <dd>{day.activities}</dd>
                     </div>
                   )}
                 </dl>
                 <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-forest">Edit day</summary>
+                  <summary className="cursor-pointer text-xs text-forest">{t('editDay')}</summary>
                   <form action={updateTemplateDayAction.bind(null, packageId, day.id)} className="mt-3 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="Departure time (HH:MM)" htmlFor={`dep-${day.id}`} optional>
+                      <FormField label={t('departureTimeLabel')} htmlFor={`dep-${day.id}`} optional>
                         <input
                           name="departureTime"
                           defaultValue={day.departureTime ?? ''}
@@ -219,7 +215,7 @@ export default async function PackageDetailPage({ params }: Props) {
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
-                      <FormField label="Arrival time (HH:MM)" htmlFor={`arr-${day.id}`} optional>
+                      <FormField label={t('arrivalTimeLabel')} htmlFor={`arr-${day.id}`} optional>
                         <input
                           name="arrivalTime"
                           defaultValue={day.arrivalTime ?? ''}
@@ -229,14 +225,14 @@ export default async function PackageDetailPage({ params }: Props) {
                       </FormField>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <FormField label="Pickup location" htmlFor={`pickup-${day.id}`} optional>
+                      <FormField label={t('pickupLocation')} htmlFor={`pickup-${day.id}`} optional>
                         <input
                           name="pickupLocation"
                           defaultValue={day.pickupLocation ?? ''}
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
-                      <FormField label="Drop-off location" htmlFor={`dropoff-${day.id}`} optional>
+                      <FormField label={t('dropoffLocation')} htmlFor={`dropoff-${day.id}`} optional>
                         <input
                           name="dropoffLocation"
                           defaultValue={day.dropoffLocation ?? ''}
@@ -244,7 +240,7 @@ export default async function PackageDetailPage({ params }: Props) {
                         />
                       </FormField>
                     </div>
-                    <FormField label="Planned sites / attractions" htmlFor={`sites-${day.id}`} optional>
+                    <FormField label={t('plannedSitesAttractions')} htmlFor={`sites-${day.id}`} optional>
                       <textarea
                         name="plannedSites"
                         defaultValue={day.plannedSites ?? ''}
@@ -252,7 +248,7 @@ export default async function PackageDetailPage({ params }: Props) {
                         className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
-                    <FormField label="Activities" htmlFor={`activities-${day.id}`} optional>
+                    <FormField label={t('activities')} htmlFor={`activities-${day.id}`} optional>
                       <textarea
                         name="activities"
                         defaultValue={day.activities ?? ''}
@@ -260,7 +256,7 @@ export default async function PackageDetailPage({ params }: Props) {
                         className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
-                    <FormField label="Estimated travel (minutes)" htmlFor={`travel-${day.id}`} optional>
+                    <FormField label={t('estimatedTravelMinutes')} htmlFor={`travel-${day.id}`} optional>
                       <input
                         name="estimatedTravelMinutes"
                         type="number"
@@ -269,7 +265,7 @@ export default async function PackageDetailPage({ params }: Props) {
                         className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
-                    <FormField label="Notes" htmlFor={`notes-${day.id}`} optional>
+                    <FormField label={t('notes')} htmlFor={`notes-${day.id}`} optional>
                       <textarea
                         name="notes"
                         defaultValue={day.notes ?? ''}
@@ -277,8 +273,8 @@ export default async function PackageDetailPage({ params }: Props) {
                         className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
-                    <SubmitButton variant="secondary" size="compact" pendingLabel="Saving…">
-                      Save day
+                    <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                      {t('saveDay')}
                     </SubmitButton>
                   </form>
                 </details>
@@ -288,9 +284,9 @@ export default async function PackageDetailPage({ params }: Props) {
         )}
 
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm text-forest">Add a template day</summary>
+          <summary className="cursor-pointer text-sm text-forest">{t('addTemplateDay')}</summary>
           <form action={addTemplateDayAction.bind(null, packageId)} className="mt-4 space-y-3">
-            <FormField label="Day number" htmlFor="dayNumber">
+            <FormField label={t('dayNumber')} htmlFor="dayNumber">
               <input
                 name="dayNumber"
                 type="number"
@@ -301,34 +297,34 @@ export default async function PackageDetailPage({ params }: Props) {
               />
             </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Departure time (HH:MM)" htmlFor="departureTime" optional>
+              <FormField label={t('departureTimeLabel')} htmlFor="departureTime" optional>
                 <input name="departureTime" placeholder="08:00" className="w-full rounded-survey border border-rule px-3 py-2" />
               </FormField>
-              <FormField label="Arrival time (HH:MM)" htmlFor="arrivalTime" optional>
+              <FormField label={t('arrivalTimeLabel')} htmlFor="arrivalTime" optional>
                 <input name="arrivalTime" placeholder="17:00" className="w-full rounded-survey border border-rule px-3 py-2" />
               </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <FormField label="Pickup location" htmlFor="pickupLocation" optional>
+              <FormField label={t('pickupLocation')} htmlFor="pickupLocation" optional>
                 <input name="pickupLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
               </FormField>
-              <FormField label="Drop-off location" htmlFor="dropoffLocation" optional>
+              <FormField label={t('dropoffLocation')} htmlFor="dropoffLocation" optional>
                 <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
               </FormField>
             </div>
-            <FormField label="Planned sites / attractions" htmlFor="plannedSites" optional>
+            <FormField label={t('plannedSitesAttractions')} htmlFor="plannedSites" optional>
               <textarea name="plannedSites" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Activities" htmlFor="activities" optional>
+            <FormField label={t('activities')} htmlFor="activities" optional>
               <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Estimated travel (minutes)" htmlFor="estimatedTravelMinutes" optional>
+            <FormField label={t('estimatedTravelMinutes')} htmlFor="estimatedTravelMinutes" optional>
               <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label="Notes" htmlFor="notes" optional>
+            <FormField label={t('notes')} htmlFor="notes" optional>
               <textarea name="notes" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <SubmitButton pendingLabel="Adding…">Add day</SubmitButton>
+            <SubmitButton pendingLabel={t('adding')}>{t('addDay')}</SubmitButton>
           </form>
         </details>
       </div>

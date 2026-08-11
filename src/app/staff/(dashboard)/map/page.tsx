@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { itineraryService } from '@modules/itinerary';
 import { Alert } from '@/components/ui/Alert';
@@ -18,6 +19,7 @@ interface Props {
 export default async function MapPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('itinerary.read');
   const { bookingReference } = await searchParams;
+  const t = await getTranslations('StaffMap');
 
   let overview = null;
   let lookupFailed = false;
@@ -31,28 +33,26 @@ export default async function MapPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <PageHeader eyebrow="Map" title="Itinerary map" />
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
       <form method="get" className="flex items-end gap-3">
         <div className="flex-1">
-          <FormField label="Booking reference" htmlFor="bookingReference">
+          <FormField label={t('bookingReference')} htmlFor="bookingReference">
             <input
               name="bookingReference"
               defaultValue={bookingReference ?? ''}
-              placeholder="e.g. AB1234"
+              placeholder={t('bookingReferencePlaceholder')}
               required
               className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
             />
           </FormField>
         </div>
-        <SubmitButton pendingLabel="Looking up…">Look up</SubmitButton>
+        <SubmitButton pendingLabel={t('lookingUp')}>{t('lookUp')}</SubmitButton>
       </form>
 
-      {lookupFailed && (
-        <Alert tone="error">No itinerary found for that booking reference, or you don&apos;t have access to it.</Alert>
-      )}
+      {lookupFailed && <Alert tone="error">{t('lookupFailed')}</Alert>}
 
-      {overview && overview.days.length === 0 && <p className="text-sm text-mist">This itinerary has no days yet.</p>}
+      {overview && overview.days.length === 0 && <p className="text-sm text-mist">{t('noDaysYet')}</p>}
 
       {overview && overview.days.length > 0 && (
         <div className="space-y-6">
@@ -60,7 +60,7 @@ export default async function MapPage({ searchParams }: Props) {
             <div key={day.dayId} className="rounded-survey border border-rule p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-navy">
-                  Day {day.dayNumber} · {day.date.toLocaleDateString()}
+                  {t('dayLabel', { number: day.dayNumber })} · {day.date.toLocaleDateString()}
                 </p>
                 <LinkButton
                   href={`/api/v1/itineraries/${overview.itineraryId}/days/${day.dayId}/map-pdf`}
@@ -68,7 +68,7 @@ export default async function MapPage({ searchParams }: Props) {
                   variant="secondary"
                   size="compact"
                 >
-                  Download PDF
+                  {t('downloadPdf')}
                 </LinkButton>
               </div>
               <div className="mt-3">

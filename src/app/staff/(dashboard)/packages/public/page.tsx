@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService, type TourPackageView } from '@modules/catalog';
 import { paginate } from '@lib/directory-filters';
@@ -35,6 +36,9 @@ function listCountries(packages: TourPackageView[]): string[] {
 export default async function PublicPackagesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('catalog.read');
   const params = await searchParams;
+  const t = await getTranslations('StaffPackages');
+  const tCountries = await getTranslations('Countries');
+  const tPackageStatus = await getTranslations('PackageStatusLabel');
   const q = params.q ?? '';
   const country = params.country ?? '';
 
@@ -65,57 +69,55 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-8">
-      <BackLink href="/staff/packages">back to packages</BackLink>
+      <BackLink href="/staff/packages">{t('backToPackages')}</BackLink>
       <div className="flex items-center justify-between">
-        <PageHeader eyebrow="Packages" title="Public Packages" />
-        <LinkButton href="/staff/packages/new">New package</LinkButton>
+        <PageHeader eyebrow={t('eyebrow')} title={t('publicTitle')} />
+        <LinkButton href="/staff/packages/new">{t('newPackage')}</LinkButton>
       </div>
 
       <form method="get" action="/staff/packages/public" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label="Search" htmlFor="q" optional>
+        <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
             name="q"
             defaultValue={q}
-            placeholder="Title, reference, or country"
+            placeholder={t('searchPlaceholder')}
             className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
           />
         </FormField>
-        <FormField label="Country" htmlFor="country" optional>
+        <FormField label={t('country')} htmlFor="country" optional>
           <Select name="country" defaultValue={country}>
-            <option value="">All</option>
+            <option value="">{t('all')}</option>
             {countryOptions.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {tCountries(c)}
               </option>
             ))}
           </Select>
         </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">Filter</SubmitButton>
+          <SubmitButton size="compact">{t('filter')}</SubmitButton>
           {(q || country) && (
             <Link href="/staff/packages/public" className="text-sm text-mist hover:underline">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
       </form>
 
-      <p className="text-sm text-mist">
-        {totalItems} package{totalItems === 1 ? '' : 's'}
-      </p>
+      <p className="text-sm text-mist">{t('packageCount', { count: totalItems })}</p>
 
       {packages.length === 0 ? (
-        <p className="text-mist">No public packages match these filters.</p>
+        <p className="text-mist">{t('noPublicMatches')}</p>
       ) : (
         <Table>
           <thead>
             <TableHeaderRow>
-              <Th>Reference</Th>
-              <Th>Title</Th>
-              <Th>Country</Th>
-              <Th>Price</Th>
-              <Th>Status</Th>
+              <Th>{t('reference')}</Th>
+              <Th>{t('packageTitle')}</Th>
+              <Th>{t('country')}</Th>
+              <Th>{t('price')}</Th>
+              <Th>{t('status')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -124,14 +126,14 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
               <Tr key={p.id}>
                 <Td className="font-mono text-xs">{p.packageReference}</Td>
                 <Td>{p.title}</Td>
-                <Td>{p.country}</Td>
-                <Td>{formatOrPending(p.priceMinor, p.currency, 'Not yet priced')}</Td>
+                <Td>{tCountries(p.country)}</Td>
+                <Td>{formatOrPending(p.priceMinor, p.currency, t('notYetPriced'))}</Td>
                 <Td>
-                  <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{p.status}</Badge>
+                  <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{tPackageStatus(p.status)}</Badge>
                 </Td>
                 <Td>
                   <Link href={`/staff/packages/${p.id}`} className="text-forest hover:underline">
-                    View
+                    {t('view')}
                   </Link>
                 </Td>
               </Tr>

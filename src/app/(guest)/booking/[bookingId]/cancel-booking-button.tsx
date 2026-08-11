@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { cancelBookingAction } from './actions';
@@ -34,6 +35,7 @@ function secondsRemaining(invoiceCreatedAt: string): number {
 // CancelRequestButton's "Return home" -- there's no sensible redirect here,
 // the guest is mid setup/payment).
 export function CancelBookingButton({ bookingId, invoiceCreatedAt }: Props) {
+  const t = useTranslations('CancelButtons');
   const [secondsLeft, setSecondsLeft] = useState(() => secondsRemaining(invoiceCreatedAt));
 
   useEffect(() => {
@@ -49,17 +51,17 @@ export function CancelBookingButton({ bookingId, invoiceCreatedAt }: Props) {
     return (
       <div>
         <Button variant="secondary" disabled>
-          Cancel booking
+          {t('cancelBooking')}
         </Button>
-        <p className="mt-1 text-xs text-mist">The 30-second cancellation window has passed.</p>
+        <p className="mt-1 text-xs text-mist">{t('cancellationWindowPassed')}</p>
       </div>
     );
   }
 
   return (
     <form action={cancelBookingAction.bind(null, bookingId)}>
-      <SubmitButton variant="secondary" pendingLabel="Cancelling…">
-        Cancel booking ({secondsLeft}s)
+      <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>
+        {t('cancelBookingCountdown', { seconds: secondsLeft })}
       </SubmitButton>
     </form>
   );

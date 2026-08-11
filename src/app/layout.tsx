@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale } from 'next-intl/server';
 import './globals.css';
 
 // "Meridian Cartography" typography: Fraunces (warm editorial serif) for
@@ -16,10 +18,19 @@ export const metadata: Metadata = {
   description: 'Tourism Operating System for Namibia & the Democratic Republic of Congo.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// NextIntlClientProvider lives here, not scoped to the (guest) route group
+// (as it was pre-full-i18n-rollout) -- the staff dashboard now shares the
+// same cookie-based EN/FR locale, so both trees need exactly one provider
+// covering the whole app. No explicit locale/messages props needed;
+// next-intl's plugin (next.config.mjs) auto-supplies them from
+// src/i18n/request.ts's getRequestConfig.
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="en" className={`${fraunces.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
-      <body>{children}</body>
+    <html lang={locale} className={`${fraunces.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
+      <body>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
     </html>
   );
 }

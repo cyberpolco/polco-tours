@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { emailDomain, listEmailDomains, listPhoneDialCodes, matchesPhoneDialCode, matchesSearch, paginate } from '@lib/directory-filters';
@@ -45,6 +46,8 @@ export default async function ClientsPage({ searchParams }: Props) {
 
   const allClients = await authService.listClients(ctx);
   const canDelete = ctx.roles.includes('SUPERADMIN');
+  const t = await getTranslations('StaffClients');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   const domainOptions = listEmailDomains(allClients);
   const dialOptions = listPhoneDialCodes(allClients);
@@ -75,29 +78,25 @@ export default async function ClientsPage({ searchParams }: Props) {
   const currentQuery = hrefWith({ page: page === 1 ? undefined : String(page) }).split('?')[1] ?? '';
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle="Settings" roles={ctx.roles} permissions={[...ctx.permissions]}>
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
-        <PageHeader eyebrow="Settings" title="Clients" />
-        <p className="text-sm text-mist">
-          Every client contact record on file -- from a guest browsing packages, a `/plan-my-trip` request, or a
-          booking created manually here. None of these are staff/login accounts; the email/phone exist only for
-          booking notifications.
-        </p>
-        {detail && <Alert tone="error">Could not delete this client: {detail}</Alert>}
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <p className="text-sm text-mist">{t('intro')}</p>
+        {detail && <Alert tone="error">{t('deleteError', { detail })}</Alert>}
 
         <form method="get" action="/staff/admin/clients" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <FormField label="Search" htmlFor="q" optional>
+          <FormField label={t('search')} htmlFor="q" optional>
             <input
               type="text"
               name="q"
               defaultValue={q}
-              placeholder="Name, email, or phone"
+              placeholder={t('searchPlaceholder')}
               className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
             />
           </FormField>
-          <FormField label="Email domain" htmlFor="domain" optional>
+          <FormField label={t('emailDomain')} htmlFor="domain" optional>
             <Select name="domain" defaultValue={domain}>
-              <option value="">All</option>
+              <option value="">{t('all')}</option>
               {domainOptions.map((d) => (
                 <option key={d} value={d}>
                   @{d}
@@ -105,9 +104,9 @@ export default async function ClientsPage({ searchParams }: Props) {
               ))}
             </Select>
           </FormField>
-          <FormField label="Phone country" htmlFor="dial" optional>
+          <FormField label={t('phoneCountry')} htmlFor="dial" optional>
             <Select name="dial" defaultValue={dial}>
-              <option value="">All</option>
+              <option value="">{t('all')}</option>
               {dialOptions.map((d) => (
                 <option key={d.dialCode} value={d.dialCode}>
                   {d.label}
@@ -116,29 +115,27 @@ export default async function ClientsPage({ searchParams }: Props) {
             </Select>
           </FormField>
           <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-            <SubmitButton size="compact">Filter</SubmitButton>
+            <SubmitButton size="compact">{t('filter')}</SubmitButton>
             {(q || domain || dial) && (
               <Link href="/staff/admin/clients" className="text-sm text-mist hover:underline">
-                Clear
+                {t('clear')}
               </Link>
             )}
           </div>
         </form>
 
-        <p className="text-sm text-mist">
-          {totalItems} client{totalItems === 1 ? '' : 's'}
-        </p>
+        <p className="text-sm text-mist">{t('clientCount', { count: totalItems })}</p>
 
         {totalItems === 0 ? (
-          <p className="text-mist">No clients match these filters.</p>
+          <p className="text-mist">{t('noMatches')}</p>
         ) : (
           <>
             <Table>
               <thead>
                 <TableHeaderRow>
-                  <Th>Name</Th>
-                  <Th>Email</Th>
-                  <Th>Phone</Th>
+                  <Th>{t('name')}</Th>
+                  <Th>{t('email')}</Th>
+                  <Th>{t('phone')}</Th>
                   {canDelete && <Th />}
                 </TableHeaderRow>
               </thead>
@@ -154,10 +151,10 @@ export default async function ClientsPage({ searchParams }: Props) {
                           <SubmitButton
                             variant="secondary"
                             size="compact"
-                            pendingLabel="Deleting…"
-                            confirmMessage={`Delete ${c.name ?? c.email}? This cannot be undone.`}
+                            pendingLabel={t('deleting')}
+                            confirmMessage={t('deleteConfirm', { name: c.name ?? c.email })}
                           >
-                            Delete
+                            {t('delete')}
                           </SubmitButton>
                         </form>
                       </Td>

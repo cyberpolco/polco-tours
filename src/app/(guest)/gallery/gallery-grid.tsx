@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
 import { flagEmoji } from '@lib/country-codes';
 import type { DestinationSite } from '@lib/destination-sites';
 import { PackageImage } from '@/components/ui/PackageImage';
-
-const COUNTRY_NAMES: Record<string, string> = { NA: 'Namibia', CD: 'DR Congo', ZM: 'Zambia', ZW: 'Zimbabwe' };
 
 interface GalleryGridProps {
   sites: DestinationSite[];
@@ -20,6 +19,7 @@ interface GalleryGridProps {
 // picture itself is a button that opens this in-page preview instead of
 // navigating away.
 export function GalleryGrid({ sites, closeLabel }: GalleryGridProps) {
+  const tCountries = useTranslations('Countries');
   const [active, setActive] = useState<DestinationSite | null>(null);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function GalleryGrid({ sites, closeLabel }: GalleryGridProps) {
             <Link href={`/plan-my-trip?destination=${site.country}`} className="mt-2 block">
               <p className="text-sm font-medium text-navy transition-colors duration-200 group-hover:text-amber">{site.name}</p>
               <p className="text-xs text-mist">
-                {flagEmoji(site.country)} {COUNTRY_NAMES[site.country]}
+                {flagEmoji(site.country)} {tCountries(site.country)}
               </p>
             </Link>
           </div>
@@ -80,7 +80,7 @@ export function GalleryGrid({ sites, closeLabel }: GalleryGridProps) {
               <div className="mt-4 text-bone">
                 <p className="text-lg font-bold">{active.name}</p>
                 <p className="text-sm text-bone/80">
-                  {flagEmoji(active.country)} {COUNTRY_NAMES[active.country]}
+                  {flagEmoji(active.country)} {tCountries(active.country)}
                 </p>
               </div>
             </motion.div>

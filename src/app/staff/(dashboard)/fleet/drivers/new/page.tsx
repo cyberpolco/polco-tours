@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -13,27 +14,28 @@ interface Props {
 export default async function NewDriverPage({ searchParams }: Props) {
   await requireStaffContext('fleet.write');
   const { error } = await searchParams;
+  const t = await getTranslations('StaffDrivers');
 
   return (
     <div className="max-w-md">
-      <BackLink href="/staff/fleet/drivers">back to drivers</BackLink>
-      <PageHeader eyebrow="Fleet · New driver" title="Add a driver profile" />
+      <BackLink href="/staff/fleet/drivers">{t('backToFleet')}</BackLink>
+      <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       {error === 'driver_not_found' && (
         <div className="mt-3">
-          <Alert tone="error">No DRIVER-role account found for that email.</Alert>
+          <Alert tone="error">{t('driverNotFound')}</Alert>
         </div>
       )}
       <form action={createDriverProfileAction} className="mt-6 space-y-4">
-        <FormField label="Driver's account email" htmlFor="email">
+        <FormField label={t('accountEmail')} htmlFor="email">
           <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="License number" htmlFor="licenseNumber">
+        <FormField label={t('licenseNumberLabel')} htmlFor="licenseNumber">
           <input name="licenseNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="License expires on" htmlFor="licenseExpiresAt" optional>
+        <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
           <input name="licenseExpiresAt" type="date" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <SubmitButton>Add driver</SubmitButton>
+        <SubmitButton>{t('addDriverSubmit')}</SubmitButton>
       </form>
     </div>
   );

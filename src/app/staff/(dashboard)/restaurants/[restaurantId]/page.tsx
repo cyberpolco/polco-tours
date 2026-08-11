@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
@@ -36,16 +37,19 @@ export default async function RestaurantDetailPage({ params }: Props) {
   }
 
   const myRating = canRate ? await itineraryService.getMyRestaurantRating(ctx, restaurantId) : null;
+  const t = await getTranslations('StaffRestaurants');
+  const tFields = await getTranslations('PlaceFields');
+  const tCountries = await getTranslations('Countries');
 
   return (
     <div className="max-w-md space-y-8">
-      <PageHeader eyebrow="Restaurant" title={restaurant.name} />
+      <PageHeader eyebrow={t('detailEyebrow')} title={restaurant.name} />
       {canWrite ? (
         <form action={updateRestaurantAction.bind(null, restaurantId)} className="space-y-4">
-          <FormField label="Name" htmlFor="name">
+          <FormField label={tFields('name')} htmlFor="name">
             <input name="name" defaultValue={restaurant.name} required className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Country" htmlFor="country">
+          <FormField label={tFields('country')} htmlFor="country">
             <Select name="country" defaultValue={restaurant.country} required>
               {COUNTRY_CODES.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
@@ -54,16 +58,16 @@ export default async function RestaurantDetailPage({ params }: Props) {
               ))}
             </Select>
           </FormField>
-          <FormField label="Address" htmlFor="address" optional>
+          <FormField label={tFields('address')} htmlFor="address" optional>
             <input name="address" defaultValue={restaurant.address ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact name" htmlFor="contactName" optional>
+          <FormField label={tFields('contactName')} htmlFor="contactName" optional>
             <input name="contactName" defaultValue={restaurant.contactName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact phone" htmlFor="contactPhone" optional>
+          <FormField label={tFields('contactPhone')} htmlFor="contactPhone" optional>
             <input name="contactPhone" defaultValue={restaurant.contactPhone ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
-          <FormField label="Contact email" htmlFor="contactEmail" optional>
+          <FormField label={tFields('contactEmail')} htmlFor="contactEmail" optional>
             <input
               name="contactEmail"
               type="email"
@@ -72,36 +76,38 @@ export default async function RestaurantDetailPage({ params }: Props) {
             />
           </FormField>
           <MapLocationPicker initialLatitude={restaurant.latitude} initialLongitude={restaurant.longitude} optional />
-          <SubmitButton>Save changes</SubmitButton>
+          <SubmitButton>{tFields('saveChanges')}</SubmitButton>
         </form>
       ) : (
         <div className="space-y-1 text-sm text-mist">
           <p>
-            {flagEmoji(restaurant.country)} {COUNTRY_CODES.find((c) => c.alpha2 === restaurant.country)?.name ?? restaurant.country}
+            {flagEmoji(restaurant.country)} {tCountries(restaurant.country)}
           </p>
           {restaurant.address && <p>{restaurant.address}</p>}
-          <p>{restaurant.contactPhone ?? restaurant.contactEmail ?? 'No contact on file'}</p>
+          <p>{restaurant.contactPhone ?? restaurant.contactEmail ?? tFields('noContactOnFile')}</p>
           <p>
-            {restaurant.averageRating != null ? `${restaurant.averageRating.toFixed(1)} ★ (${restaurant.ratingCount} ratings)` : 'Not yet rated'}
+            {restaurant.averageRating != null
+              ? tFields('ratedSummary', { rating: restaurant.averageRating.toFixed(1), count: restaurant.ratingCount })
+              : tFields('notYetRated')}
           </p>
         </div>
       )}
       {canWrite && (
         <form action={deleteRestaurantAction.bind(null, restaurantId)}>
-          <SubmitButton variant="secondary" pendingLabel="Removing…" confirmMessage="Delete this restaurant? This cannot be undone.">
-            Delete restaurant
+          <SubmitButton variant="secondary" pendingLabel={tFields('removing')} confirmMessage={t('deleteConfirm')}>
+            {t('deleteRestaurant')}
           </SubmitButton>
         </form>
       )}
       {canRate && (
         <div>
           <div className="survey-rule mb-4" />
-          <p className="eyebrow text-mist">Your rating</p>
+          <p className="eyebrow text-mist">{tFields('yourRating')}</p>
           <form action={rateRestaurantAction.bind(null, restaurantId)} className="mt-3 flex items-end gap-3">
-            <FormField label="Rating" htmlFor="rating">
+            <FormField label={tFields('rating')} htmlFor="rating">
               <Select name="rating" defaultValue={myRating?.rating ?? ''} required>
                 <option value="" disabled>
-                  Rate…
+                  {tFields('ratePlaceholder')}
                 </option>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>
@@ -110,14 +116,14 @@ export default async function RestaurantDetailPage({ params }: Props) {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Comment" htmlFor="comment" optional>
+            <FormField label={tFields('comment')} htmlFor="comment" optional>
               <input
                 name="comment"
                 defaultValue={myRating?.comment ?? ''}
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
-            <SubmitButton pendingLabel="Saving…">{myRating ? 'Update' : 'Rate'}</SubmitButton>
+            <SubmitButton pendingLabel={tFields('saving')}>{myRating ? tFields('update') : tFields('rate')}</SubmitButton>
           </form>
         </div>
       )}

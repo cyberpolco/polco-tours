@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
 import { FormField } from '@/components/ui/FormField';
@@ -28,30 +29,32 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
   } catch {
     notFound();
   }
+  const t = await getTranslations('StaffCountryRegulations');
+  const tCountries = await getTranslations('Countries');
 
   if (!canWrite) {
     return (
       <div className="max-w-2xl space-y-6">
-        <PageHeader eyebrow="Immigration" title={regulation.country} />
+        <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
         <dl className="space-y-4 text-sm">
           <div>
-            <dt className="text-mist">Visa requirements</dt>
+            <dt className="text-mist">{t('visaRequirements')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.visaRequirements}</dd>
           </div>
           <div>
-            <dt className="text-mist">Required documents</dt>
+            <dt className="text-mist">{t('requiredDocuments')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.requiredDocuments}</dd>
           </div>
           <div>
-            <dt className="text-mist">Processing time</dt>
-            <dd>{regulation.processingTimeDays != null ? `${regulation.processingTimeDays} days` : '—'}</dd>
+            <dt className="text-mist">{t('processingTime')}</dt>
+            <dd>{regulation.processingTimeDays != null ? t('processingTimeDays', { days: regulation.processingTimeDays }) : '—'}</dd>
           </div>
           <div>
-            <dt className="text-mist">Entry conditions</dt>
+            <dt className="text-mist">{t('entryConditions')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.entryConditions}</dd>
           </div>
           <div>
-            <dt className="text-mist">Immigration fee</dt>
+            <dt className="text-mist">{t('immigrationFee')}</dt>
             <dd>
               {regulation.immigrationFeeMinor != null
                 ? `${(regulation.immigrationFeeMinor / 100).toFixed(2)} ${regulation.feeCurrency}`
@@ -59,7 +62,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="text-mist">Embassy</dt>
+            <dt className="text-mist">{t('embassy')}</dt>
             <dd>
               {regulation.embassyName ?? '—'}
               {regulation.embassyAddress ? `, ${regulation.embassyAddress}` : ''}
@@ -68,15 +71,15 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="text-mist">Health requirements</dt>
+            <dt className="text-mist">{t('healthRequirements')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.healthRequirements}</dd>
           </div>
           <div>
-            <dt className="text-mist">Travel advisories</dt>
+            <dt className="text-mist">{t('travelAdvisories')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.travelAdvisories ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-mist">Special restrictions</dt>
+            <dt className="text-mist">{t('specialRestrictions')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.specialRestrictions ?? '—'}</dd>
           </div>
         </dl>
@@ -86,9 +89,9 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <PageHeader eyebrow="Immigration" title={regulation.country} />
+      <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
       <form action={updateCountryRegulationAction.bind(null, regulation.country)} className="space-y-4">
-        <FormField label="Visa requirements" htmlFor="visaRequirements">
+        <FormField label={t('visaRequirements')} htmlFor="visaRequirements">
           <textarea
             name="visaRequirements"
             defaultValue={regulation.visaRequirements}
@@ -97,7 +100,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Required documents" htmlFor="requiredDocuments">
+        <FormField label={t('requiredDocuments')} htmlFor="requiredDocuments">
           <textarea
             name="requiredDocuments"
             defaultValue={regulation.requiredDocuments}
@@ -106,7 +109,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Processing time (days)" htmlFor="processingTimeDays" optional>
+        <FormField label={t('processingTimeDaysLabel')} htmlFor="processingTimeDays" optional>
           <input
             name="processingTimeDays"
             type="number"
@@ -115,7 +118,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Entry conditions" htmlFor="entryConditions">
+        <FormField label={t('entryConditions')} htmlFor="entryConditions">
           <textarea
             name="entryConditions"
             defaultValue={regulation.entryConditions}
@@ -125,7 +128,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
           />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Immigration fee" htmlFor="fee" optional>
+          <FormField label={t('immigrationFee')} htmlFor="fee" optional>
             <input
               name="fee"
               type="number"
@@ -135,7 +138,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Fee currency" htmlFor="feeCurrency" optional>
+          <FormField label={t('feeCurrency')} htmlFor="feeCurrency" optional>
             <Select name="feeCurrency" defaultValue={regulation.feeCurrency ?? ''}>
               <option value="">—</option>
               <option value="USD">USD</option>
@@ -145,10 +148,10 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             </Select>
           </FormField>
         </div>
-        <FormField label="Embassy name" htmlFor="embassyName" optional>
+        <FormField label={t('embassyName')} htmlFor="embassyName" optional>
           <input name="embassyName" defaultValue={regulation.embassyName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        <FormField label="Embassy address" htmlFor="embassyAddress" optional>
+        <FormField label={t('embassyAddress')} htmlFor="embassyAddress" optional>
           <input
             name="embassyAddress"
             defaultValue={regulation.embassyAddress ?? ''}
@@ -156,14 +159,14 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
           />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Embassy phone" htmlFor="embassyPhone" optional>
+          <FormField label={t('embassyPhone')} htmlFor="embassyPhone" optional>
             <input
               name="embassyPhone"
               defaultValue={regulation.embassyPhone ?? ''}
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label="Embassy email" htmlFor="embassyEmail" optional>
+          <FormField label={t('embassyEmail')} htmlFor="embassyEmail" optional>
             <input
               name="embassyEmail"
               type="email"
@@ -172,7 +175,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             />
           </FormField>
         </div>
-        <FormField label="Health requirements" htmlFor="healthRequirements">
+        <FormField label={t('healthRequirements')} htmlFor="healthRequirements">
           <textarea
             name="healthRequirements"
             defaultValue={regulation.healthRequirements}
@@ -181,7 +184,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Travel advisories" htmlFor="travelAdvisories" optional>
+        <FormField label={t('travelAdvisories')} htmlFor="travelAdvisories" optional>
           <textarea
             name="travelAdvisories"
             defaultValue={regulation.travelAdvisories ?? ''}
@@ -189,7 +192,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <FormField label="Special restrictions" htmlFor="specialRestrictions" optional>
+        <FormField label={t('specialRestrictions')} htmlFor="specialRestrictions" optional>
           <textarea
             name="specialRestrictions"
             defaultValue={regulation.specialRestrictions ?? ''}
@@ -197,15 +200,15 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        <SubmitButton>Save changes</SubmitButton>
+        <SubmitButton>{t('saveChanges')}</SubmitButton>
       </form>
       <form action={deleteCountryRegulationAction.bind(null, regulation.country)}>
         <SubmitButton
           variant="secondary"
-          pendingLabel="Removing…"
-          confirmMessage="Delete this country's regulations? This cannot be undone."
+          pendingLabel={t('removing')}
+          confirmMessage={t('deleteConfirm')}
         >
-          Delete country
+          {t('deleteCountry')}
         </SubmitButton>
       </form>
     </div>
