@@ -36,7 +36,13 @@ test.describe('guest checkout (DR-016)', () => {
 
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]+$/);
     await expect(page.getByText('BOOKING SETUP')).toBeVisible();
-    await page.getByRole('link', { name: 'Continue setup' }).click();
+    // Same bare-click-races-navigation gotcha as the addons->travelers step
+    // below -- wait for the URL change alongside the click instead of a
+    // separate assertion afterward (real CI failure, DR-016 follow-up).
+    await Promise.all([
+      page.waitForURL(/\/addons$/),
+      page.getByRole('link', { name: 'Continue setup' }).click(),
+    ]);
 
     // Add-ons is now the first setup step -- selecting Visa Assistance here
     // is what makes the Passport step (below) appear at all. Targeted by
@@ -45,7 +51,6 @@ test.describe('guest checkout (DR-016)', () => {
     // "Visa Assistance" text match would ambiguously hit other runs'/
     // retries' same-named fixture rows too (see the staff-dashboard.spec.ts
     // CI failure this exact ambiguity caused).
-    await expect(page).toHaveURL(/\/addons$/);
     await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
     // A bare click immediately followed by a non-navigation assertion can
     // race and abort the navigation (documented CLAUDE.md gotcha) -- wait
