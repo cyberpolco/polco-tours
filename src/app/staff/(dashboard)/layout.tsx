@@ -16,7 +16,9 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
 
   return (
     <div className="min-h-screen bg-bone text-ink">
-      <nav className="flex items-center justify-between border-b border-rule bg-navy px-8 py-4 text-bone">
+      {/* relative: anchors StaffNav's absolutely-positioned mobile drawer
+          (top-full) to this header instead of the page body. */}
+      <nav className="relative flex items-center justify-between border-b border-rule bg-navy px-4 py-4 text-bone sm:px-8">
         {/* The public homepage, same target as /staff/login's own
             back-arrow-to-/ link -- a plain client-side navigation, so it
             never touches the session cookie/sign-out flow; the staff
@@ -24,7 +26,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
         <Link href="/" className="eyebrow hover:text-amber">
           {t('brand')}
         </Link>
-        <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-4 text-sm sm:gap-6">
           <StaffNav roles={ctx.roles} permissions={[...ctx.permissions]} />
           <LanguageSwitcher />
           <SignOutButton />
@@ -36,7 +38,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           edge-to-edge was too wide, and max-w-7xl still too small. A
           custom arbitrary value since Tailwind has nothing named wider
           than 7xl out of the box. */}
-      <main className="mx-auto max-w-[100rem] px-8 py-10">
+      <main className="mx-auto max-w-[100rem] px-4 py-6 sm:px-8 sm:py-10">
         <BackButton />
         {children}
       </main>

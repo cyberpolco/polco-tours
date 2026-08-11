@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { MenuGlyph } from '@/components/ui/MenuGlyph';
 
 // "Rate my trip" lives in the footer only (not top-level nav) -- it's a
 // post-trip action most guests won't need on every visit, so it doesn't
@@ -17,18 +18,6 @@ const LINKS = [
   { href: '/faq', key: 'faq' },
   { href: '/contact', key: 'contact' },
 ] as const;
-
-function MenuGlyph({ open }: { open: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
-      {open ? (
-        <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      ) : (
-        <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      )}
-    </svg>
-  );
-}
 
 // Client component so usePathname() can drive active-link styling --
 // GuestLayout itself stays a server component. Below `sm:`, the always-

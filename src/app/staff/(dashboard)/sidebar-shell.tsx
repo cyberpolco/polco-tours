@@ -59,14 +59,18 @@ export function SidebarShell({
     .sort((a, b) => b.length - a.length)[0];
 
   return (
-    <div className="flex gap-10">
-      <nav className="w-48 shrink-0 space-y-1 text-sm">
-        <p className="eyebrow mb-3 text-mist">{sectionTitle}</p>
+    <div className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+      {/* Fixed-width side column only from lg: up -- below that, a squeezed
+          w-48 sidebar next to flex-1 content left no room to read either
+          on a phone. Becomes a horizontally-scrollable pill row (own
+          overflow-x-auto, not the whole page) stacked above the content. */}
+      <nav className="flex gap-2 overflow-x-auto pb-1 text-sm lg:w-48 lg:shrink-0 lg:flex-col lg:gap-1 lg:space-y-1 lg:overflow-visible lg:pb-0">
+        <p className="eyebrow hidden shrink-0 text-mist lg:mb-3 lg:block">{sectionTitle}</p>
         {visibleItems.map(({ href, labelKey }) => (
           <Link
             key={href}
             href={href}
-            className={`block rounded-survey px-2 py-1 ${href === activeHref ? 'bg-bone font-medium text-navy' : 'text-mist hover:text-navy'}`}
+            className={`shrink-0 rounded-survey px-2 py-1 lg:block ${href === activeHref ? 'bg-bone font-medium text-navy' : 'text-mist hover:text-navy'}`}
           >
             {t(labelKey)}
           </Link>
