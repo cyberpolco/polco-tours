@@ -9,10 +9,10 @@ import { seedPublicDeparture } from './helpers/catalog-fixture';
 // simulate coming back later on a different visit.
 test.describe('guest checkout (DR-016)', () => {
   test('browse -> book -> setup wizard -> pay -> find my booking later', async ({ page }) => {
-    // Default 30s isn't enough headroom once the addons step below retries a
-    // missed client-side redirect (up to 3 x 15s) on top of the rest of
-    // this, by far the longest journey in the suite.
-    test.setTimeout(90000);
+    // Default 30s isn't enough headroom for this, by far the longest
+    // journey in the suite (real anonymous sign-in + several real page
+    // navigations + a real Blob-adjacent passport upload flow).
+    test.setTimeout(60000);
     const { departureId, visaAddonServiceId } = await seedPublicDeparture({ capacity: 1 });
 
     await page.goto('/packages');
@@ -52,39 +52,17 @@ test.describe('guest checkout (DR-016)', () => {
     // retries' same-named fixture rows too (see the staff-dashboard.spec.ts
     // CI failure this exact ambiguity caused).
     await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
-    // A bare click immediately followed by a non-navigation assertion can
-    // race and abort the navigation (documented CLAUDE.md gotcha) -- wait
-    // for the URL change alongside the click instead.
-    //
-    // Confirmed via a real trace pulled from a failing CI run (not theory):
-    // the POST gets a correct, fast 303 with the right `x-action-redirect`
-    // header (142ms), but the browser's router occasionally never acts on it
-    // and the URL just never changes -- a rare Next.js client-side glitch,
-    // not a slow/stuck server (a live pg_stat_activity sample during a
-    // separate failing run showed the database completely idle throughout,
-    // ruling that out too). Retrying recovers because setAddons is an
-    // explicit replace-all (see addons/page.tsx) -- but the retry must match
-    // the submit button by role/type, not by its "Continue" text: the first
-    // attempt's POST already succeeded server-side despite the client not
-    // navigating, so addonsFinalizedAt is now set and a reload relabels the
-    // same button "Save changes" -- an earlier version of this retry matched
-    // on the "Continue" name specifically and so just hung waiting for a
-    // button that no longer existed, masking the real (much smaller) bug
-    // behind an apparent 3x-retry failure.
-    const addonsSubmitButton = () => page.locator('form button[type="submit"]');
-    let navigated = false;
-    for (let attempt = 1; attempt <= 3 && !navigated; attempt++) {
-      if (attempt > 1) {
-        await page.reload();
-        await page.locator(`input[name="addonServiceId"][value="${visaAddonServiceId}"]`).check();
-      }
-      try {
-        await Promise.all([page.waitForURL(/\/travelers\/new$/, { timeout: 15000 }), addonsSubmitButton().click()]);
-        navigated = true;
-      } catch (err) {
-        if (attempt === 3) throw err;
-      }
-    }
+    // No retry-loop workaround needed here anymore: addons-form.tsx submits
+    // via a plain client event handler + router.push() (like
+    // book/[departureId]/booking-form.tsx already did), not a <form action>
+    // + redirect() -- which is what let a real, root-caused CI flake happen
+    // here before (a correct, fast server response whose redirect the
+    // browser's router occasionally never acted on). router.push() after an
+    // already-resolved promise isn't subject to that race.
+    await Promise.all([
+      page.waitForURL(/\/travelers\/new$/),
+      page.getByRole('button', { name: 'Continue' }).click(),
+    ]);
 
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();
     // Prefilled from "Your details" (book/[departureId]) -- same name/phone
