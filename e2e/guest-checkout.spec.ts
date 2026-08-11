@@ -130,10 +130,15 @@ test.describe('guest checkout (DR-016)', () => {
 
     await expect(page).toHaveURL(/\/find-booking\/result/);
     await expect(page.getByRole('heading', { name: bookingReference })).toBeVisible();
-    // Exact-matched: DR-064's new "Trip status" section can also render the
-    // bare traveler name (e.g. next to a visa status badge), so a plain
+    // DR-064's new "Trip status" section can also render the bare traveler
+    // name (e.g. next to a visa status badge), so a plain
     // getByText('Guest Traveler') now ambiguously matches both that and the
-    // Travelers list's own "Guest Traveler (tour lead)" entry.
-    await expect(page.getByText('Guest Traveler (tour lead)', { exact: true })).toBeVisible();
+    // Travelers list's own "Guest Traveler (tour lead)" entry -- the longer
+    // string disambiguates. NOT exact-matched: the Travelers list's <li> also
+    // contains the phone/email line right after the "(tour lead)" span with
+    // no space in between, so its full textContent is never exactly this
+    // string alone (verified against the DOM directly, both before and
+    // after i18n translation of this page).
+    await expect(page.getByText('Guest Traveler (tour lead)')).toBeVisible();
   });
 });

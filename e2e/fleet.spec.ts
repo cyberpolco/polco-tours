@@ -54,8 +54,9 @@ test.describe('staff fleet dashboard (DR-017)', () => {
     // BLOB_READ_WRITE_TOKEN in this e2e environment, same category of gap as
     // the passport-upload step in e2e/staff-dashboard.spec.ts -- upload+
     // download coverage with the Blob gateway mocked lives in
-    // tests/api/fleet.api.test.ts instead).
-    await expect(page.getByText('MISSING').first()).toBeVisible();
+    // tests/api/fleet.api.test.ts instead). "Missing" is ComplianceStatus
+    // MISSING's translated display label (ComplianceStatusLabel).
+    await expect(page.getByText('Missing').first()).toBeVisible();
 
     await page.goto('/staff/fleet/vehicles');
     await expect(page.getByText('E2E-PLATE-1')).toBeVisible();
