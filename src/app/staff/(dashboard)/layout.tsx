@@ -17,8 +17,13 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
   return (
     <div className="min-h-screen bg-bone text-ink">
       {/* relative: anchors StaffNav's absolutely-positioned mobile drawer
-          (top-full) to this header instead of the page body. */}
-      <nav className="relative flex items-center justify-between border-b border-rule bg-navy px-4 py-4 text-bone sm:px-8">
+          (top-full) to this header instead of the page body. flex-wrap
+          (matching (guest)/layout.tsx's header): brand text + hamburger +
+          LanguageSwitcher + SignOutButton don't all fit on one row on a
+          narrow phone -- without wrap, the tail end (SignOutButton) got
+          pushed off-screen with no scroll affordance instead of dropping
+          to its own row. */}
+      <nav className="relative flex flex-wrap items-center justify-between gap-y-2 border-b border-rule bg-navy px-4 py-4 text-bone sm:px-8">
         {/* The public homepage, same target as /staff/login's own
             back-arrow-to-/ link -- a plain client-side navigation, so it
             never touches the session cookie/sign-out flow; the staff
