@@ -58,11 +58,22 @@ test.describe('guest checkout (DR-016)', () => {
     // + redirect() -- which is what let a real, root-caused CI flake happen
     // here before (a correct, fast server response whose redirect the
     // browser's router occasionally never acted on). router.push() after an
-    // already-resolved promise isn't subject to that race.
-    await Promise.all([
-      page.waitForURL(/\/travelers\/new$/),
-      page.getByRole('button', { name: 'Continue' }).click(),
-    ]);
+    // already-resolved promise isn't subject to that race. An explicit
+    // (shorter than the overall test timeout) wait here means a genuine
+    // future failure surfaces as a clear timeout at this exact step instead
+    // of silently exhausting the whole test's budget.
+    const addonsError = page.locator('form p.text-amber');
+    try {
+      await Promise.all([
+        page.waitForURL(/\/travelers\/new$/, { timeout: 15000 }),
+        page.getByRole('button', { name: 'Continue' }).click(),
+      ]);
+    } catch (err) {
+      if (await addonsError.isVisible({ timeout: 2000 }).catch(() => false)) {
+        throw new Error(`Add-ons step showed an error: ${await addonsError.innerText()}`);
+      }
+      throw err;
+    }
 
     await expect(page.getByRole('heading', { name: 'Traveler 1 of 1' })).toBeVisible();
     // Prefilled from "Your details" (book/[departureId]) -- same name/phone

@@ -53,6 +53,12 @@ export function AddonsForm({ bookingId, addons, selectedIds, alreadyFinalized, e
         return;
       }
       router.push(`/booking/${bookingId}/travelers/new`);
+    } catch {
+      // Same "never let an uncaught throw become an invisible unhandled
+      // promise rejection" concern as booking-form.tsx's own catch --
+      // there's no <form action>/useActionState wiring here either to
+      // surface an error on our behalf.
+      setError(true);
     } finally {
       setPending(false);
     }
