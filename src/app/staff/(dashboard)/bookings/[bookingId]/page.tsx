@@ -289,7 +289,7 @@ export default async function BookingDetailPage({ params }: Props) {
           </p>
         )}
         {booking.status === 'AWAITING_QUOTATION' && (
-          <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm items-end gap-3">
+          <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm flex-wrap items-end gap-3">
             <FormField label={t('quoteAmount')} htmlFor="amount">
               <input
                 name="amount"
@@ -472,7 +472,7 @@ export default async function BookingDetailPage({ params }: Props) {
         ) : (
           <ul className="mt-2 space-y-2 text-sm">
             {payments.map((p) => (
-              <li key={p.id} className="flex items-center justify-between border-b border-rule pb-2">
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-2">
                 <span className="flex items-center gap-2">
                   {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))}
                   <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>

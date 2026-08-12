@@ -24,7 +24,7 @@ export default async function SitesPage() {
   return (
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
           <LinkButton href="/staff/sites/new">{t('addSite')}</LinkButton>
         </div>

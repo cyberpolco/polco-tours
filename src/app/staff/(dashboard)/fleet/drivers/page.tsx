@@ -72,7 +72,7 @@ export default async function DriversListPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <BackLink href="/staff/fleet">{t('backToFleet')}</BackLink>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
         <LinkButton href="/staff/fleet/drivers/new">{t('addDriver')}</LinkButton>
       </div>

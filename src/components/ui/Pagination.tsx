@@ -22,7 +22,7 @@ export async function Pagination({ page, totalPages, hrefFor }: PaginationProps)
   const pages = pageWindow(page, totalPages);
 
   return (
-    <nav aria-label="Pagination" className="flex items-center justify-center gap-1 text-sm">
+    <nav aria-label="Pagination" className="flex flex-wrap items-center justify-center gap-1 text-sm">
       <PageStepLink href={hrefFor(page - 1)} disabled={page <= 1} label={t('previous')} />
       {pages.map((p, i) =>
         p === 'ellipsis' ? (

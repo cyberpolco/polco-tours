@@ -102,7 +102,7 @@ export default async function HotelDetailPage({ params }: Props) {
         <div>
           <div className="survey-rule mb-4" />
           <p className="eyebrow text-mist">{tFields('yourRating')}</p>
-          <form action={rateHotelAction.bind(null, hotelId)} className="mt-3 flex items-end gap-3">
+          <form action={rateHotelAction.bind(null, hotelId)} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label={tFields('rating')} htmlFor="rating">
               <Select name="rating" defaultValue={myRating?.rating ?? ''} required>
                 <option value="" disabled>
