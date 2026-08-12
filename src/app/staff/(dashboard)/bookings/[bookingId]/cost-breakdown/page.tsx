@@ -175,7 +175,7 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
 
         <div>
           <p className="eyebrow text-mist">{t('restaurantCosts')}</p>
-          <div className="mt-2 grid grid-cols-3 gap-4">
+          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
             <FormField label={t('breakfasts')} htmlFor="breakfastCount">
               <input name="breakfastCount" type="number" min={0} defaultValue={breakdown?.breakfastCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>

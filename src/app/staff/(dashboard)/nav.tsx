@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import type { Permission } from '@lib/rbac';
+import { MenuGlyph } from '@/components/ui/MenuGlyph';
 
 interface NavLink {
   href: string;
@@ -101,6 +103,7 @@ const LINKS: NavLink[] = [
 export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: Permission[] }) {
   const pathname = usePathname();
   const t = useTranslations('StaffNav');
+  const [open, setOpen] = useState(false);
   const isSuperadmin = roles.includes('SUPERADMIN');
   const permissionSet = new Set(permissions);
   const visibleLinks = LINKS.filter((l) => {
@@ -118,12 +121,43 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
     .sort((a, b) => b.prefix.length - a.prefix.length)[0]?.href;
 
   return (
-    <div className="flex items-center gap-6 text-sm">
-      {visibleLinks.map(({ href, labelKey }) => (
-        <Link key={href} href={href} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
-          {t(labelKey)}
-        </Link>
-      ))}
-    </div>
+    <>
+      {/* Up to 12 links -- always-expanded row only fits from md: up
+          (more headroom than the guest nav's sm:, since there are more
+          links here); below that it collapses into a hamburger-triggered
+          drawer, same pattern as (guest)/nav.tsx. */}
+      <div className="hidden items-center gap-6 text-sm md:flex">
+        {visibleLinks.map(({ href, labelKey }) => (
+          <Link key={href} href={href} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
+            {t(labelKey)}
+          </Link>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={open ? 'Close menu' : 'Open menu'}
+        className="inline-flex items-center justify-center rounded-full border border-bone/20 p-2 text-bone transition-colors duration-200 hover:border-amber/40 hover:text-amber focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber/60 focus-visible:ring-offset-2 focus-visible:ring-offset-navy md:hidden"
+      >
+        <MenuGlyph open={open} />
+      </button>
+
+      {open && (
+        <nav className="absolute inset-x-0 top-full z-20 flex flex-col gap-1 border-b border-rule bg-navy px-4 py-4 text-sm shadow-lift md:hidden">
+          {visibleLinks.map(({ href, labelKey }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setOpen(false)}
+              className={`py-2 ${href === activeHref ? 'text-amber' : 'hover:text-amber'}`}
+            >
+              {t(labelKey)}
+            </Link>
+          ))}
+        </nav>
+      )}
+    </>
   );
 }

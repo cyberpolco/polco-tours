@@ -82,7 +82,7 @@ export default async function VehiclesListPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <BackLink href="/staff/fleet">{t('backToFleet')}</BackLink>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
         <LinkButton href="/staff/fleet/vehicles/new">{t('addVehicle')}</LinkButton>
       </div>

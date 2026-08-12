@@ -103,7 +103,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
         <div>
           <div className="survey-rule mb-4" />
           <p className="eyebrow text-mist">{tFields('yourRating')}</p>
-          <form action={rateRestaurantAction.bind(null, restaurantId)} className="mt-3 flex items-end gap-3">
+          <form action={rateRestaurantAction.bind(null, restaurantId)} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label={tFields('rating')} htmlFor="rating">
               <Select name="rating" defaultValue={myRating?.rating ?? ''} required>
                 <option value="" disabled>

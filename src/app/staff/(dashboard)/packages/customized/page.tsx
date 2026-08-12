@@ -68,7 +68,7 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <BackLink href="/staff/packages">{t('backToPackages')}</BackLink>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader eyebrow={t('eyebrow')} title={t('customizedTitle')} />
         <LinkButton href="/staff/packages/new">{t('newPackage')}</LinkButton>
       </div>
