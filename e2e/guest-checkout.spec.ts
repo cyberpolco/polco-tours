@@ -58,14 +58,20 @@ test.describe('guest checkout (DR-016)', () => {
     // + redirect() -- which is what let a real, root-caused CI flake happen
     // here before (a correct, fast server response whose redirect the
     // browser's router occasionally never acted on). router.push() after an
-    // already-resolved promise isn't subject to that race. An explicit
-    // (shorter than the overall test timeout) wait here means a genuine
-    // future failure surfaces as a clear timeout at this exact step instead
-    // of silently exhausting the whole test's budget.
+    // already-resolved promise isn't subject to that race. The catch block
+    // below (not a shortened timeout) is what gives a genuine future failure
+    // a clear message -- an explicit 15s override here (half the suite's
+    // normal 30s default, and the only such override anywhere in e2e/) added
+    // no diagnostic value beyond that catch block, but did cost real CI
+    // reliability: a confirmed flake (identical failure, unrelated commit,
+    // CI run 31502614763) where this exact step timed out under ordinary
+    // CI-runner load. Use the suite's normal default like every other
+    // waitForURL call, including the near-identical "start booking -> addons"
+    // step just above.
     const addonsError = page.locator('form p.text-amber');
     try {
       await Promise.all([
-        page.waitForURL(/\/travelers\/new$/, { timeout: 15000 }),
+        page.waitForURL(/\/travelers\/new$/),
         page.getByRole('button', { name: 'Continue' }).click(),
       ]);
     } catch (err) {
