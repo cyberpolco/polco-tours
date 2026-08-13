@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, formatOrPending, money } from '@lib/money';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -153,10 +153,10 @@ export default async function BookingHomePage({ params }: Props) {
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
   // DR-104: a coupon may only be applied/removed before the invoice is
-  // actually paid -- matches invoicingService.applyCoupon/removeCoupon's
-  // own server-side guard, mirrored here just to hide the form once it'd
-  // be rejected anyway.
-  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED');
+  // actually paid; DR-105: nor once the booking itself is done -- both
+  // mirror invoicingService.applyCoupon/removeCoupon's own server-side
+  // guards, just to hide the form once it'd be rejected anyway.
+  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED') && !isBookingLocked(booking.status);
 
   return (
     <div className="space-y-8">

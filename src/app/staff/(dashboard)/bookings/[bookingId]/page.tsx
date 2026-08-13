@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Currency } from '@prisma/client';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
 import { invoicingService } from '@modules/invoicing';
@@ -187,7 +187,9 @@ export default async function BookingDetailPage({ params }: Props) {
   const ratingCode = canIssueRating ? await ratingsService.getRatingCodeForBooking(ctx, bookingId) : null;
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
-  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED');
+  // DR-105: also hide once the booking itself is done -- mirrors
+  // invoicingService.applyCoupon/removeCoupon's own server-side guard.
+  const couponEditable = !payments.some((p) => p.status === 'SUCCEEDED') && !isBookingLocked(booking.status);
 
   // Read-only -- visa processing itself is VISA_FACILITATOR's job (DR-019),
   // which has no staff-dashboard access yet. "Not started" just means no

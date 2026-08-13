@@ -364,3 +364,67 @@ describe('status lifecycle: DRAFT -> IN_REVIEW -> DRAFT -> APPROVED', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('DR-105: hard-blocked itinerary edits on a terminal-status booking', () => {
+  it.each(['COMPLETED', 'CANCELLED', 'REFUNDED'] as const)(
+    'rejects updateItinerary/addDay/updateDay/removeDay once the booking is %s (409)',
+    async (status) => {
+      const operatorHeaders = await loginAs(operatorId);
+
+      const lockedBooking = await withOrg(orgId, (tx) =>
+        tx.booking.create({
+          data: {
+            organizationId: orgId,
+            touristUserId: touristId,
+            bookingReference: generateBookingReference(),
+            seats: 1,
+            priceMinor: 10000,
+            currency: 'USD',
+            status: 'CONFIRMED',
+            customTravelStart: new Date('2026-09-01'),
+          },
+        }),
+      );
+
+      const createReq = jsonRequest(`http://localhost/api/v1/bookings/${lockedBooking.id}/itinerary`, operatorHeaders, 'POST', {});
+      const createRes = await createItinerary(createReq, { params: Promise.resolve({ bookingId: lockedBooking.id }) });
+      expect(createRes.status).toBe(201);
+      const { itinerary: lockedItinerary } = await createRes.json();
+
+      const addDayReq = jsonRequest(`http://localhost/api/v1/itineraries/${lockedItinerary.id}/days`, operatorHeaders, 'POST', {
+        date: '2026-09-01',
+      });
+      const addDayRes = await addDay(addDayReq, { params: Promise.resolve({ itineraryId: lockedItinerary.id }) });
+      expect(addDayRes.status).toBe(201);
+      const { day } = await addDayRes.json();
+
+      // Now the booking reaches its terminal status.
+      await withOrg(orgId, (tx) => tx.booking.update({ where: { id: lockedBooking.id }, data: { status } }));
+
+      const patchReq = jsonRequest(`http://localhost/api/v1/itineraries/${lockedItinerary.id}`, operatorHeaders, 'PATCH', {
+        notes: 'Should not save',
+      });
+      const patchRes = await updateItinerary(patchReq, { params: Promise.resolve({ itineraryId: lockedItinerary.id }) });
+      expect(patchRes.status).toBe(409);
+
+      const addDayReq2 = jsonRequest(`http://localhost/api/v1/itineraries/${lockedItinerary.id}/days`, operatorHeaders, 'POST', {
+        date: '2026-09-02',
+      });
+      const addDayRes2 = await addDay(addDayReq2, { params: Promise.resolve({ itineraryId: lockedItinerary.id }) });
+      expect(addDayRes2.status).toBe(409);
+
+      const updateDayReq = jsonRequest(`http://localhost/api/v1/itineraries/${lockedItinerary.id}/days/${day.id}`, operatorHeaders, 'PATCH', {
+        activities: 'Should not save',
+      });
+      const updateDayRes = await updateDay(updateDayReq, { params: Promise.resolve({ itineraryId: lockedItinerary.id, dayId: day.id }) });
+      expect(updateDayRes.status).toBe(409);
+
+      const removeDayReq = new NextRequest(`http://localhost/api/v1/itineraries/${lockedItinerary.id}/days/${day.id}`, {
+        method: 'DELETE',
+        headers: operatorHeaders,
+      });
+      const removeDayRes = await removeDay(removeDayReq, { params: Promise.resolve({ itineraryId: lockedItinerary.id, dayId: day.id }) });
+      expect(removeDayRes.status).toBe(409);
+    },
+  );
+});

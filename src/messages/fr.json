@@ -643,7 +643,8 @@
     "noAddonsInCurrency": "Aucun service optionnel n'est actuellement disponible en {currency}.",
     "guestRequestedBadge": "Demandé par le client",
     "saveChanges": "Enregistrer les modifications",
-    "continueLabel": "Continuer"
+    "continueLabel": "Continuer",
+    "bookingLocked": "Cette réservation est {status} et ne peut plus être modifiée."
   },
   "StaffPassportPage": {
     "backToTravelers": "retour aux voyageurs",
@@ -682,7 +683,8 @@
     "relationPlaceholder": "Époux/épouse, parent…",
     "tourLeadCheckboxLabel": "Chef de groupe (principal point de contact du groupe)",
     "finishTravelers": "Terminer les voyageurs",
-    "addTravelerContinue": "Ajouter le voyageur et continuer"
+    "addTravelerContinue": "Ajouter le voyageur et continuer",
+    "bookingLocked": "Cette réservation est {status} et ne peut plus être modifiée."
   },
   "StaffCostBreakdown": {
     "eyebrow": "Réservations · {ref}",
@@ -817,7 +819,8 @@
     "addADay": "Ajouter un jour",
     "plannedSitesAfterCreateNotice": "Les sites prévus et les épingles de prise en charge/dépose s'ajoutent après la création du jour, depuis « Modifier le jour » ci-dessous.",
     "estimatedTravelMinutesLabel": "Trajet estimé (minutes)",
-    "addDay": "Ajouter le jour"
+    "addDay": "Ajouter le jour",
+    "bookingLocked": "Cette réservation est {status} et ne peut plus être modifiée — l'itinéraire est désormais en lecture seule."
   },
   "PlaceFields": {
     "name": "Nom",

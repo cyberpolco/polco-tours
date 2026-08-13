@@ -6,6 +6,7 @@ import {
   occupiesCapacity,
   computeAvailability,
   canTransition,
+  isBookingLocked,
   canAddTraveler,
   hasExactlyOneTourLead,
   isTravelerManifestComplete,
@@ -155,6 +156,25 @@ describe('booking domain', () => {
     it('REFUNDED is terminal', () => {
       expect(canTransition('REFUNDED', 'CANCELLED')).toBe(false);
       expect(canTransition('REFUNDED', 'CONFIRMED')).toBe(false);
+    });
+  });
+
+  describe('isBookingLocked (DR-105)', () => {
+    it('is true for COMPLETED, CANCELLED, and REFUNDED', () => {
+      expect(isBookingLocked('COMPLETED')).toBe(true);
+      expect(isBookingLocked('CANCELLED')).toBe(true);
+      expect(isBookingLocked('REFUNDED')).toBe(true);
+    });
+
+    it('is false for every non-terminal status', () => {
+      expect(isBookingLocked('DRAFT')).toBe(false);
+      expect(isBookingLocked('AWAITING_QUOTATION')).toBe(false);
+      expect(isBookingLocked('QUOTATION_SENT')).toBe(false);
+      expect(isBookingLocked('AWAITING_DEPOSIT')).toBe(false);
+      expect(isBookingLocked('DEPOSIT_PAID')).toBe(false);
+      expect(isBookingLocked('FULLY_PAID')).toBe(false);
+      expect(isBookingLocked('CONFIRMED')).toBe(false);
+      expect(isBookingLocked('IN_PROGRESS')).toBe(false);
     });
   });
 

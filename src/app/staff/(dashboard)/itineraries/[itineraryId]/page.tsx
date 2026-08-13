@@ -2,9 +2,10 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { itineraryService, type HotelView, type ItineraryDaySiteView, type RestaurantView } from '@modules/itinerary';
+import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -79,7 +80,16 @@ export default async function ItineraryDetailPage({ params }: Props) {
   const days = await itineraryService.listDays(ctx, itineraryId);
   const t = await getTranslations('StaffItineraryDetail');
   const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
+  const tBookingStatus = await getTranslations('BookingStatusLabel');
   const tCountries = await getTranslations('Countries');
+
+  // DR-105: once the parent booking is COMPLETED/CANCELLED/REFUNDED, the
+  // day/site edit forms and notes/emergency-contact form all go read-only --
+  // the itinerary's own workflow buttons (submit/send-back/approve) stay as
+  // they are, gated only on canWrite/canApprove, since they're unrelated to
+  // this lock (out of scope, see DR-105).
+  const bookingLocked = isBookingLocked(booking.status);
+  const canEdit = canWrite && !bookingLocked;
 
   let travelDates = t('notScheduledYet');
   // Falls back to the TAILOR_MADE booking's own custom country when there's
@@ -119,7 +129,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
   const usedSites = await itineraryService.listSitesByIds(ctx, allUsedSiteIds);
   const siteNameById = new Map(usedSites.map((s) => [s.id, s.name]));
 
-  const [allHotels, allRestaurants, siteOptions] = canWrite
+  const [allHotels, allRestaurants, siteOptions] = canEdit
     ? await Promise.all([
         itineraryService.listHotels(ctx),
         itineraryService.listRestaurants(ctx),
@@ -138,6 +148,12 @@ export default async function ItineraryDetailPage({ params }: Props) {
           <p className="mt-2 text-sm">
             <LinkButton href={`/staff/departures/${booking.departureId}`}>{t('assignVehicleDriverGuide')}</LinkButton>
           </p>
+        )}
+
+        {bookingLocked && (
+          <div className="mt-4">
+            <Alert tone="info">{t('bookingLocked', { status: tBookingStatus(booking.status) })}</Alert>
+          </div>
         )}
 
         {canWrite && (
@@ -170,7 +186,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('notesAndEmergencyContact')}</p>
-        {canWrite ? (
+        {canEdit ? (
           <form action={updateItineraryAction.bind(null, itineraryId)} className="mt-3 space-y-4">
             <FormField label={t('notesLabel')} htmlFor="notes" optional>
               <textarea
@@ -241,7 +257,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       </span>
                     )}
                   </p>
-                  {canWrite && (
+                  {canEdit && (
                     <form action={removeDayAction.bind(null, itineraryId, day.id)}>
                       <SubmitButton
                         variant="secondary"
@@ -308,7 +324,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
                     </div>
                   )}
                 </dl>
-                {canWrite && (
+                {canEdit && (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-xs text-forest">{t('editDay')}</summary>
                     <form action={updateDayAction.bind(null, itineraryId, day.id)} className="mt-3 space-y-3">
@@ -483,7 +499,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
           </div>
         )}
 
-        {canWrite && (
+        {canEdit && (
           <>
             <details className="mt-6">
               <summary className="cursor-pointer text-sm text-forest">{t('addADay')}</summary>

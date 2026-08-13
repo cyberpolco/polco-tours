@@ -338,4 +338,29 @@ describe('PUT /api/v1/bookings/:bookingId/cost-breakdown', () => {
     expect(breakdown.addonsTotalMinor).toBe(3000);
     expect(breakdown.suggestedTotalMinor).toBe(3000);
   });
+
+  it.each(['COMPLETED', 'CANCELLED', 'REFUNDED'] as const)('rejects saving a cost breakdown once the booking is %s (409)', async (status) => {
+    const lockedBooking = await withOrg(orgId, (tx) =>
+      tx.booking.create({
+        data: {
+          organizationId: orgId,
+          origin: 'TAILOR_MADE',
+          touristUserId: touristId,
+          bookingReference: generateBookingReference(),
+          seats: 1,
+          customCountry: TEST_COUNTRY,
+          status,
+        },
+      }),
+    );
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/bookings/${lockedBooking.id}/cost-breakdown`, headers, 'PUT', {
+      nights: 1,
+      driverDays: 0,
+      guideDays: 0,
+      agencyMarginBp: 0,
+    });
+    const res = await saveCostBreakdown(req, { params: Promise.resolve({ bookingId: lockedBooking.id }) });
+    expect(res.status).toBe(409);
+  });
 });

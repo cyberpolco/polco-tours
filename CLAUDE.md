@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-104 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-105 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -229,8 +229,20 @@ explicit decision to do so.
 > permission: apply/remove reuses `payment.initiate` (the same permission
 > `initiatePayment` itself already uses, not `invoice.read`), and coupon
 > CRUD reuses `platform_settings.read`/`.write` + the existing
-> `requireSettingsWriter` SUPERADMIN gate. See DR-082 through DR-104 for
-> full detail.
+> `requireSettingsWriter` SUPERADMIN gate. DR-105 hard-blocks edits on a
+> terminal-status booking (`COMPLETED`/`CANCELLED`/`REFUNDED`, no SUPERADMIN
+> override): `bookingService.addTraveler`/`setTravelerPassport`/`setAddons`,
+> `itineraryService.updateItinerary`/`addDay`/`updateDay`/`removeDay`/
+> `addDaySite`/`removeDaySite`/`moveDaySite`, `financeService
+> .saveBookingCostBreakdown`, and `invoicingService.applyCoupon`/
+> `removeCoupon` all now 409 once the parent booking is terminal — governed
+> by one shared `isBookingLocked`/`TERMINAL_BOOKING_STATUSES` predicate in
+> `booking/domain.ts`, exported through `booking/index.ts` for `itinerary`/
+> `finance`/`invoicing` to reuse. Itinerary's own workflow transitions
+> (submit/send-back/approve) and hotel/restaurant ratings are deliberately
+> untouched, and assignment (vehicle/driver/guide, keyed by `Departure`
+> rather than a single `Booking`) is out of scope. See DR-082 through
+> DR-105 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -669,7 +681,11 @@ visually coherent with the design package.
   9-step wizard request, staff quotes a price afterward).
   `bookingReference` (6-char pattern code) is the sole guest-facing lookup
   key (paired with the tour lead's last name at `/find-booking`) —
-  `confirmationCode` was removed entirely.
+  `confirmationCode` was removed entirely. Once a booking reaches
+  `COMPLETED`/`CANCELLED`/`REFUNDED` (DR-105), travelers/add-ons/passport,
+  itinerary days/sites, the cost breakdown, and coupon apply/remove are all
+  hard-blocked (409, no SUPERADMIN override) — see `isBookingLocked` in
+  `booking/domain.ts`.
 - **Guest site** (`(guest)/`) has no tourist accounts, ever — bookings ride
   better-auth's `anonymous` plugin. Every booking (from guest package
   browse, guest `/plan-my-trip`, or staff's own "New Booking" flow) shows up

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { testPackageReference } from '../helpers/package-reference';
 import { NextRequest } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type BookingStatus } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { generateBookingReference } from '../../src/modules/booking';
@@ -299,7 +299,7 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
 // (via the real GET /invoice endpoint, not a raw fixture) so applying a
 // coupon here never touches invoiceId above, which is already PAID by this
 // point in the file.
-async function createFreshInvoice(touristUserId: string): Promise<string> {
+async function createFreshInvoice(touristUserId: string, bookingStatus: BookingStatus = 'AWAITING_DEPOSIT'): Promise<string> {
   return withOrg(orgId, async (tx) => {
     const booking = await tx.booking.create({
       data: {
@@ -310,7 +310,7 @@ async function createFreshInvoice(touristUserId: string): Promise<string> {
         seats: 1,
         priceMinor: 10000,
         currency: 'USD',
-        status: 'AWAITING_DEPOSIT',
+        status: bookingStatus,
         addonsFinalizedAt: new Date(),
       },
     });
@@ -465,4 +465,31 @@ describe('POST/DELETE /api/v1/invoices/:invoiceId/coupon', () => {
     );
     expect(removeRes.status).toBe(409);
   });
+
+  // DR-105: a CANCELLED/REFUNDED booking never had a SUCCEEDED payment on
+  // this fresh invoice, so this exercises the new booking-status guard
+  // specifically, not the pre-existing SUCCEEDED-payment one above.
+  it.each(['COMPLETED', 'CANCELLED', 'REFUNDED'] as const)(
+    'blocks applying/removing a coupon once the booking is %s (409)',
+    async (status) => {
+      const code = `TEST-LOCKED-${status}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      couponCodes.push(code);
+      await admin.coupon.create({ data: { code, discountBp: 1000 } });
+
+      const freshInvoiceId = await createFreshInvoice(touristAId, status);
+      const headers = await loginAs(touristAId);
+
+      const applyRes = await applyCoupon(
+        jsonRequest('POST', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, headers, { code }),
+        { params: Promise.resolve({ invoiceId: freshInvoiceId }) },
+      );
+      expect(applyRes.status).toBe(409);
+
+      const removeRes = await removeCoupon(
+        jsonRequest('DELETE', `http://localhost/api/v1/invoices/${freshInvoiceId}/coupon`, await loginAs(touristAId)),
+        { params: Promise.resolve({ invoiceId: freshInvoiceId }) },
+      );
+      expect(removeRes.status).toBe(409);
+    },
+  );
 });

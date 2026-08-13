@@ -14,6 +14,7 @@ import {
   canAddTraveler,
   computeAvailability,
   isBookingDeleter,
+  isBookingLocked,
   isTravelerManifestComplete,
   lastNameMatches,
   toTravelerDutyView,
@@ -556,6 +557,9 @@ export const bookingService = {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
 
     const existing = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
     if (!canAddTraveler(existing.length, booking.seats)) {
@@ -627,6 +631,9 @@ export const bookingService = {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
     const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
     const traveler = travelers.find((t) => t.id === travelerId);
     if (!traveler) throw Errors.notFound('Traveler not found');
@@ -656,6 +663,9 @@ export const bookingService = {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
 
     const items = [];
     let requiresPassportUpload = false;

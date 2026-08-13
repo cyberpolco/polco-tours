@@ -421,3 +421,69 @@ describe('POST /api/v1/bookings/:bookingId/addons (pre-quotation, DR-092)', () =
     expect(res.status).toBe(409);
   });
 });
+
+describe('DR-105: hard-blocked edits on a terminal-status booking', () => {
+  it.each(['COMPLETED', 'CANCELLED', 'REFUNDED'] as const)('rejects addTraveler/setAddons/passport upload on a %s booking (409)', async (status) => {
+    // A real Traveler row is inserted directly (not via addTraveler, which
+    // is itself one of the actions this locked status now blocks) so the
+    // passport route's own pre-check (traveler existence) finds a real row
+    // and actually reaches bookingService.setTravelerPassport's guard,
+    // rather than 404ing on a made-up travelerId before ever getting there.
+    const { lockedBooking, lockedTraveler } = await withOrg(orgId, async (tx) => {
+      const booking = await tx.booking.create({
+        data: {
+          organizationId: orgId,
+          origin: 'TAILOR_MADE',
+          touristUserId: touristAId,
+          bookingReference: generateBookingReference(),
+          seats: 1,
+          customCountry: country.slice(0, 2),
+          status,
+        },
+      });
+      const traveler = await tx.traveler.create({
+        data: {
+          organizationId: orgId,
+          bookingId: booking.id,
+          firstName: 'Locked',
+          lastName: 'Fixture',
+          age: 30,
+          sex: 'X',
+          nationality: 'NA',
+          idOrPassportNumber: `LOCKED-${status}`,
+          isTourLead: true,
+        },
+      });
+      return { lockedBooking: booking, lockedTraveler: traveler };
+    });
+    const headers = await loginAs(touristAId);
+
+    const travelerReq = jsonRequest('POST', `http://localhost/api/v1/bookings/${lockedBooking.id}/travelers`, headers, {
+      firstName: 'X',
+      lastName: 'Y',
+      age: 30,
+      sex: 'X',
+      nationality: 'NA',
+      idOrPassportNumber: 'LOCKED1',
+    });
+    const travelerRes = await addTraveler(travelerReq, { params: Promise.resolve({ bookingId: lockedBooking.id }) });
+    expect(travelerRes.status).toBe(409);
+
+    const addonsReq = jsonRequest('POST', `http://localhost/api/v1/bookings/${lockedBooking.id}/addons`, headers, {
+      addonServiceIds: [addonServiceId],
+    });
+    const addonsRes = await setAddons(addonsReq, { params: Promise.resolve({ bookingId: lockedBooking.id }) });
+    expect(addonsRes.status).toBe(409);
+
+    const formData = new FormData();
+    formData.append('passport', new File([new TextEncoder().encode('%PDF-fixture')], 'passport.pdf', { type: 'application/pdf' }));
+    const passportReq = new NextRequest(
+      `http://localhost/api/v1/bookings/${lockedBooking.id}/travelers/${lockedTraveler.id}/passport`,
+      { method: 'POST', headers, body: formData },
+    );
+    const passportRes = await uploadPassport(passportReq, {
+      params: Promise.resolve({ bookingId: lockedBooking.id, travelerId: lockedTraveler.id }),
+    });
+    expect(passportRes.status).toBe(409);
+  });
+});

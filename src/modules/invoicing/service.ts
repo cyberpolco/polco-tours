@@ -2,7 +2,7 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
@@ -306,6 +306,10 @@ export const invoicingService = {
     if (detail.payments.some((p) => p.status === 'SUCCEEDED')) {
       throw Errors.conflict('Cannot apply a coupon once a payment has succeeded on this invoice');
     }
+    const booking = await bookingService.getById(ctx, detail.invoice.bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
 
     const pre = await validateCoupon(code);
     if ('error' in pre) throw couponErrorToApiError(pre.error);
@@ -331,6 +335,10 @@ export const invoicingService = {
     if (!isStaff(ctx) && detail.touristUserId !== ctx.userId) throw Errors.notFound('Invoice not found');
     if (detail.payments.some((p) => p.status === 'SUCCEEDED')) {
       throw Errors.conflict('Cannot remove a coupon once a payment has succeeded on this invoice');
+    }
+    const booking = await bookingService.getById(ctx, detail.invoice.bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
     }
 
     const invoice = await invoicingRepository.removeCoupon(organizationId, invoiceId);

@@ -10,7 +10,9 @@ export {
   LookupBookingInput,
   SendQuotationInput,
   SetAddonsInput,
+  TERMINAL_BOOKING_STATUSES,
   generateBookingReference,
+  isBookingLocked,
 } from './domain';
 export type {
   BookingAddonView,

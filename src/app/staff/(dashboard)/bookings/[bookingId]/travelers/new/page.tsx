@@ -3,7 +3,8 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
+import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
@@ -32,6 +33,19 @@ export default async function NewTravelerPage({ params }: Props) {
   ]);
   const t = await getTranslations('StaffTravelersPage');
   const tCountries = await getTranslations('Countries');
+
+  if (isBookingLocked(booking.status)) {
+    const tBookingStatus = await getTranslations('BookingStatusLabel');
+    return (
+      <div className="max-w-lg">
+        <BackLink href={`/staff/bookings/${bookingId}/addons`}>{t('backToAddons')}</BackLink>
+        <PageHeader eyebrow={t('setupTravelers')} title={t('travelersOf', { current: travelers.length, total: booking.seats })} />
+        <div className="mt-6">
+          <Alert tone="info">{t('bookingLocked', { status: tBookingStatus(booking.status) })}</Alert>
+        </div>
+      </div>
+    );
+  }
 
   // Add-ons now comes first -- bounce back to it if not finished yet.
   if (!booking.addonsFinalizedAt) {

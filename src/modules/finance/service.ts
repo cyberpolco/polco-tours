@@ -3,7 +3,7 @@
 // through index.ts (module boundary rule).
 import type { Currency } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
@@ -430,6 +430,9 @@ export const financeService = {
     assertCan(ctx, 'booking.confirm');
     const organizationId = requireOrg(ctx);
     const booking = await bookingService.getById(ctx, bookingId); // 404s if not found/visible
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
 
     if (booking.origin !== 'TAILOR_MADE') throw Errors.conflict('Only a tailor-made request can have a cost breakdown');
     if (!booking.customCountry) throw Errors.conflict('This booking has no destination country to price against');

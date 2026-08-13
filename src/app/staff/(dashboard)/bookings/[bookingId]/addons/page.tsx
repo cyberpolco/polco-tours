@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -29,6 +29,19 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   const booking = await bookingService.getById(ctx, bookingId);
   const t = await getTranslations('StaffAddonsPage');
   const tAddons = await getTranslations('TripAddons');
+  const tBookingStatus = await getTranslations('BookingStatusLabel');
+
+  if (isBookingLocked(booking.status)) {
+    return (
+      <div className="max-w-md">
+        <BackLink href={`/staff/bookings/${bookingId}`}>{t('backToBooking')}</BackLink>
+        <PageHeader eyebrow={t('setupAddons')} title={t('optionalAddons')} />
+        <div className="mt-6">
+          <Alert tone="info">{t('bookingLocked', { status: tBookingStatus(booking.status) })}</Alert>
+        </div>
+      </div>
+    );
+  }
 
   const [allAddons, selected] = await Promise.all([
     catalogService.listActiveAddonServices(ctx),

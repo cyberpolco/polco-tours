@@ -643,7 +643,8 @@
     "noAddonsInCurrency": "No add-on services are currently available in {currency}.",
     "guestRequestedBadge": "Guest requested",
     "saveChanges": "Save changes",
-    "continueLabel": "Continue"
+    "continueLabel": "Continue",
+    "bookingLocked": "This booking is {status} and can no longer be edited."
   },
   "StaffPassportPage": {
     "backToTravelers": "back to travelers",
@@ -682,7 +683,8 @@
     "relationPlaceholder": "Spouse, parent…",
     "tourLeadCheckboxLabel": "Tour lead (main point of contact for the group)",
     "finishTravelers": "Finish travelers",
-    "addTravelerContinue": "Add traveler & continue"
+    "addTravelerContinue": "Add traveler & continue",
+    "bookingLocked": "This booking is {status} and can no longer be edited."
   },
   "StaffCostBreakdown": {
     "eyebrow": "Bookings · {ref}",
@@ -817,7 +819,8 @@
     "addADay": "Add a day",
     "plannedSitesAfterCreateNotice": "Planned sites, pickup/drop-off pins are added after the day is created, from \"Edit day\" below.",
     "estimatedTravelMinutesLabel": "Estimated travel (minutes)",
-    "addDay": "Add day"
+    "addDay": "Add day",
+    "bookingLocked": "This booking is {status} and can no longer be edited — the itinerary is now read-only."
   },
   "PlaceFields": {
     "name": "Name",

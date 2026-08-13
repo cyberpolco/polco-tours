@@ -3,7 +3,7 @@
 import type { ItineraryStatus, Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
-import { bookingService } from '@modules/booking';
+import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
@@ -241,6 +241,8 @@ export const itineraryService = {
   async updateItinerary(ctx: AuthContext, itineraryId: string, input: UpdateItineraryInput): Promise<ItineraryView> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const updated = await itineraryRepository.update(organizationId, itineraryId, input);
     if (!updated) throw Errors.notFound('Itinerary not found');
     return updated;
@@ -290,6 +292,7 @@ export const itineraryService = {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const dayNumber = await computeDayNumber(ctx, itinerary, input.date);
     if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
     if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
@@ -305,6 +308,7 @@ export const itineraryService = {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
     const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const dayNumber = input.date ? await computeDayNumber(ctx, itinerary, input.date) : undefined;
     if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
     if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
@@ -316,7 +320,8 @@ export const itineraryService = {
   async removeDay(ctx: AuthContext, itineraryId: string, dayId: string): Promise<void> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const removed = await itineraryRepository.removeDay(organizationId, dayId);
     if (!removed) throw Errors.notFound('Itinerary day not found');
   },
@@ -351,7 +356,8 @@ export const itineraryService = {
   async addDaySite(ctx: AuthContext, itineraryId: string, dayId: string, siteId: string): Promise<ItineraryDaySiteView> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     await requireSiteExists(organizationId, siteId);
     const added = await itineraryRepository.addDaySite(organizationId, dayId, siteId);
     await audit({
@@ -369,7 +375,8 @@ export const itineraryService = {
   async removeDaySite(ctx: AuthContext, itineraryId: string, dayId: string, siteId: string): Promise<void> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const removed = await itineraryRepository.removeDaySite(organizationId, dayId, siteId);
     if (!removed) throw Errors.notFound('Itinerary day site not found');
     await audit({
@@ -396,7 +403,8 @@ export const itineraryService = {
   ): Promise<void> {
     assertCan(ctx, 'itinerary.write');
     const organizationId = requireOrg(ctx);
-    await requireManagedItinerary(organizationId, itineraryId);
+    const itinerary = await requireManagedItinerary(organizationId, itineraryId);
+    await assertBookingNotLocked(ctx, itinerary.bookingId);
     const moved = await itineraryRepository.moveDaySite(organizationId, dayId, siteId, direction);
     if (!moved) throw Errors.notFound('Itinerary day site not found');
     await audit({
@@ -691,6 +699,15 @@ async function requireManagedItinerary(organizationId: string, itineraryId: stri
   const itinerary = await itineraryRepository.findById(organizationId, itineraryId);
   if (!itinerary) throw Errors.notFound('Itinerary not found');
   return itinerary;
+}
+
+/** DR-105: once the parent booking is done (COMPLETED/CANCELLED/REFUNDED),
+ * its itinerary's days/sites/notes are frozen too -- no more edits. */
+async function assertBookingNotLocked(ctx: AuthContext, bookingId: string): Promise<void> {
+  const booking = await bookingService.getById(ctx, bookingId);
+  if (isBookingLocked(booking.status)) {
+    throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+  }
 }
 
 async function transition(ctx: AuthContext, itineraryId: string, to: 'DRAFT' | 'IN_REVIEW'): Promise<ItineraryView> {

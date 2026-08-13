@@ -358,6 +358,15 @@ export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+// DR-105: once a booking reaches one of these, it's done -- travelers/
+// add-ons/passport, itinerary days/sites, cost breakdown, and coupon
+// apply/remove all hard-block against it (no SUPERADMIN override).
+export const TERMINAL_BOOKING_STATUSES: readonly BookingStatus[] = ['COMPLETED', 'CANCELLED', 'REFUNDED'];
+
+export function isBookingLocked(status: BookingStatus): boolean {
+  return TERMINAL_BOOKING_STATUSES.includes(status);
+}
+
 // -------------------------------------------------------------- travelers
 
 export interface TravelerView {
