@@ -29,7 +29,12 @@ function ctxFor(userId: string): AuthContext {
   };
 }
 
+// it.each runs this three times (once per terminal status) within the same
+// file/suffix -- Site's @@unique([organizationId, country, name]) means each
+// call needs its own distinct name, not just one shared per file (the same
+// class of fixture-collision bug DR-103 fixed for packageReference).
 async function createFixture() {
+  const unique = `${suffix}-${Math.floor(Math.random() * 1e9)}`;
   return withOrg(orgId, async (tx) => {
     const booking = await tx.booking.create({
       data: {
@@ -47,10 +52,10 @@ async function createFixture() {
       data: { organizationId: orgId, itineraryId: itinerary.id, dayNumber: 1, date: new Date('2026-09-01') },
     });
     const siteA = await tx.site.create({
-      data: { organizationId: orgId, name: `Day-Site Lock Fixture A ${suffix}`, country: 'NA', province: 'Khomas' },
+      data: { organizationId: orgId, name: `Day-Site Lock Fixture A ${unique}`, country: 'NA', province: 'Khomas' },
     });
     const siteB = await tx.site.create({
-      data: { organizationId: orgId, name: `Day-Site Lock Fixture B ${suffix}`, country: 'NA', province: 'Khomas' },
+      data: { organizationId: orgId, name: `Day-Site Lock Fixture B ${unique}`, country: 'NA', province: 'Khomas' },
     });
     return { bookingId: booking.id, itineraryId: itinerary.id, dayId: day.id, siteAId: siteA.id, siteBId: siteB.id };
   });
