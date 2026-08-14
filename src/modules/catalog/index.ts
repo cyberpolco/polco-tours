@@ -11,6 +11,7 @@ export {
   UpdatePackageItineraryDayInput,
   effectivePrice,
   formatPackageReference,
+  hasDepartureEnded,
   isBookable,
 } from './domain';
 export type { AddonServiceView, DepartureView, PackageItineraryDayView, TourPackageView } from './domain';

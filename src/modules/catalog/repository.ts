@@ -1,6 +1,6 @@
 // catalog module — repository. The only place that touches the DB for this module.
 import type { AddonService, Departure, PackageItineraryDay, PackageStatus, TourPackage } from '@prisma/client';
-import { withOrg, type TenantTx } from '@lib/db';
+import { prisma, withOrg, type TenantTx } from '@lib/db';
 import { formatPackageReference } from './domain';
 import type {
   AddonServiceView,
@@ -223,6 +223,23 @@ export const catalogRepository = {
       if (!d || d.deletedAt) return null;
       return toDepartureView(d);
     });
+  },
+
+  /** DR-107: cross-org lookup backing the fleet-availability cooldown
+   * sweep -- mirrors bookingRepository.sweepAllOrganizations's org-loop
+   * shape (no ctx, platform-scheduler-only, same DR-067 precedent). */
+  async listRecentlyEndedDepartures(sinceHoursAgo: number): Promise<{ organizationId: string; departureId: string }[]> {
+    const orgs = await prisma.organization.findMany({ select: { id: true } });
+    const since = new Date(Date.now() - sinceHoursAgo * 60 * 60 * 1000);
+    const now = new Date();
+    const results: { organizationId: string; departureId: string }[] = [];
+    for (const org of orgs) {
+      const rows = await withOrg(org.id, (tx) =>
+        tx.departure.findMany({ where: { endDate: { gte: since, lte: now } }, select: { id: true } }),
+      );
+      for (const row of rows) results.push({ organizationId: org.id, departureId: row.id });
+    }
+    return results;
   },
 
   async listDeparturesForPackage(organizationId: string, tourPackageId: string): Promise<DepartureView[]> {

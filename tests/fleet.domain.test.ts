@@ -3,6 +3,7 @@ import {
   complianceStatus,
   computeAvailabilityStatus,
   isFleetDeleter,
+  isWithinPostTourCooldown,
   maintenanceRecencyScore,
   CreateDriverProfileInput,
   CreateGuideProfileInput,
@@ -190,6 +191,33 @@ describe('fleet domain', () => {
     it('is INACTIVE for a resource inactive for a year', () => {
       const yearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
       expect(computeAvailabilityStatus(false, yearAgo, now)).toBe('INACTIVE');
+    });
+  });
+
+  describe('isWithinPostTourCooldown (DR-107)', () => {
+    const now = new Date('2026-08-14T12:00:00Z');
+
+    it('is false for a departure with no endDate', () => {
+      expect(isWithinPostTourCooldown(null, now)).toBe(false);
+    });
+
+    it('is true the instant a departure ends', () => {
+      expect(isWithinPostTourCooldown(now, now)).toBe(true);
+    });
+
+    it('is true partway through the 24h window', () => {
+      const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      expect(isWithinPostTourCooldown(twelveHoursAgo, now)).toBe(true);
+    });
+
+    it('is false once 24h have fully elapsed', () => {
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      expect(isWithinPostTourCooldown(twentyFourHoursAgo, now)).toBe(false);
+    });
+
+    it('is false for a departure that has not ended yet', () => {
+      const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+      expect(isWithinPostTourCooldown(inOneHour, now)).toBe(false);
     });
   });
 

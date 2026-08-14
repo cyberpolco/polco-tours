@@ -92,6 +92,9 @@ export interface BookingView {
   preferredAddons: AddonCode[];
   countryOfResidence: string | null;
   citizenship: string | null;
+  // DR-108: the DRAFT TourPackage staff created from this TAILOR_MADE
+  // request's plan-my-trip answers, if any -- set once, never reassigned.
+  customizedPackageId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

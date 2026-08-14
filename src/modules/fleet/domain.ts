@@ -229,3 +229,20 @@ export function computeAvailabilityStatus(isCurrentlyBooked: boolean, lastActive
   const daysSinceActive = (now.getTime() - lastActiveAt.getTime()) / MS_PER_DAY;
   return daysSinceActive > INACTIVITY_THRESHOLD_DAYS ? 'INACTIVE' : 'AVAILABLE';
 }
+
+// DR-107: explicit user direction -- a vehicle/driver/guide shouldn't read
+// as AVAILABLE the instant a tour ends; give it a fixed turnaround window
+// first (cleaning, fuel, rest) before it's offered again. Deliberately
+// Vehicle/DriverProfile/GuideProfile only -- StarlinkKit has no parallel
+// `availability` field today (only the separate ACTIVE/INACTIVE/MAINTENANCE
+// StarlinkStatus), left out of scope for this change.
+export const POST_TOUR_AVAILABILITY_DELAY_HOURS = 24;
+const MS_PER_HOUR = 1000 * 60 * 60;
+
+/** True from the moment a departure ends until POST_TOUR_AVAILABILITY_DELAY_HOURS
+ * later. A departure with no endDate is never "just ended" by this measure. */
+export function isWithinPostTourCooldown(departureEndDate: Date | null, now: Date): boolean {
+  if (!departureEndDate) return false;
+  const hoursSinceEnd = (now.getTime() - departureEndDate.getTime()) / MS_PER_HOUR;
+  return hoursSinceEnd >= 0 && hoursSinceEnd < POST_TOUR_AVAILABILITY_DELAY_HOURS;
+}

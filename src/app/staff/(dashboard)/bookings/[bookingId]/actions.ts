@@ -7,6 +7,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { ApiError } from '@lib/errors';
 import { bookingService } from '@modules/booking';
+import { catalogService } from '@modules/catalog';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
@@ -100,6 +101,50 @@ export async function refundBookingAction(bookingId: string) {
   const booking = await bookingService.refund(ctx, bookingId);
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
+// DR-108: turns an AWAITING_QUOTATION TAILOR_MADE request into a real,
+// reusable DRAFT TourPackage, prefilled from the guest's own plan-my-trip
+// answers -- composes booking+catalog here (not inside either module's
+// service), same convention as createItineraryAction below. Only 4 of the
+// 9 wizard steps have a real TourPackage-shaped counterpart (Your trip ->
+// description, Destination -> country, Preferences -> tags, Dates ->
+// durationDays); the rest (Travelers/Sites/Add-ons/Special requests/
+// Contact) have no matching package field, so per explicit user direction
+// they're folded into the description text instead of left behind.
+export async function createCustomizedPackageAction(bookingId: string) {
+  const ctx = await requireStaffContext('booking.confirm');
+  const booking = await bookingService.getById(ctx, bookingId);
+
+  const country = booking.customCountry ?? booking.preferredCountries[0];
+  if (!country) throw new Error('This request has no destination country to create a package for');
+
+  let durationDays: number | undefined;
+  if (booking.customTravelStart && booking.customTravelEnd) {
+    const days = Math.round((booking.customTravelEnd.getTime() - booking.customTravelStart.getTime()) / 86_400_000) + 1;
+    if (days > 0) durationDays = days;
+  }
+
+  const sections: string[] = [`Travelers: ${booking.seats}`];
+  if (booking.preferredSites.length > 0) sections.push(`Preferred sites: ${booking.preferredSites.join(', ')}`);
+  if (booking.preferredAddons.length > 0) sections.push(`Requested add-ons: ${booking.preferredAddons.join(', ')}`);
+  if (booking.specialRequests) sections.push(`Special requests: ${booking.specialRequests}`);
+  const contactName = [booking.contactFirstName, booking.contactLastName].filter(Boolean).join(' ');
+  if (contactName || booking.contactEmail) {
+    sections.push(`Contact: ${contactName}${booking.contactEmail ? ` (${booking.contactEmail})` : ''}`);
+  }
+  const description = [booking.customDescription?.trim(), ...sections].filter(Boolean).join('\n\n');
+
+  const pkg = await catalogService.createPackage(ctx, {
+    title: `Tailor-made trip -- ${booking.bookingReference}`,
+    description,
+    country,
+    currency: 'USD',
+    durationDays,
+    tags: booking.preferredTags,
+  });
+  await bookingService.setCustomizedPackage(ctx, bookingId, pkg.id);
+  redirect(`/staff/packages/${pkg.id}`);
 }
 
 export async function convertToItineraryAction(bookingId: string) {

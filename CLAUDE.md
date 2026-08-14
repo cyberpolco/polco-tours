@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-105 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-109 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -241,8 +241,33 @@ explicit decision to do so.
 > `finance`/`invoicing` to reuse. Itinerary's own workflow transitions
 > (submit/send-back/approve) and hotel/restaurant ratings are deliberately
 > untouched, and assignment (vehicle/driver/guide, keyed by `Departure`
-> rather than a single `Booking`) is out of scope. See DR-082 through
-> DR-105 for full detail.
+> rather than a single `Booking`) is out of scope. DR-106 closes that
+> assignment gap on its own terms: `assignmentService.createAssignment`/
+> `removeAssignment` now 409 once the departure's own `hasDepartureEnded`
+> check (`endDate < now`, `catalog/domain.ts` — `Departure.status` is dead
+> for this purpose, never programmatically set past `SCHEDULED`) is true,
+> hard-blocked with no override; `/staff/departures/[departureId]` hides
+> both the remove buttons and the create-assignment form once locked.
+> DR-107 adds a 24-hour post-tour cooldown before a vehicle/driver/guide
+> reads AVAILABLE again (previously immediate) — `fleet/domain.ts`'s
+> `isWithinPostTourCooldown`, factored into `syncFleetAvailabilityForDeparture`
+> (`src/lib/fleet-availability.ts`), plus a new hourly QStash job
+> (`/api/jobs/sweep-fleet-cooldowns`, **not yet registered against the live
+> deployment**) since nothing else re-evaluates a resource once the window
+> naturally elapses. Vehicle/DriverProfile/GuideProfile only — `StarlinkKit`
+> has no parallel `availability` field, left out of scope. DR-108 lets staff
+> turn an `AWAITING_QUOTATION` `TAILOR_MADE` request into a real DRAFT
+> `TourPackage` prefilled from the guest's plan-my-trip answers — new
+> `Booking.customizedPackageId` (`@unique`, one package per booking, never
+> reassigned), gated `booking.confirm`; only 4 of the wizard's 9 steps map
+> onto a real `TourPackage` field (description/country/tags/durationDays),
+> the rest fold into the new package's description text. DR-109 replaces
+> the native `window.confirm()` destructive-action dialog (DR-086) with an
+> in-app `ConfirmDialog` modal — a single choke point (`SubmitButton`), so
+> the mechanism changed in exactly one place; retires the
+> `page.once('dialog', ...)` Playwright pattern DR-087 introduced entirely —
+> no native dialog exists to auto-dismiss anymore. See DR-082 through
+> DR-109 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -364,7 +389,7 @@ gaps a fresh Postgres would hit).
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — all three schedules registered and live in production (`sweep-bookings` every 15 min, `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10) |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — three schedules registered and live in production (`sweep-bookings` every 15 min, `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10); a fourth, `sweep-fleet-cooldowns`/DR-107 (hourly), is coded and added to `scripts/register-qstash-schedule.ts` but **not yet registered against the live deployment** — run `npm run qstash:register-schedule` to activate it |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -389,6 +414,7 @@ src/
     api/jobs/sweep-bookings/    # QStash-signature-verified scheduled sweep endpoint
     api/jobs/sweep-fleet-availability/ # DR-082: daily inactivity-sweep endpoint, same shape
     api/jobs/sweep-user-dormancy/ # DR-084: daily 30-day-no-login sweep endpoint, same shape
+    api/jobs/sweep-fleet-cooldowns/ # DR-107: hourly post-tour-cooldown resync endpoint, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -685,7 +711,10 @@ visually coherent with the design package.
   `COMPLETED`/`CANCELLED`/`REFUNDED` (DR-105), travelers/add-ons/passport,
   itinerary days/sites, the cost breakdown, and coupon apply/remove are all
   hard-blocked (409, no SUPERADMIN override) — see `isBookingLocked` in
-  `booking/domain.ts`.
+  `booking/domain.ts`. A `TAILOR_MADE` booking at `AWAITING_QUOTATION` can
+  have a real, reusable DRAFT `TourPackage` created from it, prefilled from
+  its plan-my-trip answers (`Booking.customizedPackageId`, DR-108, one per
+  booking, never reassigned).
 - **Guest site** (`(guest)/`) has no tourist accounts, ever — bookings ride
   better-auth's `anonymous` plugin. Every booking (from guest package
   browse, guest `/plan-my-trip`, or staff's own "New Booking" flow) shows up
@@ -721,10 +750,12 @@ visually coherent with the design package.
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
   re-running that script (idempotent — fixed `scheduleId`s update in place,
-  never duplicate). Three exist today, all daily except the first, and all
-  three registered and live: `/api/jobs/sweep-bookings` (every 15 minutes),
-  `/api/jobs/sweep-fleet-availability` (DR-082), and `/api/jobs/sweep-user-
-  dormancy` (DR-084).
+  never duplicate). Four exist today: `/api/jobs/sweep-bookings` (every 15
+  minutes), `/api/jobs/sweep-fleet-availability` (DR-082, daily), and
+  `/api/jobs/sweep-user-dormancy` (DR-084, daily) are registered and live;
+  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly) is coded and in the
+  script's schedule list but **not yet registered against the live
+  deployment** — run `npm run qstash:register-schedule` to activate it.
 
 ## Roadmap (not yet built)
 

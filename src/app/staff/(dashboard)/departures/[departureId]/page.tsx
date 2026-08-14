@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
-import { catalogService } from '@modules/catalog';
+import { catalogService, hasDepartureEnded } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
@@ -42,6 +42,7 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
     notFound();
   }
   const { departure, packageCountry, effectiveUnitPrice } = detailView;
+  const departureLocked = hasDepartureEnded(departure.endDate, new Date());
 
   const [assignments, vehicles, driverProfiles, recommendation] = await Promise.all([
     assignmentService.listForDeparture(ctx, departureId),
@@ -125,6 +126,11 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('assignments')}</p>
+        {departureLocked && (
+          <div className="mt-2">
+            <Alert tone="info">{t('departureEnded')}</Alert>
+          </div>
+        )}
         {error && (
           <div className="mt-2">
             <Alert tone="error">
@@ -148,64 +154,68 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                     {driverProfile ? t('licensePrefix', { number: driverProfile.licenseNumber }) : t('unknownDriver')}
                     {guide && ` · ${t('guidePrefix', { name: guide.name ?? guide.email })}`}
                   </span>
-                  <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
-                    <SubmitButton
-                      variant="secondary"
-                      size="compact"
-                      pendingLabel={t('removing')}
-                      confirmMessage={t('removeAssignmentConfirm')}
-                    >
-                      {t('remove')}
-                    </SubmitButton>
-                  </form>
+                  {!departureLocked && (
+                    <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
+                      <SubmitButton
+                        variant="secondary"
+                        size="compact"
+                        pendingLabel={t('removing')}
+                        confirmMessage={t('removeAssignmentConfirm')}
+                      >
+                        {t('remove')}
+                      </SubmitButton>
+                    </form>
+                  )}
                 </li>
               );
             })}
           </ul>
         )}
 
-        <form action={createAssignmentAction.bind(null, departureId)} className="mt-6 space-y-4">
-          <p className="text-xs text-mist">{t('recommendationNotice')}</p>
-          <FormField label={t('vehicleLabel')} htmlFor="vehicleId">
-            <Select name="vehicleId" required defaultValue={recommendation.recommendedVehicleId ?? ''}>
-              <option value="">{t('selectVehicle')}</option>
-              {sortedVehicles.map((v) => {
-                const score = vehicleScoreById.get(v.id);
-                const isTop = v.id === recommendation.recommendedVehicleId;
-                return (
-                  <option key={v.id} value={v.id}>
-                    {isTop ? '★ ' : ''}
-                    {v.make} {v.model} ({v.plateNumber}) · {v.seatCapacity} {t('seatsSuffix')}
-                    {score != null ? ` · ${t('fitSuffix', { pct: Math.round(score * 100) })}` : ''}
+        {!departureLocked && (
+          <form action={createAssignmentAction.bind(null, departureId)} className="mt-6 space-y-4">
+            <p className="text-xs text-mist">{t('recommendationNotice')}</p>
+            <FormField label={t('vehicleLabel')} htmlFor="vehicleId">
+              <Select name="vehicleId" required defaultValue={recommendation.recommendedVehicleId ?? ''}>
+                <option value="">{t('selectVehicle')}</option>
+                {sortedVehicles.map((v) => {
+                  const score = vehicleScoreById.get(v.id);
+                  const isTop = v.id === recommendation.recommendedVehicleId;
+                  return (
+                    <option key={v.id} value={v.id}>
+                      {isTop ? '★ ' : ''}
+                      {v.make} {v.model} ({v.plateNumber}) · {v.seatCapacity} {t('seatsSuffix')}
+                      {score != null ? ` · ${t('fitSuffix', { pct: Math.round(score * 100) })}` : ''}
+                    </option>
+                  );
+                })}
+              </Select>
+            </FormField>
+            <FormField label={t('driverLabel')} htmlFor="driverProfileId">
+              <Select name="driverProfileId" required defaultValue={recommendation.recommendedDriverId ?? ''}>
+                <option value="">{t('selectDriver')}</option>
+                {sortedDrivers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.id === recommendation.recommendedDriverId ? '★ ' : ''}
+                    {t('licensePrefix', { number: d.licenseNumber })}
+                    {!eligibleDriverIds.has(d.id) ? ` · ${t('alreadyBookedSuffix')}` : ''}
                   </option>
-                );
-              })}
-            </Select>
-          </FormField>
-          <FormField label={t('driverLabel')} htmlFor="driverProfileId">
-            <Select name="driverProfileId" required defaultValue={recommendation.recommendedDriverId ?? ''}>
-              <option value="">{t('selectDriver')}</option>
-              {sortedDrivers.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.id === recommendation.recommendedDriverId ? '★ ' : ''}
-                  {t('licensePrefix', { number: d.licenseNumber })}
-                  {!eligibleDriverIds.has(d.id) ? ` · ${t('alreadyBookedSuffix')}` : ''}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          {guideOptions.length === 0 && <Alert tone="info">{t('noEligibleGuides')}</Alert>}
-          <FormField label={t('guideLabel')} htmlFor="guideUserId">
-            <SearchableSelect
-              name="guideUserId"
-              options={guideOptions}
-              defaultValue={recommendation.recommendedGuideId ?? undefined}
-              placeholder={t('searchGuidesPlaceholder')}
-              required
-            />
-          </FormField>
-          <SubmitButton>{t('addAssignment')}</SubmitButton>
-        </form>
+                ))}
+              </Select>
+            </FormField>
+            {guideOptions.length === 0 && <Alert tone="info">{t('noEligibleGuides')}</Alert>}
+            <FormField label={t('guideLabel')} htmlFor="guideUserId">
+              <SearchableSelect
+                name="guideUserId"
+                options={guideOptions}
+                defaultValue={recommendation.recommendedGuideId ?? undefined}
+                placeholder={t('searchGuidesPlaceholder')}
+                required
+              />
+            </FormField>
+            <SubmitButton>{t('addAssignment')}</SubmitButton>
+          </form>
+        )}
       </div>
     </div>
   );

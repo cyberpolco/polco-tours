@@ -1,19 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { Button } from './Button';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface SubmitButtonProps {
   children: React.ReactNode;
   pendingLabel?: string;
   variant?: 'primary' | 'secondary' | 'success';
   size?: 'default' | 'compact';
-  // Shows a native confirm() dialog before letting the form submit --
-  // every irreversible/destructive action (delete, deactivate) across the
-  // staff dashboard sets this, per explicit user direction. Cancelling
-  // blocks submission entirely (preventDefault on the submit button's own
-  // click event stops the form submit it would otherwise trigger).
+  // Shows an in-app confirm dialog (DR-109) before letting the form submit
+  // -- every irreversible/destructive action (delete, deactivate) across
+  // the staff dashboard sets this, per explicit user direction. Cancelling
+  // blocks submission entirely; confirming programmatically re-submits the
+  // same form the button belongs to.
   confirmMessage?: string;
 }
 
@@ -24,21 +26,38 @@ interface SubmitButtonProps {
 export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   const t = useTranslations('Common');
+  const [pendingForm, setPendingForm] = useState<HTMLFormElement | null>(null);
+
   return (
-    <Button
-      type="submit"
-      variant={variant}
-      size={size}
-      disabled={pending}
-      onClick={
-        confirmMessage
-          ? (e) => {
-              if (!window.confirm(confirmMessage)) e.preventDefault();
-            }
-          : undefined
-      }
-    >
-      {pending ? (pendingLabel ?? t('saving')) : children}
-    </Button>
+    <>
+      <Button
+        type="submit"
+        variant={variant}
+        size={size}
+        disabled={pending}
+        onClick={
+          confirmMessage
+            ? (e) => {
+                e.preventDefault();
+                setPendingForm(e.currentTarget.form);
+              }
+            : undefined
+        }
+      >
+        {pending ? (pendingLabel ?? t('saving')) : children}
+      </Button>
+      {pendingForm && confirmMessage && (
+        <ConfirmDialog
+          message={confirmMessage}
+          confirmLabel={t('confirm')}
+          cancelLabel={t('cancel')}
+          onCancel={() => setPendingForm(null)}
+          onConfirm={() => {
+            pendingForm.requestSubmit();
+            setPendingForm(null);
+          }}
+        />
+      )}
+    </>
   );
 }

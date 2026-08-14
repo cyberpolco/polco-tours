@@ -35,6 +35,11 @@ const SCHEDULES = [
     path: '/api/jobs/sweep-user-dormancy',
     cron: '0 4 * * *', // once daily -- only ever catches a 30-day inactivity threshold
   },
+  {
+    scheduleId: 'polco-sweep-fleet-cooldowns',
+    path: '/api/jobs/sweep-fleet-cooldowns',
+    cron: '0 * * * *', // hourly -- DR-107's 24h post-tour cooldown needs much tighter polling than the daily 60-day-inactivity sweep above
+  },
 ];
 
 async function main() {

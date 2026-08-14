@@ -61,6 +61,13 @@ export const assignmentRepository = {
     });
   },
 
+  async findById(organizationId: string, id: string): Promise<AssignmentView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.assignment.findUnique({ where: { id } });
+      return a ? toView(a) : null;
+    });
+  },
+
   async remove(organizationId: string, id: string): Promise<AssignmentView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.assignment.findUnique({ where: { id } });

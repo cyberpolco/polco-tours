@@ -4,6 +4,7 @@
     "next": "Next",
     "back": "Back",
     "cancel": "Cancel",
+    "confirm": "Confirm",
     "signOut": "Sign out",
     "saving": "Saving…",
     "select": "Select…",
@@ -577,6 +578,8 @@
     "assignVehicleDriverGuide": "Assign vehicle/driver/guide",
     "editCostBreakdown": "Edit cost breakdown",
     "buildCostBreakdown": "Build a cost breakdown",
+    "createCustomizedPackage": "Create customized package from this request",
+    "viewCustomizedPackage": "View customized package",
     "quoteAmount": "Quote amount",
     "currency": "Currency",
     "sending": "Sending…",
@@ -1353,6 +1356,7 @@
     "backToPublic": "back to public packages",
     "backToCustomized": "back to customized packages",
     "eyebrow": "Packages · {ref}",
+    "createdFromBooking": "Created from booking {ref}",
     "duplicating": "Duplicating…",
     "duplicate": "Duplicate",
     "archiving": "Archiving…",
@@ -1690,7 +1694,8 @@
     "noEligibleGuides": "No eligible guides available -- an assignment can't be created until one exists.",
     "guideLabel": "Guide (search by name or email)",
     "searchGuidesPlaceholder": "Search guides by name or email…",
-    "addAssignment": "Add assignment"
+    "addAssignment": "Add assignment",
+    "departureEnded": "This departure has already ended -- vehicle/driver/guide assignments can no longer be changed."
   },
   "StaffMap": {
     "eyebrow": "Map",

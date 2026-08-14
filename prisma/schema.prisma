@@ -499,6 +499,9 @@ model TourPackage {
   departures            Departure[]
   costBreakdown         PackageCostBreakdown?
   itineraryTemplateDays PackageItineraryDay[]
+  // DR-108: the (at most one, Booking.customizedPackageId is @unique)
+  // TAILOR_MADE booking this package was created from, if any.
+  customizedFromBooking Booking?
 
   @@index([organizationId])
   @@map("tour_packages")
@@ -706,6 +709,13 @@ model Booking {
   // interest), collected at inquiry time rather than per-traveler later.
   countryOfResidence     String?       @db.VarChar(2)
   citizenship            String?       @db.VarChar(2)
+  // DR-108: staff can turn an AWAITING_QUOTATION TAILOR_MADE request into a
+  // real, reusable DRAFT TourPackage, prefilled from the guest's own
+  // plan-my-trip answers -- one package per booking (unique), set once and
+  // never reassigned. Lives on Booking, not TourPackage, since booking
+  // already legitimately depends on catalog (the reverse would be
+  // circular).
+  customizedPackageId    String?       @unique @db.Uuid
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   // DR-058: see this model's own doc comment above -- a deliberate,
@@ -713,16 +723,17 @@ model Booking {
   // of cancellation/refund.
   deletedAt              DateTime?
 
-  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  departure     Departure?            @relation(fields: [departureId], references: [id], onDelete: Cascade)
-  tourist       User                  @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
-  invoice       Invoice?
-  travelers     Traveler[]
-  addons        BookingAddon[]
-  itinerary     Itinerary?
-  ratingCode    RatingCode?
-  review        Review?
-  costBreakdown BookingCostBreakdown?
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departure         Departure?            @relation(fields: [departureId], references: [id], onDelete: Cascade)
+  tourist           User                  @relation(fields: [touristUserId], references: [id], onDelete: Cascade)
+  customizedPackage TourPackage?          @relation(fields: [customizedPackageId], references: [id], onDelete: SetNull)
+  invoice           Invoice?
+  travelers         Traveler[]
+  addons            BookingAddon[]
+  itinerary         Itinerary?
+  ratingCode        RatingCode?
+  review            Review?
+  costBreakdown     BookingCostBreakdown?
 
   @@index([organizationId])
   @@index([departureId])

@@ -227,6 +227,21 @@ export const catalogService = {
     };
   },
 
+  /** DR-107: no-ctx, used only by fleet-availability.ts's cross-module sync
+   * -- same "no user/permission concept for the platform's own scheduler"
+   * precedent as bookingService.hasActiveBookingForDeparture (DR-067). */
+  async getDepartureEndDate(organizationId: string, departureId: string): Promise<Date | null> {
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    return departure?.endDate ?? null;
+  },
+
+  /** DR-107: no-ctx, cross-org -- the fleet-availability cooldown sweep's
+   * only way to find departures worth re-checking (see fleet-availability.ts
+   * for why a one-off resync at completion time isn't enough on its own). */
+  async listRecentlyEndedDepartures(sinceHoursAgo: number): Promise<{ organizationId: string; departureId: string }[]> {
+    return catalogRepository.listRecentlyEndedDepartures(sinceHoursAgo);
+  },
+
   /** Soft delete (DR-028) -- hides it from every listing (all reads already
    * filter deletedAt: null); no cascade risk to real Departures/Bookings. */
   async deletePackage(ctx: AuthContext, packageId: string): Promise<void> {

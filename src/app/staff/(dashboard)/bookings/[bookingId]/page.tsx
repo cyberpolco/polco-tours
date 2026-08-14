@@ -28,6 +28,7 @@ import {
   confirmBookingAction,
   cancelBookingAction,
   convertToItineraryAction,
+  createCustomizedPackageAction,
   createItineraryAction,
   deleteBookingAction,
   issueRatingCodeAction,
@@ -289,6 +290,21 @@ export default async function BookingDetailPage({ params }: Props) {
               {costBreakdown ? t('editCostBreakdown') : t('buildCostBreakdown')}
             </LinkButton>
           </p>
+        )}
+        {booking.origin === 'TAILOR_MADE' && can(ctx, 'booking.confirm') && (
+          <>
+            {booking.customizedPackageId ? (
+              <p className="mt-3 text-sm">
+                <LinkButton href={`/staff/packages/${booking.customizedPackageId}`}>{t('viewCustomizedPackage')}</LinkButton>
+              </p>
+            ) : (
+              booking.status === 'AWAITING_QUOTATION' && (
+                <form action={createCustomizedPackageAction.bind(null, booking.id)} className="mt-3">
+                  <SubmitButton variant="secondary">{t('createCustomizedPackage')}</SubmitButton>
+                </form>
+              )
+            )}
+          </>
         )}
         {booking.status === 'AWAITING_QUOTATION' && (
           <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm flex-wrap items-end gap-3">

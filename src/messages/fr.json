@@ -4,6 +4,7 @@
     "next": "Suivant",
     "back": "Retour",
     "cancel": "Annuler",
+    "confirm": "Confirmer",
     "signOut": "Déconnexion",
     "saving": "Enregistrement…",
     "select": "Sélectionner…",
@@ -577,6 +578,8 @@
     "assignVehicleDriverGuide": "Affecter véhicule/chauffeur/guide",
     "editCostBreakdown": "Modifier la répartition des coûts",
     "buildCostBreakdown": "Créer une répartition des coûts",
+    "createCustomizedPackage": "Créer un forfait personnalisé à partir de cette demande",
+    "viewCustomizedPackage": "Voir le forfait personnalisé",
     "quoteAmount": "Montant du devis",
     "currency": "Devise",
     "sending": "Envoi…",
@@ -1353,6 +1356,7 @@
     "backToPublic": "retour aux circuits publics",
     "backToCustomized": "retour aux circuits personnalisés",
     "eyebrow": "Circuits · {ref}",
+    "createdFromBooking": "Créé à partir de la réservation {ref}",
     "duplicating": "Duplication…",
     "duplicate": "Dupliquer",
     "archiving": "Archivage…",
@@ -1690,7 +1694,8 @@
     "noEligibleGuides": "Aucun guide éligible disponible -- une affectation ne peut pas être créée jusqu'à ce qu'il en existe un.",
     "guideLabel": "Guide (rechercher par nom ou e-mail)",
     "searchGuidesPlaceholder": "Rechercher des guides par nom ou e-mail…",
-    "addAssignment": "Ajouter une affectation"
+    "addAssignment": "Ajouter une affectation",
+    "departureEnded": "Ce départ est déjà terminé -- les affectations de véhicule/chauffeur/guide ne peuvent plus être modifiées."
   },
   "StaffMap": {
     "eyebrow": "Carte",

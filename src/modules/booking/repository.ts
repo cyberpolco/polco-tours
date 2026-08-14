@@ -79,6 +79,7 @@ function toBookingView(b: Booking): BookingView {
     preferredAddons: b.preferredAddons,
     countryOfResidence: b.countryOfResidence,
     citizenship: b.citizenship,
+    customizedPackageId: b.customizedPackageId,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -368,6 +369,24 @@ export const bookingRepository = {
       await sweepLifecycle(tx);
       const b = await tx.booking.findUnique({ where: { bookingReference } });
       return b && !b.deletedAt ? toBookingView(b) : null;
+    });
+  },
+
+  /** DR-108: the reverse direction of Booking.customizedPackageId -- reads
+   * are keyed by packageId (the package detail page's own back-link),
+   * writes are keyed by bookingId (the booking detail page's create action).
+   * `@unique` on the column guarantees at most one match. */
+  async findByCustomizedPackageId(organizationId: string, packageId: string): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const b = await tx.booking.findUnique({ where: { customizedPackageId: packageId } });
+      return b && !b.deletedAt ? toBookingView(b) : null;
+    });
+  },
+
+  async setCustomizedPackage(organizationId: string, id: string, packageId: string): Promise<BookingView> {
+    return withOrg(organizationId, async (tx) => {
+      const b = await tx.booking.update({ where: { id }, data: { customizedPackageId: packageId } });
+      return toBookingView(b);
     });
   },
 

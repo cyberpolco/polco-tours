@@ -172,6 +172,16 @@ export function isDepartureVisible(dep: DepartureView, roles: Role[]): boolean {
   return isOperatorRole(roles) || dep.status === 'SCHEDULED';
 }
 
+// DR-106: "is this tour over" (assignment-lock purposes) is deliberately
+// date-based, not `DepartureStatus`-based -- that enum is never actually set
+// to COMPLETED/CANCELLED anywhere in the app (SCHEDULED forever in
+// practice), while `endDate` is the same real signal `sweepLifecycle`
+// (booking/repository.ts) and `resolveTripProgress` (tracking/domain.ts)
+// already use. A departure with no endDate never counts as ended.
+export function hasDepartureEnded(endDate: Date | null, now: Date): boolean {
+  return endDate != null && endDate < now;
+}
+
 export interface AddonServiceView {
   id: string;
   organizationId: string;

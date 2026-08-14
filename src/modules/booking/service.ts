@@ -707,6 +707,48 @@ export const bookingService = {
     return bookingRepository.listAddonsForBooking(organizationId, bookingId);
   },
 
+  /** DR-108: turns an AWAITING_QUOTATION TAILOR_MADE request into a real,
+   * reusable DRAFT TourPackage -- one per booking, never reassigned. Only
+   * records the link; building the CreatePackageInput from this booking's
+   * plan-my-trip answers and calling catalogService.createPackage happens
+   * one level up (the Server Action), same "cross-module orchestration
+   * doesn't live inside either module's service" convention as
+   * itineraryService composing booking/catalog directly. */
+  async setCustomizedPackage(ctx: AuthContext, bookingId: string, packageId: string): Promise<BookingView> {
+    assertCan(ctx, 'booking.confirm');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (booking.origin !== 'TAILOR_MADE') {
+      throw Errors.conflict('Only a tailor-made request can have a customized package created from it');
+    }
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
+    if (booking.customizedPackageId) {
+      throw Errors.conflict('This booking already has a customized package');
+    }
+    const updated = await bookingRepository.setCustomizedPackage(organizationId, bookingId, packageId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.customized_package_created',
+      resourceType: 'Booking',
+      resourceId: bookingId,
+      organizationId,
+      metadata: { packageId },
+    });
+    return updated;
+  },
+
+  /** Read-only reverse lookup for the package detail page's back-link to
+   * whichever booking it was created from, if any -- same "caller already
+   * gates" shape as getBookingForTraveler. */
+  async getByCustomizedPackageId(ctx: AuthContext, packageId: string): Promise<BookingView | null> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    return bookingRepository.findByCustomizedPackageId(organizationId, packageId);
+  },
+
   /** The cross-module entry point invoicing calls instead of reading
    * Booking.priceMinor directly -- combines the seat price with the
    * finalized add-on selection. Throws until the booking is priced (a

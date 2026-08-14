@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
+import { can } from '@lib/rbac';
+import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
@@ -39,6 +41,10 @@ export default async function PackageDetailPage({ params }: Props) {
     notFound();
   }
   const templateDays = await catalogService.listTemplateDays(ctx, packageId);
+  // DR-108: reverse direction of Booking.customizedPackageId -- a package
+  // created from a plan-my-trip request links back to it. can()-guarded
+  // since not every catalog.read holder is guaranteed booking.read too.
+  const sourceBooking = can(ctx, 'booking.read') ? await bookingService.getByCustomizedPackageId(ctx, packageId) : null;
   const t = await getTranslations('StaffPackageDetail');
   const tPackageStatus = await getTranslations('PackageStatusLabel');
   const tTags = await getTranslations('TripTags');
@@ -57,6 +63,13 @@ export default async function PackageDetailPage({ params }: Props) {
         <PageHeader eyebrow={t('eyebrow', { ref: pkg.packageReference })} title={pkg.title} />
         <Badge tone={PACKAGE_STATUS_TONE[pkg.status]}>{tPackageStatus(pkg.status)}</Badge>
       </div>
+      {sourceBooking && (
+        <p className="mt-1 text-sm">
+          <LinkButton variant="secondary" href={`/staff/bookings/${sourceBooking.id}`}>
+            {t('createdFromBooking', { ref: sourceBooking.bookingReference })}
+          </LinkButton>
+        </p>
+      )}
 
       <div className="mt-4 flex gap-3">
         <form action={duplicatePackageAction.bind(null, packageId)}>

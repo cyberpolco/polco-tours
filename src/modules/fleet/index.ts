@@ -12,7 +12,9 @@ export {
   UpdateGuideProfileInput,
   UpdateStarlinkKitInput,
   UpdateVehicleInput,
+  POST_TOUR_AVAILABILITY_DELAY_HOURS,
   complianceStatus,
+  isWithinPostTourCooldown,
   maintenanceRecencyScore,
 } from './domain';
 export type {

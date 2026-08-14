@@ -3,7 +3,7 @@
 import { Prisma } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
-import { catalogService, type DepartureView } from '@modules/catalog';
+import { catalogService, hasDepartureEnded, type DepartureView } from '@modules/catalog';
 import { fleetService, maintenanceRecencyScore, type DriverProfileView, type GuideProfileView, type VehicleView } from '@modules/fleet';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
@@ -70,6 +70,9 @@ export const assignmentService = {
     const organizationId = requireOrg(ctx);
 
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
+    if (hasDepartureEnded(departure.endDate, new Date())) {
+      throw Errors.conflict('This departure has already ended -- assignments can no longer be changed');
+    }
 
     const vehicle = await fleetService.getVehicle(ctx, input.vehicleId);
     if (vehicle.status !== 'ACTIVE') throw Errors.conflict('Vehicle is not ACTIVE');
@@ -269,6 +272,14 @@ export const assignmentService = {
   async removeAssignment(ctx: AuthContext, assignmentId: string): Promise<AssignmentView> {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
+
+    const existing = await assignmentRepository.findById(organizationId, assignmentId);
+    if (!existing) throw Errors.notFound('Assignment not found');
+    const { departure } = await catalogService.getDepartureDetail(ctx, existing.departureId);
+    if (hasDepartureEnded(departure.endDate, new Date())) {
+      throw Errors.conflict('This departure has already ended -- assignments can no longer be changed');
+    }
+
     const removed = await assignmentRepository.remove(organizationId, assignmentId);
     if (!removed) throw Errors.notFound('Assignment not found');
 

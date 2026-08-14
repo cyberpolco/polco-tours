@@ -3,6 +3,7 @@ import {
   computeDepartureEndDate,
   effectivePrice,
   formatPackageReference,
+  hasDepartureEnded,
   isBookable,
   isPackageVisible,
   isDepartureVisible,
@@ -84,6 +85,22 @@ describe('catalog domain', () => {
     it('tourists only see published packages', () => {
       expect(isPackageVisible(pkg({ status: 'DRAFT' }), ['TOURIST'])).toBe(false);
       expect(isPackageVisible(pkg({ status: 'PUBLISHED' }), ['TOURIST'])).toBe(true);
+    });
+  });
+
+  describe('hasDepartureEnded (DR-106)', () => {
+    const now = new Date('2026-08-14T00:00:00Z');
+
+    it('is true once endDate is in the past', () => {
+      expect(hasDepartureEnded(new Date('2026-08-13T00:00:00Z'), now)).toBe(true);
+    });
+
+    it('is false while endDate is still in the future', () => {
+      expect(hasDepartureEnded(new Date('2026-08-15T00:00:00Z'), now)).toBe(false);
+    });
+
+    it('is false for a departure with no endDate at all', () => {
+      expect(hasDepartureEnded(null, now)).toBe(false);
     });
   });
 
