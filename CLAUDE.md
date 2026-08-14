@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-109 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-110 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -266,8 +266,11 @@ explicit decision to do so.
 > in-app `ConfirmDialog` modal — a single choke point (`SubmitButton`), so
 > the mechanism changed in exactly one place; retires the
 > `page.once('dialog', ...)` Playwright pattern DR-087 introduced entirely —
-> no native dialog exists to auto-dismiss anymore. See DR-082 through
-> DR-109 for full detail.
+> no native dialog exists to auto-dismiss anymore. DR-110 adds a homepage
+> "Trusted by" partners/clients section (`PartnersMarquee`, continuous
+> hover-pausing scroll) between How it works and the closing CTA band —
+> placeholder data only for now (no real partner names/logos yet). See
+> DR-082 through DR-110 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

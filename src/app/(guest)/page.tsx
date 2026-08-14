@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { AfricaMapLazy as AfricaMap } from '@/components/AfricaMapLazy';
 import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
+import { PartnersMarquee, type Partner } from '@/components/PartnersMarquee';
 import { StickyMobileCta } from '@/components/StickyMobileCta';
 import { TrustSummary } from '@/components/TrustSummary';
 import { Card } from '@/components/ui/Card';
@@ -57,6 +58,19 @@ export default async function HomePage() {
     { mark: '02', title: t('step2Title'), body: t('step2Body') },
     { mark: '03', title: t('step3Title'), body: t('step3Body') },
   ] as const;
+
+  // Placeholder until real partner/client names (and optionally logo
+  // files) are supplied -- explicit user direction: stand in with our own
+  // mark rather than fabricate a logo for a real organization. Swap this
+  // array for the real list (and add `logoUrl` per entry once files exist).
+  const PARTNERS: Partner[] = [
+    { name: 'Polco Tours' },
+    { name: 'Polco Tours' },
+    { name: 'Polco Tours' },
+    { name: 'Polco Tours' },
+    { name: 'Polco Tours' },
+    { name: 'Polco Tours' },
+  ];
 
   // "/" is the highest-traffic route on the site and, unlike every other
   // catalog-backed page, has no reason to fail the whole page over this one
@@ -135,6 +149,10 @@ export default async function HomePage() {
             </Card>
           ))}
         </ul>
+      </Reveal>
+
+      <Reveal>
+        <PartnersMarquee partners={PARTNERS} eyebrow={t('partnersEyebrow')} title={t('partnersTitle')} />
       </Reveal>
 
       <Reveal>
