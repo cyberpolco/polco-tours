@@ -17,6 +17,7 @@ import {
   isBookingLocked,
   isTravelerManifestComplete,
   lastNameMatches,
+  requiresFullTravelerDetails,
   toTravelerDutyView,
   type AddTravelerInput,
   type BookingAddonView,
@@ -567,6 +568,9 @@ export const bookingService = {
     }
     if (input.isTourLead && existing.some((t) => t.isTourLead)) {
       throw Errors.conflict('This booking already has a tour lead');
+    }
+    if (requiresFullTravelerDetails(booking.origin) && (input.age == null || !input.nationality || !input.idOrPassportNumber)) {
+      throw Errors.validation('Age, nationality, and ID/passport number are required for this booking');
     }
 
     const traveler = await bookingRepository.createTraveler(organizationId, bookingId, input);

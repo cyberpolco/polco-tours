@@ -675,6 +675,7 @@
     "age": "Age",
     "sex": "Sex",
     "nationality": "Nationality",
+    "notSpecified": "Not specified yet",
     "idOrPassportNumber": "ID / passport number",
     "tourLeadContactDetails": "Tour lead contact details",
     "phone": "Phone",

@@ -13,6 +13,7 @@ export {
   TERMINAL_BOOKING_STATUSES,
   generateBookingReference,
   isBookingLocked,
+  requiresFullTravelerDetails,
 } from './domain';
 export type {
   BookingAddonView,

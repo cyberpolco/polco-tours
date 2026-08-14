@@ -124,8 +124,8 @@ beforeAll(async () => {
         country: 'NA',
         travelerFirstName: traveler.firstName,
         travelerLastName: traveler.lastName,
-        travelerNationality: traveler.nationality,
-        travelerIdOrPassportNumber: traveler.idOrPassportNumber,
+        travelerNationality: traveler.nationality!,
+        travelerIdOrPassportNumber: traveler.idOrPassportNumber!,
         status: 'SUBMITTED',
       },
     });

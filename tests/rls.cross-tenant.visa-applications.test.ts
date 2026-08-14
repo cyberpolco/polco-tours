@@ -61,8 +61,8 @@ async function seedOrgWithVisaApplication(name: string): Promise<string> {
         country: 'NA',
         travelerFirstName: traveler.firstName,
         travelerLastName: traveler.lastName,
-        travelerNationality: traveler.nationality,
-        travelerIdOrPassportNumber: traveler.idOrPassportNumber,
+        travelerNationality: traveler.nationality!,
+        travelerIdOrPassportNumber: traveler.idOrPassportNumber!,
       },
     });
   });

@@ -17,6 +17,7 @@ import {
   CreateBookingWithDatesInput,
   isBookingDeleter,
   BOOKING_DELETION_RETENTION_DAYS,
+  requiresFullTravelerDetails,
   type TravelerView,
 } from '../src/modules/booking/domain';
 
@@ -186,6 +187,16 @@ describe('booking domain', () => {
 
     it('rejects once every seat has a traveler', () => {
       expect(canAddTraveler(2, 2)).toBe(false);
+    });
+  });
+
+  describe('requiresFullTravelerDetails (DR-111)', () => {
+    it('is required for a PREDEFINED_PACKAGE booking (real, immediate travel)', () => {
+      expect(requiresFullTravelerDetails('PREDEFINED_PACKAGE')).toBe(true);
+    });
+
+    it('is optional for a TAILOR_MADE booking (plan-my-trip never collects per-traveler data)', () => {
+      expect(requiresFullTravelerDetails('TAILOR_MADE')).toBe(false);
     });
   });
 

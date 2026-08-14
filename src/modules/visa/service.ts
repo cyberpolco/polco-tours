@@ -50,6 +50,12 @@ export const visaService = {
     const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (existing) throw Errors.conflict('A visa application already exists for this traveler');
 
+    // DR-111: a TAILOR_MADE traveler may never have had these collected --
+    // a visa application can't be filed without knowing them.
+    if (!traveler.nationality || !traveler.idOrPassportNumber) {
+      throw Errors.validation('Traveler is missing nationality/passport number required for a visa application');
+    }
+
     const booking = await bookingService.getById(ctx, bookingId);
     // A PREDEFINED_PACKAGE booking's country comes from its departure's
     // package; a TAILOR_MADE booking has no departure, so it carries its own
@@ -373,6 +379,11 @@ export const visaService = {
     if (!country) return;
 
     const traveler = await findTraveler(ctx, bookingId, travelerId);
+    // DR-111: a TAILOR_MADE traveler may have skipped these -- skip auto-
+    // submission rather than crash; the "needs application" reconciliation
+    // view (listNeedingApplication) still surfaces the traveler so staff can
+    // submit manually once the missing details are known.
+    if (!traveler.nationality || !traveler.idOrPassportNumber) return;
     const application = await visaRepository.create(organizationId, {
       travelerId,
       country,

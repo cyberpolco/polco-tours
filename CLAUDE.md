@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-110 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-111 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -269,8 +269,27 @@ explicit decision to do so.
 > no native dialog exists to auto-dismiss anymore. DR-110 adds a homepage
 > "Trusted by" partners/clients section (`PartnersMarquee`, continuous
 > hover-pausing scroll) between How it works and the closing CTA band —
-> placeholder data only for now (no real partner names/logos yet). See
-> DR-082 through DR-110 for full detail.
+> placeholder data only for now (no real partner names/logos yet). DR-111
+> makes `Traveler.age`/`nationality`/`idOrPassportNumber` nullable — a
+> `TAILOR_MADE` booking's plan-my-trip wizard never collects real
+> per-traveler data for these (only the tour lead's own citizenship/country
+> of residence, and a bare seat count for everyone else), so staff setting
+> up its travelers on `/staff/bookings/[bookingId]/travelers/new` no longer
+> have to assume/fabricate a value; a `PREDEFINED_PACKAGE` booking (real,
+> immediate travel) still requires all three, enforced in
+> `bookingService.addTraveler` via new `requiresFullTravelerDetails(origin)`,
+> not the DB or the zod shape schema. `visaService.submitApplication`/
+> `autoSubmitOnPassportUpload` both guard against a null nationality/
+> idOrPassportNumber (manual path throws, auto-submit-on-upload just skips,
+> leaving the traveler on the "needs application" reconciliation view).
+> DR-108's package-creation composition moved into a shared
+> `src/lib/create-customized-package.ts` helper and now **auto-fires**
+> (once — `setCustomizedPackage` itself rejects a second one) the moment a
+> `TAILOR_MADE` booking's traveler/passport setup wizard reaches its true
+> last step, redirecting straight to the new package; the manual
+> "Create customized package" button stays as a fallback for bookings whose
+> setup completed before this change. See DR-082 through DR-111 for full
+> detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -717,7 +736,13 @@ visually coherent with the design package.
   `booking/domain.ts`. A `TAILOR_MADE` booking at `AWAITING_QUOTATION` can
   have a real, reusable DRAFT `TourPackage` created from it, prefilled from
   its plan-my-trip answers (`Booking.customizedPackageId`, DR-108, one per
-  booking, never reassigned).
+  booking, never reassigned) — since DR-111 this fires automatically the
+  moment that booking's traveler/passport setup wizard finishes, not just
+  via the manual button. `Traveler.age`/`nationality`/`idOrPassportNumber`
+  are nullable (DR-111) and only actually required for a
+  `PREDEFINED_PACKAGE` booking (`requiresFullTravelerDetails` in
+  `booking/domain.ts`) — a `TAILOR_MADE` request's wizard never collects
+  real per-traveler values for these.
 - **Guest site** (`(guest)/`) has no tourist accounts, ever — bookings ride
   better-auth's `anonymous` plugin. Every booking (from guest package
   browse, guest `/plan-my-trip`, or staff's own "New Booking" flow) shows up

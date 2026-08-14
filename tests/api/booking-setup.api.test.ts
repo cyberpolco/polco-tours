@@ -422,6 +422,64 @@ describe('POST /api/v1/bookings/:bookingId/addons (pre-quotation, DR-092)', () =
   });
 });
 
+describe('DR-111: age/nationality/idOrPassportNumber optional for a TAILOR_MADE booking', () => {
+  it('accepts a traveler with no age/nationality/idOrPassportNumber on a TAILOR_MADE booking (200)', async () => {
+    const preQuoteBooking = await withOrg(orgId, (tx) =>
+      tx.booking.create({
+        data: {
+          organizationId: orgId,
+          origin: 'TAILOR_MADE',
+          touristUserId: touristAId,
+          bookingReference: generateBookingReference(),
+          seats: 1,
+          customCountry: country.slice(0, 2),
+          status: 'AWAITING_QUOTATION',
+        },
+      }),
+    );
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${preQuoteBooking.id}/travelers`, headers, {
+      firstName: 'No',
+      lastName: 'Details',
+      sex: 'X',
+      isTourLead: true,
+    });
+    const res = await addTraveler(req, { params: Promise.resolve({ bookingId: preQuoteBooking.id }) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.traveler.age).toBeNull();
+    expect(body.traveler.nationality).toBeNull();
+    expect(body.traveler.idOrPassportNumber).toBeNull();
+  });
+
+  it('still rejects a traveler missing age/nationality/idOrPassportNumber on a PREDEFINED_PACKAGE booking (422)', async () => {
+    // A fresh booking, not the shared `bookingId` fixture -- its 2 seats are
+    // already filled by the "POST .../travelers" describe block above, which
+    // would 409 (seats full) before ever reaching the field-requirement
+    // check this test targets.
+    const freshBooking = await withOrg(orgId, (tx) =>
+      tx.booking.create({
+        data: {
+          organizationId: orgId,
+          touristUserId: touristAId,
+          bookingReference: generateBookingReference(),
+          seats: 1,
+          priceMinor: 20000,
+          currency: 'USD',
+        },
+      }),
+    );
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${freshBooking.id}/travelers`, headers, {
+      firstName: 'Missing',
+      lastName: 'Details',
+      sex: 'X',
+    });
+    const res = await addTraveler(req, { params: Promise.resolve({ bookingId: freshBooking.id }) });
+    expect(res.status).toBe(422);
+  });
+});
+
 describe('DR-105: hard-blocked edits on a terminal-status booking', () => {
   it.each(['COMPLETED', 'CANCELLED', 'REFUNDED'] as const)('rejects addTraveler/setAddons/passport upload on a %s booking (409)', async (status) => {
     // A real Traveler row is inserted directly (not via addTraveler, which

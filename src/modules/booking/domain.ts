@@ -35,8 +35,10 @@ export interface VisaCandidateTravelerView {
   origin: BookingOrigin;
   firstName: string;
   lastName: string;
-  nationality: string;
-  idOrPassportNumber: string;
+  // Nullable since DR-111 -- a TAILOR_MADE traveler may never have had these
+  // collected. visaService guards against submitting an application for one.
+  nationality: string | null;
+  idOrPassportNumber: string | null;
 }
 
 // Mirrors the Prisma AddonCode enum -- defined locally rather than imported
@@ -378,10 +380,11 @@ export interface TravelerView {
   bookingId: string;
   firstName: string;
   lastName: string;
-  age: number;
+  // Nullable since DR-111 -- see requiresFullTravelerDetails below.
+  age: number | null;
   sex: Sex;
-  nationality: string;
-  idOrPassportNumber: string;
+  nationality: string | null;
+  idOrPassportNumber: string | null;
   phone: string | null;
   // Tour-lead-only contact fields -- null for every other traveler on the
   // booking (the wizard only ever asks for these on the isTourLead row).
@@ -408,9 +411,9 @@ export interface TravelerDutyView {
   id: string;
   firstName: string;
   lastName: string;
-  age: number;
+  age: number | null;
   sex: Sex;
-  nationality: string;
+  nationality: string | null;
   phone: string | null;
   disabilities: string | null;
   allergies: string | null;
@@ -456,10 +459,14 @@ const E164 = /^\+?[1-9]\d{6,14}$/;
 export const AddTravelerInput = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
-  age: z.number().int().min(0).max(120),
+  // Optional here (validated for shape only when present) -- whether these
+  // are actually required is a per-booking business rule, not a shape rule,
+  // so it's enforced in bookingService.addTraveler via
+  // requiresFullTravelerDetails, not this schema.
+  age: z.number().int().min(0).max(120).optional(),
   sex: z.enum(['M', 'F', 'X']),
-  nationality: z.string().length(2), // ISO-3166 alpha-2
-  idOrPassportNumber: z.string().min(1).max(50),
+  nationality: z.string().length(2).optional(), // ISO-3166 alpha-2
+  idOrPassportNumber: z.string().min(1).max(50).optional(),
   // Tour-lead-only in practice (the wizard only ever asks for these on the
   // isTourLead row) -- optional here rather than conditionally required,
   // since this schema validates one traveler at a time with no visibility
@@ -484,6 +491,17 @@ export type AddTravelerInput = z.infer<typeof AddTravelerInput>;
 /** A Booking accepts one Traveler per seat -- no more. */
 export function canAddTraveler(existingCount: number, seats: number): boolean {
   return existingCount < seats;
+}
+
+/** DR-111: a PREDEFINED_PACKAGE booking is real, immediate travel -- age,
+ * nationality, and ID/passport number are required at traveler-setup time,
+ * same as before. A TAILOR_MADE request's plan-my-trip wizard never collects
+ * real per-traveler data for these (only the tour lead's own citizenship/
+ * country of residence, and only a seat count for everyone else) -- staff
+ * setting one up shouldn't have to assume/fabricate a value just to satisfy
+ * the form. */
+export function requiresFullTravelerDetails(origin: BookingOrigin): boolean {
+  return origin !== 'TAILOR_MADE';
 }
 
 export function hasExactlyOneTourLead(travelers: Pick<TravelerView, 'isTourLead'>[]): boolean {

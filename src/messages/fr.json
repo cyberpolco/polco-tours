@@ -675,6 +675,7 @@
     "age": "Âge",
     "sex": "Sexe",
     "nationality": "Nationalité",
+    "notSpecified": "Pas encore précisé",
     "idOrPassportNumber": "Numéro de pièce d'identité / passeport",
     "tourLeadContactDetails": "Coordonnées du chef de groupe",
     "phone": "Téléphone",

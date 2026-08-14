@@ -2820,10 +2820,25 @@ components:
         bookingId: { type: string, format: uuid }
         firstName: { type: string }
         lastName: { type: string }
-        age: { type: integer }
+        age:
+          type: integer
+          nullable: true
+          description: >-
+            Null for a TAILOR_MADE booking's traveler if not supplied at
+            setup time (DR-111) -- required for PREDEFINED_PACKAGE.
         sex: { type: string, enum: [M, F, X], description: ICAO 9303 passport MRZ convention }
-        nationality: { type: string, description: ISO-3166 alpha-2 }
-        idOrPassportNumber: { type: string }
+        nationality:
+          type: string
+          nullable: true
+          description: >-
+            ISO-3166 alpha-2. Null for a TAILOR_MADE booking's traveler if not
+            supplied at setup time (DR-111) -- required for PREDEFINED_PACKAGE.
+        idOrPassportNumber:
+          type: string
+          nullable: true
+          description: >-
+            Null for a TAILOR_MADE booking's traveler if not supplied at
+            setup time (DR-111) -- required for PREDEFINED_PACKAGE.
         phone: { type: string, nullable: true, description: E.164 }
         disabilities: { type: string, nullable: true }
         allergies: { type: string, nullable: true }
@@ -2838,7 +2853,13 @@ components:
 
     AddTravelerInput:
       type: object
-      required: [firstName, lastName, age, sex, nationality, idOrPassportNumber]
+      required: [firstName, lastName, sex]
+      description: >-
+        age/nationality/idOrPassportNumber are shape-validated when present
+        but only actually required for a PREDEFINED_PACKAGE booking -- a
+        TAILOR_MADE booking's traveler may omit them (DR-111,
+        bookingService.addTraveler's requiresFullTravelerDetails check;
+        omitting one on a PREDEFINED_PACKAGE booking is a 422).
       properties:
         firstName: { type: string, minLength: 1, maxLength: 100 }
         lastName: { type: string, minLength: 1, maxLength: 100 }
@@ -2867,9 +2888,9 @@ components:
         id: { type: string, format: uuid }
         firstName: { type: string }
         lastName: { type: string }
-        age: { type: integer }
+        age: { type: integer, nullable: true, description: 'Null for a TAILOR_MADE booking, DR-111' }
         sex: { type: string, enum: [M, F, X] }
-        nationality: { type: string }
+        nationality: { type: string, nullable: true, description: 'Null for a TAILOR_MADE booking, DR-111' }
         phone: { type: string, nullable: true }
         disabilities: { type: string, nullable: true }
         allergies: { type: string, nullable: true }

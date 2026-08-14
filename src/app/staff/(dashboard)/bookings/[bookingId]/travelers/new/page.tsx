@@ -137,8 +137,15 @@ export default async function NewTravelerPage({ params }: Props) {
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('age')} htmlFor="age">
-            <input name="age" type="number" min={0} max={120} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          <FormField label={t('age')} htmlFor="age" optional={isTailorMade}>
+            <input
+              name="age"
+              type="number"
+              min={0}
+              max={120}
+              required={!isTailorMade}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
           <FormField label={t('sex')} htmlFor="sex">
             <Select name="sex" required>
@@ -149,12 +156,21 @@ export default async function NewTravelerPage({ params }: Props) {
           </FormField>
         </div>
 
-        <FormField label={t('nationality')} htmlFor="nationality">
+        <FormField label={t('nationality')} htmlFor="nationality" optional={isTailorMade}>
           {/* Citizenship (plan-my-trip step 7) isn't guaranteed to equal
               passport nationality, so this stays an editable field rather
               than a locked summary -- but it's a reasonable default over
-              silently defaulting to whichever country sorts first. */}
-          <Select name="nationality" required defaultValue={isAddingTourLead ? (booking.citizenship ?? undefined) : undefined}>
+              silently defaulting to whichever country sorts first.
+              DR-111: a TAILOR_MADE request never collected real per-traveler
+              nationality, so this stays genuinely unset (blank option, no
+              silent default) unless staff pick one -- required again for a
+              PREDEFINED_PACKAGE booking, same as before. */}
+          <Select
+            name="nationality"
+            required={!isTailorMade}
+            defaultValue={isTailorMade ? '' : isAddingTourLead ? (booking.citizenship ?? undefined) : undefined}
+          >
+            {isTailorMade && <option value="">{t('notSpecified')}</option>}
             {COUNTRY_CODES.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
@@ -163,8 +179,8 @@ export default async function NewTravelerPage({ params }: Props) {
           </Select>
         </FormField>
 
-        <FormField label={t('idOrPassportNumber')} htmlFor="idOrPassportNumber">
-          <input name="idOrPassportNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        <FormField label={t('idOrPassportNumber')} htmlFor="idOrPassportNumber" optional={isTailorMade}>
+          <input name="idOrPassportNumber" required={!isTailorMade} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
 
         {isAddingTourLead && (

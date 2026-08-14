@@ -86,7 +86,9 @@ export interface PendingVisaApplicationView {
   origin: BookingOrigin;
   travelerFirstName: string;
   travelerLastName: string;
-  travelerNationality: string;
+  // Nullable since DR-111 -- a TAILOR_MADE traveler may never have had this
+  // collected; visaService.submitApplication rejects filing without it.
+  travelerNationality: string | null;
 }
 
 // Immigration Module (DR-034): "contact travellers" -- a staff-authored

@@ -753,10 +753,16 @@ model Traveler {
   bookingId                String   @db.Uuid
   firstName                String
   lastName                 String
-  age                      Int
+  // Nullable (DR-111): required for a PREDEFINED_PACKAGE traveler (real,
+  // immediate travel), but a TAILOR_MADE booking's plan-my-trip request
+  // never collects real per-traveler age/nationality/passport data -- forcing
+  // staff to assume/fabricate a value at setup time would be worse than
+  // leaving it unknown. Enforced by bookingService.addTraveler
+  // (requiresFullTravelerDetails), not the DB.
+  age                      Int?
   sex                      Sex
-  nationality              String // ISO-3166 alpha-2, matches TourPackage.country
-  idOrPassportNumber       String
+  nationality              String? // ISO-3166 alpha-2, matches TourPackage.country
+  idOrPassportNumber       String?
   phone                    String? // E.164 -- only ever collected for the tour lead
   // ISO-3166 alpha-2, same convention as nationality -- only ever collected
   // for the tour lead (the wizard's point of contact for the whole party).

@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
+import { createCustomizedPackageFromBooking } from '@lib/create-customized-package';
 import { bookingService } from '@modules/booking';
 import { documentsService } from '@modules/documents';
 import { visaService } from '@modules/visa';
@@ -32,7 +33,17 @@ export async function uploadPassportAction(bookingId: string, travelerId: string
   }
 
   const travelers = await bookingService.listTravelers(ctx, bookingId);
-  redirect(
-    travelers.some((t) => !t.passportDocumentId) ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`,
-  );
+  if (travelers.some((t) => !t.passportDocumentId)) {
+    redirect(`/staff/bookings/${bookingId}/passport`);
+  }
+
+  // DR-111: same auto-create-and-redirect as the traveler-setup step, for a
+  // TAILOR_MADE booking whose add-ons required a passport upload -- this is
+  // the true end of setup in that case, not the traveler step.
+  const booking = await bookingService.getById(ctx, bookingId);
+  if (booking.origin === 'TAILOR_MADE' && !booking.customizedPackageId) {
+    const pkg = await createCustomizedPackageFromBooking(ctx, bookingId);
+    redirect(`/staff/packages/${pkg.id}`);
+  }
+  redirect(`/staff/bookings/${bookingId}`);
 }
