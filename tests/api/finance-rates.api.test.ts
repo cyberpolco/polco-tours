@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { prisma } from '../../src/lib/db';
+import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as listStaffRates, POST as createStaffRate } from '../../src/app/api/v1/finance/rates/staff/route';
 import { DELETE as deleteStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
@@ -24,6 +24,10 @@ const TEST_COUNTRY = 'ZZ'; // fictitious, avoids colliding with real seeded rows
 let orgId: string;
 let superadminId: string;
 let createdStaffRateId: string;
+// DR-116: HotelRate/ActivityFee now require a real Hotel/Activity id.
+let hotelId: string;
+let siteId: string;
+let activityId: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -41,6 +45,18 @@ beforeAll(async () => {
     data: { email: `superadmin-finance-${suffix}@example.test`, role: 'SUPERADMIN', organizationId: orgId },
   });
   superadminId = superadmin.id;
+
+  // DR-116: HotelRate/ActivityFee reference real Hotel/Activity records now.
+  await withOrg(orgId, async (tx) => {
+    const hotel = await tx.hotel.create({ data: { organizationId: orgId, name: `Fixture Hotel ${suffix}`, country: 'NA' } });
+    hotelId = hotel.id;
+    const site = await tx.site.create({
+      data: { organizationId: orgId, name: `Fixture Site ${suffix}`, country: 'NA', province: 'Khomas' },
+    });
+    siteId = site.id;
+    const activity = await tx.activity.create({ data: { organizationId: orgId, siteId, name: 'Fixture park entrance', hasEntranceFee: true } });
+    activityId = activity.id;
+  });
 });
 
 afterAll(async () => {
@@ -59,6 +75,9 @@ afterAll(async () => {
   await admin.foodBeverageRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.immigrationCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
+  await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.site.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
   await admin.$disconnect();
@@ -103,6 +122,7 @@ describe('the other five rate categories (smoke test)', () => {
     const headers = await loginAs(superadminId);
     const createReq = jsonRequest('http://localhost/api/v1/finance/rates/hotel', headers, 'POST', {
       country: TEST_COUNTRY,
+      hotelId,
       roomCategory: 'Standard',
       nightlyRateMinor: 5000,
       currency: 'USD',
@@ -147,7 +167,7 @@ describe('the other five rate categories (smoke test)', () => {
     const headers = await loginAs(superadminId);
     const createReq = jsonRequest('http://localhost/api/v1/finance/rates/activity', headers, 'POST', {
       country: TEST_COUNTRY,
-      name: 'Fixture park entrance',
+      activityId,
       feeMinor: 2000,
       currency: 'USD',
     });

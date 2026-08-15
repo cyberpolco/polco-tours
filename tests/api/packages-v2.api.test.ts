@@ -102,6 +102,7 @@ describe('package CRUD (DR-028)', () => {
       title: 'V2 Test Safari',
       description: 'Fixture package.',
       country: 'NA',
+      countries: ['NA'],
       priceMinor: 50000,
       currency: 'USD',
     });
