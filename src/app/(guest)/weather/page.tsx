@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { weatherService } from '@modules/weather';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
-import { WeatherAnimation } from './weather-animation';
+import { classifyCondition, WeatherAnimation, weatherCardTint } from './weather-animation';
 
 const COUNTRY_ORDER = ['NA', 'CD', 'ZM', 'ZW'] as const;
 
@@ -32,23 +32,28 @@ export default async function WeatherPage() {
             <div key={country} className="mt-8">
               <h2 className="eyebrow text-forest">{tCountries(country)}</h2>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {countryTowns.map((town) => (
-                  <Card key={town.slug} as="div" interactive className="p-0">
-                    <Link href={`/weather/${town.slug}`} className="flex items-center gap-3 p-4">
-                      {town.current && <WeatherAnimation conditionText={town.current.conditionText} size="compact" className="w-11 shrink-0" />}
-                      <div>
-                        <p className="font-semibold text-navy">{town.name}</p>
-                        {town.current ? (
-                          <p className="mt-1 text-sm text-mist">
-                            {Math.round(town.current.temperatureCelsius)}°C · {town.current.conditionText}
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-sm text-mist">{t('summaryUnavailable')}</p>
+                {countryTowns.map((town) => {
+                  const tint = town.current ? weatherCardTint(classifyCondition(town.current.conditionText)) : '';
+                  return (
+                    <Card key={town.slug} as="div" interactive className={['p-0 overflow-hidden', tint].filter(Boolean).join(' ')}>
+                      <Link href={`/weather/${town.slug}`} className="flex items-center gap-3 p-4">
+                        {town.current && (
+                          <WeatherAnimation conditionText={town.current.conditionText} size="compact" className="w-14 shrink-0 shadow-card" />
                         )}
-                      </div>
-                    </Link>
-                  </Card>
-                ))}
+                        <div>
+                          <p className="font-semibold text-navy">{town.name}</p>
+                          {town.current ? (
+                            <p className="mt-1 text-sm text-mist">
+                              {Math.round(town.current.temperatureCelsius)}°C · {town.current.conditionText}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-sm text-mist">{t('summaryUnavailable')}</p>
+                          )}
+                        </div>
+                      </Link>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           );

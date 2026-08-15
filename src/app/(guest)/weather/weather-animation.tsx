@@ -24,9 +24,9 @@ const COLORS = {
   rule: '#E3D6C8',
 };
 
-type ConditionCategory = 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow';
+export type ConditionCategory = 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow';
 
-function classifyCondition(conditionText: string): ConditionCategory {
+export function classifyCondition(conditionText: string): ConditionCategory {
   const text = conditionText.toLowerCase();
   if (text.includes('thunder') || text.includes('storm')) return 'storm';
   if (text.includes('snow') || text.includes('sleet') || text.includes('hail')) return 'snow';
@@ -35,6 +35,28 @@ function classifyCondition(conditionText: string): ConditionCategory {
     return 'cloudy';
   }
   return 'clear';
+}
+
+// A saturated-but-low-alpha wash (using DEFAULT tokens, not the pale `*Soft`
+// ones -- those sit too close to the bone page background to read as a
+// distinct card color) so a card carrying an icon/animation reads as its
+// own themed surface rather than blending into the page. Plain string
+// classes (not computed per-render) so Tailwind's static analysis picks
+// them up -- this is the one place outside tailwind.config.ts itself that
+// needs every class spelled out literally.
+export function weatherCardTint(category: ConditionCategory): string {
+  switch (category) {
+    case 'clear':
+      return 'bg-gradient-to-br from-gold/25 via-amber/10 to-transparent';
+    case 'cloudy':
+      return 'bg-gradient-to-br from-mist/20 via-rule/40 to-transparent';
+    case 'rain':
+      return 'bg-gradient-to-br from-navy/15 via-mist/15 to-transparent';
+    case 'storm':
+      return 'bg-gradient-to-br from-navy/25 via-navy-soft/15 to-transparent';
+    case 'snow':
+      return 'bg-gradient-to-br from-bone via-rule/50 to-transparent';
+  }
 }
 
 // Defaults to daytime for the server-rendered/first-paint frame (avoids a

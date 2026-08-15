@@ -4,7 +4,7 @@ import { weatherService } from '@modules/weather';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
-import { HumidityGauge, WeatherAnimation } from '../weather-animation';
+import { classifyCondition, HumidityGauge, WeatherAnimation, weatherCardTint } from '../weather-animation';
 
 interface Props {
   params: Promise<{ town: string }>;
@@ -34,8 +34,13 @@ export default async function WeatherTownPage({ params }: Props) {
           <p className="eyebrow text-forest">{t('currentConditions')}</p>
           {town.current ? (
             <>
-              <WeatherAnimation conditionText={town.current.conditionText} size="full" className="mt-2" />
-              <Card className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <WeatherAnimation conditionText={town.current.conditionText} size="full" className="mt-2 shadow-lift" />
+              <Card
+                className={[
+                  'mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4',
+                  weatherCardTint(classifyCondition(town.current.conditionText)),
+                ].join(' ')}
+              >
                 <div>
                   <p className="text-xs text-mist">{t('temperature')}</p>
                   <p className="text-lg font-semibold text-navy">{Math.round(town.current.temperatureCelsius)}°C</p>
