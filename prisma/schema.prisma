@@ -542,37 +542,40 @@ model TourPackage {
 // mirrors ItineraryDay's shape (itinerary module) rather than being shared
 // with it -- this is catalog-owned reference/template data, that one is a
 // live per-booking record; duplicating the shape is simpler than the two
-// modules depending on each other for one shared type. The two have since
-// deliberately diverged on one field: this model keeps plannedSites as
-// free text, while ItineraryDay's was replaced by a structured relation to
-// Site (ItineraryDaySite) -- catalog can't reference itinerary's Site table
-// without inverting the module dependency direction (itinerary -> catalog,
-// never the reverse), so the template-copy step in
-// itineraryService.createItinerary no longer copies this field at all.
+// modules depending on each other for one shared type. DR-119 removes
+// plannedSites/estimatedTravelMinutes entirely (explicit user direction --
+// plannedSites is superseded by activityIds below; estimatedTravelMinutes
+// simply wasn't wanted) and adds hotelId/restaurantId, same "plain, un-FK'd
+// scalar" precedent as activityIds -- catalog can't reference itinerary's
+// Hotel/Restaurant tables without inverting the module dependency direction
+// (itinerary -> catalog, never the reverse).
 model PackageItineraryDay {
-  id                     String   @id @default(uuid()) @db.Uuid
-  organizationId         String   @db.Uuid
-  tourPackageId          String   @db.Uuid
-  dayNumber              Int
-  departureTime          String?
-  arrivalTime            String?
-  pickupLocation         String?
-  dropoffLocation        String?
-  plannedSites           String?  @db.Text
-  activities             String?  @db.Text
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  tourPackageId   String   @db.Uuid
+  dayNumber       Int
+  departureTime   String?
+  arrivalTime     String?
+  pickupLocation  String?
+  dropoffLocation String?
   // DR-116: real Activity ids (itinerary module) selected via a searchable
   // picker on the staff day form -- a plain, un-FK'd string array, same
   // "no cross-module relation" precedent as TourPackage.countries/
   // Booking.preferredCountries, since catalog can't reference itinerary's
   // tables without inverting the module dependency direction (see this
   // model's own comment above). Supersedes the free-text `activities`
-  // column above for new/edited days; `activities` itself is left
+  // column below for new/edited days; `activities` itself is left
   // untouched for any pre-DR-116 row that already has one.
-  activityIds            String[] @default([])
-  estimatedTravelMinutes Int?
-  notes                  String?  @db.Text
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  activities      String?  @db.Text
+  activityIds     String[] @default([])
+  // DR-119: real Hotel/Restaurant ids (itinerary module), same plain
+  // scalar precedent as activityIds above -- one of each per day, picked
+  // via a searchable single-select.
+  hotelId         String?  @db.Uuid
+  restaurantId    String?  @db.Uuid
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tourPackage  TourPackage  @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
@@ -1225,9 +1228,9 @@ model Hotel {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  days         ItineraryDay[]
-  ratings      HotelRating[]
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  days             ItineraryDay[]
+  ratings          HotelRating[]
   // DR-116: operational-rate rows (finance module) that reference this hotel.
   // HotelRate itself stays a platform-wide, un-RLS'd table -- see its own
   // comment for why this cross-module FK doesn't change that.
@@ -1447,9 +1450,9 @@ model Invoice {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  payments     Payment[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payments          Payment[]
   couponRedemptions CouponRedemption[]
 
   @@index([organizationId])

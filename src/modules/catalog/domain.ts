@@ -263,14 +263,16 @@ export interface PackageItineraryDayView {
   arrivalTime: string | null;
   pickupLocation: string | null;
   dropoffLocation: string | null;
-  plannedSites: string | null;
   activities: string | null;
   // DR-116: real Activity ids (itinerary module), picked via a searchable
   // multi-select on the staff day form -- see the schema comment on
   // PackageItineraryDay.activityIds for why this is a plain, un-FK'd array
   // rather than a relation.
   activityIds: string[];
-  estimatedTravelMinutes: number | null;
+  // DR-119: real Hotel/Restaurant ids (itinerary module), same plain
+  // scalar precedent as activityIds -- one of each per day.
+  hotelId: string | null;
+  restaurantId: string | null;
   notes: string | null;
 }
 
@@ -284,10 +286,10 @@ export const AddPackageItineraryDayInput = z.object({
   arrivalTime: z.string().regex(TIME_HHMM).optional(),
   pickupLocation: z.string().max(500).optional(),
   dropoffLocation: z.string().max(500).optional(),
-  plannedSites: z.string().max(2000).optional(),
   activities: z.string().max(2000).optional(),
   activityIds: z.array(z.string().uuid()).optional(),
-  estimatedTravelMinutes: z.number().int().nonnegative().optional(),
+  hotelId: z.string().uuid().optional(),
+  restaurantId: z.string().uuid().optional(),
   notes: z.string().max(2000).optional(),
 });
 export type AddPackageItineraryDayInput = z.infer<typeof AddPackageItineraryDayInput>;

@@ -13,10 +13,10 @@ import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { MultiSearchableSelect } from '@/components/ui/MultiSearchableSelect';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import type { SearchableOption } from '@/components/ui/SearchableSelect';
 import { formatOrPending } from '@lib/money';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import {
@@ -53,9 +53,16 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
   // created from a plan-my-trip request links back to it. can()-guarded
   // since not every catalog.read holder is guaranteed booking.read too.
   const sourceBooking = can(ctx, 'booking.read') ? await bookingService.getByCustomizedPackageId(ctx, packageId) : null;
+  const tCountries = await getTranslations('Countries');
   // DR-116: the day-plan Activities picker (and its read-only chip display)
   // reuses itinerary's staff-managed Site > Activities reference list.
-  const [activities, sites] = await Promise.all([itineraryService.listActivities(ctx), itineraryService.listSites(ctx)]);
+  // DR-119: same treatment for Hotels/Restaurants (single-select per day).
+  const [activities, sites, hotels, restaurants] = await Promise.all([
+    itineraryService.listActivities(ctx),
+    itineraryService.listSites(ctx),
+    itineraryService.listHotels(ctx),
+    itineraryService.listRestaurants(ctx),
+  ]);
   const siteById = new Map(sites.map((s) => [s.id, s]));
   const activityById = new Map(activities.map((a) => [a.id, a]));
   const activityOptions: SearchableOption[] = activities.map((a) => {
@@ -66,10 +73,21 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
       searchText: `${a.name} ${site?.name ?? ''}`.toLowerCase(),
     };
   });
+  const hotelById = new Map(hotels.map((h) => [h.id, h]));
+  const hotelOptions: SearchableOption[] = hotels.map((h) => ({
+    value: h.id,
+    label: `${h.name} (${tCountries(h.country)})`,
+    searchText: `${h.name} ${h.country}`.toLowerCase(),
+  }));
+  const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
+  const restaurantOptions: SearchableOption[] = restaurants.map((r) => ({
+    value: r.id,
+    label: `${r.name} (${tCountries(r.country)})`,
+    searchText: `${r.name} ${r.country}`.toLowerCase(),
+  }));
   const t = await getTranslations('StaffPackageDetail');
   const tPackageStatus = await getTranslations('PackageStatusLabel');
   const tTags = await getTranslations('TripTags');
-  const tCountries = await getTranslations('Countries');
 
   // DR-115: catalogService.updatePackage's DR-039 publish gates (no
   // price/duration yet) throw a real, expected ApiError -- surfaced here via
@@ -273,10 +291,16 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                   </form>
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm text-mist">
-                  {day.plannedSites && (
-                    <div className="col-span-2">
-                      <dt className="text-xs">{t('plannedSites')}</dt>
-                      <dd>{day.plannedSites}</dd>
+                  {day.hotelId && (
+                    <div>
+                      <dt className="text-xs">{t('hotel')}</dt>
+                      <dd>{hotelById.get(day.hotelId)?.name ?? '—'}</dd>
+                    </div>
+                  )}
+                  {day.restaurantId && (
+                    <div>
+                      <dt className="text-xs">{t('restaurant')}</dt>
+                      <dd>{restaurantById.get(day.restaurantId)?.name ?? '—'}</dd>
                     </div>
                   )}
                   {day.activities && (
@@ -339,14 +363,28 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                         />
                       </FormField>
                     </div>
-                    <FormField label={t('plannedSitesAttractions')} htmlFor={`sites-${day.id}`} optional>
-                      <textarea
-                        name="plannedSites"
-                        defaultValue={day.plannedSites ?? ''}
-                        rows={2}
-                        className="w-full rounded-survey border border-rule px-3 py-2"
-                      />
-                    </FormField>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label={t('hotel')} htmlFor={`hotelId-${day.id}`} optional>
+                        <SearchableSelect
+                          id={`hotelId-${day.id}`}
+                          name="hotelId"
+                          options={hotelOptions}
+                          defaultValue={day.hotelId ?? undefined}
+                          placeholder={t('searchHotelsPlaceholder')}
+                          emptyLabel={t('none')}
+                        />
+                      </FormField>
+                      <FormField label={t('restaurant')} htmlFor={`restaurantId-${day.id}`} optional>
+                        <SearchableSelect
+                          id={`restaurantId-${day.id}`}
+                          name="restaurantId"
+                          options={restaurantOptions}
+                          defaultValue={day.restaurantId ?? undefined}
+                          placeholder={t('searchRestaurantsPlaceholder')}
+                          emptyLabel={t('none')}
+                        />
+                      </FormField>
+                    </div>
                     <FormField label={t('activitiesSelected')} htmlFor={`activityIds-${day.id}`} optional>
                       <MultiSearchableSelect
                         id={`activityIds-${day.id}`}
@@ -354,15 +392,6 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                         options={activityOptions}
                         defaultValues={day.activityIds}
                         placeholder={t('searchActivitiesPlaceholder')}
-                      />
-                    </FormField>
-                    <FormField label={t('estimatedTravelMinutes')} htmlFor={`travel-${day.id}`} optional>
-                      <input
-                        name="estimatedTravelMinutes"
-                        type="number"
-                        min={0}
-                        defaultValue={day.estimatedTravelMinutes ?? undefined}
-                        className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
                     <FormField label={t('notes')} htmlFor={`notes-${day.id}`} optional>
@@ -412,9 +441,26 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                 <input name="dropoffLocation" className="w-full rounded-survey border border-rule px-3 py-2" />
               </FormField>
             </div>
-            <FormField label={t('plannedSitesAttractions')} htmlFor="plannedSites" optional>
-              <textarea name="plannedSites" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label={t('hotel')} htmlFor="hotelId" optional>
+                <SearchableSelect
+                  id="hotelId"
+                  name="hotelId"
+                  options={hotelOptions}
+                  placeholder={t('searchHotelsPlaceholder')}
+                  emptyLabel={t('none')}
+                />
+              </FormField>
+              <FormField label={t('restaurant')} htmlFor="restaurantId" optional>
+                <SearchableSelect
+                  id="restaurantId"
+                  name="restaurantId"
+                  options={restaurantOptions}
+                  placeholder={t('searchRestaurantsPlaceholder')}
+                  emptyLabel={t('none')}
+                />
+              </FormField>
+            </div>
             <FormField label={t('activitiesSelected')} htmlFor="activityIds" optional>
               <MultiSearchableSelect
                 id="activityIds"
@@ -422,9 +468,6 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                 options={activityOptions}
                 placeholder={t('searchActivitiesPlaceholder')}
               />
-            </FormField>
-            <FormField label={t('estimatedTravelMinutes')} htmlFor="estimatedTravelMinutes" optional>
-              <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
             <FormField label={t('notes')} htmlFor="notes" optional>
               <textarea name="notes" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />

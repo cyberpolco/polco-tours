@@ -97,7 +97,9 @@ describe('Package itinerary template', () => {
 
   it('createItinerary auto-copies the package template onto the new Itinerary with computed real dates', async () => {
     const startDate = new Date('2026-10-01T00:00:00Z');
-    const { bookingId } = await withOrg(orgId, async (tx) => {
+    const { bookingId, hotelId, restaurantId } = await withOrg(orgId, async (tx) => {
+      const hotel = await tx.hotel.create({ data: { organizationId: orgId, name: 'Auto-Copy Fixture Hotel', country: 'NA' } });
+      const restaurant = await tx.restaurant.create({ data: { organizationId: orgId, name: 'Auto-Copy Fixture Restaurant', country: 'NA' } });
       const pkg = await tx.tourPackage.create({
         data: {
           organizationId: orgId,
@@ -111,8 +113,9 @@ describe('Package itinerary template', () => {
           status: 'PUBLISHED_AVAILABLE',
         },
       });
+      // DR-119: hotelId/restaurantId on the template day.
       await tx.packageItineraryDay.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, dayNumber: 1, activities: 'Arrival', plannedSites: 'Airport pickup' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, dayNumber: 1, activities: 'Arrival', hotelId: hotel.id, restaurantId: restaurant.id },
       });
       await tx.packageItineraryDay.create({
         data: { organizationId: orgId, tourPackageId: pkg.id, dayNumber: 2, activities: 'Safari drive' },
@@ -131,7 +134,7 @@ describe('Package itinerary template', () => {
           currency: 'USD',
         },
       });
-      return { bookingId: booking.id };
+      return { bookingId: booking.id, hotelId: hotel.id, restaurantId: restaurant.id };
     });
 
     const itinerary = await itineraryService.createItinerary(ctxFor(operatorId), bookingId, {});
@@ -141,12 +144,15 @@ describe('Package itinerary template', () => {
     const day1 = days.find((d) => d.dayNumber === 1);
     const day2 = days.find((d) => d.dayNumber === 2);
     expect(day1?.activities).toBe('Arrival');
-    // PackageItineraryDay.plannedSites (still free text) is deliberately NOT
-    // copied onto the new ItineraryDay -- that field was replaced by the
-    // structured ItineraryDaySite relation, which catalog can't populate
-    // without inverting the module dependency direction.
+    // DR-119: hotelId/restaurantId ARE copied onto the new ItineraryDay --
+    // both already real ids on ItineraryDay itself (DR-083), unlike the
+    // planned-sites concept (ItineraryDaySite), which catalog still can't
+    // populate without inverting the module dependency direction.
+    expect(day1?.hotelId).toBe(hotelId);
+    expect(day1?.restaurantId).toBe(restaurantId);
     expect(day1?.date.toISOString().slice(0, 10)).toBe('2026-10-01');
     expect(day2?.activities).toBe('Safari drive');
+    expect(day2?.hotelId).toBeNull();
     expect(day2?.date.toISOString().slice(0, 10)).toBe('2026-10-02');
   });
 

@@ -19,35 +19,30 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-118 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-117's enum migration is applied to the shared Neon DB**
-> (`ALTER TYPE "PackageStatus" RENAME VALUE 'PUBLISHED' TO
-> 'PUBLISHED_AVAILABLE'` then `ADD VALUE 'PUBLISHED_UNAVAILABLE'` — all 56
-> pre-existing `PUBLISHED` rows now read `PUBLISHED_AVAILABLE`, verified via
-> `psql`); the matching `db push`/`db:rls` run (needed to reconcile
-> Prisma's own migration history, and to pick up DR-116/DR-118's additive
-> schema work, done concurrently in this same working tree by a second
-> session) is still pending, coordinated between both sessions/users before
-> either runs it. **DR-116** reorganizes Operational Rates into cards and
-> links three "typed name" fields to real reference-list records instead:
-> `HotelRate.hotelId` (-> itinerary's `Hotel`), a new `Activity` model (one
-> Site -> many Activities, `hasEntranceFee` flag, managed from the Site
-> detail page), and `ActivityFee.activityId` (-> that new `Activity`,
-> `name` now a creation-time snapshot rather than staff-typed). Also adds
-> `PackageItineraryDay.activityIds` (plain string array, no FK — see that
-> model's own schema comment on why catalog can't reference itinerary's
-> tables) so a package's day-by-day plan can select real Activities via a
-> new `MultiSearchableSelect` component; the cost-breakdown page pre-fills
-> any matching `ActivityFee` row's quantity as "requested via day plan."
-> New module dependency `finance` -> `itinerary` (confirmed acyclic). **New
-> tenant table `site_activities`** has its RLS policy already written in
-> `prisma/rls.sql` (not yet applied — see the pending push above). **DR-118**
-> gives every `TourPackage` a personalized public URL slug
-> (`TourPackage.slug`, generated once from `title` at creation, never
-> regenerated on a later edit) — `scripts/backfill-package-slugs.ts` handles
-> the pre-DR-118 rows once the schema push lands; the guest package card
-> links via `slug ?? id` so an unbackfilled row still resolves by id in the
-> meantime.
+> Current through DR-119 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-117's enum migration, and DR-116/118/119's additive schema
+> changes, are all applied to the shared Neon DB** (two independent Claude
+> Code sessions coordinated one combined `db push`/`db:rls` run, verified
+> via `psql`; CI is green). **DR-116** reorganizes Operational Rates into
+> cards and links three "typed name" fields to real reference-list records
+> instead: `HotelRate.hotelId` (-> itinerary's `Hotel`), a new `Activity`
+> model (one Site -> many Activities, `hasEntranceFee` flag, managed from
+> the Site detail page), and `ActivityFee.activityId` (-> that new
+> `Activity`, `name` now a creation-time snapshot rather than staff-typed).
+> New tenant table `site_activities` (RLS'd, same shape as `sites`). New
+> module dependency `finance` -> `itinerary` (confirmed acyclic). **DR-118**
+> gives every `TourPackage` a personalized public URL slug (`TourPackage
+> .slug`, generated once from `title` at creation, never regenerated on a
+> later edit) — `scripts/backfill-package-slugs.ts` handles any pre-DR-118
+> row (run by hand); the guest package card links via `slug ?? id`.
+> **DR-119** adds `PackageItineraryDay.hotelId`/`restaurantId` (plain
+> scalars, single-select `SearchableSelect` on the staff day form, same
+> "no cross-module FK" precedent as DR-116's `activityIds`) and removes
+> `PackageItineraryDay.plannedSites`/`estimatedTravelMinutes` entirely
+> (explicit user direction, destructive — any existing values in those two
+> columns are gone). `itineraryService.createItinerary`'s template-copy
+> step now carries the new `hotelId`/`restaurantId` across onto the fresh
+> `ItineraryDay`, same as every other plain field it already copies.
 > **All schema changes through
 > DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
@@ -538,8 +533,9 @@ src/
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageItineraryDay (per-package
-                   #   itinerary template; activityIds, DR-116 — plain
-                   #   string array, no FK into itinerary's Activity)
+                   #   itinerary template; activityIds/hotelId/restaurantId,
+                   #   DR-116/DR-119 — plain scalars, no FK into itinerary's
+                   #   Activity/Hotel/Restaurant)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
                    #   bookingReference is the sole guest-facing lookup key
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);

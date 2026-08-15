@@ -78,10 +78,10 @@ function toPackageItineraryDayView(d: PackageItineraryDay): PackageItineraryDayV
     arrivalTime: d.arrivalTime,
     pickupLocation: d.pickupLocation,
     dropoffLocation: d.dropoffLocation,
-    plannedSites: d.plannedSites,
     activities: d.activities,
     activityIds: d.activityIds,
-    estimatedTravelMinutes: d.estimatedTravelMinutes,
+    hotelId: d.hotelId,
+    restaurantId: d.restaurantId,
     notes: d.notes,
   };
 }

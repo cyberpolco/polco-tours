@@ -109,10 +109,10 @@ export async function addTemplateDayAction(packageId: string, formData: FormData
     arrivalTime: optionalString(formData, 'arrivalTime'),
     pickupLocation: optionalString(formData, 'pickupLocation'),
     dropoffLocation: optionalString(formData, 'dropoffLocation'),
-    plannedSites: optionalString(formData, 'plannedSites'),
     activities: optionalString(formData, 'activities'),
     activityIds: formData.getAll('activityIds').map(String),
-    estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
+    hotelId: optionalString(formData, 'hotelId'),
+    restaurantId: optionalString(formData, 'restaurantId'),
     notes: optionalString(formData, 'notes'),
   });
   await catalogService.addTemplateDay(ctx, packageId, input);
@@ -126,10 +126,10 @@ export async function updateTemplateDayAction(packageId: string, dayId: string, 
     arrivalTime: optionalString(formData, 'arrivalTime'),
     pickupLocation: optionalString(formData, 'pickupLocation'),
     dropoffLocation: optionalString(formData, 'dropoffLocation'),
-    plannedSites: optionalString(formData, 'plannedSites'),
     activities: optionalString(formData, 'activities'),
     activityIds: formData.getAll('activityIds').map(String),
-    estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
+    hotelId: optionalString(formData, 'hotelId'),
+    restaurantId: optionalString(formData, 'restaurantId'),
     notes: optionalString(formData, 'notes'),
   });
   await catalogService.updateTemplateDay(ctx, dayId, input);

@@ -135,14 +135,15 @@ export const itineraryService = {
         if (departure.tourPackageId) {
           const templateDays = await catalogService.listTemplateDaysForItineraryCopy(organizationId, departure.tourPackageId);
           for (const day of templateDays) {
-            // PackageItineraryDay.plannedSites (still free text, catalog
-            // module) is deliberately NOT copied here -- ItineraryDay's own
-            // plannedSites was replaced by the structured ItineraryDaySite
-            // relation, and catalog can't reference itinerary's Site table
-            // (module dependency direction: itinerary -> catalog, never the
+            // PackageItineraryDay's planned-sites concept (ItineraryDaySite,
+            // a structured relation to Site) is deliberately NOT copied here
+            // -- catalog can't reference itinerary's Site table (module
+            // dependency direction: itinerary -> catalog, never the
             // reverse). A freshly-created day just arrives with no sites
-            // pre-picked, same as hotelId/restaurantId already not being
-            // copied from the template today.
+            // pre-picked. hotelId/restaurantId (DR-119) ARE copied, same as
+            // every other plain field below -- both already real ids on
+            // ItineraryDay itself (DR-083), so no validation/translation
+            // needed to carry them across.
             await itineraryRepository.addDay(organizationId, itinerary.id, day.dayNumber, {
               date: addDaysToDate(departure.startDate, day.dayNumber - 1),
               departureTime: day.departureTime ?? undefined,
@@ -150,7 +151,8 @@ export const itineraryService = {
               pickupLocation: day.pickupLocation ?? undefined,
               dropoffLocation: day.dropoffLocation ?? undefined,
               activities: day.activities ?? undefined,
-              estimatedTravelMinutes: day.estimatedTravelMinutes ?? undefined,
+              hotelId: day.hotelId ?? undefined,
+              restaurantId: day.restaurantId ?? undefined,
               notes: day.notes ?? undefined,
             });
           }
