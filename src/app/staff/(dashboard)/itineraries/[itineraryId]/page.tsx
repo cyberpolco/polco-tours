@@ -10,7 +10,9 @@ import { Badge } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
+import { MultiSearchableSelect } from '@/components/ui/MultiSearchableSelect';
 import { PageHeader } from '@/components/ui/PageHeader';
+import type { SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
@@ -125,17 +127,39 @@ export default async function ItineraryDetailPage({ params }: Props) {
   // summary below shows them too.
   const daySitesLists = await Promise.all(days.map((day) => itineraryService.listDaySites(ctx, itineraryId, day.id)));
   const daySitesByDayId = new Map<string, ItineraryDaySiteView[]>(days.map((day, i) => [day.id, daySitesLists[i] ?? []]));
-  const allUsedSiteIds = [...new Set(daySitesLists.flat().map((s) => s.siteId))];
+
+  // DR-120: batch-resolve whichever Activity ids the days already reference
+  // (read-only view too, not just canWrite) -- same "used ids only" convention
+  // as dayHotelIds/dayRestaurantIds above. Shares the site-name lookup below
+  // with the planned-sites (ItineraryDaySite) display, since an Activity's
+  // own site may not otherwise be among this itinerary's planned stops.
+  const allUsedActivityIds = [...new Set(days.flatMap((d) => d.activityIds))];
+  const usedActivities = await itineraryService.listActivitiesByIds(ctx, allUsedActivityIds);
+  const activityById = new Map(usedActivities.map((a) => [a.id, a]));
+  const allUsedSiteIds = [
+    ...new Set([...daySitesLists.flat().map((s) => s.siteId), ...usedActivities.map((a) => a.siteId)]),
+  ];
   const usedSites = await itineraryService.listSitesByIds(ctx, allUsedSiteIds);
   const siteNameById = new Map(usedSites.map((s) => [s.id, s.name]));
 
-  const [allHotels, allRestaurants, siteOptions] = canEdit
+  const [allHotels, allRestaurants, siteOptions, allActivities, allSites] = canEdit
     ? await Promise.all([
         itineraryService.listHotels(ctx),
         itineraryService.listRestaurants(ctx),
         tripCountry ? itineraryService.listSitesForCountry(ctx, tripCountry) : Promise.resolve([]),
+        itineraryService.listActivities(ctx),
+        itineraryService.listSites(ctx),
       ])
-    : [[], [], []];
+    : [[], [], [], [], []];
+  const siteByIdForActivities = new Map(allSites.map((s) => [s.id, s]));
+  const activityOptions: SearchableOption[] = allActivities.map((a) => {
+    const site = siteByIdForActivities.get(a.siteId);
+    return {
+      value: a.id,
+      label: site ? `${a.name} — ${site.name}` : a.name,
+      searchText: `${a.name} ${site?.name ?? ''}`.toLowerCase(),
+    };
+  });
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -311,6 +335,22 @@ export default async function ItineraryDetailPage({ params }: Props) {
                       <dd>{day.activities}</dd>
                     </div>
                   )}
+                  {day.activityIds.length > 0 && (
+                    <div className="col-span-2">
+                      <dt className="text-xs">{t('activitiesSelected')}</dt>
+                      <dd className="flex flex-wrap gap-1">
+                        {day.activityIds.map((id) => {
+                          const activity = activityById.get(id);
+                          const siteName = activity ? siteNameById.get(activity.siteId) : undefined;
+                          return (
+                            <Badge key={id} tone="neutral">
+                              {activity ? (siteName ? `${activity.name} — ${siteName}` : activity.name) : id}
+                            </Badge>
+                          );
+                        })}
+                      </dd>
+                    </div>
+                  )}
                   {day.estimatedTravelMinutes != null && (
                     <div>
                       <dt className="text-xs">{t('estimatedTravel')}</dt>
@@ -433,6 +473,15 @@ export default async function ItineraryDetailPage({ params }: Props) {
                           className="w-full rounded-survey border border-rule px-3 py-2"
                         />
                       </FormField>
+                      <FormField label={t('activitiesSelected')} htmlFor={`activityIds-${day.id}`} optional>
+                        <MultiSearchableSelect
+                          id={`activityIds-${day.id}`}
+                          name="activityIds"
+                          options={activityOptions}
+                          defaultValues={day.activityIds}
+                          placeholder={t('searchActivitiesPlaceholder')}
+                        />
+                      </FormField>
                       <FormField label={t('notes')} htmlFor={`notes-${day.id}`} optional>
                         <textarea
                           name="notes"
@@ -550,6 +599,14 @@ export default async function ItineraryDetailPage({ params }: Props) {
                 <p className="text-xs text-mist">{t('plannedSitesAfterCreateNotice')}</p>
                 <FormField label={t('activities')} htmlFor="activities" optional>
                   <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+                </FormField>
+                <FormField label={t('activitiesSelected')} htmlFor="activityIds" optional>
+                  <MultiSearchableSelect
+                    id="activityIds"
+                    name="activityIds"
+                    options={activityOptions}
+                    placeholder={t('searchActivitiesPlaceholder')}
+                  />
                 </FormField>
                 <FormField label={t('estimatedTravelMinutesLabel')} htmlFor="estimatedTravelMinutes" optional>
                   <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />

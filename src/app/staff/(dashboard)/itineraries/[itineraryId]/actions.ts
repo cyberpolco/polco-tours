@@ -55,6 +55,7 @@ export async function addDayAction(itineraryId: string, formData: FormData) {
     pickupLocation: emptyToUndefined(formData.get('pickupLocation')),
     dropoffLocation: emptyToUndefined(formData.get('dropoffLocation')),
     activities: emptyToUndefined(formData.get('activities')),
+    activityIds: formData.getAll('activityIds').map(String),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes')
       ? Number(formData.get('estimatedTravelMinutes'))
       : undefined,
@@ -79,6 +80,7 @@ export async function updateDayAction(itineraryId: string, dayId: string, formDa
     dropoffLatitude: emptyToUndefinedNumber(formData.get('dropoffLatitude')),
     dropoffLongitude: emptyToUndefinedNumber(formData.get('dropoffLongitude')),
     activities: emptyToUndefined(formData.get('activities')),
+    activityIds: formData.getAll('activityIds').map(String),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes')
       ? Number(formData.get('estimatedTravelMinutes'))
       : undefined,

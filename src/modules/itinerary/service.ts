@@ -140,10 +140,14 @@ export const itineraryService = {
             // -- catalog can't reference itinerary's Site table (module
             // dependency direction: itinerary -> catalog, never the
             // reverse). A freshly-created day just arrives with no sites
-            // pre-picked. hotelId/restaurantId (DR-119) ARE copied, same as
-            // every other plain field below -- both already real ids on
-            // ItineraryDay itself (DR-083), so no validation/translation
-            // needed to carry them across.
+            // pre-picked. hotelId/restaurantId (DR-119) and activityIds
+            // (DR-120) ARE copied, same as every other plain field below --
+            // all already real ids on ItineraryDay itself, so no
+            // validation/translation needed to carry them across. (DR-116's
+            // activityIds supersedes the legacy free-text `activities` for
+            // any template day edited since -- both are still copied
+            // as-is, same "leave old rows untouched" posture as the
+            // schema comment on PackageItineraryDay.activities.)
             await itineraryRepository.addDay(organizationId, itinerary.id, day.dayNumber, {
               date: addDaysToDate(departure.startDate, day.dayNumber - 1),
               departureTime: day.departureTime ?? undefined,
@@ -151,6 +155,7 @@ export const itineraryService = {
               pickupLocation: day.pickupLocation ?? undefined,
               dropoffLocation: day.dropoffLocation ?? undefined,
               activities: day.activities ?? undefined,
+              activityIds: day.activityIds,
               hotelId: day.hotelId ?? undefined,
               restaurantId: day.restaurantId ?? undefined,
               notes: day.notes ?? undefined,
@@ -301,6 +306,7 @@ export const itineraryService = {
     const dayNumber = await computeDayNumber(ctx, itinerary, input.date);
     if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
     if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
+    if (input.activityIds?.length) await requireActivitiesExist(organizationId, input.activityIds);
     return itineraryRepository.addDay(organizationId, itineraryId, dayNumber, input);
   },
 
@@ -317,6 +323,7 @@ export const itineraryService = {
     const dayNumber = input.date ? await computeDayNumber(ctx, itinerary, input.date) : undefined;
     if (input.hotelId) await requireHotelExists(organizationId, input.hotelId);
     if (input.restaurantId) await requireRestaurantExists(organizationId, input.restaurantId);
+    if (input.activityIds?.length) await requireActivitiesExist(organizationId, input.activityIds);
     const updated = await itineraryRepository.updateDay(organizationId, dayId, input, dayNumber);
     if (!updated) throw Errors.notFound('Itinerary day not found');
     return updated;
@@ -838,6 +845,18 @@ async function requireSiteExists(organizationId: string, siteId: string): Promis
 async function requireRestaurantExists(organizationId: string, restaurantId: string): Promise<void> {
   const restaurant = await itineraryRepository.findRestaurantById(organizationId, restaurantId);
   if (!restaurant) throw Errors.notFound('Restaurant not found');
+}
+
+/** DR-120 -- unlike catalog's un-FK'd PackageItineraryDay.activityIds (which
+ * can't validate against itinerary's own Activity table without inverting
+ * the module dependency direction), ItineraryDay.activityIds lives in this
+ * module natively, so it gets the same anti-BOLA existence check as
+ * hotelId/restaurantId above: findActivitiesByIds is already org-scoped, so
+ * a returned-row-count mismatch means at least one id doesn't exist or
+ * belongs to another org. */
+async function requireActivitiesExist(organizationId: string, activityIds: string[]): Promise<void> {
+  const found = await itineraryRepository.findActivitiesByIds(organizationId, activityIds);
+  if (found.length !== activityIds.length) throw Errors.notFound('Activity not found');
 }
 
 /** Shared by resolveMapOverview and streamDayMapPdf -- one day's stops, in

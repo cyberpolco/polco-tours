@@ -54,6 +54,8 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.itineraryDay.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.itinerary.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.packageItineraryDay.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.site.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));
@@ -97,9 +99,20 @@ describe('Package itinerary template', () => {
 
   it('createItinerary auto-copies the package template onto the new Itinerary with computed real dates', async () => {
     const startDate = new Date('2026-10-01T00:00:00Z');
-    const { bookingId, hotelId, restaurantId } = await withOrg(orgId, async (tx) => {
+    // Split into two transactions -- independent reference data (hotel/
+    // restaurant/site/activity) first, then the package/departure/booking
+    // chain -- so neither one's round-trip count risks tripping Prisma's
+    // 5s interactive-transaction timeout under this sandbox's occasional
+    // slow-Neon-pooler latency (see the CLAUDE.md gotcha on this).
+    const { hotelId, restaurantId, activityId } = await withOrg(orgId, async (tx) => {
       const hotel = await tx.hotel.create({ data: { organizationId: orgId, name: 'Auto-Copy Fixture Hotel', country: 'NA' } });
       const restaurant = await tx.restaurant.create({ data: { organizationId: orgId, name: 'Auto-Copy Fixture Restaurant', country: 'NA' } });
+      const site = await tx.site.create({ data: { organizationId: orgId, name: 'Auto-Copy Fixture Site', country: 'NA', province: 'Kunene' } });
+      const activity = await tx.activity.create({ data: { organizationId: orgId, siteId: site.id, name: 'Game drive' } });
+      return { hotelId: hotel.id, restaurantId: restaurant.id, activityId: activity.id };
+    });
+
+    const { bookingId } = await withOrg(orgId, async (tx) => {
       const pkg = await tx.tourPackage.create({
         data: {
           organizationId: orgId,
@@ -113,9 +126,17 @@ describe('Package itinerary template', () => {
           status: 'PUBLISHED_AVAILABLE',
         },
       });
-      // DR-119: hotelId/restaurantId on the template day.
+      // DR-119: hotelId/restaurantId on the template day. DR-120: activityIds.
       await tx.packageItineraryDay.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, dayNumber: 1, activities: 'Arrival', hotelId: hotel.id, restaurantId: restaurant.id },
+        data: {
+          organizationId: orgId,
+          tourPackageId: pkg.id,
+          dayNumber: 1,
+          activities: 'Arrival',
+          hotelId,
+          restaurantId,
+          activityIds: [activityId],
+        },
       });
       await tx.packageItineraryDay.create({
         data: { organizationId: orgId, tourPackageId: pkg.id, dayNumber: 2, activities: 'Safari drive' },
@@ -134,7 +155,7 @@ describe('Package itinerary template', () => {
           currency: 'USD',
         },
       });
-      return { bookingId: booking.id, hotelId: hotel.id, restaurantId: restaurant.id };
+      return { bookingId: booking.id };
     });
 
     const itinerary = await itineraryService.createItinerary(ctxFor(operatorId), bookingId, {});
@@ -150,6 +171,10 @@ describe('Package itinerary template', () => {
     // populate without inverting the module dependency direction.
     expect(day1?.hotelId).toBe(hotelId);
     expect(day1?.restaurantId).toBe(restaurantId);
+    // DR-120: activityIds ARE copied too -- this is the actual regression
+    // test for the gap this DR closes (previously silently dropped, since
+    // ItineraryDay had no activityIds column at all to copy it onto).
+    expect(day1?.activityIds).toEqual([activityId]);
     expect(day1?.date.toISOString().slice(0, 10)).toBe('2026-10-01');
     expect(day2?.activities).toBe('Safari drive');
     expect(day2?.hotelId).toBeNull();

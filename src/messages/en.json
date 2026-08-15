@@ -853,6 +853,8 @@
     "dropoff": "Drop-off",
     "plannedSites": "Planned sites",
     "activities": "Activities",
+    "activitiesSelected": "Activities",
+    "searchActivitiesPlaceholder": "Search activities by name or site…",
     "estimatedTravel": "Estimated travel",
     "minutesSuffix": "{minutes} min",
     "notes": "Notes",

@@ -81,6 +81,16 @@ describe('itinerary domain', () => {
     it('rejects an out-of-range pickup coordinate', () => {
       expect(AddItineraryDayInput.safeParse({ date: '2026-09-01', pickupLatitude: -100, pickupLongitude: 17.47 }).success).toBe(false);
     });
+
+    it('accepts activityIds as an array of uuids, including an empty array (DR-120)', () => {
+      const activityId = '11111111-1111-4111-8111-111111111111';
+      expect(AddItineraryDayInput.safeParse({ date: '2026-09-01', activityIds: [activityId] }).success).toBe(true);
+      expect(AddItineraryDayInput.safeParse({ date: '2026-09-01', activityIds: [] }).success).toBe(true);
+    });
+
+    it('rejects a non-uuid activityIds entry (DR-120)', () => {
+      expect(AddItineraryDayInput.safeParse({ date: '2026-09-01', activityIds: ['not-a-uuid'] }).success).toBe(false);
+    });
   });
 
   describe('canTransition', () => {

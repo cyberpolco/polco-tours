@@ -1160,6 +1160,12 @@ model ItineraryDay {
   dropoffLatitude        Float?
   dropoffLongitude       Float?
   activities             String?  @db.Text
+  // DR-120: real Activity ids (this module's own table -- no cross-module
+  // workaround needed here, unlike catalog's PackageItineraryDay.activityIds).
+  // Carried across from the package's day template by
+  // itineraryService.createItinerary's template-copy step, same as
+  // hotelId/restaurantId (DR-119).
+  activityIds            String[] @default([])
   estimatedTravelMinutes Int?
   notes                  String?  @db.Text
   hotelId                String?  @db.Uuid

@@ -71,6 +71,7 @@ function toDayView(d: ItineraryDay): ItineraryDayView {
     dropoffLatitude: d.dropoffLatitude,
     dropoffLongitude: d.dropoffLongitude,
     activities: d.activities,
+    activityIds: d.activityIds,
     estimatedTravelMinutes: d.estimatedTravelMinutes,
     notes: d.notes,
     hotelId: d.hotelId,

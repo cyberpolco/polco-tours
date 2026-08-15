@@ -19,11 +19,31 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-119 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-117's enum migration, and DR-116/118/119's additive schema
-> changes, are all applied to the shared Neon DB** (two independent Claude
+> Current through DR-120 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-120's additive schema change (`ItineraryDay.activityIds`) is
+> not yet applied to the shared Neon DB** — code/docs are done, but the
+> `db push` step (this repo's standing by-hand process, explicit user
+> confirmation first) hasn't run yet; treat `ItineraryDay.activityIds` as
+> not-yet-queryable in production until that happens. **DR-117's enum
+> migration, and DR-116/118/119's additive schema changes, are all applied
+> to the shared Neon DB** (two independent Claude
 > Code sessions coordinated one combined `db push`/`db:rls` run, verified
-> via `psql`; CI is green). **DR-116** reorganizes Operational Rates into
+> via `psql`; CI is green). **DR-120** closes a real DR-116 gap found while
+> auditing "does the package Day Template survive itinerary creation":
+> `PackageItineraryDay.activityIds` (DR-116's structured Activity picker,
+> which supersedes the legacy free-text `activities` for any template day
+> edited since) had no counterpart column on `ItineraryDay` at all, so
+> `itineraryService.createItinerary`'s template-copy step silently dropped
+> it. `ItineraryDay` gains its own `activityIds` (String[] @default([]),
+> additive to the still-editable free-text `activities` field — unlike the
+> package template, the real day form keeps both), the same
+> `MultiSearchableSelect` picker as the package template's form (reusing
+> `itineraryService.listActivities`/`listActivitiesByIds`), and a new
+> `requireActivitiesExist` anti-BOLA existence check on `addDay`/`updateDay`
+> (possible here, unlike catalog's un-FK'd `activityIds`, since `Activity`
+> is native to this module). The template-copy step now carries
+> `activityIds` across the same way `hotelId`/`restaurantId` already do.
+> **DR-116** reorganizes Operational Rates into
 > cards and links three "typed name" fields to real reference-list records
 > instead: `HotelRate.hotelId` (-> itinerary's `Hotel`), a new `Activity`
 > model (one Site -> many Activities, `hasEntranceFee` flag, managed from
@@ -550,15 +570,18 @@ src/
     assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule
     visa/          # VisaApplication lifecycle, facilitator queue
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
-                   #   DR-083; pickup/dropoff lat-long, DR-088) +
-                   #   ItineraryDaySite (staff-ordered stops, DR-088,
-                   #   replacing the old free-text plannedSites) +
-                   #   Hotel/Restaurant/Site reference entities (all three
-                   #   geocoded, DR-088) + Activity (one Site -> many, DR-116,
-                   #   hasEntranceFee flag; referenced by finance's
-                   #   ActivityFee) + HotelRating/RestaurantRating
-                   #   (staff + guide/driver) + gateway.ts/map-pdf.tsx
-                   #   (Static Maps + PDF rendering for the Map tab, DR-089)
+                   #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
+                   #   DR-120, additive to the still-editable free-text
+                   #   activities field) + ItineraryDaySite (staff-ordered
+                   #   stops, DR-088, replacing the old free-text
+                   #   plannedSites) + Hotel/Restaurant/Site reference
+                   #   entities (all three geocoded, DR-088) + Activity (one
+                   #   Site -> many, DR-116, hasEntranceFee flag; referenced
+                   #   by finance's ActivityFee and, since DR-120, by
+                   #   ItineraryDay.activityIds directly) +
+                   #   HotelRating/RestaurantRating (staff + guide/driver) +
+                   #   gateway.ts/map-pdf.tsx (Static Maps + PDF rendering
+                   #   for the Map tab, DR-089)
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's

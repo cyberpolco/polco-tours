@@ -36,6 +36,11 @@ export interface ItineraryDayView {
   dropoffLatitude: number | null;
   dropoffLongitude: number | null;
   activities: string | null;
+  // DR-120: real Activity ids (this module's own table), same picker as the
+  // package day template's PackageItineraryDay.activityIds (DR-116). Additive
+  // to the free-text `activities` above, not a replacement -- unlike the
+  // package template, this real day form keeps both.
+  activityIds: string[];
   estimatedTravelMinutes: number | null;
   notes: string | null;
   // DR-083: per-day lodging/dining, replacing the old itinerary-wide
@@ -186,6 +191,7 @@ export const AddItineraryDayInput = z.object({
   dropoffLatitude: LATITUDE.optional(),
   dropoffLongitude: LONGITUDE.optional(),
   activities: z.string().max(2000).optional(),
+  activityIds: z.array(z.string().uuid()).optional(),
   estimatedTravelMinutes: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
   hotelId: z.string().uuid().optional(),

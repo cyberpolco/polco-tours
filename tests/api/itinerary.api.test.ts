@@ -93,6 +93,8 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.itineraryDay.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.itinerary.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.site.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));
@@ -318,6 +320,42 @@ describe('hotel reference data + per-day assignment (DR-083)', () => {
     const req = new NextRequest(`http://localhost/api/v1/hotels/${hotelId}`, { method: 'DELETE', headers });
     const res = await deleteHotel(req, { params: Promise.resolve({ hotelId }) });
     expect(res.status).toBe(204);
+  });
+});
+
+let siteId: string;
+let activityId: string;
+
+describe('activity reference data + per-day assignment (DR-120)', () => {
+  it('sets up a Site + Activity fixture', async () => {
+    await withOrg(orgId, async (tx) => {
+      const site = await tx.site.create({ data: { organizationId: orgId, name: 'Fixture Gate', country: 'NA', province: 'Kunene' } });
+      siteId = site.id;
+      const activity = await tx.activity.create({ data: { organizationId: orgId, siteId, name: 'Game drive' } });
+      activityId = activity.id;
+    });
+  });
+
+  it('assigns activities to a specific day via activityIds (201)', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
+      date: '2026-09-03',
+      activityIds: [activityId],
+    });
+    const res = await addDay(req, { params: Promise.resolve({ itineraryId }) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.day.activityIds).toEqual([activityId]);
+  });
+
+  it('404s adding a day with a non-existent activity id', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest(`http://localhost/api/v1/itineraries/${itineraryId}/days`, headers, 'POST', {
+      date: '2026-09-04',
+      activityIds: ['00000000-0000-0000-0000-000000000000'],
+    });
+    const res = await addDay(req, { params: Promise.resolve({ itineraryId }) });
+    expect(res.status).toBe(404);
   });
 });
 
