@@ -23,6 +23,7 @@ export default async function WeatherTownPage({ params }: Props) {
 
   const t = await getTranslations('WeatherTownPage');
   const tCountries = await getTranslations('Countries');
+  const tSeasonalNotes = await getTranslations('WeatherSeasonalNotes');
 
   return (
     <Reveal>
@@ -89,7 +90,7 @@ export default async function WeatherTownPage({ params }: Props) {
 
         <div className="mt-6">
           <p className="eyebrow text-forest">{t('seasonalNotes')}</p>
-          <p className="mt-2 text-sm text-mist">{town.seasonalNotes}</p>
+          <p className="mt-2 text-sm text-mist">{tSeasonalNotes(town.slug)}</p>
         </div>
       </div>
     </Reveal>

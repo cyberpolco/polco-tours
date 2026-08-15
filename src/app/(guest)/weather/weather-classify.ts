@@ -19,24 +19,25 @@ export function classifyCondition(conditionText: string): ConditionCategory {
   return 'clear';
 }
 
-// A saturated-but-low-alpha wash (using DEFAULT tokens, not the pale `*Soft`
-// ones -- those sit too close to the bone page background to read as a
-// distinct card color) so a card carrying an icon/animation reads as its
-// own themed surface rather than blending into the page. Plain string
-// classes (not computed per-render) so Tailwind's static analysis picks
-// them up -- this is the one place outside tailwind.config.ts itself that
-// needs every class spelled out literally.
+// A restrained gray/green wash so a card carrying an icon/animation reads as
+// its own themed surface rather than blending into the page, without the
+// sunset palette's warm tones (gold/amber/navy) fighting the icon colors --
+// only `clear` gets a (pale) color at all, via the `forest` token's soft
+// green; every other condition is a plain gray, darkening with severity.
+// Plain string classes (not computed per-render) so Tailwind's static
+// analysis picks them up -- this is the one place outside
+// tailwind.config.ts itself that needs every class spelled out literally.
 export function weatherCardTint(category: ConditionCategory): string {
   switch (category) {
     case 'clear':
-      return 'bg-gradient-to-br from-gold/25 via-amber/10 to-transparent';
+      return 'bg-gradient-to-br from-forest-soft via-forest/10 to-transparent';
     case 'cloudy':
-      return 'bg-gradient-to-br from-mist/20 via-rule/40 to-transparent';
+      return 'bg-gradient-to-br from-gray-200/70 via-gray-100/40 to-transparent';
     case 'rain':
-      return 'bg-gradient-to-br from-navy/15 via-mist/15 to-transparent';
+      return 'bg-gradient-to-br from-gray-400/30 via-gray-300/25 to-transparent';
     case 'storm':
-      return 'bg-gradient-to-br from-navy/25 via-navy-soft/15 to-transparent';
+      return 'bg-gradient-to-br from-gray-600/30 via-gray-500/20 to-transparent';
     case 'snow':
-      return 'bg-gradient-to-br from-bone via-rule/50 to-transparent';
+      return 'bg-gradient-to-br from-gray-100/80 via-gray-50/50 to-transparent';
   }
 }
