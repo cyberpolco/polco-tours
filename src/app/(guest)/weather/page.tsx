@@ -3,7 +3,8 @@ import { getTranslations } from 'next-intl/server';
 import { weatherService } from '@modules/weather';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
-import { classifyCondition, WeatherAnimation, weatherCardTint } from './weather-animation';
+import { WeatherAnimation } from './weather-animation';
+import { classifyCondition, weatherCardTint } from './weather-classify';
 
 const COUNTRY_ORDER = ['NA', 'CD', 'ZM', 'ZW'] as const;
 

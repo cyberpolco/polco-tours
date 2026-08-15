@@ -4,7 +4,8 @@ import { weatherService } from '@modules/weather';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
-import { classifyCondition, HumidityGauge, WeatherAnimation, weatherCardTint } from '../weather-animation';
+import { HumidityGauge, WeatherAnimation } from '../weather-animation';
+import { classifyCondition, weatherCardTint } from '../weather-classify';
 
 interface Props {
   params: Promise<{ town: string }>;
