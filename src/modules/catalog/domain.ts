@@ -2,6 +2,7 @@
 import type { AddonCode, Currency, DepartureStatus, PackageStatus, PackageTag, Role } from '@prisma/client';
 import { z } from 'zod';
 import { money, type Money } from '@lib/money';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 
 export interface TourPackageView {
   id: string;
@@ -9,16 +10,23 @@ export interface TourPackageView {
   packageReference: string;
   title: string;
   description: string;
+  // PRIMARY/billing country -- one of countries[] below. Drives tax
+  // (getEffectiveTaxRate) and finance rate resolution (resolveRatesForCost);
+  // never read for anything else once countries[] exists (DR-114).
   country: string;
+  // Full set of countries this package touches (superset including
+  // `country`) -- display/filtering only, e.g. a combo Zambia+Zimbabwe tour.
+  countries: string[];
   // Nullable since DR-039 -- a brand-new package starts unpriced until the
   // finance module's cost breakdown computes it (or an admin override sets
   // it). Existing packages keep their pre-DR-039 value (grandfathered).
   priceMinor: number | null;
   currency: Currency;
   durationDays: number | null;
-  // DR-068: optional hero image (local /public/images/packages/... path
-  // only, see next.config.mjs). Nullable/additive -- no photography is
-  // sourced yet, so this is null for every existing package.
+  // DR-068: optional hero image. Nullable/additive -- no photography existed
+  // at first, so this is null until staff upload one. Since DR-114 this is
+  // a Vercel Blob public URL (catalogService.uploadPackageImage), not a
+  // pasted string.
   imageUrl: string | null;
   tags: PackageTag[];
   status: PackageStatus;
@@ -52,28 +60,62 @@ export interface DepartureView {
 // share data through index.ts, never by reaching into each other's domain.ts.
 export const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
-export const CreatePackageInput = z.object({
-  title: z.string().min(1).max(200),
-  description: z.string().min(1),
-  country: z.string().length(2), // ISO-3166 alpha-2
-  // Optional since DR-039 -- a brand-new package starts unpriced until the
-  // finance module's cost breakdown computes it (or this is set directly,
-  // the pre-DR-039 manual-entry path, which still works as an override).
-  priceMinor: z.number().int().nonnegative().optional(),
-  currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
-  durationDays: z.number().int().positive().optional(),
-  // DR-068: staff-entered local asset path, e.g. /images/packages/xyz.jpg --
-  // never an arbitrary external URL (next.config.mjs allowlists no remote
-  // image host). Empty string treated as "no image" by the staff form, not
-  // passed through as "".
-  imageUrl: z.string().max(500).optional(),
-  tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
-});
+// DR-114: country/countries restricted to the 4 operating countries
+// (OPERATING_COUNTRY_CODES) -- previously an unrestricted z.string().length(2)
+// with the 4-country limit enforced only client-side (the staff form's
+// hardcoded <option> list). `countries` must include `country` (the primary/
+// billing country can't be selected without also being one of the visited
+// countries) -- same "client prevents for UX, server still validates"
+// precedent as itinerary/domain.ts's CreateSiteInput country/province refine.
+// Can't build UpdatePackageInput via CreatePackageInput.partial().extend()
+// once a .refine() is involved -- refine()'d schemas don't expose .partial()
+// (same reason CreateSiteInput/UpdateSiteInput are two separate full
+// definitions, not one derived from the other) -- so this is written out
+// twice, the update variant checking the cross-field rule only when both
+// fields are actually present in a given update.
+export const CreatePackageInput = z
+  .object({
+    title: z.string().min(1).max(200),
+    description: z.string().min(1),
+    country: z.enum(OPERATING_COUNTRY_CODES),
+    countries: z.array(z.enum(OPERATING_COUNTRY_CODES)).min(1),
+    // Optional since DR-039 -- a brand-new package starts unpriced until the
+    // finance module's cost breakdown computes it (or this is set directly,
+    // the pre-DR-039 manual-entry path, which still works as an override).
+    priceMinor: z.number().int().nonnegative().optional(),
+    currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
+    durationDays: z.number().int().positive().optional(),
+    // Since DR-114 this is populated from catalogService.uploadPackageImage's
+    // returned Blob URL, not staff-typed -- still just a string here (the
+    // Server Action is what decides the value, this schema only bounds its
+    // shape). Empty string treated as "no image" by the staff form, not
+    // passed through as "".
+    imageUrl: z.string().max(500).optional(),
+    tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+  })
+  .refine((v) => v.countries.includes(v.country), {
+    message: 'Primary country must be one of the selected countries',
+    path: ['countries'],
+  });
 export type CreatePackageInput = z.infer<typeof CreatePackageInput>;
 
-export const UpdatePackageInput = CreatePackageInput.partial().extend({
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
-});
+export const UpdatePackageInput = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().min(1).optional(),
+    country: z.enum(OPERATING_COUNTRY_CODES).optional(),
+    countries: z.array(z.enum(OPERATING_COUNTRY_CODES)).min(1).optional(),
+    priceMinor: z.number().int().nonnegative().optional(),
+    currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']).optional(),
+    durationDays: z.number().int().positive().optional(),
+    imageUrl: z.string().max(500).optional(),
+    tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  })
+  .refine((v) => !v.country || !v.countries || v.countries.includes(v.country), {
+    message: 'Primary country must be one of the selected countries',
+    path: ['countries'],
+  });
 export type UpdatePackageInput = z.infer<typeof UpdatePackageInput>;
 
 export const CreateDepartureInput = z.object({

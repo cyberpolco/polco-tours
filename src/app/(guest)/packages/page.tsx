@@ -1,14 +1,13 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { Reveal } from '@/components/ui/Reveal';
 import { PackageCard } from '../package-card';
 
 interface Props {
   searchParams: Promise<{ country?: string; q?: string }>;
 }
-
-const COUNTRY_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
 
 export default async function PackagesPage({ searchParams }: Props) {
   const { country, q } = await searchParams;
@@ -56,7 +55,7 @@ export default async function PackagesPage({ searchParams }: Props) {
           >
             {t('all')}
           </Link>
-          {COUNTRY_CODES.map((code) => (
+          {OPERATING_COUNTRY_CODES.map((code) => (
             <Link
               key={code}
               href={pillHref(code)}

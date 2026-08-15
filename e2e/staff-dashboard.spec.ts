@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createVerifiedStaffUser } from './helpers/staff-user';
 import { sessionCookiesFor } from './helpers/session-cookie';
 import { seedStaffAndBooking, seedStaffAndCompleteBooking, seedStaffAndTailorMadeAwaitingQuotation } from './helpers/booking-fixture';
+import { seedStaffAndUnpricedPackage } from './helpers/catalog-fixture';
 
 test.describe('staff dashboard (DR-014)', () => {
   test('unauthenticated visit to the dashboard redirects to login', async ({ page }) => {
@@ -133,6 +134,25 @@ test.describe('staff dashboard (DR-014)', () => {
 
     await page.goto(`/staff/bookings/${bookingId}`);
     await expect(page.getByRole('button', { name: 'Send quotation' })).toBeVisible();
+    await expect(page.getByText('Application error')).not.toBeVisible();
+  });
+
+  // DR-115 incident regression: catalogService.updatePackage's DR-039 publish
+  // gate (no price/duration yet) throws a real, expected 409 ApiError --
+  // previously uncaught in updatePackageAction, crashing to Next's generic
+  // error page (confirmed in production via `vercel logs --level error`,
+  // digest 1711859739) instead of showing staff the actual reason.
+  test('publishing a package with no price yet shows an in-page error, not a crash', async ({ page }) => {
+    const { staffUserId, packageId } = await seedStaffAndUnpricedPackage();
+    await page.context().addCookies(await sessionCookiesFor(staffUserId));
+
+    await page.goto(`/staff/packages/${packageId}`);
+    await page.locator('select[name="status"]').selectOption('PUBLISHED');
+    await page.getByRole('button', { name: 'Save changes' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/staff/packages/${packageId}\\?error=`));
+    await expect(page.getByText('Could not save changes to the package.')).toBeVisible();
+    await expect(page.getByText('This package has no price yet')).toBeVisible();
     await expect(page.getByText('Application error')).not.toBeVisible();
   });
 });

@@ -7,6 +7,8 @@ import {
   isBookable,
   isPackageVisible,
   isDepartureVisible,
+  CreatePackageInput,
+  UpdatePackageInput,
 } from '../src/modules/catalog/domain';
 import type { TourPackageView, DepartureView } from '../src/modules/catalog/domain';
 
@@ -18,6 +20,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
     title: 'Etosha Safari',
     description: 'A safari.',
     country: 'NA',
+    countries: ['NA'],
     priceMinor: 10000,
     currency: 'USD',
     durationDays: 3,
@@ -143,6 +146,61 @@ describe('catalog domain', () => {
 
     it('accepts a bigint sequence (Postgres nextval())', () => {
       expect(formatPackageReference(7n)).toBe('PKG-00007');
+    });
+  });
+
+  // DR-114: country/countries restricted to the 4 operating countries, and
+  // countries must include the primary country -- same "client prevents for
+  // UX, server still validates" precedent as itinerary/domain.ts's
+  // CreateSiteInput country/province refine.
+  describe('CreatePackageInput (DR-114)', () => {
+    const base = {
+      title: 'Combo Safari',
+      description: 'A trip.',
+      currency: 'USD' as const,
+    };
+
+    it('accepts a single-country package', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'NA', countries: ['NA'] });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a combo package whose primary is included in countries', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'ZM', countries: ['ZM', 'ZW'] });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a primary country missing from countries', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'ZM', countries: ['ZW'] });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a country outside the 4 operating countries', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'ZA', countries: ['ZA'] });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects an empty countries array', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'NA', countries: [] });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('UpdatePackageInput (DR-114)', () => {
+    it('only enforces the country/countries cross-check when both are present in this particular update', () => {
+      // Archiving a package (status-only update) never touches country --
+      // must not spuriously fail the cross-field check.
+      expect(UpdatePackageInput.safeParse({ status: 'ARCHIVED' }).success).toBe(true);
+    });
+
+    it('still rejects a primary country missing from countries when both are present', () => {
+      const result = UpdatePackageInput.safeParse({ country: 'ZM', countries: ['ZW'] });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts a valid combo update', () => {
+      const result = UpdatePackageInput.safeParse({ country: 'ZM', countries: ['ZM', 'ZW'] });
+      expect(result.success).toBe(true);
     });
   });
 });

@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { can } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
@@ -25,13 +27,16 @@ import {
 } from './actions';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const COUNTRY_FLAGS: Record<string, string> = { NA: '🇳🇦', CD: '🇨🇩', ZM: '🇿🇲', ZW: '🇿🇼' };
 
 interface Props {
   params: Promise<{ packageId: string }>;
+  searchParams: Promise<{ error?: string; detail?: string }>;
 }
 
-export default async function PackageDetailPage({ params }: Props) {
+export default async function PackageDetailPage({ params, searchParams }: Props) {
   const { packageId } = await params;
+  const { error, detail } = await searchParams;
   const ctx = await requireStaffContext('catalog.read');
 
   let pkg;
@@ -49,6 +54,18 @@ export default async function PackageDetailPage({ params }: Props) {
   const tPackageStatus = await getTranslations('PackageStatusLabel');
   const tTags = await getTranslations('TripTags');
   const tCountries = await getTranslations('Countries');
+
+  // DR-115: catalogService.updatePackage's DR-039 publish gates (no
+  // price/duration yet) throw a real, expected ApiError -- surfaced here via
+  // ?error=&detail= (see actions.ts) rather than crashing to Next's generic
+  // error page. Same convention as departures/[departureId]/page.tsx.
+  // validation-failed/internal cover DR-114's uploadPackageImage call, now
+  // wrapped in the same try/catch as updatePackage.
+  const ERROR_MESSAGES: Record<string, string> = {
+    conflict: t('errorConflict'),
+    'validation-failed': t('errorValidation'),
+    internal: t('errorInternal'),
+  };
 
   return (
     <div className="max-w-md">
@@ -69,6 +86,15 @@ export default async function PackageDetailPage({ params }: Props) {
             {t('createdFromBooking', { ref: sourceBooking.bookingReference })}
           </LinkButton>
         </p>
+      )}
+
+      {error && (
+        <div className="mt-4">
+          <Alert tone="error">
+            {ERROR_MESSAGES[error] ?? t('errorGeneric')}
+            {detail ? ` (${detail})` : ''}
+          </Alert>
+        </div>
       )}
 
       <div className="mt-4 flex gap-3">
@@ -121,6 +147,25 @@ export default async function PackageDetailPage({ params }: Props) {
             <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
           </Select>
         </FormField>
+        {/* DR-114: the primary country above still drives tax/finance-rate
+            resolution unchanged -- this just adds any OTHER countries a
+            combo package also visits (display/filtering only). */}
+        <div>
+          <p className="mb-1 text-sm text-mist">{t('alsoVisits')}</p>
+          <div className="flex flex-wrap gap-2">
+            {OPERATING_COUNTRY_CODES.map((code) => (
+              <SelectableCard
+                key={code}
+                type="checkbox"
+                name="additionalCountries"
+                value={code}
+                defaultChecked={pkg.countries.includes(code)}
+              >
+                {COUNTRY_FLAGS[code]} {tCountries(code)}
+              </SelectableCard>
+            ))}
+          </div>
+        </div>
         <FormField label={t('currency')} htmlFor="currency">
           <Select name="currency" defaultValue={pkg.currency} required>
             <option value="USD">USD</option>
@@ -138,15 +183,23 @@ export default async function PackageDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        {/* DR-068: local asset path only -- see next.config.mjs, no remote
-            image host is allowlisted. */}
-        <FormField label={t('imageUrl')} htmlFor="imageUrl" optional>
+        {/* DR-114: staff upload a real file (catalogService.uploadPackageImage,
+            Vercel Blob public) instead of pasting a URL -- selecting a new
+            file replaces the current one; leaving it empty keeps the
+            existing image (or none) unchanged. */}
+        {pkg.imageUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element -- a
+             staff-only settings-form thumbnail, not the guest-facing
+             PackageImage component (next/image) this same URL renders
+             through elsewhere. */
+          <img src={pkg.imageUrl} alt={t('currentImageAlt')} className="h-24 w-40 rounded-survey object-cover" />
+        )}
+        <FormField label={t('image')} htmlFor="image" optional>
           <input
-            name="imageUrl"
-            type="text"
-            defaultValue={pkg.imageUrl ?? ''}
-            placeholder="/images/packages/example.jpg"
-            className="w-full rounded-survey border border-rule px-3 py-2"
+            name="image"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-navy file:px-3 file:py-1 file:text-sm file:text-bone"
           />
         </FormField>
         <p className="text-xs text-mist">{t('durationNotice')}</p>

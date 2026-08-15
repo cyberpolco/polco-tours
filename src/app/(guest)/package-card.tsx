@@ -20,8 +20,11 @@ export async function PackageCard({ pkg }: { pkg: TourPackageView }) {
           <h2 className="font-semibold text-navy hover:underline">{pkg.title}</h2>
           <p className="mt-1 text-sm text-mist">{pkg.description}</p>
           <p className="mt-2 text-sm">
-            {tCountries(pkg.country)} · {pkg.durationDays ? t('durationDays', { days: pkg.durationDays }) : t('durationVaries')}{' '}
-            · {formatOrPending(pkg.priceMinor, pkg.currency)}
+            {/* DR-114: a combo package shows every country it touches, not
+                just the primary/billing one. */}
+            {pkg.countries.map((c) => tCountries(c)).join(' + ')} ·{' '}
+            {pkg.durationDays ? t('durationDays', { days: pkg.durationDays }) : t('durationVaries')} ·{' '}
+            {formatOrPending(pkg.priceMinor, pkg.currency)}
             {t('perSeat')}
           </p>
           {pkg.tags.length > 0 && <p className="eyebrow mt-1 text-forest">{pkg.tags.join(' · ')}</p>}

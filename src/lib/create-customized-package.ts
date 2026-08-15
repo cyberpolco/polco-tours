@@ -9,12 +9,25 @@
 import type { AuthContext } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { catalogService, type TourPackageView } from '@modules/catalog';
+import { OPERATING_COUNTRY_CODES, type OperatingCountryCode } from '@lib/country-codes';
+
+function isOperatingCountry(code: string): code is OperatingCountryCode {
+  return (OPERATING_COUNTRY_CODES as readonly string[]).includes(code);
+}
 
 export async function createCustomizedPackageFromBooking(ctx: AuthContext, bookingId: string): Promise<TourPackageView> {
   const booking = await bookingService.getById(ctx, bookingId);
 
-  const country = booking.customCountry ?? booking.preferredCountries[0];
-  if (!country) throw new Error('This request has no destination country to create a package for');
+  const rawCountry = booking.customCountry ?? booking.preferredCountries[0];
+  if (!rawCountry) throw new Error('This request has no destination country to create a package for');
+  // DR-114: CreatePackageInput now restricts country/countries to the 4
+  // operating countries -- plan-my-trip's own country step already only
+  // ever offers these 4, so this is a defensive narrowing, not a new
+  // real-world restriction.
+  if (!isOperatingCountry(rawCountry)) {
+    throw new Error(`Unsupported destination country for a package: ${rawCountry}`);
+  }
+  const country = rawCountry;
 
   let durationDays: number | undefined;
   if (booking.customTravelStart && booking.customTravelEnd) {
@@ -36,6 +49,9 @@ export async function createCustomizedPackageFromBooking(ctx: AuthContext, booki
     title: `Tailor-made trip -- ${booking.bookingReference}`,
     description,
     country,
+    // DR-114: this auto-conversion path only ever produces a single-country
+    // package (no combo-tour selection here) -- countries is just [country].
+    countries: [country],
     currency: 'USD',
     durationDays,
     tags: booking.preferredTags,

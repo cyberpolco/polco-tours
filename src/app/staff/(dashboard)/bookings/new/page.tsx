@@ -115,7 +115,8 @@ export default async function NewBookingPage({ searchParams }: Props) {
             {bookablePackages.map((p) => (
               <Card as="li" key={p.id}>
                 <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
-                  {p.title} · {tCountries(p.country)} · {formatOrPending(p.priceMinor, p.currency)}
+                  {/* DR-114: every country a combo package touches, not just its primary one. */}
+                  {p.title} · {p.countries.map((c) => tCountries(c)).join(' + ')} · {formatOrPending(p.priceMinor, p.currency)}
                 </Link>
               </Card>
             ))}

@@ -6,20 +6,16 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // DR-068: package photography (TourPackage.imageUrl) is local-asset-only
-  // for now -- no external host is allowlisted, deliberately, since no
-  // photo licensing/rights have been sourced yet (see CLAUDE.md Open
-  // Items). Local files under /public/images/packages/ need no
-  // remotePatterns entry.
-  //
-  // DR-071 adds one narrow exception: Vercel Blob's public-storage host, so
-  // next/image can render images uploaded through the new content module's
-  // uploadImage primitive. This is staff-uploaded/staff-controlled content
-  // (a SUPERADMIN choosing what to upload), not third-party/scraped
-  // photography, so it doesn't reopen the "no unlicensed photography" concern
-  // DR-068/069 were guarding against -- but it IS a real loosening of this
-  // config's prior "no external image host at all" stance, called out
-  // explicitly here and in DR-071 rather than added silently.
+  // DR-071 allowlists Vercel Blob's public-storage host so next/image can
+  // render images uploaded through the content module's uploadImage
+  // primitive -- staff-uploaded/staff-controlled content (a SUPERADMIN
+  // choosing what to upload), not third-party/scraped photography, so it
+  // doesn't reopen the "no unlicensed photography" concern DR-068/069 were
+  // guarding against. DR-114 reuses this same Blob upload path (and
+  // therefore the same host) for TourPackage.imageUrl -- staff pick a file
+  // via catalogService.uploadPackageImage instead of pasting a URL, gated
+  // by catalog.write rather than content's SUPERADMIN-only gate. No further
+  // remotePatterns entry needed since it's the identical Blob host.
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '*.public.blob.vercel-storage.com' }],
   },

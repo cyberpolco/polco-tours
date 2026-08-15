@@ -1,5 +1,6 @@
 import { prisma, withOrg } from '../../src/lib/db';
 import { formatPackageReference } from '@modules/catalog';
+import { testPackageReference } from '../../tests/helpers/package-reference';
 
 /**
  * Seeds a published package + scheduled departure for guest-checkout e2e
@@ -53,4 +54,37 @@ export async function seedPublicDeparture(opts?: { capacity?: number }): Promise
   });
 
   return { departureId, visaAddonServiceId };
+}
+
+/**
+ * DR-115 incident regression fixture: a staff (TOUR_OPERATOR) user + a
+ * DRAFT package with no priceMinor/durationDays -- attempting to publish it
+ * through catalogService.updatePackage hits the DR-039 gate and throws a
+ * real, expected ApiError (Errors.conflict) that must not crash the
+ * /staff/packages/[packageId] page.
+ */
+export async function seedStaffAndUnpricedPackage(): Promise<{ staffUserId: string; packageId: string }> {
+  const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const staff = await prisma.user.create({
+    data: { email: `e2e-catalog-staff-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: org.id, emailVerified: true },
+  });
+
+  const packageId = await withOrg(org.id, async (tx) => {
+    const pkg = await tx.tourPackage.create({
+      data: {
+        organizationId: org.id,
+        packageReference: testPackageReference(),
+        title: `E2E Unpriced Fixture Safari ${suffix}`,
+        description: 'Fixture for the DR-115 publish-without-price regression test.',
+        country: 'NA',
+        currency: 'USD',
+        status: 'DRAFT',
+      },
+    });
+    return pkg.id;
+  });
+
+  return { staffUserId: staff.id, packageId };
 }

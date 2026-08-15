@@ -53,19 +53,12 @@ export const UpdateFaqEntryInput = z.object({
 });
 export type UpdateFaqEntryInput = z.infer<typeof UpdateFaqEntryInput>;
 
-// Public-image upload validation -- mirrors documents/domain.ts's
-// isValidDocumentUpload, but for the access:'public' variant this module's
-// gateway.ts uses (guest pages need a directly renderable <img>/next/image
-// src, unlike documents' private+streamed passports).
-export const MAX_CONTENT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-const CONTENT_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
-export function isValidContentImageUpload(contentType: string, sizeBytes: number): boolean {
-  return CONTENT_IMAGE_CONTENT_TYPES.includes(contentType) && sizeBytes > 0 && sizeBytes <= MAX_CONTENT_IMAGE_SIZE_BYTES;
-}
-
-export function contentImageExtension(contentType: string): string {
-  if (contentType === 'image/png') return 'png';
-  if (contentType === 'image/webp') return 'webp';
-  return 'jpg';
-}
+// Public-image upload validation -- promoted to src/lib/public-image-blob.ts
+// (DR-114) so catalog module's package-image upload shares the same
+// vocabulary; re-exported here under content's original names so nothing
+// else in this module (or its tests) needs to change.
+export {
+  MAX_PUBLIC_IMAGE_SIZE_BYTES as MAX_CONTENT_IMAGE_SIZE_BYTES,
+  isValidPublicImageUpload as isValidContentImageUpload,
+  publicImageExtension as contentImageExtension,
+} from '@lib/public-image-blob';

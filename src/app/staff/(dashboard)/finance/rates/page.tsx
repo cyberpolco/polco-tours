@@ -147,7 +147,7 @@ export default async function FinanceRatesPage() {
               <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
@@ -208,7 +208,7 @@ export default async function FinanceRatesPage() {
               <input name="nightlyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
@@ -279,7 +279,7 @@ export default async function FinanceRatesPage() {
               <input name="vehicleOperatingCost" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
@@ -349,7 +349,7 @@ export default async function FinanceRatesPage() {
               <input name="perUnit" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
@@ -410,7 +410,7 @@ export default async function FinanceRatesPage() {
               <input name="fee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>
@@ -481,7 +481,7 @@ export default async function FinanceRatesPage() {
               <input name="borderPermitFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required className="text-sm">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
                 {CURRENCY_OPTIONS}
               </Select>
             </FormField>

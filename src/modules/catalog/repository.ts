@@ -23,6 +23,7 @@ function toPackageView(p: TourPackage): TourPackageView {
     title: p.title,
     description: p.description,
     country: p.country,
+    countries: p.countries,
     priceMinor: p.priceMinor,
     currency: p.currency,
     durationDays: p.durationDays,
@@ -123,9 +124,10 @@ export const catalogRepository = {
     });
   },
 
-  /** Clones the package definition only (title/description/country/price/
-   * currency/durationDays/imageUrl/tags) as a new DRAFT package with a fresh
-   * packageReference -- deliberately no departures (DR-028). */
+  /** Clones the package definition only (title/description/country/
+   * countries/price/currency/durationDays/imageUrl/tags) as a new DRAFT
+   * package with a fresh packageReference -- deliberately no departures
+   * (DR-028). */
   async duplicatePackage(organizationId: string, id: string): Promise<TourPackageView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.tourPackage.findUnique({ where: { id } });
@@ -137,6 +139,7 @@ export const catalogRepository = {
           title: existing.title,
           description: existing.description,
           country: existing.country,
+          countries: existing.countries,
           priceMinor: existing.priceMinor,
           currency: existing.currency,
           durationDays: existing.durationDays,

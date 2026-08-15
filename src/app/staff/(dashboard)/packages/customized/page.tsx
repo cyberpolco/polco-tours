@@ -25,7 +25,11 @@ function matchesQuery(p: TourPackageView, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   return (
-    p.title.toLowerCase().includes(q) || p.packageReference.toLowerCase().includes(q) || p.country.toLowerCase().includes(q)
+    p.title.toLowerCase().includes(q) ||
+    p.packageReference.toLowerCase().includes(q) ||
+    // DR-114: countries[] always includes the primary country, so checking
+    // it alone covers a combo package's other countries too.
+    p.countries.some((c) => c.toLowerCase().includes(q))
   );
 }
 
@@ -122,7 +126,7 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
               <Tr key={p.id}>
                 <Td className="font-mono text-xs">{p.packageReference}</Td>
                 <Td>{p.title}</Td>
-                <Td>{tCountries(p.country)}</Td>
+                <Td>{p.countries.map((c) => tCountries(c)).join(' + ')}</Td>
                 <Td>{formatOrPending(p.priceMinor, p.currency, t('notYetPriced'))}</Td>
                 <Td>
                   <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{tPackageStatus(p.status)}</Badge>

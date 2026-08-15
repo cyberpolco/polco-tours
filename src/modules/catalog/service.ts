@@ -6,6 +6,7 @@ import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { money, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
+import { isValidPublicImageUpload, publicImageBlobGateway, publicImageExtension, PublicImageBlobGatewayError } from '@lib/public-image-blob';
 import { assertCan } from '@lib/rbac';
 import {
   computeDepartureEndDate,
@@ -37,6 +38,12 @@ const PUBLIC_VIEW_ROLE: Role[] = ['TOURIST'];
 export interface PublicPackageFilter {
   country?: string;
   search?: string;
+}
+
+export interface UploadPackageImageInput {
+  contentType: string;
+  sizeBytes: number;
+  bytes: Buffer;
 }
 
 export interface DepartureDetail {
@@ -97,6 +104,27 @@ export const catalogService = {
     const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
+  },
+
+  /** DR-114: staff upload a real image file instead of pasting a URL.
+   * Gated by catalog.write (same as create/update) -- deliberately NOT
+   * reusing contentService.uploadImage, which is gated SUPERADMIN-only
+   * (requireContentWriter); package creation/editing is open to
+   * PLATFORM_ADMIN/TOUR_OPERATOR too, so this calls the shared
+   * publicImageBlobGateway directly under catalog's own permission instead. */
+  async uploadPackageImage(ctx: AuthContext, input: UploadPackageImageInput): Promise<{ url: string }> {
+    assertCan(ctx, 'catalog.write');
+    if (!isValidPublicImageUpload(input.contentType, input.sizeBytes)) {
+      throw Errors.validation('Invalid image upload (unsupported content type or size)');
+    }
+    const pathname = `package-images/${crypto.randomUUID()}.${publicImageExtension(input.contentType)}`;
+    try {
+      const uploaded = await publicImageBlobGateway.uploadPublicImage(pathname, input.bytes, input.contentType);
+      return { url: uploaded.url };
+    } catch (err) {
+      if (err instanceof PublicImageBlobGatewayError) throw Errors.internal();
+      throw err;
+    }
   },
 
   async getPackage(ctx: AuthContext, packageId: string): Promise<TourPackageView> {
@@ -365,7 +393,10 @@ export const catalogService = {
     const organizationId = await getPrimaryOrgId();
     const all = await catalogRepository.listPackages(organizationId);
     let visible = all.filter((p) => isPackageVisible(p, PUBLIC_VIEW_ROLE));
-    if (filter.country) visible = visible.filter((p) => p.country === filter.country);
+    // DR-114: membership, not equality -- a guest filtering by "Zambia"
+    // should also surface a Zambia+Zimbabwe combo package, not just ones
+    // whose primary/billing country happens to be Zambia.
+    if (filter.country) visible = visible.filter((p) => p.countries.includes(filter.country!));
     const needle = filter.search?.trim().toLowerCase();
     if (needle) {
       visible = visible.filter(

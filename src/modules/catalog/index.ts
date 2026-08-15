@@ -1,6 +1,6 @@
 // catalog module — public interface. Other modules import ONLY from here.
 export { catalogService } from './service';
-export type { DepartureDetail, DepartureTripSummaryView, PublicPackageFilter } from './service';
+export type { DepartureDetail, DepartureTripSummaryView, PublicPackageFilter, UploadPackageImageInput } from './service';
 export {
   AddPackageItineraryDayInput,
   CreateDepartureInput,

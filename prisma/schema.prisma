@@ -471,7 +471,16 @@ model TourPackage {
   packageReference String        @unique
   title            String
   description      String
-  country          String // ISO-3166 alpha-2; matches TaxRate.country for invoicing
+  country          String // ISO-3166 alpha-2, one of countries[] -- the PRIMARY/billing
+  // country: matches TaxRate.country for invoicing, and is the sole driver of
+  // finance/service.ts's resolveRatesForCost. A combo package's OTHER
+  // countries live in countries[] below for display/filtering only -- never
+  // read by tax/rate resolution (DR-114, mirrors Booking.customCountry vs
+  // preferredCountries, DR-047).
+  // Full set of countries this package touches (superset including
+  // `country` above) -- display/filtering only, e.g. a guest filtering by
+  // "Zambia" should also surface a Zambia+Zimbabwe combo package.
+  countries        String[]      @default([])
   // Per-seat unit price, integer minor units (BR-02). Nullable since DR-039:
   // a brand-new package starts unpriced until the finance module's cost
   // breakdown computes it (or an admin override sets it) -- isBookable
@@ -481,11 +490,14 @@ model TourPackage {
   currency         Currency
   durationDays     Int?
   // DR-068: optional hero image for the guest package card/detail page.
-  // Nullable/additive -- no photography is sourced yet (see CLAUDE.md Open
-  // Items), so every existing package stays imageless until staff set one;
-  // the guest UI renders an illustrated gradient fallback in the meantime.
-  // A local /public/images/packages/... path, never an arbitrary external
-  // URL (see next.config.mjs's images config -- no remote host is allowlisted).
+  // Nullable/additive -- no operator-supplied photography existed at first
+  // (see CLAUDE.md Open Items), so every existing package stays imageless
+  // until staff upload one; the guest UI renders an illustrated gradient
+  // fallback in the meantime. Since DR-114, staff upload a real file
+  // (`catalogService.uploadPackageImage`) rather than pasting a URL -- this
+  // is a Vercel Blob `access: 'public'` URL (next.config.mjs's
+  // `*.public.blob.vercel-storage.com` remotePattern, added DR-071), not a
+  // local `/public/images/...` asset path.
   imageUrl         String?
   tags             PackageTag[] // interest-matching for the public quiz (DR-016)
   status           PackageStatus @default(DRAFT)

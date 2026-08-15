@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
+import { ApiError } from '@lib/errors';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
@@ -10,30 +12,75 @@ const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE'
 export async function updatePackageAction(packageId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');
 
-  // DR-039: price is no longer typed here -- it's computed by the finance
-  // module's cost breakdown (or set there via an audited override). This
-  // form still edits every other package attribute, including currency
-  // (the cost breakdown's own currency must match, checked in
-  // financeService.saveCostBreakdown).
-  const durationDaysRaw = formData.get('durationDays');
-  const input = UpdatePackageInput.parse({
-    title: String(formData.get('title') ?? '').trim(),
-    description: String(formData.get('description') ?? '').trim(),
-    country: String(formData.get('country') ?? ''),
-    currency: String(formData.get('currency') ?? ''),
-    durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
-    imageUrl: String(formData.get('imageUrl') ?? '').trim() || undefined,
-    tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
-    status: String(formData.get('status') ?? ''),
-  });
+  const country = String(formData.get('country') ?? '');
+  // DR-114: full country set = primary + any additional ones checked,
+  // de-duplicated.
+  const additionalCountries = formData
+    .getAll('additionalCountries')
+    .filter((c): c is string => typeof c === 'string' && (OPERATING_COUNTRY_CODES as readonly string[]).includes(c));
+  const countries = Array.from(new Set([country, ...additionalCountries]));
 
-  await catalogService.updatePackage(ctx, packageId, input);
+  // DR-115 incident: publishing with no price/duration yet throws a real,
+  // expected ApiError (Errors.conflict, catalog/service.ts's DR-039 gate) --
+  // previously uncaught here, so it crashed to Next's generic error page
+  // instead of showing staff the actual reason. Same "catch every ApiError
+  // generically, redirect with ?error=&detail=" convention as
+  // departures/[departureId]/actions.ts's createAssignmentAction (DR-079).
+  // DR-114's uploadPackageImage call below is wrapped in the same try --
+  // an oversized/wrong-type file (Errors.validation) or a Blob failure
+  // (Errors.internal) are exactly the same class of "real, expected
+  // ApiError" this block already exists to catch.
+  try {
+    // DR-114: a new file replaces the existing image; leaving the field
+    // empty keeps whatever imageUrl the package already has (imageUrl left
+    // undefined below in that case, same "omitted = unchanged" shape
+    // UpdatePackageInput already uses for every optional field).
+    let imageUrl: string | undefined;
+    const image = formData.get('image');
+    if (image instanceof File && image.size > 0) {
+      const bytes = Buffer.from(await image.arrayBuffer());
+      const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
+      imageUrl = uploaded.url;
+    }
+
+    // DR-039: price is no longer typed here -- it's computed by the finance
+    // module's cost breakdown (or set there via an audited override). This
+    // form still edits every other package attribute, including currency
+    // (the cost breakdown's own currency must match, checked in
+    // financeService.saveCostBreakdown).
+    const durationDaysRaw = formData.get('durationDays');
+    const input = UpdatePackageInput.parse({
+      title: String(formData.get('title') ?? '').trim(),
+      description: String(formData.get('description') ?? '').trim(),
+      country,
+      countries,
+      currency: String(formData.get('currency') ?? ''),
+      durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
+      imageUrl,
+      tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
+      status: String(formData.get('status') ?? ''),
+    });
+
+    await catalogService.updatePackage(ctx, packageId, input);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      redirect(`/staff/packages/${packageId}?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
+    }
+    throw err;
+  }
   redirect(`/staff/packages/${packageId}`);
 }
 
 export async function archivePackageAction(packageId: string): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');
-  await catalogService.updatePackage(ctx, packageId, { status: 'ARCHIVED' });
+  try {
+    await catalogService.updatePackage(ctx, packageId, { status: 'ARCHIVED' });
+  } catch (err) {
+    if (err instanceof ApiError) {
+      redirect(`/staff/packages/${packageId}?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
+    }
+    throw err;
+  }
   redirect(`/staff/packages/${packageId}`);
 }
 

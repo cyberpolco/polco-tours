@@ -17,6 +17,7 @@ const suffix = `${Date.now()}`;
 let orgId: string;
 let publishedPackageId: string;
 let draftPackageId: string;
+let comboPackageId: string;
 let scheduledDepartureId: string;
 let cancelledDepartureId: string;
 
@@ -32,6 +33,7 @@ beforeAll(async () => {
         title: `TEST-PUBLIC-PUBLISHED-${suffix}`,
         description: 'Fixture for public catalog tests.',
         country: 'NA',
+        countries: ['NA'],
         priceMinor: 50000,
         currency: 'USD',
         durationDays: 4,
@@ -48,12 +50,31 @@ beforeAll(async () => {
         title: `TEST-PUBLIC-DRAFT-${suffix}`,
         description: 'Should never appear in public results.',
         country: 'NA',
+        countries: ['NA'],
         priceMinor: 50000,
         currency: 'USD',
         status: 'DRAFT',
       },
     });
     draftPackageId = draft.id;
+
+    // DR-114: a combo package -- primary country ZM, also touches ZW.
+    // Filtering by either country must surface it (membership, not equality).
+    const combo = await tx.tourPackage.create({
+      data: {
+        organizationId: orgId,
+        packageReference: testPackageReference(),
+        title: `TEST-PUBLIC-COMBO-${suffix}`,
+        description: 'Fixture for the DR-114 multi-country filter test.',
+        country: 'ZM',
+        countries: ['ZM', 'ZW'],
+        priceMinor: 60000,
+        currency: 'USD',
+        durationDays: 6,
+        status: 'PUBLISHED',
+      },
+    });
+    comboPackageId = combo.id;
 
     const scheduled = await tx.departure.create({
       data: { organizationId: orgId, tourPackageId: published.id, startDate: new Date('2027-01-10'), capacity: 8 },
@@ -81,7 +102,14 @@ afterAll(async () => {
   // would wipe every package/departure belonging to it. This has hit real
   // production data twice already. Skip cleanup entirely rather than risk
   // it.
-  if (!orgId || !publishedPackageId || !draftPackageId || !scheduledDepartureId || !cancelledDepartureId) {
+  if (
+    !orgId ||
+    !publishedPackageId ||
+    !draftPackageId ||
+    !comboPackageId ||
+    !scheduledDepartureId ||
+    !cancelledDepartureId
+  ) {
     await admin.$disconnect();
     await prisma.$disconnect();
     return;
@@ -89,7 +117,9 @@ afterAll(async () => {
   await withOrg(orgId, (tx) =>
     tx.departure.deleteMany({ where: { id: { in: [scheduledDepartureId, cancelledDepartureId] } } }),
   );
-  await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { id: { in: [publishedPackageId, draftPackageId] } } }));
+  await withOrg(orgId, (tx) =>
+    tx.tourPackage.deleteMany({ where: { id: { in: [publishedPackageId, draftPackageId, comboPackageId] } } }),
+  );
   await admin.$disconnect();
   await prisma.$disconnect();
 });
@@ -105,6 +135,20 @@ describe('catalogService public methods (DR-016)', () => {
   it('listPublicPackages filters by country', async () => {
     const results = await catalogService.listPublicPackages({ country: 'CD' });
     expect(results.map((p) => p.id)).not.toContain(publishedPackageId);
+  });
+
+  // DR-114: filtering is membership (countries[].includes), not equality
+  // against the primary country -- a combo package (primary ZM, also ZW)
+  // must surface under EITHER country's filter.
+  it('listPublicPackages surfaces a multi-country package under either of its countries', async () => {
+    const byPrimary = await catalogService.listPublicPackages({ country: 'ZM' });
+    expect(byPrimary.map((p) => p.id)).toContain(comboPackageId);
+
+    const bySecondary = await catalogService.listPublicPackages({ country: 'ZW' });
+    expect(bySecondary.map((p) => p.id)).toContain(comboPackageId);
+
+    const byUnrelated = await catalogService.listPublicPackages({ country: 'NA' });
+    expect(byUnrelated.map((p) => p.id)).not.toContain(comboPackageId);
   });
 
   it('listPublicPackages filters by a case-insensitive title/description search', async () => {
