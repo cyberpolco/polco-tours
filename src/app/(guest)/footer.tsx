@@ -68,6 +68,9 @@ export async function GuestFooter() {
             <Link href="/rate" className="hover:text-amber">
               {t('rateMyTrip')}
             </Link>
+            <Link href="/weather" className="hover:text-amber">
+              {t('weather')}
+            </Link>
             <Link href="/about" className="hover:text-amber">
               {t('about')}
             </Link>

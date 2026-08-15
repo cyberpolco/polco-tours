@@ -96,6 +96,7 @@
     "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
     "rateMyTrip": "Rate my trip",
+    "weather": "Weather",
     "about": "About",
     "faq": "FAQ",
     "contact": "Contact",
@@ -168,6 +169,23 @@
     "CD": "DR Congo",
     "ZM": "Zambia",
     "ZW": "Zimbabwe"
+  },
+  "WeatherPage": {
+    "eyebrow": "Weather",
+    "title": "Weather where we operate",
+    "subhead": "Current conditions for our main towns, grouped by country — tap a town for a forecast and seasonal travel notes.",
+    "summaryUnavailable": "Live weather temporarily unavailable"
+  },
+  "WeatherTownPage": {
+    "backToWeather": "Weather",
+    "currentConditions": "Current conditions",
+    "temperature": "Temperature",
+    "feelsLike": "Feels like",
+    "conditions": "Conditions",
+    "humidity": "Humidity",
+    "liveDataUnavailable": "Live weather temporarily unavailable — please check back shortly.",
+    "forecast": "7-day forecast",
+    "seasonalNotes": "Seasonal notes"
   },
   "AboutPage": {
     "eyebrow": "About",

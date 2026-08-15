@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-112 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-113 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -297,8 +297,23 @@ explicit decision to do so.
 > a real crash on `www.mufasasafaris.com`, confirmed via `vercel logs
 > --level error`. Fixed by gating the invoice/payments/rating-code sections
 > on `booking.priceMinor != null` rather than just setup-completeness, with
-> a new e2e regression test seeding exactly that state. See DR-082 through
-> DR-112 for full detail.
+> a new e2e regression test seeding exactly that state. DR-113 adds a
+> guest-facing Weather page, footer-linked only (not top nav) — `/weather`
+> lists current conditions for 26 towns across the 4 operating countries,
+> grouped by country; `/weather/[town]` adds a 7-day forecast and
+> staff-authored seasonal/travel notes. New `weather` module (no
+> `repository.ts` — same shape as `insights`/`tracking`, nothing here is
+> tenant-scoped) calls Google Maps Platform's Weather API through a new
+> `GoogleWeatherGateway`, reusing the existing `GOOGLE_MAPS_SERVER_API_KEY`
+> rather than a new credential — that key's Google Cloud project still
+> needs the Weather API product enabled and added to its restriction list
+> (OI-14) before this serves live data. Town list is a static config
+> (`src/lib/weather-towns.ts`, mirrors `destination-sites.ts`), not a DB
+> table. `weatherService` never throws to the page — a gateway failure
+> degrades to `current`/`forecast: null` (town + seasonal notes still
+> render), backed by a new Redis cache (`src/lib/weather-cache.ts`) that is
+> this feature's real defense against hammering a billed third-party API,
+> not IP-based rate-limiting. See DR-082 through DR-113 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the
@@ -427,6 +442,7 @@ gaps a fresh Postgres would hit).
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
 | Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryDayMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only per-day map on the staff Map tab (DR-089); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
 | Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's per-day PDF map image; `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
+| Weather data | Google Maps Platform Weather API (DR-113) — reuses the same server-only `GOOGLE_MAPS_SERVER_API_KEY`, not a new credential; that key's Google Cloud project still needs the Weather API product enabled + added to its restriction list (OI-14) before this serves live data (degrades gracefully to town/seasonal-notes-only until then). `src/modules/weather/gateway.ts` (`GoogleWeatherGateway`) calls `currentConditions:lookup`/`forecast/days:lookup`, one bounded retry on a genuine failure (never on timeout), no circuit breaker — call volume is bounded by `src/lib/weather-cache.ts` (Upstash Redis) instead |
 | PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's per-day PDF (Static Maps image + stop list) |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (country-regulations text, package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
@@ -459,7 +475,7 @@ src/
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
       booking/[bookingId]/, plan-my-trip/, find-booking/, rate/, gallery/,
-      about/, faq/, contact/, terms/
+      about/, faq/, contact/, terms/, weather/ (footer-linked only, DR-113)
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
                               #   guest-guard, primary-org, country-codes, provinces,
@@ -467,7 +483,9 @@ src/
                               #   fleet-availability (DR-082 cross-module sync helper),
                               #   client-deletion (DR-085 cross-module delete guard),
                               #   directory-filters (DR-091: shared search/filter/
-                              #   pagination helpers for the admin Users/Clients pages)
+                              #   pagination helpers for the admin Users/Clients pages),
+                              #   weather-towns (DR-113 static town config),
+                              #   weather-cache (DR-113 Redis cache helper)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage + PackageTag + Departure + AddonService +
@@ -508,6 +526,13 @@ src/
                    #   SUPERADMIN-only; public no-ctx read path powers the
                    #   guest /about and /faq pages, mirroring catalog's
                    #   listPublicPackages convention
+    weather/       # Guest /weather pages (DR-113), no repository.ts (owns
+                   #   no table — town list is src/lib/weather-towns.ts, a
+                   #   static config). gateway.ts calls Google Maps
+                   #   Platform's Weather API; service.ts is a fully public
+                   #   no-ctx read path (mirrors content's public methods)
+                   #   that degrades to null current/forecast on any
+                   #   gateway failure rather than throwing
   middleware.ts    # trace id + locale
 prisma/
   schema.prisma        # data model
@@ -868,6 +893,11 @@ Surface these to the human — don't invent answers.
   automatic backfill, not manual re-pin). Interactive pickup-location map
   on the departure/Starlink-kit staff pages is now live rather than
   degraded.
+- **OI-14** (DR-113) The Google Cloud project behind `GOOGLE_MAPS_SERVER_API_KEY`
+  needs the **Weather API** product enabled and added to that key's API
+  restriction list before the guest `/weather` pages serve live current
+  conditions/forecast data. Degrades gracefully until then (charter rule
+  8) — towns still list with seasonal notes, just no live weather.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real

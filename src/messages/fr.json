@@ -96,6 +96,7 @@
     "planMyTrip": "Planifier mon voyage",
     "findBooking": "Retrouver ma réservation",
     "rateMyTrip": "Évaluer mon voyage",
+    "weather": "Météo",
     "about": "À propos",
     "faq": "FAQ",
     "contact": "Contact",
@@ -168,6 +169,23 @@
     "CD": "RD Congo",
     "ZM": "Zambie",
     "ZW": "Zimbabwe"
+  },
+  "WeatherPage": {
+    "eyebrow": "Météo",
+    "title": "La météo là où nous opérons",
+    "subhead": "Conditions actuelles pour nos principales villes, regroupées par pays — cliquez sur une ville pour ses prévisions et des notes saisonnières.",
+    "summaryUnavailable": "Météo en direct temporairement indisponible"
+  },
+  "WeatherTownPage": {
+    "backToWeather": "Météo",
+    "currentConditions": "Conditions actuelles",
+    "temperature": "Température",
+    "feelsLike": "Ressenti",
+    "conditions": "Conditions",
+    "humidity": "Humidité",
+    "liveDataUnavailable": "Météo en direct temporairement indisponible — merci de repasser bientôt.",
+    "forecast": "Prévisions sur 7 jours",
+    "seasonalNotes": "Notes saisonnières"
   },
   "AboutPage": {
     "eyebrow": "À propos",
