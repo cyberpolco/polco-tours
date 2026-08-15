@@ -19,8 +19,37 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-115 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **All schema changes through DR-092 are applied to the shared
+> Current through DR-118 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-117's enum migration is applied to the shared Neon DB**
+> (`ALTER TYPE "PackageStatus" RENAME VALUE 'PUBLISHED' TO
+> 'PUBLISHED_AVAILABLE'` then `ADD VALUE 'PUBLISHED_UNAVAILABLE'` — all 56
+> pre-existing `PUBLISHED` rows now read `PUBLISHED_AVAILABLE`, verified via
+> `psql`); the matching `db push`/`db:rls` run (needed to reconcile
+> Prisma's own migration history, and to pick up DR-116/DR-118's additive
+> schema work, done concurrently in this same working tree by a second
+> session) is still pending, coordinated between both sessions/users before
+> either runs it. **DR-116** reorganizes Operational Rates into cards and
+> links three "typed name" fields to real reference-list records instead:
+> `HotelRate.hotelId` (-> itinerary's `Hotel`), a new `Activity` model (one
+> Site -> many Activities, `hasEntranceFee` flag, managed from the Site
+> detail page), and `ActivityFee.activityId` (-> that new `Activity`,
+> `name` now a creation-time snapshot rather than staff-typed). Also adds
+> `PackageItineraryDay.activityIds` (plain string array, no FK — see that
+> model's own schema comment on why catalog can't reference itinerary's
+> tables) so a package's day-by-day plan can select real Activities via a
+> new `MultiSearchableSelect` component; the cost-breakdown page pre-fills
+> any matching `ActivityFee` row's quantity as "requested via day plan."
+> New module dependency `finance` -> `itinerary` (confirmed acyclic). **New
+> tenant table `site_activities`** has its RLS policy already written in
+> `prisma/rls.sql` (not yet applied — see the pending push above). **DR-118**
+> gives every `TourPackage` a personalized public URL slug
+> (`TourPackage.slug`, generated once from `title` at creation, never
+> regenerated on a later edit) — `scripts/backfill-package-slugs.ts` handles
+> the pre-DR-118 rows once the schema push lands; the guest package card
+> links via `slug ?? id` so an unbackfilled row still resolves by id in the
+> meantime.
+> **All schema changes through
+> DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
 > breakdowns — nothing schema-related is pending; DR-090/091/093/094/095/
@@ -345,6 +374,25 @@ explicit decision to do so.
 > eligible guide (DR-078) and is now a **mandatory** field, enforced at the
 > application layer only — `Assignment.guideUserId` stays nullable in the
 > DB (DR-079).
+> DR-117 splits `TourPackage`'s single `PUBLISHED` status into
+> `PUBLISHED_AVAILABLE`/`PUBLISHED_UNAVAILABLE` (explicit user request) — a
+> real enum split, not a side boolean, so "status" stays one field. Both
+> sub-statuses stay guest-visible exactly like the old single `PUBLISHED`
+> (`isPackageVisible`); only `PUBLISHED_AVAILABLE` is bookable (`isBookable`,
+> `createDepartureForBooking`, `/book-package/[packageId]`, the staff manual
+> package-booking path) — `PUBLISHED_UNAVAILABLE` is "still listed, booking
+> disabled," not hidden like `DRAFT`. New `catalog/domain.ts`'s
+> `isPublishedStatus(status)` is the one shared "is this either published
+> sub-status" check every caller uses. DR-097's Public list page
+> (`/staff/packages/public`) gained an Available/Unavailable Status filter;
+> the Customized list's DRAFT/ARCHIVED partition is unaffected. **Schema
+> change applied by hand to the shared Neon DB, coordinated with a
+> concurrent session also editing this repo** (its own in-progress,
+> not-yet-logged schema work — see Gotchas below on concurrent-session
+> coordination) — requires `ALTER TYPE "PackageStatus" RENAME VALUE
+> 'PUBLISHED' TO 'PUBLISHED_AVAILABLE'` then `ADD VALUE
+> 'PUBLISHED_UNAVAILABLE'` *before* `db push`, since a plain `db push` can't
+> itself rename an enum value already in use by existing rows.
 
 ---
 
@@ -488,8 +536,10 @@ src/
                               #   weather-cache (DR-113 Redis cache helper)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
-    catalog/       # TourPackage + PackageTag + Departure + AddonService +
-                   #   PackageItineraryDay (per-package itinerary template)
+    catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
+                   #   AddonService + PackageItineraryDay (per-package
+                   #   itinerary template; activityIds, DR-116 — plain
+                   #   string array, no FK into itinerary's Activity)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
                    #   bookingReference is the sole guest-facing lookup key
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
@@ -508,7 +558,9 @@ src/
                    #   ItineraryDaySite (staff-ordered stops, DR-088,
                    #   replacing the old free-text plannedSites) +
                    #   Hotel/Restaurant/Site reference entities (all three
-                   #   geocoded, DR-088) + HotelRating/RestaurantRating
+                   #   geocoded, DR-088) + Activity (one Site -> many, DR-116,
+                   #   hasEntranceFee flag; referenced by finance's
+                   #   ActivityFee) + HotelRating/RestaurantRating
                    #   (staff + guide/driver) + gateway.ts/map-pdf.tsx
                    #   (Static Maps + PDF rendering for the Map tab, DR-089)
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
@@ -516,9 +568,11 @@ src/
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
-    finance/       # Cost-plus pricing engine — 6 rate tables + PackageCostBreakdown
-                   #   (TourPackage) / BookingCostBreakdown (TAILOR_MADE
-                   #   Booking, DR-092) sharing one resolveRatesForCost helper
+    finance/       # Cost-plus pricing engine — 6 rate tables (HotelRate/
+                   #   ActivityFee reference itinerary's Hotel/Activity by
+                   #   id, DR-116) + PackageCostBreakdown (TourPackage) /
+                   #   BookingCostBreakdown (TAILOR_MADE Booking, DR-092)
+                   #   sharing one resolveRatesForCost helper
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
                    #   generated discount codes, SUPERADMIN-only writes)
@@ -562,10 +616,12 @@ the only thing other modules may import).
 `assignment`/`catalog`; `booking` never depends on `itinerary` (that would be
 circular) — any orchestration needing both happens one level up, in a Server
 Action or route handler, not inside either module's service. `finance`
-depends on `catalog` (package pricing) and, since DR-092, `booking` (booking
-cost breakdowns) — confirmed acyclic the same way `invoicing`/`visa`/
-`itinerary` already depend on `booking`: `booking` itself only imports
-`{auth, catalog, notifications}`, never reaching back into any of them.
+depends on `catalog` (package pricing), since DR-092, `booking` (booking
+cost breakdowns), and since DR-116, `itinerary` (resolving/validating the
+real Hotel/Activity a rate is priced for) — confirmed acyclic the same way
+`invoicing`/`visa`/`itinerary` already depend on `booking`: `booking` itself
+only imports `{auth, catalog, notifications}`, and `itinerary` only imports
+`{auth, assignment, booking, catalog}`, neither reaching back into `finance`.
 
 ---
 

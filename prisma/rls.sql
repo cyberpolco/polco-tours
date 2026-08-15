@@ -281,6 +281,17 @@ CREATE POLICY tenant_isolation ON sites
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
+-- --------------------------------------------------------- site_activities (DR-116)
+-- A Site's own reference list of things to do there -- same tenant_isolation
+-- shape as sites/itinerary_day_sites (own organizationId column).
+ALTER TABLE site_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_activities FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON site_activities;
+CREATE POLICY tenant_isolation ON site_activities
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
 -- --------------------------------------------------------------- hotel_ratings
 ALTER TABLE hotel_ratings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hotel_ratings FORCE ROW LEVEL SECURITY;

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { catalogService, type TourPackageView } from '@modules/catalog';
+import { catalogService, isPublishedStatus, type TourPackageView } from '@modules/catalog';
 import { paginate } from '@lib/directory-filters';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import { BackLink } from '@/components/ui/BackLink';
@@ -34,8 +34,8 @@ function matchesQuery(p: TourPackageView, query: string): boolean {
 }
 
 // DR-097: "Customized" == not currently visible to any guest --
-// isPackageVisible only ever shows PUBLISHED; DRAFT and ARCHIVED both land
-// here, distinguishable via the Status filter below.
+// isPackageVisible only ever shows a published sub-status (DR-117); DRAFT
+// and ARCHIVED both land here, distinguishable via the Status filter below.
 export default async function CustomizedPackagesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('catalog.read');
   const params = await searchParams;
@@ -46,7 +46,7 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
   const status = params.status === 'DRAFT' || params.status === 'ARCHIVED' ? params.status : '';
 
   const allPackages = await catalogService.listPackages(ctx);
-  const customizedPackages = allPackages.filter((p) => p.status !== 'PUBLISHED');
+  const customizedPackages = allPackages.filter((p) => !isPublishedStatus(p.status));
 
   const filtered = customizedPackages.filter((p) => {
     if (status && p.status !== status) return false;

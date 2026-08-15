@@ -8,6 +8,9 @@ export interface TourPackageView {
   id: string;
   organizationId: string;
   packageReference: string;
+  // DR-118: personalized public URL segment, generated once from `title` at
+  // creation time. Null only for a pre-DR-118 row awaiting backfill.
+  slug: string | null;
   title: string;
   description: string;
   // PRIMARY/billing country -- one of countries[] below. Drives tax
@@ -110,7 +113,7 @@ export const UpdatePackageInput = z
     durationDays: z.number().int().positive().optional(),
     imageUrl: z.string().max(500).optional(),
     tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED_AVAILABLE', 'PUBLISHED_UNAVAILABLE', 'ARCHIVED']).optional(),
   })
   .refine((v) => !v.country || !v.countries || v.countries.includes(v.country), {
     message: 'Primary country must be one of the selected countries',
@@ -186,27 +189,41 @@ export function computeDepartureEndDate(startDate: Date, durationDays: number): 
 /** Departure's own price wins; otherwise inherit the package's. Null when
  * neither is set (DR-039: an unpriced package with no departure override) --
  * updatePackage's publish gate keeps this defensive rather than routine for
- * any PUBLISHED package a tourist could actually reach. */
+ * any published (either sub-status, DR-117) package a tourist could actually
+ * reach. */
 export function effectivePrice(pkg: TourPackageView, dep: DepartureView): Money | null {
   const minor = dep.priceOverrideMinor ?? pkg.priceMinor;
   if (minor == null) return null;
   return money(minor, pkg.currency);
 }
 
-/** A tourist can only act on a live package + a still-running departure +
- * an actual price to charge (DR-039 -- defensive; updatePackage already
- * refuses to PUBLISH a package with no price at all). */
+/** DR-117: true for either published sub-status -- both stay listed to
+ * guests (isPackageVisible), they differ only in whether a guest can act on
+ * one right now (isBookable). Centralized here so no caller hand-rolls its
+ * own two-value check. */
+export function isPublishedStatus(status: PackageStatus): boolean {
+  return status === 'PUBLISHED_AVAILABLE' || status === 'PUBLISHED_UNAVAILABLE';
+}
+
+/** A tourist can only act on a live, staff-marked-available package + a
+ * still-running departure + an actual price to charge (DR-039 -- defensive;
+ * updatePackage already refuses to PUBLISH a package with no price at all).
+ * DR-117: PUBLISHED_UNAVAILABLE is deliberately excluded -- still listed
+ * (isPackageVisible), just not currently bookable. */
 export function isBookable(pkg: TourPackageView, dep: DepartureView): boolean {
-  return pkg.status === 'PUBLISHED' && dep.status === 'SCHEDULED' && (dep.priceOverrideMinor != null || pkg.priceMinor != null);
+  return (
+    pkg.status === 'PUBLISHED_AVAILABLE' && dep.status === 'SCHEDULED' && (dep.priceOverrideMinor != null || pkg.priceMinor != null)
+  );
 }
 
 function isOperatorRole(roles: Role[]): boolean {
   return roles.some((role) => role === 'TOUR_OPERATOR' || role === 'SUPERADMIN' || role === 'PLATFORM_ADMIN');
 }
 
-/** Non-operator roles only ever see published packages, regardless of their catalog.read grant. */
+/** Non-operator roles only ever see published packages (either sub-status,
+ * DR-117), regardless of their catalog.read grant. */
 export function isPackageVisible(pkg: TourPackageView, roles: Role[]): boolean {
-  return isOperatorRole(roles) || pkg.status === 'PUBLISHED';
+  return isOperatorRole(roles) || isPublishedStatus(pkg.status);
 }
 
 /** Non-operator roles only ever see scheduled departures. */
@@ -248,6 +265,11 @@ export interface PackageItineraryDayView {
   dropoffLocation: string | null;
   plannedSites: string | null;
   activities: string | null;
+  // DR-116: real Activity ids (itinerary module), picked via a searchable
+  // multi-select on the staff day form -- see the schema comment on
+  // PackageItineraryDay.activityIds for why this is a plain, un-FK'd array
+  // rather than a relation.
+  activityIds: string[];
   estimatedTravelMinutes: number | null;
   notes: string | null;
 }
@@ -264,6 +286,7 @@ export const AddPackageItineraryDayInput = z.object({
   dropoffLocation: z.string().max(500).optional(),
   plannedSites: z.string().max(2000).optional(),
   activities: z.string().max(2000).optional(),
+  activityIds: z.array(z.string().uuid()).optional(),
   estimatedTravelMinutes: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
 });

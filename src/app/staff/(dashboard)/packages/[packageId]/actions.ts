@@ -111,6 +111,7 @@ export async function addTemplateDayAction(packageId: string, formData: FormData
     dropoffLocation: optionalString(formData, 'dropoffLocation'),
     plannedSites: optionalString(formData, 'plannedSites'),
     activities: optionalString(formData, 'activities'),
+    activityIds: formData.getAll('activityIds').map(String),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
     notes: optionalString(formData, 'notes'),
   });
@@ -127,6 +128,7 @@ export async function updateTemplateDayAction(packageId: string, dayId: string, 
     dropoffLocation: optionalString(formData, 'dropoffLocation'),
     plannedSites: optionalString(formData, 'plannedSites'),
     activities: optionalString(formData, 'activities'),
+    activityIds: formData.getAll('activityIds').map(String),
     estimatedTravelMinutes: formData.get('estimatedTravelMinutes') ? Number(formData.get('estimatedTravelMinutes')) : undefined,
     notes: optionalString(formData, 'notes'),
   });

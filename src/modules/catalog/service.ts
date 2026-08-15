@@ -14,6 +14,7 @@ import {
   isBookable,
   isDepartureVisible,
   isPackageVisible,
+  isPublishedStatus,
   type AddonServiceView,
   type AddPackageItineraryDayInput,
   type CreateBespokeDepartureParams,
@@ -85,12 +86,15 @@ export const catalogService = {
     const organizationId = requireOrg(ctx);
     // DR-039: a package with no price at all (no cost breakdown yet, never
     // manually priced) must not be publishable -- keeps isBookable's
-    // PUBLISHED gate a real guarantee rather than something every
+    // PUBLISHED_AVAILABLE gate a real guarantee rather than something every
     // downstream consumer has to re-check defensively. DR-054 (revised same
     // session) adds the same gate for durationDays -- a guest booking now
     // only ever picks a start date, so a package with no staff-set trip
-    // length has no way to get a bookable Departure at all.
-    if (input.status === 'PUBLISHED') {
+    // length has no way to get a bookable Departure at all. DR-117: this
+    // gate applies to either published sub-status -- an "unavailable"
+    // package is still a real, priced package, just temporarily not
+    // bookable, not an excuse to skip the price/duration requirement.
+    if (input.status && isPublishedStatus(input.status)) {
       const existing = await catalogRepository.findPackageById(organizationId, packageId);
       const priceMinor = input.priceMinor ?? existing?.priceMinor;
       if (priceMinor == null) {
@@ -338,9 +342,10 @@ export const catalogService = {
    * one has a real tourPackageId). Gated on catalog.read, not catalog.write
    * -- a TOURIST triggers this themselves as part of booking, not
    * administering the catalog; the package itself must already be
-   * PUBLISHED, priced, and have a set duration, mirroring isBookable's own
-   * gate (which can't be called directly here since it needs a Departure
-   * that doesn't exist yet). */
+   * PUBLISHED_AVAILABLE (DR-117 -- not merely published, actually available),
+   * priced, and have a set duration, mirroring isBookable's own gate (which
+   * can't be called directly here since it needs a Departure that doesn't
+   * exist yet). */
   async createDepartureForBooking(
     ctx: AuthContext,
     packageId: string,
@@ -350,7 +355,7 @@ export const catalogService = {
     const organizationId = requireOrg(ctx);
     const pkg = await catalogRepository.findPackageById(organizationId, packageId);
     if (!pkg || !isPackageVisible(pkg, ctx.roles)) throw Errors.notFound('Package not found');
-    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) {
+    if (pkg.status !== 'PUBLISHED_AVAILABLE' || pkg.priceMinor == null || pkg.durationDays == null) {
       throw Errors.conflict('This package is not currently bookable');
     }
     const endDate = computeDepartureEndDate(params.startDate, pkg.durationDays);
@@ -406,13 +411,20 @@ export const catalogService = {
     return visible;
   },
 
+  /** DR-118: `idOrSlug` is whatever the guest URL segment happens to be --
+   * the personalized slug for any package created since DR-118, or a raw id
+   * for an older bookmarked/shared link (or a pre-DR-118 row awaiting
+   * backfill). Slug checked first since that's what every current link
+   * uses; id is the fallback, not the other way around. */
   async getPublicPackageWithDepartures(
-    packageId: string,
+    idOrSlug: string,
   ): Promise<{ pkg: TourPackageView; departures: DepartureView[] }> {
     const organizationId = await getPrimaryOrgId();
-    const pkg = await catalogRepository.findPackageById(organizationId, packageId);
+    const pkg =
+      (await catalogRepository.findPackageBySlug(organizationId, idOrSlug)) ??
+      (await catalogRepository.findPackageById(organizationId, idOrSlug));
     if (!pkg || !isPackageVisible(pkg, PUBLIC_VIEW_ROLE)) throw Errors.notFound('Package not found');
-    const departures = (await catalogRepository.listDeparturesForPackage(organizationId, packageId)).filter((d) =>
+    const departures = (await catalogRepository.listDeparturesForPackage(organizationId, pkg.id)).filter((d) =>
       isDepartureVisible(d, PUBLIC_VIEW_ROLE),
     );
     return { pkg, departures };

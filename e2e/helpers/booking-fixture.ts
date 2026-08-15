@@ -35,7 +35,7 @@ export async function seedStaffAndBooking(
         country: 'NA',
         priceMinor: 10000,
         currency: 'USD',
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     const departure = await tx.departure.create({
@@ -122,7 +122,7 @@ export async function seedStaffAndCompleteBooking(): Promise<{ staffUserId: stri
         country: 'NA',
         priceMinor: 10000,
         currency: 'USD',
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     const departure = await tx.departure.create({

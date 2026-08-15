@@ -25,7 +25,7 @@ async function seedOrgWithAssignment(name: string): Promise<string> {
         country: 'NA',
         priceMinor: 10000,
         currency: 'USD',
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     const departure = await tx.departure.create({

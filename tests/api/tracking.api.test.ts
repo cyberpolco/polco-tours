@@ -79,7 +79,7 @@ beforeAll(async () => {
         country: 'NA',
         priceMinor: 100000,
         currency: 'USD',
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
 

@@ -1,5 +1,6 @@
 // itinerary module — repository. The only place that touches the DB for this module.
 import type {
+  Activity,
   Hotel,
   HotelRating,
   Itinerary,
@@ -12,7 +13,9 @@ import type {
 } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type {
+  ActivityView,
   AddItineraryDayInput,
+  CreateActivityInput,
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
@@ -27,6 +30,7 @@ import type {
   RestaurantRatingView,
   RestaurantView,
   SiteView,
+  UpdateActivityInput,
   UpdateHotelInput,
   UpdateItineraryDayInput,
   UpdateItineraryInput,
@@ -97,6 +101,18 @@ function toSiteView(s: Site): SiteView {
     longitude: s.longitude,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
+  };
+}
+
+function toActivityView(a: Activity): ActivityView {
+  return {
+    id: a.id,
+    organizationId: a.organizationId,
+    siteId: a.siteId,
+    name: a.name,
+    hasEntranceFee: a.hasEntranceFee,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
   };
 }
 
@@ -536,6 +552,67 @@ export const itineraryRepository = {
     return withOrg(organizationId, async (tx) => {
       const rows = await tx.site.findMany({ where: { country, deletedAt: null }, orderBy: { name: 'asc' } });
       return rows.map(toSiteView);
+    });
+  },
+
+  // ------------------------------------------------------------ activities (DR-116, reference data)
+
+  async createActivity(organizationId: string, siteId: string, input: CreateActivityInput): Promise<ActivityView> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.activity.create({ data: { organizationId, siteId, ...input } });
+      return toActivityView(a);
+    });
+  },
+
+  async updateActivity(organizationId: string, id: string, input: UpdateActivityInput): Promise<ActivityView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.activity.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const a = await tx.activity.update({ where: { id }, data: input });
+      return toActivityView(a);
+    });
+  },
+
+  /** Soft-delete (matches Hotel/Site) -- an ActivityFee row can reference this. */
+  async deleteActivity(organizationId: string, id: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.activity.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return false;
+      await tx.activity.update({ where: { id }, data: { deletedAt: new Date() } });
+      return true;
+    });
+  },
+
+  async findActivityById(organizationId: string, id: string): Promise<ActivityView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.activity.findUnique({ where: { id } });
+      if (!a || a.deletedAt) return null;
+      return toActivityView(a);
+    });
+  },
+
+  async findActivitiesByIds(organizationId: string, ids: string[]): Promise<ActivityView[]> {
+    if (ids.length === 0) return [];
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.activity.findMany({ where: { id: { in: ids }, deletedAt: null } });
+      return rows.map(toActivityView);
+    });
+  },
+
+  async listActivitiesBySite(organizationId: string, siteId: string): Promise<ActivityView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.activity.findMany({ where: { siteId, deletedAt: null }, orderBy: { name: 'asc' } });
+      return rows.map(toActivityView);
+    });
+  },
+
+  /** Org-wide listing (all sites) -- powers the finance Tourist Activities
+   * picker and the package day-plan picker, both of which need to search
+   * across every site's activities at once. */
+  async listActivities(organizationId: string): Promise<ActivityView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.activity.findMany({ where: { deletedAt: null }, orderBy: { name: 'asc' } });
+      return rows.map(toActivityView);
     });
   },
 

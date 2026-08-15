@@ -7,6 +7,7 @@ import {
   isBookable,
   isPackageVisible,
   isDepartureVisible,
+  isPublishedStatus,
   CreatePackageInput,
   UpdatePackageInput,
 } from '../src/modules/catalog/domain';
@@ -17,6 +18,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
     id: 'pkg-1',
     organizationId: 'org-1',
     packageReference: 'PKG-00001',
+    slug: 'etosha-safari',
     title: 'Etosha Safari',
     description: 'A safari.',
     country: 'NA',
@@ -26,7 +28,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
     durationDays: 3,
     imageUrl: null,
     tags: [],
-    status: 'PUBLISHED',
+    status: 'PUBLISHED_AVAILABLE',
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     ...overrides,
@@ -66,12 +68,18 @@ describe('catalog domain', () => {
   });
 
   describe('isBookable', () => {
-    it('is true for a published package with a scheduled departure', () => {
+    it('is true for a published-available package with a scheduled departure', () => {
       expect(isBookable(pkg(), departure())).toBe(true);
     });
 
     it('is false for a draft package', () => {
       expect(isBookable(pkg({ status: 'DRAFT' }), departure())).toBe(false);
+    });
+
+    // DR-117: PUBLISHED_UNAVAILABLE is still listed to guests (isPackageVisible)
+    // but never bookable -- distinct from DRAFT, which is hidden entirely.
+    it('is false for a published-but-unavailable package', () => {
+      expect(isBookable(pkg({ status: 'PUBLISHED_UNAVAILABLE' }), departure())).toBe(false);
     });
 
     it('is false for a cancelled departure', () => {
@@ -87,7 +95,25 @@ describe('catalog domain', () => {
 
     it('tourists only see published packages', () => {
       expect(isPackageVisible(pkg({ status: 'DRAFT' }), ['TOURIST'])).toBe(false);
-      expect(isPackageVisible(pkg({ status: 'PUBLISHED' }), ['TOURIST'])).toBe(true);
+      expect(isPackageVisible(pkg({ status: 'PUBLISHED_AVAILABLE' }), ['TOURIST'])).toBe(true);
+    });
+
+    // DR-117: PUBLISHED_UNAVAILABLE stays listed to guests -- only bookability
+    // (isBookable), not visibility, distinguishes it from PUBLISHED_AVAILABLE.
+    it('tourists also see published-but-unavailable packages', () => {
+      expect(isPackageVisible(pkg({ status: 'PUBLISHED_UNAVAILABLE' }), ['TOURIST'])).toBe(true);
+    });
+  });
+
+  describe('isPublishedStatus (DR-117)', () => {
+    it('is true for both published sub-statuses', () => {
+      expect(isPublishedStatus('PUBLISHED_AVAILABLE')).toBe(true);
+      expect(isPublishedStatus('PUBLISHED_UNAVAILABLE')).toBe(true);
+    });
+
+    it('is false for draft and archived', () => {
+      expect(isPublishedStatus('DRAFT')).toBe(false);
+      expect(isPublishedStatus('ARCHIVED')).toBe(false);
     });
   });
 

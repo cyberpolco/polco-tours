@@ -10,7 +10,9 @@ import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
   canTransition,
+  type ActivityView,
   type AddItineraryDayInput,
+  type CreateActivityInput,
   type CreateHotelInput,
   type CreateItineraryInput,
   type CreateRestaurantInput,
@@ -27,6 +29,7 @@ import {
   type RestaurantRatingView,
   type RestaurantView,
   type SiteView,
+  type UpdateActivityInput,
   type UpdateHotelInput,
   type UpdateItineraryDayInput,
   type UpdateItineraryInput,
@@ -602,6 +605,53 @@ export const itineraryService = {
   async listSitesForCountry(ctx: AuthContext, country: string): Promise<SiteView[]> {
     assertCan(ctx, 'itinerary.read');
     return itineraryRepository.listSitesForCountry(requireOrg(ctx), country);
+  },
+
+  // ------------------------------------------------------------ activities (DR-116, reference data)
+
+  async createActivity(ctx: AuthContext, siteId: string, input: CreateActivityInput): Promise<ActivityView> {
+    assertCan(ctx, 'itinerary.write');
+    const organizationId = requireOrg(ctx);
+    await requireSiteExists(organizationId, siteId);
+    return itineraryRepository.createActivity(organizationId, siteId, input);
+  },
+
+  async getActivity(ctx: AuthContext, activityId: string): Promise<ActivityView> {
+    assertCan(ctx, 'itinerary.read');
+    const activity = await itineraryRepository.findActivityById(requireOrg(ctx), activityId);
+    if (!activity) throw Errors.notFound('Activity not found');
+    return activity;
+  },
+
+  async updateActivity(ctx: AuthContext, activityId: string, input: UpdateActivityInput): Promise<ActivityView> {
+    assertCan(ctx, 'itinerary.write');
+    const updated = await itineraryRepository.updateActivity(requireOrg(ctx), activityId, input);
+    if (!updated) throw Errors.notFound('Activity not found');
+    return updated;
+  },
+
+  async deleteActivity(ctx: AuthContext, activityId: string): Promise<void> {
+    assertCan(ctx, 'itinerary.write');
+    const removed = await itineraryRepository.deleteActivity(requireOrg(ctx), activityId);
+    if (!removed) throw Errors.notFound('Activity not found');
+  },
+
+  async listActivitiesBySite(ctx: AuthContext, siteId: string): Promise<ActivityView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.listActivitiesBySite(requireOrg(ctx), siteId);
+  },
+
+  /** Org-wide listing across every site -- powers the finance module's
+   * Tourist Activities picker (DR-116) and the package day-plan picker. */
+  async listActivities(ctx: AuthContext): Promise<ActivityView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.listActivities(requireOrg(ctx));
+  },
+
+  /** Batch name resolution, same shape as listHotelsByIds/listSitesByIds. */
+  async listActivitiesByIds(ctx: AuthContext, activityIds: string[]): Promise<ActivityView[]> {
+    assertCan(ctx, 'itinerary.read');
+    return itineraryRepository.findActivitiesByIds(requireOrg(ctx), activityIds);
   },
 
   // ------------------------------------------------------------ hotel / restaurant ratings

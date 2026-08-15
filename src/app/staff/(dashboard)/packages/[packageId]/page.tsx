@@ -4,16 +4,19 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { can } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
-import { catalogService } from '@modules/catalog';
+import { catalogService, isPublishedStatus } from '@modules/catalog';
+import { itineraryService } from '@modules/itinerary';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
+import { MultiSearchableSelect } from '@/components/ui/MultiSearchableSelect';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import type { SearchableOption } from '@/components/ui/SearchableSelect';
 import { formatOrPending } from '@lib/money';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import {
@@ -50,6 +53,19 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
   // created from a plan-my-trip request links back to it. can()-guarded
   // since not every catalog.read holder is guaranteed booking.read too.
   const sourceBooking = can(ctx, 'booking.read') ? await bookingService.getByCustomizedPackageId(ctx, packageId) : null;
+  // DR-116: the day-plan Activities picker (and its read-only chip display)
+  // reuses itinerary's staff-managed Site > Activities reference list.
+  const [activities, sites] = await Promise.all([itineraryService.listActivities(ctx), itineraryService.listSites(ctx)]);
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  const activityById = new Map(activities.map((a) => [a.id, a]));
+  const activityOptions: SearchableOption[] = activities.map((a) => {
+    const site = siteById.get(a.siteId);
+    return {
+      value: a.id,
+      label: site ? `${a.name} — ${site.name}` : a.name,
+      searchText: `${a.name} ${site?.name ?? ''}`.toLowerCase(),
+    };
+  });
   const t = await getTranslations('StaffPackageDetail');
   const tPackageStatus = await getTranslations('PackageStatusLabel');
   const tTags = await getTranslations('TripTags');
@@ -70,11 +86,11 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
   return (
     <div className="max-w-md">
       {/* DR-097: back to wherever this package actually lives right now --
-          PUBLISHED ones came from the Public list, everything else (DRAFT/
-          ARCHIVED) from Customized. Reflects live status, not however the
-          user happened to arrive here. */}
-      <BackLink href={pkg.status === 'PUBLISHED' ? '/staff/packages/public' : '/staff/packages/customized'}>
-        {pkg.status === 'PUBLISHED' ? t('backToPublic') : t('backToCustomized')}
+          either published sub-status (DR-117) came from the Public list,
+          everything else (DRAFT/ARCHIVED) from Customized. Reflects live
+          status, not however the user happened to arrive here. */}
+      <BackLink href={isPublishedStatus(pkg.status) ? '/staff/packages/public' : '/staff/packages/customized'}>
+        {isPublishedStatus(pkg.status) ? t('backToPublic') : t('backToCustomized')}
       </BackLink>
       <div className="mt-4 flex items-center gap-3">
         <PageHeader eyebrow={t('eyebrow', { ref: pkg.packageReference })} title={pkg.title} />
@@ -216,7 +232,8 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         <FormField label={t('status')} htmlFor="status">
           <Select name="status" defaultValue={pkg.status} required>
             <option value="DRAFT">{tPackageStatus('DRAFT')}</option>
-            <option value="PUBLISHED">{tPackageStatus('PUBLISHED')}</option>
+            <option value="PUBLISHED_AVAILABLE">{tPackageStatus('PUBLISHED_AVAILABLE')}</option>
+            <option value="PUBLISHED_UNAVAILABLE">{tPackageStatus('PUBLISHED_UNAVAILABLE')}</option>
             <option value="ARCHIVED">{tPackageStatus('ARCHIVED')}</option>
           </Select>
         </FormField>
@@ -268,6 +285,22 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                       <dd>{day.activities}</dd>
                     </div>
                   )}
+                  {day.activityIds.length > 0 && (
+                    <div className="col-span-2">
+                      <dt className="text-xs">{t('activitiesSelected')}</dt>
+                      <dd className="flex flex-wrap gap-1">
+                        {day.activityIds.map((id) => {
+                          const activity = activityById.get(id);
+                          const site = activity ? siteById.get(activity.siteId) : undefined;
+                          return (
+                            <Badge key={id} tone="neutral">
+                              {activity ? (site ? `${activity.name} — ${site.name}` : activity.name) : id}
+                            </Badge>
+                          );
+                        })}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <details className="mt-3">
                   <summary className="cursor-pointer text-xs text-forest">{t('editDay')}</summary>
@@ -314,12 +347,13 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                         className="w-full rounded-survey border border-rule px-3 py-2"
                       />
                     </FormField>
-                    <FormField label={t('activities')} htmlFor={`activities-${day.id}`} optional>
-                      <textarea
-                        name="activities"
-                        defaultValue={day.activities ?? ''}
-                        rows={2}
-                        className="w-full rounded-survey border border-rule px-3 py-2"
+                    <FormField label={t('activitiesSelected')} htmlFor={`activityIds-${day.id}`} optional>
+                      <MultiSearchableSelect
+                        id={`activityIds-${day.id}`}
+                        name="activityIds"
+                        options={activityOptions}
+                        defaultValues={day.activityIds}
+                        placeholder={t('searchActivitiesPlaceholder')}
                       />
                     </FormField>
                     <FormField label={t('estimatedTravelMinutes')} htmlFor={`travel-${day.id}`} optional>
@@ -381,8 +415,13 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
             <FormField label={t('plannedSitesAttractions')} htmlFor="plannedSites" optional>
               <textarea name="plannedSites" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label={t('activities')} htmlFor="activities" optional>
-              <textarea name="activities" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+            <FormField label={t('activitiesSelected')} htmlFor="activityIds" optional>
+              <MultiSearchableSelect
+                id="activityIds"
+                name="activityIds"
+                options={activityOptions}
+                placeholder={t('searchActivitiesPlaceholder')}
+              />
             </FormField>
             <FormField label={t('estimatedTravelMinutes')} htmlFor="estimatedTravelMinutes" optional>
               <input name="estimatedTravelMinutes" type="number" min={0} className="w-full rounded-survey border border-rule px-3 py-2" />

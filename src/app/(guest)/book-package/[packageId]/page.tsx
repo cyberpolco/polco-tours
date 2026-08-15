@@ -32,7 +32,10 @@ export default async function BookPackagePage({ params }: Props) {
   } catch {
     notFound();
   }
-  if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) notFound();
+  // DR-117: PUBLISHED_UNAVAILABLE 404s here same as DRAFT/ARCHIVED -- the
+  // package detail page (bookable) already hides the "Book this trip" CTA
+  // for it, this is the defensive re-check for anyone hitting the URL directly.
+  if (pkg.status !== 'PUBLISHED_AVAILABLE' || pkg.priceMinor == null || pkg.durationDays == null) notFound();
   const t = await getTranslations('BookingStart');
 
   return (

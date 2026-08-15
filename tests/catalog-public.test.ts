@@ -38,7 +38,7 @@ beforeAll(async () => {
         currency: 'USD',
         durationDays: 4,
         tags: ['WILDLIFE', 'ADVENTURE'],
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     publishedPackageId = published.id;
@@ -71,7 +71,7 @@ beforeAll(async () => {
         priceMinor: 60000,
         currency: 'USD',
         durationDays: 6,
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     comboPackageId = combo.id;

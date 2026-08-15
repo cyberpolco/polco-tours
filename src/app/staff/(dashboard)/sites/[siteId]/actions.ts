@@ -1,8 +1,9 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
-import { UpdateSiteInput, itineraryService } from '@modules/itinerary';
+import { CreateActivityInput, UpdateSiteInput, itineraryService } from '@modules/itinerary';
 
 function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
   const s = v ? String(v).trim() : '';
@@ -32,4 +33,20 @@ export async function deleteSiteAction(siteId: string): Promise<void> {
   const ctx = await requireStaffContext('itinerary.write');
   await itineraryService.deleteSite(ctx, siteId);
   redirect('/staff/sites');
+}
+
+export async function createActivityAction(siteId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('itinerary.write');
+  const input = CreateActivityInput.parse({
+    name: String(formData.get('name') ?? '').trim(),
+    hasEntranceFee: formData.get('hasEntranceFee') === 'on',
+  });
+  await itineraryService.createActivity(ctx, siteId, input);
+  revalidatePath(`/staff/sites/${siteId}`);
+}
+
+export async function deleteActivityAction(siteId: string, activityId: string): Promise<void> {
+  const ctx = await requireStaffContext('itinerary.write');
+  await itineraryService.deleteActivity(ctx, activityId);
+  revalidatePath(`/staff/sites/${siteId}`);
 }

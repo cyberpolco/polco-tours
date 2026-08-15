@@ -76,7 +76,7 @@ describe('Package itinerary template', () => {
           priceMinor: 10000,
           currency: 'USD',
           durationDays: 3,
-          status: 'PUBLISHED',
+          status: 'PUBLISHED_AVAILABLE',
         },
       }),
     );
@@ -108,7 +108,7 @@ describe('Package itinerary template', () => {
           priceMinor: 10000,
           currency: 'USD',
           durationDays: 3,
-          status: 'PUBLISHED',
+          status: 'PUBLISHED_AVAILABLE',
         },
       });
       await tx.packageItineraryDay.create({

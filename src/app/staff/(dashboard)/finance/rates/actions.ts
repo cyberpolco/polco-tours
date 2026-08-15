@@ -38,6 +38,7 @@ export async function createHotelRateAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('finance_config.write');
   const input = CreateHotelRateInput.parse({
     country: String(formData.get('country') ?? ''),
+    hotelId: String(formData.get('hotelId') ?? ''),
     roomCategory: String(formData.get('roomCategory') ?? '').trim(),
     nightlyRateMinor: decimalToMinor(formData, 'nightlyRate'),
     currency: String(formData.get('currency') ?? ''),
@@ -94,7 +95,7 @@ export async function createActivityFeeAction(formData: FormData): Promise<void>
   const ctx = await requireStaffContext('finance_config.write');
   const input = CreateActivityFeeInput.parse({
     country: String(formData.get('country') ?? ''),
-    name: String(formData.get('name') ?? '').trim(),
+    activityId: String(formData.get('activityId') ?? ''),
     feeMinor: decimalToMinor(formData, 'fee'),
     currency: String(formData.get('currency') ?? ''),
   });

@@ -43,7 +43,7 @@ function toStaffRateView(r: StaffRate): StaffRateView {
   return { id: r.id, country: r.country, role: r.role, dailyRateMinor: r.dailyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toHotelRateView(r: HotelRate): HotelRateView {
-  return { id: r.id, country: r.country, roomCategory: r.roomCategory, nightlyRateMinor: r.nightlyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+  return { id: r.id, country: r.country, hotelId: r.hotelId, roomCategory: r.roomCategory, nightlyRateMinor: r.nightlyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toTransportRateView(r: TransportRate): TransportRateView {
   return {
@@ -62,7 +62,7 @@ function toFoodBeverageRateView(r: FoodBeverageRate): FoodBeverageRateView {
   return { id: r.id, country: r.country, category: r.category, perUnitMinor: r.perUnitMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toActivityFeeView(r: ActivityFee): ActivityFeeView {
-  return { id: r.id, country: r.country, name: r.name, feeMinor: r.feeMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+  return { id: r.id, country: r.country, activityId: r.activityId, name: r.name, feeMinor: r.feeMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toImmigrationCostRateView(r: ImmigrationCostRate): ImmigrationCostRateView {
   return {
@@ -250,7 +250,10 @@ export const financeRepository = {
     const rows = await prisma.activityFee.findMany({ orderBy: [{ country: 'asc' }, { validFrom: 'desc' }] });
     return rows.map(toActivityFeeView);
   },
-  async createActivityFee(input: CreateActivityFeeInput): Promise<ActivityFeeView> {
+  // DR-116: `name` is derived server-side (financeService.createActivityFee)
+  // from the linked Activity rather than part of CreateActivityFeeInput --
+  // the caller composes the full row here.
+  async createActivityFee(input: CreateActivityFeeInput & { name: string }): Promise<ActivityFeeView> {
     const r = await prisma.activityFee.create({ data: input });
     return toActivityFeeView(r);
   },

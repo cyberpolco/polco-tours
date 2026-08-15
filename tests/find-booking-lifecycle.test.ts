@@ -54,7 +54,7 @@ beforeAll(async () => {
         priceMinor: 10000,
         currency: 'USD',
         durationDays: 3,
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     const departure = await tx.departure.create({

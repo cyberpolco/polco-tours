@@ -69,9 +69,13 @@ export const STARLINK_STATUS_TONE: Record<StarlinkStatus, BadgeTone> = {
   MAINTENANCE: 'warning',
 };
 
+// DR-117: PUBLISHED_UNAVAILABLE gets its own tone (warning) -- still a real,
+// published package, just not currently bookable, distinct from a plain
+// success/neutral read.
 export const PACKAGE_STATUS_TONE: Record<PackageStatus, BadgeTone> = {
   DRAFT: 'neutral',
-  PUBLISHED: 'success',
+  PUBLISHED_AVAILABLE: 'success',
+  PUBLISHED_UNAVAILABLE: 'warning',
   ARCHIVED: 'neutral',
 };
 

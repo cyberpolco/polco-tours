@@ -14,7 +14,10 @@ export async function PackageCard({ pkg }: { pkg: TourPackageView }) {
   const tCountries = await getTranslations('Countries');
   return (
     <Card as="li" interactive className="overflow-hidden p-0">
-      <Link href={`/packages/${pkg.id}`} className="block">
+      {/* DR-118: prefer the personalized slug for a nicer, stable public URL
+          -- falls back to the raw id only for a pre-DR-118 package still
+          awaiting its backfilled slug. */}
+      <Link href={`/packages/${pkg.slug ?? pkg.id}`} className="block">
         <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} rounded={false} />
         <div className="p-4">
           <h2 className="font-semibold text-navy hover:underline">{pkg.title}</h2>

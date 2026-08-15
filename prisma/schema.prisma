@@ -34,7 +34,11 @@ enum OrgStatus {
 
 enum PackageStatus {
   DRAFT
-  PUBLISHED
+  // DR-117: split from the single PUBLISHED value -- both remain visible to
+  // guests (isPackageVisible), but only PUBLISHED_AVAILABLE is bookable
+  // (isBookable) -- see catalog/domain.ts's isPublishedStatus.
+  PUBLISHED_AVAILABLE
+  PUBLISHED_UNAVAILABLE
   ARCHIVED
 }
 
@@ -201,6 +205,7 @@ model Organization {
   hotels                Hotel[]
   restaurants           Restaurant[]
   sites                 Site[]
+  activities            Activity[]
   ratingCodes           RatingCode[]
   reviews               Review[]
   reviewSubjectRatings  ReviewSubjectRating[]
@@ -469,6 +474,14 @@ model TourPackage {
   // src/modules/catalog/repository.ts), same coexists-alongside-the-id
   // pattern as Booking.bookingReference (DR-027).
   packageReference String        @unique
+  // DR-118: a personalized public URL segment generated once from `title`
+  // at creation time (src/lib/slug.ts + a uniqueness loop in
+  // catalog/repository.ts) -- never regenerated on a later title edit, so a
+  // published package's guest-facing URL stays stable. Nullable only for
+  // rows created before DR-118 (backfilled by hand,
+  // scripts/backfill-package-slugs.ts); every package created from here on
+  // always gets one, published or not.
+  slug             String?       @unique
   title            String
   description      String
   country          String // ISO-3166 alpha-2, one of countries[] -- the PRIMARY/billing
@@ -547,6 +560,15 @@ model PackageItineraryDay {
   dropoffLocation        String?
   plannedSites           String?  @db.Text
   activities             String?  @db.Text
+  // DR-116: real Activity ids (itinerary module) selected via a searchable
+  // picker on the staff day form -- a plain, un-FK'd string array, same
+  // "no cross-module relation" precedent as TourPackage.countries/
+  // Booking.preferredCountries, since catalog can't reference itinerary's
+  // tables without inverting the module dependency direction (see this
+  // model's own comment above). Supersedes the free-text `activities`
+  // column above for new/edited days; `activities` itself is left
+  // untouched for any pre-DR-116 row that already has one.
+  activityIds            String[] @default([])
   estimatedTravelMinutes Int?
   notes                  String?  @db.Text
   createdAt              DateTime @default(now())
@@ -1206,6 +1228,10 @@ model Hotel {
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   days         ItineraryDay[]
   ratings      HotelRating[]
+  // DR-116: operational-rate rows (finance module) that reference this hotel.
+  // HotelRate itself stays a platform-wide, un-RLS'd table -- see its own
+  // comment for why this cross-module FK doesn't change that.
+  operationalRates HotelRate[]
 
   @@index([organizationId])
   @@map("hotels")
@@ -1265,10 +1291,36 @@ model Site {
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   dayUsages    ItineraryDaySite[]
+  activities   Activity[]
 
   @@unique([organizationId, country, name])
   @@index([organizationId, country])
   @@map("sites")
+}
+
+// DR-116: a Site's own reference list of things to do there -- one Site can
+// have many Activities. hasEntranceFee is an informational flag only (does
+// this activity typically require paying to get in); the actual priced
+// operational rate for one lives in finance's ActivityFee, which references
+// an Activity by id rather than duplicating a free-text name. Soft-delete
+// (matches Hotel/Site) since an ActivityFee can reference this row.
+model Activity {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  siteId         String    @db.Uuid
+  name           String
+  hasEntranceFee Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  activityFees ActivityFee[]
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@map("site_activities")
 }
 
 // Staff-only hotel rating (distinct from the tourist-facing ratings module's
@@ -1591,6 +1643,13 @@ model StaffRate {
 model HotelRate {
   id               String    @id @default(uuid()) @db.Uuid
   country          String
+  // DR-116: which real Hotel (itinerary module) this rate is priced for --
+  // required going forward (CreateHotelRateInput), nullable here only so
+  // pre-DR-116 rows stay valid. onDelete: SetNull rather than Cascade -- a
+  // hotel being removed from the reference list shouldn't delete its
+  // pricing history, just orphan the reference (same reasoning as
+  // ItineraryDay.hotelId).
+  hotelId          String?   @db.Uuid
   roomCategory     String
   nightlyRateMinor Int
   currency         Currency
@@ -1599,7 +1658,10 @@ model HotelRate {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  hotel Hotel? @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+
   @@index([country, validFrom])
+  @@index([hotelId])
   @@map("hotel_rates")
 }
 
@@ -1652,19 +1714,26 @@ model FoodBeverageRate {
 }
 
 // Open-ended per the spec's "other attraction fees" -- name is freeform,
-// same reasoning as HotelRate.roomCategory.
+// same reasoning as HotelRate.roomCategory. DR-116: name is now a snapshot
+// copied from the linked Activity at creation time (never re-synced on
+// rename) rather than staff-typed -- activityId is the source of truth for
+// which real Activity this prices, nullable only for pre-DR-116 rows.
 model ActivityFee {
-  id        String    @id @default(uuid()) @db.Uuid
-  country   String
-  name      String
-  feeMinor  Int
-  currency  Currency
-  validFrom DateTime  @default(now())
-  validTo   DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid()) @db.Uuid
+  country    String
+  activityId String?   @db.Uuid
+  name       String
+  feeMinor   Int
+  currency   Currency
+  validFrom  DateTime  @default(now())
+  validTo    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  activity Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
   @@index([country, validFrom])
+  @@index([activityId])
   @@map("activity_fees")
 }
 

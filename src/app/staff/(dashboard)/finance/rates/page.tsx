@@ -1,8 +1,11 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { financeService } from '@modules/finance';
+import { itineraryService } from '@modules/itinerary';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -78,22 +81,47 @@ export default async function FinanceRatesPage() {
   const tSidebar = await getTranslations('StaffSettingsSidebar');
   const tCountries = await getTranslations('Countries');
 
-  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates] = await Promise.all([
-    financeService.listStaffRates(ctx),
-    financeService.listHotelRates(ctx),
-    financeService.listTransportRates(ctx),
-    financeService.listFoodBeverageRates(ctx),
-    financeService.listActivityFees(ctx),
-    financeService.listImmigrationCostRates(ctx),
-  ]);
+  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, hotels, activities, sites] =
+    await Promise.all([
+      financeService.listStaffRates(ctx),
+      financeService.listHotelRates(ctx),
+      financeService.listTransportRates(ctx),
+      financeService.listFoodBeverageRates(ctx),
+      financeService.listActivityFees(ctx),
+      financeService.listImmigrationCostRates(ctx),
+      itineraryService.listHotels(ctx),
+      itineraryService.listActivities(ctx),
+      itineraryService.listSites(ctx),
+    ]);
+
+  const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
+  const hotelOptions: SearchableOption[] = hotels.map((h) => ({
+    value: h.id,
+    label: `${h.name} (${tCountries(h.country)})`,
+    searchText: `${h.name} ${h.country}`.toLowerCase(),
+  }));
+
+  const siteById = new Map(sites.map((s) => [s.id, s]));
+  // DR-116: only an Activity flagged hasEntranceFee is offered here -- a
+  // free activity has no fee to price, so it never needs its own row.
+  const feeableActivities = activities.filter((a) => a.hasEntranceFee);
+  const activityOptions: SearchableOption[] = feeableActivities.map((a) => {
+    const site = siteById.get(a.siteId);
+    const siteLabel = site ? `${site.name} (${tCountries(site.country)})` : '';
+    return {
+      value: a.id,
+      label: siteLabel ? `${a.name} — ${siteLabel}` : a.name,
+      searchText: `${a.name} ${site?.name ?? ''} ${site?.country ?? ''}`.toLowerCase(),
+    };
+  });
 
   return (
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
-    <div className="space-y-10">
+    <div className="space-y-8">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
       <p className="text-xs text-mist">{t('intro')}</p>
 
-      <section>
+      <Card>
         <p className="eyebrow text-mist">{t('humanResources')}</p>
         {staffRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noStaffRates')}</p>
@@ -156,10 +184,9 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+      </Card>
 
-      <section>
-        <div className="survey-rule mb-4" />
+      <Card>
         <p className="eyebrow text-mist">{t('accommodation')}</p>
         {hotelRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noHotelRates')}</p>
@@ -168,6 +195,7 @@ export default async function FinanceRatesPage() {
             <thead>
               <TableHeaderRow>
                 <Th>{t('country')}</Th>
+                <Th>{t('hotel')}</Th>
                 <Th>{t('roomCategory')}</Th>
                 <Th>{t('nightlyRate')}</Th>
                 <Th />
@@ -177,6 +205,7 @@ export default async function FinanceRatesPage() {
               {hotelRates.map((r) => (
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
+                  <Td>{r.hotelId ? (hotelNameById.get(r.hotelId) ?? '—') : '—'}</Td>
                   <Td>{r.roomCategory}</Td>
                   <Td>{format(money(r.nightlyRateMinor, r.currency))}</Td>
                   <Td>
@@ -201,6 +230,15 @@ export default async function FinanceRatesPage() {
                 {countryOptions(tCountries)}
               </Select>
             </FormField>
+            <FormField label={t('hotel')} htmlFor="hotelId">
+              <SearchableSelect
+                name="hotelId"
+                options={hotelOptions}
+                placeholder={t('hotelPlaceholder')}
+                className="w-56"
+                required
+              />
+            </FormField>
             <FormField label={t('roomCategory')} htmlFor="roomCategory">
               <input name="roomCategory" placeholder={t('roomCategoryPlaceholder')} required className="w-36 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
@@ -217,10 +255,10 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+        {canWrite && hotelOptions.length === 0 && <p className="mt-2 text-xs text-mist">{t('noHotelsAvailable')}</p>}
+      </Card>
 
-      <section>
-        <div className="survey-rule mb-4" />
+      <Card>
         <p className="eyebrow text-mist">{t('transportation')}</p>
         {transportRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noTransportRates')}</p>
@@ -288,10 +326,9 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+      </Card>
 
-      <section>
-        <div className="survey-rule mb-4" />
+      <Card>
         <p className="eyebrow text-mist">{t('foodBeverage')}</p>
         {foodBeverageRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noFoodBeverageRates')}</p>
@@ -358,10 +395,9 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+      </Card>
 
-      <section>
-        <div className="survey-rule mb-4" />
+      <Card>
         <p className="eyebrow text-mist">{t('touristActivities')}</p>
         {activityFees.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noActivityFees')}</p>
@@ -403,8 +439,14 @@ export default async function FinanceRatesPage() {
                 {countryOptions(tCountries)}
               </Select>
             </FormField>
-            <FormField label={t('activityName')} htmlFor="name">
-              <input name="name" placeholder={t('activityNamePlaceholder')} required className="w-48 rounded-survey border border-rule px-2 py-2 text-sm" />
+            <FormField label={t('activity')} htmlFor="activityId">
+              <SearchableSelect
+                name="activityId"
+                options={activityOptions}
+                placeholder={t('activityPlaceholder')}
+                className="w-64"
+                required
+              />
             </FormField>
             <FormField label={t('fee')} htmlFor="fee">
               <input name="fee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
@@ -419,10 +461,10 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+        {canWrite && activityOptions.length === 0 && <p className="mt-2 text-xs text-mist">{t('noActivitiesAvailable')}</p>}
+      </Card>
 
-      <section>
-        <div className="survey-rule mb-4" />
+      <Card>
         <p className="eyebrow text-mist">{t('immigrationCosts')}</p>
         {immigrationCostRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noImmigrationCostRates')}</p>
@@ -490,7 +532,7 @@ export default async function FinanceRatesPage() {
             </SubmitButton>
           </form>
         )}
-      </section>
+      </Card>
     </div>
     </SidebarShell>
   );

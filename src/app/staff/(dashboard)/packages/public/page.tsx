@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { catalogService, type TourPackageView } from '@modules/catalog';
+import { catalogService, isPublishedStatus, type TourPackageView } from '@modules/catalog';
 import { paginate } from '@lib/directory-filters';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
 import { BackLink } from '@/components/ui/BackLink';
@@ -18,7 +18,7 @@ import { formatOrPending } from '@lib/money';
 const PER_PAGE = 10;
 
 interface Props {
-  searchParams: Promise<{ q?: string; country?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; country?: string; status?: string; page?: string }>;
 }
 
 function matchesQuery(p: TourPackageView, query: string): boolean {
@@ -47,13 +47,18 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
   const tPackageStatus = await getTranslations('PackageStatusLabel');
   const q = params.q ?? '';
   const country = params.country ?? '';
+  // DR-117: filter within the two published sub-statuses -- this list only
+  // ever contains PUBLISHED_AVAILABLE/PUBLISHED_UNAVAILABLE rows to begin
+  // with, so an invalid/foreign value here just means "no status filter".
+  const status = params.status === 'PUBLISHED_AVAILABLE' || params.status === 'PUBLISHED_UNAVAILABLE' ? params.status : '';
 
   const allPackages = await catalogService.listPackages(ctx);
-  const publicPackages = allPackages.filter((p) => p.status === 'PUBLISHED');
+  const publicPackages = allPackages.filter((p) => isPublishedStatus(p.status));
   const countryOptions = listCountries(publicPackages);
 
   const filtered = publicPackages.filter((p) => {
     if (country && !p.countries.includes(country)) return false;
+    if (status && p.status !== status) return false;
     if (!matchesQuery(p, q)) return false;
     return true;
   });
@@ -62,6 +67,7 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
   const baseParams: Record<string, string> = {};
   if (q) baseParams.q = q;
   if (country) baseParams.country = country;
+  if (status) baseParams.status = status;
 
   function hrefWith(overrides: Record<string, string | undefined>): string {
     const merged = { ...baseParams, ...overrides };
@@ -81,7 +87,7 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
         <LinkButton href="/staff/packages/new">{t('newPackage')}</LinkButton>
       </div>
 
-      <form method="get" action="/staff/packages/public" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <form method="get" action="/staff/packages/public" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <FormField label={t('search')} htmlFor="q" optional>
           <input
             type="text"
@@ -101,9 +107,16 @@ export default async function PublicPackagesPage({ searchParams }: Props) {
             ))}
           </Select>
         </FormField>
+        <FormField label={t('status')} htmlFor="status" optional>
+          <Select name="status" defaultValue={status}>
+            <option value="">{t('all')}</option>
+            <option value="PUBLISHED_AVAILABLE">{t('available')}</option>
+            <option value="PUBLISHED_UNAVAILABLE">{t('unavailable')}</option>
+          </Select>
+        </FormField>
         <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
           <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || country) && (
+          {(q || country || status) && (
             <Link href="/staff/packages/public" className="text-sm text-mist hover:underline">
               {t('clearFilters')}
             </Link>

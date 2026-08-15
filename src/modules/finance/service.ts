@@ -5,6 +5,10 @@ import type { Currency } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+// DR-116: new finance -> itinerary dependency (confirmed acyclic -- itinerary
+// only imports {auth, assignment, booking, catalog}, never finance) so the
+// Accommodation operational-rate rows can reference a real Hotel record.
+import { itineraryService } from '@modules/itinerary';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
@@ -157,6 +161,9 @@ export const financeService = {
   },
   async createHotelRate(ctx: AuthContext, input: CreateHotelRateInput): Promise<HotelRateView> {
     requireRateWriter(ctx);
+    // DR-116: confirms the hotelId is real and belongs to the caller's own
+    // org before pricing it -- itineraryService.getHotel 404s otherwise.
+    await itineraryService.getHotel(ctx, input.hotelId);
     const rate = await financeRepository.createHotelRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.hotel_rate_created', resourceType: 'HotelRate', resourceId: rate.id });
     return rate;
@@ -211,7 +218,11 @@ export const financeService = {
   },
   async createActivityFee(ctx: AuthContext, input: CreateActivityFeeInput): Promise<ActivityFeeView> {
     requireRateWriter(ctx);
-    const fee = await financeRepository.createActivityFee(input);
+    // DR-116: confirms the activityId is real and belongs to the caller's
+    // own org, and derives `name` from it -- itineraryService.getActivity
+    // 404s otherwise.
+    const activity = await itineraryService.getActivity(ctx, input.activityId);
+    const fee = await financeRepository.createActivityFee({ ...input, name: activity.name });
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.activity_fee_created', resourceType: 'ActivityFee', resourceId: fee.id });
     return fee;
   },

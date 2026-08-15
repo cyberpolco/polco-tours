@@ -13,5 +13,6 @@ export {
   formatPackageReference,
   hasDepartureEnded,
   isBookable,
+  isPublishedStatus,
 } from './domain';
 export type { AddonServiceView, DepartureView, PackageItineraryDayView, TourPackageView } from './domain';

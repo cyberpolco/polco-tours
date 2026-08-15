@@ -25,10 +25,13 @@ export default async function PackageDetailPage({ params }: Props) {
   // DR-054 (revised same session): a guest now picks their own travel start
   // date instead of joining a staff-pre-scheduled Departure (a fresh one is
   // created just for their booking, see catalogService.createDepartureForBooking)
-  // -- bookability is a package-level question (published + priced +
-  // duration set), not "is there an open slot right now". Trip length
-  // (durationDays) is staff-set at package creation, never a guest choice.
-  const bookable = pkg.status === 'PUBLISHED' && pkg.priceMinor != null && pkg.durationDays != null;
+  // -- bookability is a package-level question (published-and-available +
+  // priced + duration set), not "is there an open slot right now". Trip
+  // length (durationDays) is staff-set at package creation, never a guest
+  // choice. DR-117: a PUBLISHED_UNAVAILABLE package still renders this page
+  // (isPackageVisible shows both sub-statuses) -- it's just never bookable,
+  // same Available/Unavailable badge below doubling as the sub-status tell.
+  const bookable = pkg.status === 'PUBLISHED_AVAILABLE' && pkg.priceMinor != null && pkg.durationDays != null;
   const t = await getTranslations('PackageDetail');
   const tCommon = await getTranslations('Common');
   const tCountries = await getTranslations('Countries');

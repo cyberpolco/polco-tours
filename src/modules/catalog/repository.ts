@@ -1,6 +1,7 @@
 // catalog module — repository. The only place that touches the DB for this module.
 import type { AddonService, Departure, PackageItineraryDay, PackageStatus, TourPackage } from '@prisma/client';
 import { prisma, withOrg, type TenantTx } from '@lib/db';
+import { slugify } from '@lib/slug';
 import { formatPackageReference } from './domain';
 import type {
   AddonServiceView,
@@ -20,6 +21,7 @@ function toPackageView(p: TourPackage): TourPackageView {
     id: p.id,
     organizationId: p.organizationId,
     packageReference: p.packageReference,
+    slug: p.slug,
     title: p.title,
     description: p.description,
     country: p.country,
@@ -78,6 +80,7 @@ function toPackageItineraryDayView(d: PackageItineraryDay): PackageItineraryDayV
     dropoffLocation: d.dropoffLocation,
     plannedSites: d.plannedSites,
     activities: d.activities,
+    activityIds: d.activityIds,
     estimatedTravelMinutes: d.estimatedTravelMinutes,
     notes: d.notes,
   };
@@ -90,13 +93,38 @@ async function nextPackageReference(tx: TenantTx): Promise<string> {
   return formatPackageReference(row.nextval);
 }
 
+/** DR-118: a guest-facing package URL isn't org-scoped, so a slug must be
+ * unique across every organization, not just this one -- deliberately the
+ * plain unscoped `prisma` client (not `tx`), since RLS would otherwise hide
+ * another org's slug and let two orgs collide on the same one. Appends
+ * -2, -3, ... on collision; never reassigned once a package has one. */
+async function nextUniqueSlug(title: string): Promise<string> {
+  const base = slugify(title) || 'package';
+  let candidate = base;
+  let suffix = 2;
+  while (await prisma.tourPackage.findUnique({ where: { slug: candidate } })) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
 export const catalogRepository = {
   async createPackage(organizationId: string, input: CreatePackageInput): Promise<TourPackageView> {
+    const slug = await nextUniqueSlug(input.title);
     return withOrg(organizationId, async (tx) => {
       const p = await tx.tourPackage.create({
-        data: { organizationId, packageReference: await nextPackageReference(tx), ...input },
+        data: { organizationId, packageReference: await nextPackageReference(tx), slug, ...input },
       });
       return toPackageView(p);
+    });
+  },
+
+  /** Public package-detail lookup by its personalized URL slug (DR-118). */
+  async findPackageBySlug(organizationId: string, slug: string): Promise<TourPackageView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const p = await tx.tourPackage.findFirst({ where: { slug, deletedAt: null } });
+      return p ? toPackageView(p) : null;
     });
   },
 

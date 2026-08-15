@@ -267,7 +267,7 @@ async function main() {
             currency: p.currency,
             durationDays: p.durationDays,
             tags: p.tags,
-            status: PackageStatus.PUBLISHED,
+            status: PackageStatus.PUBLISHED_AVAILABLE,
           },
         });
       }

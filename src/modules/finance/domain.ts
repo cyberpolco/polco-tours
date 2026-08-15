@@ -28,6 +28,7 @@ export interface StaffRateView {
 export interface HotelRateView {
   id: string;
   country: string;
+  hotelId: string | null;
   roomCategory: string;
   nightlyRateMinor: number;
   currency: Currency;
@@ -60,6 +61,7 @@ export interface FoodBeverageRateView {
 export interface ActivityFeeView {
   id: string;
   country: string;
+  activityId: string | null;
   name: string;
   feeMinor: number;
   currency: Currency;
@@ -92,6 +94,10 @@ export type CreateStaffRateInput = z.infer<typeof CreateStaffRateInput>;
 
 export const CreateHotelRateInput = z.object({
   country: z.string().length(2),
+  // DR-116: required going forward -- staff must pick a real Hotel (from the
+  // itinerary module's reference list) rather than pricing a bare room
+  // category in the abstract. Existing pre-DR-116 rows keep a null hotelId.
+  hotelId: z.string().uuid(),
   roomCategory: z.string().min(1).max(100),
   nightlyRateMinor: z.number().int().nonnegative(),
   currency: CURRENCY_ENUM,
@@ -119,9 +125,14 @@ export const CreateFoodBeverageRateInput = z.object({
 });
 export type CreateFoodBeverageRateInput = z.infer<typeof CreateFoodBeverageRateInput>;
 
+// DR-116: `name` is no longer staff-typed here -- it's derived server-side
+// from the selected Activity (a reusable, staff-managed reference list
+// under Settings > Sites) so the same real attraction is never re-typed
+// slightly differently across rows. Same "required going forward, nullable
+// for pre-DR-116 rows" precedent as CreateHotelRateInput.hotelId.
 export const CreateActivityFeeInput = z.object({
   country: z.string().length(2),
-  name: z.string().min(1).max(200),
+  activityId: z.string().uuid(),
   feeMinor: z.number().int().nonnegative(),
   currency: CURRENCY_ENUM,
   ...EFFECTIVE_DATING,

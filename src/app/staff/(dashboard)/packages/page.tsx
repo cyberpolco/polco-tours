@@ -1,19 +1,20 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { catalogService } from '@modules/catalog';
+import { catalogService, isPublishedStatus } from '@modules/catalog';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 // DR-097: split into a card hub (this page, counts only) + two dedicated
-// list pages -- Public (status PUBLISHED, the only ones isPackageVisible
-// ever shows a guest) and Customized (DRAFT/ARCHIVED, staff-only, never
-// reflected on the guest site) -- same card-hub-plus-list-pages shape
-// DR-095 already established for the fleet dashboard.
+// list pages -- Public (either published sub-status, DR-117 -- the only
+// ones isPackageVisible ever shows a guest) and Customized (DRAFT/ARCHIVED,
+// staff-only, never reflected on the guest site) -- same
+// card-hub-plus-list-pages shape DR-095 already established for the fleet
+// dashboard.
 export default async function PackagesPage() {
   const ctx = await requireStaffContext('catalog.read');
   const packages = await catalogService.listPackages(ctx);
-  const publicCount = packages.filter((p) => p.status === 'PUBLISHED').length;
+  const publicCount = packages.filter((p) => isPublishedStatus(p.status)).length;
   const customizedCount = packages.length - publicCount;
   const t = await getTranslations('StaffPackages');
 

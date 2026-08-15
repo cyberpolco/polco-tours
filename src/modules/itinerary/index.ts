@@ -2,12 +2,14 @@
 export { itineraryService } from './service';
 export {
   AddItineraryDayInput,
+  CreateActivityInput,
   CreateHotelInput,
   CreateItineraryInput,
   CreateRestaurantInput,
   CreateSiteInput,
   RateHotelInput,
   RateRestaurantInput,
+  UpdateActivityInput,
   UpdateHotelInput,
   UpdateItineraryDayInput,
   UpdateItineraryInput,
@@ -16,6 +18,7 @@ export {
   canTransition,
 } from './domain';
 export type {
+  ActivityView,
   HotelRatingView,
   HotelView,
   ItineraryDaySiteView,

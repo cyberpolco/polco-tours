@@ -147,7 +147,7 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.context().addCookies(await sessionCookiesFor(staffUserId));
 
     await page.goto(`/staff/packages/${packageId}`);
-    await page.locator('select[name="status"]').selectOption('PUBLISHED');
+    await page.locator('select[name="status"]').selectOption('PUBLISHED_AVAILABLE');
     await page.getByRole('button', { name: 'Save changes' }).click();
 
     await expect(page).toHaveURL(new RegExp(`/staff/packages/${packageId}\\?error=`));

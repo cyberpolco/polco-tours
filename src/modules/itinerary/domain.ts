@@ -276,6 +276,29 @@ export const UpdateSiteInput = z
   });
 export type UpdateSiteInput = z.infer<typeof UpdateSiteInput>;
 
+// DR-116: a Site's own reference list of things to do there -- one Site can
+// have many Activities. hasEntranceFee is informational only (does this
+// typically cost money to visit); the actual priced rate for one lives in
+// finance's ActivityFee, which references an Activity by id.
+export interface ActivityView {
+  id: string;
+  organizationId: string;
+  siteId: string;
+  name: string;
+  hasEntranceFee: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const CreateActivityInput = z.object({
+  name: z.string().min(1).max(200),
+  hasEntranceFee: z.boolean().default(false),
+});
+export type CreateActivityInput = z.infer<typeof CreateActivityInput>;
+
+export const UpdateActivityInput = CreateActivityInput.partial();
+export type UpdateActivityInput = z.infer<typeof UpdateActivityInput>;
+
 // DRAFT -> IN_REVIEW -> APPROVED, or DRAFT -> APPROVED directly (the same
 // roles hold both itinerary.write and itinerary.approve in this launch --
 // see rbac.ts's explicit-choice comment -- so a fast path skipping a

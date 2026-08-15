@@ -59,7 +59,7 @@ beforeAll(async () => {
         priceMinor: 40000,
         currency: 'USD',
         durationDays: 8,
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     publishedPackageId = published.id;
@@ -88,7 +88,7 @@ beforeAll(async () => {
         country: 'NA',
         priceMinor: 40000,
         currency: 'USD',
-        status: 'PUBLISHED',
+        status: 'PUBLISHED_AVAILABLE',
       },
     });
     noDurationPackageId = noDuration.id;

@@ -56,7 +56,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
     const pkg = await catalogService.getPackage(ctx, packageId);
     // Same bookable gate the guest page itself enforces (DR-054) --
     // catalogService.createDepartureForBooking would otherwise 409.
-    if (pkg.status !== 'PUBLISHED' || pkg.priceMinor == null || pkg.durationDays == null) redirect('/staff/bookings/new');
+    if (pkg.status !== 'PUBLISHED_AVAILABLE' || pkg.priceMinor == null || pkg.durationDays == null) redirect('/staff/bookings/new');
 
     return (
       <div className="max-w-md">
@@ -102,7 +102,9 @@ export default async function NewBookingPage({ searchParams }: Props) {
 
   if (mode === 'packages') {
     const packages = await catalogService.listPackages(ctx);
-    const bookablePackages = packages.filter((p) => p.status === 'PUBLISHED' && p.priceMinor != null && p.durationDays != null);
+    const bookablePackages = packages.filter(
+      (p) => p.status === 'PUBLISHED_AVAILABLE' && p.priceMinor != null && p.durationDays != null,
+    );
 
     return (
       <div>

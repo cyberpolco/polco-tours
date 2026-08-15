@@ -2577,6 +2577,7 @@ components:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
         packageReference: { type: string, description: 'Business-facing reference, e.g. PKG-00034 (DR-028)' }
+        slug: { type: string, nullable: true, description: 'Personalized public URL segment generated from title (DR-118); null only for a pre-DR-118 row awaiting backfill' }
         title: { type: string }
         description: { type: string }
         country: { type: string, description: ISO-3166 alpha-2 }

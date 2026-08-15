@@ -27,13 +27,14 @@ export default async function CostBreakdownPage({ params }: Props) {
     notFound();
   }
 
-  const [breakdown, hotelRates, transportRates, immigrationCostRates, foodBeverageRates, activityFees] = await Promise.all([
+  const [breakdown, hotelRates, transportRates, immigrationCostRates, foodBeverageRates, activityFees, templateDays] = await Promise.all([
     financeService.getCostBreakdown(ctx, packageId),
     financeService.listHotelRates(ctx),
     financeService.listTransportRates(ctx),
     financeService.listImmigrationCostRates(ctx),
     financeService.listFoodBeverageRates(ctx),
     financeService.listActivityFees(ctx),
+    catalogService.listTemplateDays(ctx, packageId),
   ]);
 
   const countryHotelRates = hotelRates.filter((r) => r.country === pkg.country);
@@ -49,6 +50,13 @@ export default async function CostBreakdownPage({ params }: Props) {
     if (li.foodBeverageRateId) lineItemQuantity.set(`food_${li.foodBeverageRateId}`, li.quantityPerPerson);
     if (li.activityFeeId) lineItemQuantity.set(`activity_${li.activityFeeId}`, li.quantityPerPerson);
   }
+
+  // DR-116: an activity picked on any day of this package's itinerary
+  // template is "requested" -- pre-fills a quantity of 1 for its matching
+  // ActivityFee row (same "suggest, never override an already-saved value"
+  // precedent as DR-093's add-ons pre-check), so cost breakdown reflects
+  // what staff actually planned instead of requiring it to be re-picked here.
+  const requestedActivityIds = new Set(templateDays.flatMap((d) => d.activityIds));
 
   const defaultNights = breakdown?.nights ?? pkg.durationDays ?? 1;
   const action = saveCostBreakdownAction.bind(null, packageId);
@@ -206,17 +214,22 @@ export default async function CostBreakdownPage({ params }: Props) {
           <div>
             <p className="eyebrow text-mist">{t('activityFees')}</p>
             <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {countryActivityFees.map((r) => (
-                <FormField key={r.id} label={`${r.name} (${format(money(r.feeMinor, r.currency))})`} htmlFor={`lineItem_activity_${r.id}`} optional>
-                  <input
-                    name={`lineItem_activity_${r.id}`}
-                    type="number"
-                    min={0}
-                    defaultValue={lineItemQuantity.get(`activity_${r.id}`) ?? ''}
-                    className="w-full rounded-survey border border-rule px-3 py-2"
-                  />
-                </FormField>
-              ))}
+              {countryActivityFees.map((r) => {
+                const saved = lineItemQuantity.get(`activity_${r.id}`);
+                const requested = r.activityId != null && requestedActivityIds.has(r.activityId);
+                const label = `${r.name} (${format(money(r.feeMinor, r.currency))})${requested ? ` · ${t('requestedViaDayPlan')}` : ''}`;
+                return (
+                  <FormField key={r.id} label={label} htmlFor={`lineItem_activity_${r.id}`} optional>
+                    <input
+                      name={`lineItem_activity_${r.id}`}
+                      type="number"
+                      min={0}
+                      defaultValue={saved ?? (requested ? 1 : '')}
+                      className="w-full rounded-survey border border-rule px-3 py-2"
+                    />
+                  </FormField>
+                );
+              })}
             </div>
           </div>
         )}
