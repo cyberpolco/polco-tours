@@ -11,7 +11,7 @@ import { WeatherGatewayError, weatherGateway } from './gateway';
 
 const FORECAST_DAYS = 7;
 const CURRENT_TTL_SECONDS = 30 * 60; // 30 min
-const FORECAST_TTL_SECONDS = 4 * 60 * 60; // 4 hr
+const FORECAST_TTL_SECONDS = 10 * 60 * 60; // 10 hr
 
 /** Charter rule 8: a WeatherGatewayError degrades to `null` here rather than
  * propagating -- callers (the guest pages) always get a renderable view,
