@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createVerifiedStaffUser } from './helpers/staff-user';
 import { sessionCookiesFor } from './helpers/session-cookie';
-import { seedStaffAndBooking, seedStaffAndCompleteBooking } from './helpers/booking-fixture';
+import { seedStaffAndBooking, seedStaffAndCompleteBooking, seedStaffAndTailorMadeAwaitingQuotation } from './helpers/booking-fixture';
 
 test.describe('staff dashboard (DR-014)', () => {
   test('unauthenticated visit to the dashboard redirects to login', async ({ page }) => {
@@ -116,5 +116,23 @@ test.describe('staff dashboard (DR-014)', () => {
 
     await page.goto(`/staff/bookings/${bookingId}`);
     await expect(page.getByText('Lead Traveler: Not started')).toBeVisible();
+  });
+
+  // DR-111 incident regression: a TAILOR_MADE booking that finishes
+  // traveler/passport setup while still AWAITING_QUOTATION (routine now that
+  // age/nationality/idOrPassportNumber are optional at setup time) has no
+  // priceMinor yet -- the page must not crash trying to build an invoice for
+  // it (real production incident, fixed by gating the invoice/payments/
+  // rating-code sections on booking.priceMinor != null instead of just
+  // setup-completeness).
+  test('booking detail renders the quotation form, not a crash, for a TAILOR_MADE booking awaiting quotation with setup done', async ({
+    page,
+  }) => {
+    const { staffUserId, bookingId } = await seedStaffAndTailorMadeAwaitingQuotation();
+    await page.context().addCookies(await sessionCookiesFor(staffUserId));
+
+    await page.goto(`/staff/bookings/${bookingId}`);
+    await expect(page.getByRole('button', { name: 'Send quotation' })).toBeVisible();
+    await expect(page.getByText('Application error')).not.toBeVisible();
   });
 });

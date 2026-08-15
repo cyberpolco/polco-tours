@@ -169,3 +169,57 @@ export async function seedStaffAndCompleteBooking(): Promise<{ staffUserId: stri
 
   return { staffUserId: staff.id, bookingId };
 }
+
+/**
+ * DR-111 regression fixture: a TAILOR_MADE booking that has finished
+ * traveler/passport setup (DR-111 lets that happen with no age/nationality/
+ * idOrPassportNumber) while still AWAITING_QUOTATION -- i.e. `priceMinor` is
+ * still null. The staff booking-detail page must render this without
+ * crashing (it used to unconditionally call
+ * invoicingService.getOrCreateInvoiceForBooking, which 409s until a
+ * quotation exists).
+ */
+export async function seedStaffAndTailorMadeAwaitingQuotation(): Promise<{ staffUserId: string; bookingId: string }> {
+  const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const [staff, tourist] = await Promise.all([
+    prisma.user.create({
+      data: { email: `e2e-staff-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: org.id, emailVerified: true },
+    }),
+    prisma.user.create({
+      data: { email: `e2e-tourist-${suffix}@example.test`, role: 'TOURIST', organizationId: org.id, emailVerified: true },
+    }),
+  ]);
+
+  const bookingId = await withOrg(org.id, async (tx) => {
+    const booking = await tx.booking.create({
+      data: {
+        organizationId: org.id,
+        origin: 'TAILOR_MADE',
+        touristUserId: tourist.id,
+        seats: 1,
+        bookingReference: generateBookingReference(),
+        customCountry: 'NA',
+        status: 'AWAITING_QUOTATION',
+        addonsFinalizedAt: new Date(),
+      },
+    });
+    await tx.traveler.create({
+      data: {
+        organizationId: org.id,
+        bookingId: booking.id,
+        firstName: 'Lead',
+        lastName: 'Traveler',
+        sex: 'M',
+        isTourLead: true,
+        // DR-111: deliberately omitted -- plan-my-trip never collects these
+        // for a TAILOR_MADE request, so age/nationality/idOrPassportNumber
+        // stay null.
+      },
+    });
+    return booking.id;
+  });
+
+  return { staffUserId: staff.id, bookingId };
+}

@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-111 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-112 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **All schema changes through DR-092 are applied to the shared
 > Neon database** (fleet availability, itinerary hotel/restaurant/site,
 > user dormancy, site province/city, geo-data foundation, booking cost
@@ -288,8 +288,17 @@ explicit decision to do so.
 > `TAILOR_MADE` booking's traveler/passport setup wizard reaches its true
 > last step, redirecting straight to the new package; the manual
 > "Create customized package" button stays as a fallback for bookings whose
-> setup completed before this change. See DR-082 through DR-111 for full
-> detail.
+> setup completed before this change. **DR-112 was a live production
+> incident caused by DR-111**: the staff booking-detail page
+> unconditionally built an invoice once traveler/passport setup was
+> complete, which throws until a `TAILOR_MADE` booking's quotation is sent
+> — DR-111's own auto-redirect made that exact "setup done, still awaiting
+> quotation" state routine, turning a previously near-unreachable bug into
+> a real crash on `www.mufasasafaris.com`, confirmed via `vercel logs
+> --level error`. Fixed by gating the invoice/payments/rating-code sections
+> on `booking.priceMinor != null` rather than just setup-completeness, with
+> a new e2e regression test seeding exactly that state. See DR-082 through
+> DR-112 for full detail.
 > **DR-080/081 were a live production incident** (guide-mandatory,
 > DR-079, crashed real staff traffic because `deactivateUser` never
 > cascades to suspend a `GuideProfile`) — root-caused, fixed at both the

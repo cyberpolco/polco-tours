@@ -134,8 +134,13 @@ export default async function BookingDetailPage({ params }: Props) {
     );
   }
 
-  const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
-  const payments = await invoicingService.listPayments(ctx, invoice.id);
+  // DR-111 incident: getOrCreateInvoiceForBooking/getBillableTotal throws
+  // (409, "no price yet") until a quotation exists -- and DR-111's own
+  // auto-redirect now makes it routine for a TAILOR_MADE booking to finish
+  // traveler/passport setup while still AWAITING_QUOTATION, so this page
+  // must not assume an invoice already exists just because setup is done.
+  const invoice = booking.priceMinor != null ? await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId) : null;
+  const payments = invoice ? await invoicingService.listPayments(ctx, invoice.id) : [];
 
   // Only relevant while a quotation hasn't been sent yet -- pre-fills the
   // "Send quotation" amount below from whatever cost breakdown staff have
@@ -434,104 +439,108 @@ export default async function BookingDetailPage({ params }: Props) {
         </div>
       )}
 
-      <div>
-        <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">{t('invoice')}</p>
-        <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
-          <div>
-            <p className="text-xs text-mist">{t('subtotal')}</p>
-            <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
-          </div>
-          {invoice.discountMinor > 0 && (
+      {invoice && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <p className="eyebrow text-mist">{t('invoice')}</p>
+          <Card className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-5">
             <div>
-              <p className="text-xs text-mist">{t('discount')}</p>
-              <p className="text-sm">−{format(money(invoice.discountMinor, invoice.currency))}</p>
+              <p className="text-xs text-mist">{t('subtotal')}</p>
+              <p className="text-sm">{format(money(invoice.subtotalMinor, invoice.currency))}</p>
             </div>
-          )}
-          <div>
-            <p className="text-xs text-mist">{t('tax')}</p>
-            <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
-          </div>
-          <div>
-            <p className="text-xs text-mist">{t('depositPct')}</p>
-            <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
-          </div>
-          <div>
-            <p className="text-xs text-mist">{t('balancePct')}</p>
-            <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
-          </div>
-          <div>
-            {/* Settings module (DR-042): an informational split of the total
-                above, not an extra charge -- staff-only, deliberately not
-                shown on the guest-facing booking page (a customer could
-                otherwise misread this as something they owe on top). */}
-            <p className="text-xs text-mist">{t('platformFee')}</p>
-            <p className="text-sm">
-              {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
-            </p>
-          </div>
-        </Card>
-        <CouponForm
-          appliedCode={invoice.couponCode}
-          editable={couponEditable}
-          onApply={applyCouponAction.bind(null, invoice.id, booking.id)}
-          onRemove={removeCouponAction.bind(null, invoice.id, booking.id)}
-        />
-        <p className="mt-2 flex items-center gap-2 text-sm text-mist">
-          {t('status')} <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{tInvoiceStatus(invoice.status)}</Badge>
-        </p>
-      </div>
-
-      <div>
-        <div className="survey-rule mb-6" />
-        <p className="eyebrow text-mist">{t('payments')}</p>
-        {payments.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">{t('noPaymentAttempts')}</p>
-        ) : (
-          <ul className="mt-2 space-y-2 text-sm">
-            {payments.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-2">
-                <span className="flex items-center gap-2">
-                  {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))}
-                  <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
-                </span>
-                {p.status === 'PENDING' && (
-                  <div className="flex gap-2">
-                    <form action={resolvePaymentAction.bind(null, p.id, 'SUCCEEDED', booking.id)}>
-                      <SubmitButton variant="success" size="compact" pendingLabel={tCommon('saving')}>
-                        {t('markPaid')}
-                      </SubmitButton>
-                    </form>
-                    <form action={resolvePaymentAction.bind(null, p.id, 'FAILED', booking.id)}>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel={tCommon('saving')}>
-                        {t('markFailed')}
-                      </SubmitButton>
-                    </form>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="mt-4 flex gap-3">
-          {booking.status === 'AWAITING_DEPOSIT' && !pendingPayment && (
-            <>
-              <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
-                <SubmitButton pendingLabel={t('sending')}>{t('sendDepositLink')}</SubmitButton>
-              </form>
-              <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
-                <SubmitButton pendingLabel={t('sending')}>{t('sendFullPaymentLink')}</SubmitButton>
-              </form>
-            </>
-          )}
-          {booking.status === 'DEPOSIT_PAID' && !pendingPayment && (
-            <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
-              <SubmitButton pendingLabel={t('sending')}>{t('sendBalanceLink')}</SubmitButton>
-            </form>
-          )}
+            {invoice.discountMinor > 0 && (
+              <div>
+                <p className="text-xs text-mist">{t('discount')}</p>
+                <p className="text-sm">−{format(money(invoice.discountMinor, invoice.currency))}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-mist">{t('tax')}</p>
+              <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
+            </div>
+            <div>
+              <p className="text-xs text-mist">{t('depositPct')}</p>
+              <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
+            </div>
+            <div>
+              <p className="text-xs text-mist">{t('balancePct')}</p>
+              <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
+            </div>
+            <div>
+              {/* Settings module (DR-042): an informational split of the total
+                  above, not an extra charge -- staff-only, deliberately not
+                  shown on the guest-facing booking page (a customer could
+                  otherwise misread this as something they owe on top). */}
+              <p className="text-xs text-mist">{t('platformFee')}</p>
+              <p className="text-sm">
+                {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
+              </p>
+            </div>
+          </Card>
+          <CouponForm
+            appliedCode={invoice.couponCode}
+            editable={couponEditable}
+            onApply={applyCouponAction.bind(null, invoice.id, booking.id)}
+            onRemove={removeCouponAction.bind(null, invoice.id, booking.id)}
+          />
+          <p className="mt-2 flex items-center gap-2 text-sm text-mist">
+            {t('status')} <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{tInvoiceStatus(invoice.status)}</Badge>
+          </p>
         </div>
-      </div>
+      )}
+
+      {invoice && (
+        <div>
+          <div className="survey-rule mb-6" />
+          <p className="eyebrow text-mist">{t('payments')}</p>
+          {payments.length === 0 ? (
+            <p className="mt-2 text-sm text-mist">{t('noPaymentAttempts')}</p>
+          ) : (
+            <ul className="mt-2 space-y-2 text-sm">
+              {payments.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-2">
+                  <span className="flex items-center gap-2">
+                    {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))}
+                    <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
+                  </span>
+                  {p.status === 'PENDING' && (
+                    <div className="flex gap-2">
+                      <form action={resolvePaymentAction.bind(null, p.id, 'SUCCEEDED', booking.id)}>
+                        <SubmitButton variant="success" size="compact" pendingLabel={tCommon('saving')}>
+                          {t('markPaid')}
+                        </SubmitButton>
+                      </form>
+                      <form action={resolvePaymentAction.bind(null, p.id, 'FAILED', booking.id)}>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={tCommon('saving')}>
+                          {t('markFailed')}
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 flex gap-3">
+            {booking.status === 'AWAITING_DEPOSIT' && !pendingPayment && (
+              <>
+                <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
+                  <SubmitButton pendingLabel={t('sending')}>{t('sendDepositLink')}</SubmitButton>
+                </form>
+                <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
+                  <SubmitButton pendingLabel={t('sending')}>{t('sendFullPaymentLink')}</SubmitButton>
+                </form>
+              </>
+            )}
+            {booking.status === 'DEPOSIT_PAID' && !pendingPayment && (
+              <form action={initiatePaymentAction.bind(null, invoice.id, 'BALANCE', booking.id)}>
+                <SubmitButton pendingLabel={t('sending')}>{t('sendBalanceLink')}</SubmitButton>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="survey-rule mb-6" />
@@ -586,7 +595,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 <Badge tone="success">{t('activeUntil', { date: ratingCode.expiresAt.toLocaleDateString() })}</Badge>
               )}
             </p>
-          ) : invoice.status === 'PAID' ? (
+          ) : invoice?.status === 'PAID' ? (
             <form action={issueRatingCodeAction.bind(null, booking.id)} className="mt-2">
               <SubmitButton variant="secondary" pendingLabel={t('generating')}>
                 {t('generateRatingCode')}
