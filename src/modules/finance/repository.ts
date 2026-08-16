@@ -1,12 +1,14 @@
 // finance module — repository. The only place that touches
 // prisma.staffRate/hotelRate/transportRate/foodBeverageRate/activityFee/
-// immigrationCostRate/adminCostRate/packageCostBreakdown/packageCostLineItem
-// for this module. The seven rate tables are platform-wide (no
-// organizationId, no RLS -- same precedent as TaxRate, uses the plain
-// global `prisma` client, no withOrg); the cost-breakdown tables ARE
-// org-scoped and go through withOrg like every other tenant table.
+// immigrationCostRate/adminCostRate/addonRate/packageCostBreakdown/
+// packageCostLineItem for this module. The eight rate tables are
+// platform-wide (no organizationId, no RLS -- same precedent as TaxRate,
+// uses the plain global `prisma` client, no withOrg); the cost-breakdown
+// tables ARE org-scoped and go through withOrg like every other tenant
+// table.
 import type {
   ActivityFee,
+  AddonRate,
   AdminCostRate,
   BookingCostBreakdown,
   BookingCostLineItem,
@@ -23,10 +25,12 @@ import type {
 import { prisma, withOrg } from '@lib/db';
 import type {
   ActivityFeeView,
+  AddonRateView,
   AdminCostRateView,
   BookingCostBreakdownView,
   BookingCostLineItemView,
   CreateActivityFeeInput,
+  CreateAddonRateInput,
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
@@ -82,6 +86,9 @@ function toImmigrationCostRateView(r: ImmigrationCostRate): ImmigrationCostRateV
 }
 function toAdminCostRateView(r: AdminCostRate): AdminCostRateView {
   return { id: r.id, country: r.country, dailyRateMinor: r.dailyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+}
+function toAddonRateView(r: AddonRate): AddonRateView {
+  return { id: r.id, country: r.country, code: r.code, priceMinor: r.priceMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toLineItemView(li: PackageCostLineItem): PackageCostLineItemView {
   return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson };
@@ -320,6 +327,27 @@ export const financeRepository = {
       orderBy: { validFrom: 'desc' },
     });
     return r ? toAdminCostRateView(r) : null;
+  },
+
+  // -------------------------------------------------------------- AddonRate
+  // Staff CRUD only (Operational Rates page) -- the actual resolve-for-
+  // pricing read lives in src/lib/addon-rates.ts, queried directly against
+  // Prisma with no AuthContext/permission gate, same "guest checkout must
+  // read this too" precedent as src/lib/tax.ts. Kept separate rather than
+  // wrapped here so that plain-lib helper has no dependency on this module.
+  async listAddonRates(): Promise<AddonRateView[]> {
+    const rows = await prisma.addonRate.findMany({ orderBy: [{ country: 'asc' }, { code: 'asc' }, { validFrom: 'desc' }] });
+    return rows.map(toAddonRateView);
+  },
+  async createAddonRate(input: CreateAddonRateInput): Promise<AddonRateView> {
+    const r = await prisma.addonRate.create({ data: input });
+    return toAddonRateView(r);
+  },
+  async deleteAddonRate(id: string): Promise<AddonRateView | null> {
+    const existing = await prisma.addonRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.addonRate.delete({ where: { id } });
+    return toAddonRateView(existing);
   },
 
   // ---------------------------------------------------- PackageCostBreakdown

@@ -2,10 +2,14 @@
 // Finance Module (DR-039) -- a cost-plus pricing engine replacing
 // TourPackage.priceMinor as a plain staff-typed number. Seven platform-wide,
 // effective-dated rate tables (mirrors TaxRate's precedent exactly; DR-126
-// added the seventh, AdminCostRate) feed a per-package cost breakdown;
-// "seasonal pricing" is expressed as overlapping date-ranged rows, no
-// separate season concept.
-import type { Currency, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
+// added the seventh, AdminCostRate) feed the per-package/booking cost
+// breakdown itself; "seasonal pricing" is expressed as overlapping
+// date-ranged rows, no separate season concept. DR-128 adds an eighth,
+// AddonRate -- a separate concept (prices catalog's AddonService add-ons,
+// not a cost-breakdown bucket), managed on the same Operational Rates page
+// for consistency but resolved via src/lib/addon-rates.ts, not
+// computeBaseCostMinor.
+import type { AddonCode, Currency, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
 import { z } from 'zod';
 
 const CURRENCY_ENUM = z.enum(['USD', 'EUR', 'NAD', 'CDF']);
@@ -97,6 +101,20 @@ export interface AdminCostRateView {
 export const AdminCostBasis = z.enum(['PER_PERSON', 'PER_GROUP']);
 export type AdminCostBasis = z.infer<typeof AdminCostBasis>;
 
+// DR-128: prices a catalog AddonService by (country, code), auto-resolved
+// same as StaffRate/AdminCostRate -- AddonCode is a small fixed enum
+// (PHOTOGRAPHY/VIDEOGRAPHY/TRANSLATOR/VISA_ASSISTANCE), not a list of
+// distinct instances, so no FK to a specific AddonService row is needed.
+export interface AddonRateView {
+  id: string;
+  country: string;
+  code: AddonCode;
+  priceMinor: number;
+  currency: Currency;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
 // ---------------------------------------------------------- rate input schemas
 
 export const CreateStaffRateInput = z.object({
@@ -173,6 +191,15 @@ export const CreateAdminCostRateInput = z.object({
   ...EFFECTIVE_DATING,
 });
 export type CreateAdminCostRateInput = z.infer<typeof CreateAdminCostRateInput>;
+
+export const CreateAddonRateInput = z.object({
+  country: z.string().length(2),
+  code: z.enum(['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE']),
+  priceMinor: z.number().int().nonnegative(),
+  currency: CURRENCY_ENUM,
+  ...EFFECTIVE_DATING,
+});
+export type CreateAddonRateInput = z.infer<typeof CreateAddonRateInput>;
 
 // ---------------------------------------------------- package cost breakdown
 

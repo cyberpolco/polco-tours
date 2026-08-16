@@ -17,9 +17,11 @@ import {
   computeSellingPriceMinor,
   perSeatPriceMinor,
   type ActivityFeeView,
+  type AddonRateView,
   type AdminCostRateView,
   type BookingCostBreakdownView,
   type CreateActivityFeeInput,
+  type CreateAddonRateInput,
   type CreateAdminCostRateInput,
   type CreateFoodBeverageRateInput,
   type CreateHotelRateInput,
@@ -274,6 +276,27 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.admin_cost_rate_deleted', resourceType: 'AdminCostRate', resourceId: id });
   },
 
+  // -------------------------------------------------------------- AddonRate
+  // Staff CRUD only, same as every other rate table -- the actual
+  // resolve-for-pricing read is src/lib/addon-rates.ts, not this service
+  // (guest checkout has no AuthContext holding finance_config.read).
+  async listAddonRates(ctx: AuthContext): Promise<AddonRateView[]> {
+    assertCan(ctx, 'finance_config.read');
+    return financeRepository.listAddonRates();
+  },
+  async createAddonRate(ctx: AuthContext, input: CreateAddonRateInput): Promise<AddonRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.createAddonRate(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_created', resourceType: 'AddonRate', resourceId: rate.id });
+    return rate;
+  },
+  async deleteAddonRate(ctx: AuthContext, id: string): Promise<void> {
+    requireRateWriter(ctx);
+    const deleted = await financeRepository.deleteAddonRate(id);
+    if (!deleted) throw Errors.notFound('Addon rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_deleted', resourceType: 'AddonRate', resourceId: id });
+  },
+
   // ---------------------------------------------------- package cost breakdown
 
   /** Same viewers as who can edit the package -- catalog.write, not a new
@@ -421,7 +444,7 @@ export const financeService = {
       input.lineItems.map((li) => ({ foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson })),
     );
 
-    await catalogService.updatePackage(ctx, tourPackageId, { priceMinor: finalPriceMinor });
+    await catalogService.setComputedPrice(ctx, tourPackageId, finalPriceMinor);
 
     if (input.overridePriceMinor != null) {
       await audit({

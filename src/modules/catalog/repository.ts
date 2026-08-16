@@ -141,6 +141,20 @@ export const catalogRepository = {
     });
   },
 
+  // DR-128: the only writer of TourPackage.priceMinor left -- deliberately
+  // not routed through updatePackage/UpdatePackageInput (which no longer
+  // carries a priceMinor field at all) so a package's price can never be set
+  // by anything other than financeService.saveCostBreakdown's own
+  // Operational-Rates-derived computation.
+  async updatePackagePrice(organizationId: string, id: string, priceMinor: number): Promise<TourPackageView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.tourPackage.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const p = await tx.tourPackage.update({ where: { id }, data: { priceMinor } });
+      return toPackageView(p);
+    });
+  },
+
   /** Soft delete (DR-028) -- sets deletedAt; every read in this module already
    * filters on deletedAt: null, so this alone hides it everywhere. */
   async deletePackage(organizationId: string, id: string): Promise<TourPackageView | null> {

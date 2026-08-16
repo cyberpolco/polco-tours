@@ -8,6 +8,7 @@ import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { createCustomizedPackageFromBooking } from '@lib/create-customized-package';
 import { ApiError } from '@lib/errors';
 import { bookingService } from '@modules/booking';
+import { financeService } from '@modules/finance';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
@@ -82,16 +83,34 @@ export async function acceptQuotationAction(bookingId: string) {
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
+// DR-128: requires a reason whenever the submitted price deviates from this
+// booking's own cost breakdown (comparison lives here, not inside
+// bookingService.sendQuotation -- finance depends on booking, so booking
+// can't import financeService itself without a cycle; this Server Action is
+// the "one level up" layer that can see both). Keeps a hand-typed quotation
+// distinguishable and audited rather than silently indistinguishable from
+// one computed straight out of Operational Rates.
 export async function sendQuotationAction(bookingId: string, formData: FormData) {
   const ctx = await requireStaffContext('booking.confirm');
   const amount = Number(formData.get('amount'));
-  const currency = formData.get('currency');
+  const currency = formData.get('currency') as 'USD' | 'EUR' | 'NAD' | 'CDF';
+  // Staff enters a decimal amount (e.g. "1234.56"); every supported currency
+  // (USD/EUR/NAD/CDF) uses 2 decimal places (@lib/money's DECIMALS), so *100
+  // is safe here.
+  const priceMinor = Math.round(amount * 100);
+  const overrideReason = String(formData.get('overrideReason') ?? '').trim() || undefined;
+
+  const breakdown = await financeService.getBookingCostBreakdown(ctx, bookingId);
+  const deviatesFromBreakdown =
+    breakdown?.suggestedTotalMinor != null && (priceMinor !== breakdown.suggestedTotalMinor || currency !== breakdown.currency);
+  if (deviatesFromBreakdown && !overrideReason) {
+    redirect(`/staff/bookings/${bookingId}?error=quotationReasonRequired`);
+  }
+
   await bookingService.sendQuotation(ctx, bookingId, {
-    // Staff enters a decimal amount (e.g. "1234.56"); every supported
-    // currency (USD/EUR/NAD/CDF) uses 2 decimal places (@lib/money's
-    // DECIMALS), so *100 is safe here.
-    priceMinor: Math.round(amount * 100),
-    currency: currency as 'USD' | 'EUR' | 'NAD' | 'CDF',
+    priceMinor,
+    currency,
+    overrideReason: deviatesFromBreakdown ? overrideReason : undefined,
   });
   revalidatePath(`/staff/bookings/${bookingId}`);
 }

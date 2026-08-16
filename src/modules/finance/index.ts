@@ -3,6 +3,7 @@ export { financeService } from './service';
 export {
   AdminCostBasis,
   CreateActivityFeeInput,
+  CreateAddonRateInput,
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
@@ -14,6 +15,7 @@ export {
 } from './domain';
 export type {
   ActivityFeeView,
+  AddonRateView,
   AdminCostRateView,
   BookingCostBreakdownView,
   BookingCostLineItemView,

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import {
   CreateActivityFeeInput,
+  CreateAddonRateInput,
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
@@ -144,5 +145,23 @@ export async function createAdminCostRateAction(formData: FormData): Promise<voi
 export async function deleteAdminCostRateAction(id: string): Promise<void> {
   const ctx = await requireStaffContext('finance_config.write');
   await financeService.deleteAdminCostRate(ctx, id);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function createAddonRateAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateAddonRateInput.parse({
+    country: String(formData.get('country') ?? ''),
+    code: String(formData.get('code') ?? ''),
+    priceMinor: decimalToMinor(formData, 'price'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.createAddonRate(ctx, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function deleteAddonRateAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  await financeService.deleteAddonRate(ctx, id);
   revalidatePath('/staff/finance/rates');
 }

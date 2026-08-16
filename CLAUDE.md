@@ -19,7 +19,7 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-127 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-129 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
@@ -35,11 +35,47 @@ explicit decision to do so.
 > starts bare (day number only) and is then filled in through the existing
 > per-day edit form, unchanged. Throws `Errors.conflict` (same `?error=&
 > detail=` convention as DR-115) if `durationDays` isn't set yet. No schema/
-> permission/module-dependency change. (Note: `DR-128` — an eighth
-> Operational Rate, `AddonRate` — is mid-flight in this working tree
-> (uncommitted changes touching `finance`/`invoicing`/`booking`/`catalog`)
-> but not yet written up here or in the decision log; don't assume it's
-> finished or reflected in this file yet.)
+> permission/module-dependency change.
+> **DR-128** closes three real gaps found by an explicit user-requested audit
+> ("all prices must be pulled from Operational Rates") — the core 7-bucket
+> cost-plus engine, tax, coupons, and the platform rate were already
+> correctly rate-table-sourced. (1) `sendQuotation` had no enforced link to
+> a TAILOR_MADE booking's own cost breakdown — staff could freely overwrite
+> the pre-filled `suggestedTotalMinor` with zero audit trail. `SendQuotationInput`
+> gains an optional `overrideReason`; `sendQuotationAction` (the Server
+> Action layer, not `bookingService` itself — `booking` can't import
+> `financeService` without a cycle) fetches the breakdown and requires a
+> reason whenever the submitted price/currency deviates from it;
+> `bookingService.sendQuotation` logs a distinct `booking
+> .quotation_price_overridden` audit action when one is supplied, mirroring
+> `PackageCostBreakdown`'s own override-reason precedent (no new column —
+> the audit log is the record). (2) `TourPackage.priceMinor` was still
+> technically settable via a direct API call to `updatePackage`, even though
+> no UI had exposed it since DR-039. Removed from `CreatePackageInput`/
+> `UpdatePackageInput` entirely; `saveCostBreakdown`'s write now goes
+> through a new dedicated `catalogService.setComputedPrice` (backed by a new
+> `catalogRepository.updatePackagePrice`), so no path other than a computed
+> cost breakdown can ever set a package's price. (3) Add-on prices
+> (`AddonService.priceMinor`/`currency`) were flat, staff-typed, org-wide
+> figures with no country dimension or Operational Rate backing at all (and
+> no create/edit UI ever existed for `AddonService` in the first place).
+> New 8th Operational Rate, `AddonRate` (country + `AddonCode` + price +
+> currency, effective-dated, resolved by (country, code, date) with no id —
+> same "no dropdown" precedent as `StaffRate`/`AdminCostRate`), on
+> `/staff/finance/rates` + matching REST routes. Resolution lives in new
+> `src/lib/addon-rates.ts` (`getEffectiveAddonRate`), a plain ungated
+> helper — same "guest checkout has no staff permissions" precedent as
+> `src/lib/tax.ts` — not behind `financeService`'s RBAC gate. New shared
+> `bookingService.getBookingCountry` (factoring out the same
+> PREDEFINED_PACKAGE-departure/TAILOR_MADE-customCountry resolution
+> `invoicing/service.ts` already had inline) feeds both `setAddons` (now
+> resolving each addon's real chargeable price from `AddonRate`, never
+> `AddonService`'s own flat fields, its country/rate lookups run
+> concurrently rather than sequentially — a genuine latency fix alongside
+> the correctness one) and the guest/staff add-ons picker pages (now hiding
+> any add-on with no rate configured for the booking's country — explicit
+> user decision, never falling back to the old flat price). No permission
+> or module-dependency change.
 > **DR-127** makes the platform rate a real customer-facing charge (explicit
 > user request, confirmed via a clarifying question first since it reverses
 > a deliberate prior design choice) — the invoice total guests actually pay
@@ -701,9 +737,12 @@ src/
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
-    finance/       # Cost-plus pricing engine — 7 rate tables (HotelRate/
-                   #   ActivityFee reference itinerary's Hotel/Activity by
-                   #   id, DR-116; AdminCostRate, DR-126, is the 7th) +
+    finance/       # Cost-plus pricing engine — 7 rate tables feeding the
+                   #   cost breakdown itself (HotelRate/ActivityFee reference
+                   #   itinerary's Hotel/Activity by id, DR-116; AdminCostRate,
+                   #   DR-126, is the 7th) + an 8th, AddonRate (DR-128, prices
+                   #   catalog's AddonService by country+code, resolved via
+                   #   src/lib/addon-rates.ts, not computeBaseCostMinor) +
                    #   PackageCostBreakdown (TourPackage) /
                    #   BookingCostBreakdown (TAILOR_MADE Booking, DR-092)
                    #   sharing one resolveRatesForCost helper

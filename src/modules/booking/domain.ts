@@ -175,9 +175,19 @@ export const CreateTailorMadeInput = z
   });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 
+// DR-128: overrideReason is optional here (structurally) -- whether it's
+// actually *required* depends on whether the submitted price deviates from
+// the booking's own cost breakdown, which this module can't check itself
+// (finance depends on booking, so booking can't import finance without a
+// cycle). That comparison + the "is a reason required" decision happens one
+// level up, in sendQuotationAction, which has access to both services --
+// same "cross-module orchestration lives at the caller" convention as
+// itineraryService composing booking/catalog. sendQuotation itself only
+// needs the reason to log a distinct, audited override action.
 export const SendQuotationInput = z.object({
   priceMinor: z.number().int().positive(),
   currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
+  overrideReason: z.string().min(1).max(500).optional(),
 });
 export type SendQuotationInput = z.infer<typeof SendQuotationInput>;
 

@@ -53,6 +53,17 @@ export async function seedPublicDeparture(opts?: { capacity?: number }): Promise
     return { departureId: departure.id, visaAddonServiceId: visaAddon.id };
   });
 
+  // DR-128: setAddons resolves the actual chargeable price from AddonRate
+  // (country + code), not AddonService's own flat priceMinor/currency -- the
+  // guest-checkout journey 409s at the Add-ons step without one. AddonRate
+  // is platform-wide (not org-scoped), so this is find-or-create rather than
+  // always-create, keeping repeated local runs against the same DB from
+  // piling up duplicate NA/VISA_ASSISTANCE rows.
+  const existingRate = await prisma.addonRate.findFirst({ where: { country: 'NA', code: 'VISA_ASSISTANCE' } });
+  if (!existingRate) {
+    await prisma.addonRate.create({ data: { country: 'NA', code: 'VISA_ASSISTANCE', priceMinor: 5000, currency: 'USD' } });
+  }
+
   return { departureId, visaAddonServiceId };
 }
 

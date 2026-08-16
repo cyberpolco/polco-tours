@@ -96,8 +96,7 @@ export const catalogService = {
     // bookable, not an excuse to skip the price/duration requirement.
     if (input.status && isPublishedStatus(input.status)) {
       const existing = await catalogRepository.findPackageById(organizationId, packageId);
-      const priceMinor = input.priceMinor ?? existing?.priceMinor;
-      if (priceMinor == null) {
+      if (existing?.priceMinor == null) {
         throw Errors.conflict('This package has no price yet -- set one via a cost breakdown before publishing');
       }
       const durationDays = input.durationDays ?? existing?.durationDays;
@@ -106,6 +105,19 @@ export const catalogService = {
       }
     }
     const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
+    if (!updated) throw Errors.notFound('Package not found');
+    return updated;
+  },
+
+  /** DR-128: the sole path that may ever set TourPackage.priceMinor --
+   * called only by financeService.saveCostBreakdown once it's computed a
+   * price from Operational Rates. Deliberately bypasses updatePackage/
+   * UpdatePackageInput (which no longer accepts a priceMinor field at all),
+   * so no other caller can set an arbitrary, non-rate-derived price. */
+  async setComputedPrice(ctx: AuthContext, packageId: string, priceMinor: number): Promise<TourPackageView> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const updated = await catalogRepository.updatePackagePrice(organizationId, packageId, priceMinor);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
   },

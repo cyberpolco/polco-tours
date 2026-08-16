@@ -125,6 +125,20 @@ beforeAll(async () => {
     });
     addonServiceId = addon.id;
   });
+
+  // DR-128: setAddons now resolves each add-on's price from AddonRate
+  // (country + code), not AddonService's own flat priceMinor/currency --
+  // seed matching rates for both the departure-based booking's country and
+  // the pre-quotation TAILOR_MADE fixtures' customCountry (country.slice(0,
+  // 2), a different value) below, or setAddons 409s with "no rate
+  // configured" before ever reaching the behavior each test means to check.
+  await admin.addonRate.createMany({
+    data: [
+      { country, code: 'PHOTOGRAPHY', priceMinor: 5000, currency: 'USD' },
+      { country, code: 'VISA_ASSISTANCE', priceMinor: 5000, currency: 'USD' },
+      { country: country.slice(0, 2), code: 'PHOTOGRAPHY', priceMinor: 5000, currency: 'USD' },
+    ],
+  });
 });
 
 afterAll(async () => {
@@ -142,6 +156,7 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.traveler.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.document.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.addonService.deleteMany({ where: { organizationId: orgId } }));
+  await admin.addonRate.deleteMany({ where: { country: { in: [country, country.slice(0, 2)] } } });
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.departure.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.tourPackage.deleteMany({ where: { organizationId: orgId } }));

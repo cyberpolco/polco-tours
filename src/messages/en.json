@@ -634,6 +634,9 @@
     "sending": "Sending…",
     "sendQuotation": "Send quotation",
     "suggestedFromBreakdown": "Suggested from the cost breakdown: {amount} — edit the amount above if needed.",
+    "quotationOverrideReason": "Reason for changing the suggested amount",
+    "quotationOverrideNotice": "A cost breakdown exists for this request. Changing the amount above requires a reason and is recorded in the audit log.",
+    "quotationReasonRequired": "This amount differs from the cost breakdown's suggested total — enter a reason before sending.",
     "accepting": "Accepting…",
     "acceptQuotationOnBehalf": "Accept quotation on client's behalf",
     "releasedSeatHoldWarning": "This came from a released seat hold — seat availability hasn't been re-checked automatically if the client later accepts and proceeds to pay.",
@@ -1367,7 +1370,12 @@
     "borderPermit": "Border permit",
     "adminCosts": "Admin Costs (per-day overhead)",
     "adminCostsNotice": "A flat per-day administrative fee -- charged once for the whole group or per traveler, chosen per package/booking when its cost breakdown is set up.",
-    "noAdminCostRates": "No admin cost rates yet."
+    "noAdminCostRates": "No admin cost rates yet.",
+    "addonServices": "Add-on Services",
+    "addonServicesNotice": "Prices catalog add-ons (Photography, Videography, Translator, Visa assistance) by country -- an add-on with no rate configured for a booking's country is not offered to it.",
+    "noAddonRates": "No add-on rates yet.",
+    "addonService": "Add-on",
+    "price": "Price"
   },
   "StaffInsights": {
     "eyebrow": "Insights",

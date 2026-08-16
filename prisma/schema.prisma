@@ -1795,6 +1795,34 @@ model AdminCostRate {
   @@map("admin_cost_rates")
 }
 
+// DR-128: brings AddonService (catalog module) pricing under Operational
+// Rates -- resolved by (country, code) + effective date, same auto-resolved
+// "no id" precedent as StaffRate/AdminCostRate (AddonCode is a small fixed
+// enum, not a list of distinct instances the way Hotel/Activity are, so no
+// FK is needed the way HotelRate/ActivityFee have one). AddonService itself
+// keeps code/name/description/active as catalog identity; its own
+// priceMinor/currency are no longer read for pricing purposes (DR-128) --
+// see src/lib/addon-rates.ts, which resolves this table directly with no
+// AuthContext/permission gate, same precedent as src/lib/tax.ts, since
+// guest checkout (an anonymous session, no staff permissions) must be able
+// to read it too. If no rate is configured for a country+code, that add-on
+// is simply not offered there -- never falls back to AddonService's own
+// flat price.
+model AddonRate {
+  id         String    @id @default(uuid()) @db.Uuid
+  country    String
+  code       AddonCode
+  priceMinor Int
+  currency   Currency
+  validFrom  DateTime  @default(now())
+  validTo    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([country, code, validFrom])
+  @@map("addon_rates")
+}
+
 // One per TourPackage. referenceGroupSize is the divisor for the per-seat
 // price -- deliberately decoupled from any specific Departure.capacity,
 // since a package can have several departures with different capacities

@@ -88,6 +88,18 @@ export async function seedStaffAndBooking(
     return { bookingId: booking.id, visaAddonServiceId };
   });
 
+  // DR-128: setAddons resolves the actual chargeable price from AddonRate
+  // (country + code), not AddonService's own flat priceMinor/currency -- the
+  // add-ons picker/submit 409s without one. Same find-or-create guard as
+  // catalog-fixture.ts's seedPublicDeparture (AddonRate is platform-wide,
+  // not org-scoped, so this must stay idempotent across repeated runs).
+  if (opts?.withVisaAddon) {
+    const existingRate = await prisma.addonRate.findFirst({ where: { country: 'NA', code: 'VISA_ASSISTANCE' } });
+    if (!existingRate) {
+      await prisma.addonRate.create({ data: { country: 'NA', code: 'VISA_ASSISTANCE', priceMinor: 5000, currency: 'USD' } });
+    }
+  }
+
   return { staffUserId: staff.id, bookingId, visaAddonServiceId };
 }
 

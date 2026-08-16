@@ -4,6 +4,7 @@ import type { BookingStatus, Locale, PaymentKind } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
+import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { add, money, scale, type Money } from '@lib/money';
@@ -83,6 +84,16 @@ function assertOwnedBooking(ctx: AuthContext, booking: BookingView | null): Book
 async function getOwnedBooking(ctx: AuthContext, organizationId: string, bookingId: string): Promise<BookingView> {
   const booking = await bookingRepository.findById(organizationId, bookingId);
   return assertOwnedBooking(ctx, booking);
+}
+
+/** See bookingService.getBookingCountry's own doc comment. */
+async function resolveBookingCountry(ctx: AuthContext, booking: BookingView): Promise<string> {
+  if (booking.departureId) {
+    const { packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    return packageCountry;
+  }
+  if (booking.customCountry) return booking.customCountry;
+  throw Errors.conflict('This booking has no destination country');
 }
 
 /** Every status-transitioning repository call (updateStatus/sendQuotation)
@@ -291,13 +302,19 @@ export const bookingService = {
 
     const updated = await transition(() => bookingRepository.sendQuotation(organizationId, bookingId, input));
     if (!updated) throw Errors.notFound('Booking not found');
+    // DR-128: sendQuotationAction (the caller) sets overrideReason only when
+    // the submitted price deviates from the booking's own cost breakdown --
+    // a distinct, searchable audit action for "this quote didn't come
+    // straight from Operational Rates," same spirit as
+    // finance.price_overridden for a package's cost breakdown.
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
-      action: 'booking.quotation_sent',
+      action: input.overrideReason ? 'booking.quotation_price_overridden' : 'booking.quotation_sent',
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
+      ...(input.overrideReason ? { metadata: { priceMinor: input.priceMinor, currency: input.currency, reason: input.overrideReason } } : {}),
     });
     await notificationsService.notify('QUOTATION_SENT', updated.touristUserId, organizationId, {
       bookingId: updated.bookingReference,
@@ -659,10 +676,30 @@ export const bookingService = {
     });
   },
 
+  /** A PREDEFINED_PACKAGE booking's country comes from its departure's
+   * package; a TAILOR_MADE booking has no departure at all, so it carries
+   * its own customCountry instead (set at creation). Shared by setAddons
+   * (resolving country-specific AddonRate pricing, DR-128) and the guest/
+   * staff add-ons picker pages (filtering/displaying those same resolved
+   * prices) -- invoicing/service.ts has its own inline copy of this same
+   * lookup for tax purposes, predating this shared version. */
+  async getBookingCountry(ctx: AuthContext, bookingId: string): Promise<string> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    return resolveBookingCountry(ctx, booking);
+  },
+
   /** Replace-all: the add-ons wizard step is meant to be finalized once,
    * including choosing none -- stamps addonsFinalizedAt either way, which is
    * what gates invoicing (see getBillableTotal). Requires a priced booking --
-   * a TAILOR_MADE booking has no currency to match against until quoted. */
+   * a TAILOR_MADE booking has no currency to match against until quoted.
+   * DR-128: each add-on's price is resolved from AddonRate (country + code
+   * + effective date, src/lib/addon-rates.ts), never from AddonService's own
+   * flat priceMinor/currency -- an add-on with no rate configured for this
+   * booking's country can't be selected at all (the picker pages already
+   * hide it; reaching here anyway is a stale/tampered request, not a
+   * routine path). */
   async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
@@ -670,16 +707,28 @@ export const bookingService = {
     if (isBookingLocked(booking.status)) {
       throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
     }
+    // Country resolution and each addon's own catalog lookup are mutually
+    // independent -- run them concurrently rather than sequentially (this
+    // used to be a single round trip per addon before DR-128 added country
+    // resolution + a rate lookup on top; staying sequential here would
+    // triple this step's latency for no reason).
+    const [country, addons] = await Promise.all([
+      resolveBookingCountry(ctx, booking),
+      Promise.all(input.addonServiceIds.map((id) => catalogService.getAddonService(ctx, id))),
+    ]);
+    const addonsWithRates = await Promise.all(
+      addons.map(async (addon) => ({ addon, rate: await getEffectiveAddonRate(country, addon.code) })),
+    );
 
     const items = [];
     let requiresPassportUpload = false;
-    for (const addonServiceId of input.addonServiceIds) {
-      const addon = await catalogService.getAddonService(ctx, addonServiceId);
-      if (booking.currency && addon.currency !== booking.currency) {
+    for (const { addon, rate } of addonsWithRates) {
+      if (!rate) throw Errors.conflict(`No rate configured for ${addon.code} in ${country}`);
+      if (booking.currency && rate.currency !== booking.currency) {
         throw Errors.conflict('Add-on currency does not match the booking currency');
       }
       if (addon.code === 'VISA_ASSISTANCE') requiresPassportUpload = true;
-      items.push({ addonServiceId, priceMinor: addon.priceMinor, currency: addon.currency });
+      items.push({ addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency });
     }
     // Pre-quotation (booking.currency not set yet -- a TAILOR_MADE request
     // before staff have priced it), there's no fixed currency to check

@@ -82,10 +82,12 @@ export const CreatePackageInput = z
     description: z.string().min(1),
     country: z.enum(OPERATING_COUNTRY_CODES),
     countries: z.array(z.enum(OPERATING_COUNTRY_CODES)).min(1),
-    // Optional since DR-039 -- a brand-new package starts unpriced until the
-    // finance module's cost breakdown computes it (or this is set directly,
-    // the pre-DR-039 manual-entry path, which still works as an override).
-    priceMinor: z.number().int().nonnegative().optional(),
+    // No priceMinor field (DR-128) -- a brand-new package starts unpriced
+    // until financeService.saveCostBreakdown computes it from Operational
+    // Rates. The pre-DR-039 manual-entry override this schema used to also
+    // accept was dead in practice (no UI ever set it) and is a real gap
+    // against "every price traces back to a rate," so it's removed rather
+    // than left reachable via a direct API call.
     currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
     durationDays: z.number().int().positive().optional(),
     // Since DR-114 this is populated from catalogService.uploadPackageImage's
@@ -108,7 +110,6 @@ export const UpdatePackageInput = z
     description: z.string().min(1).optional(),
     country: z.enum(OPERATING_COUNTRY_CODES).optional(),
     countries: z.array(z.enum(OPERATING_COUNTRY_CODES)).min(1).optional(),
-    priceMinor: z.number().int().nonnegative().optional(),
     currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']).optional(),
     durationDays: z.number().int().positive().optional(),
     imageUrl: z.string().max(500).optional(),

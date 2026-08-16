@@ -9,6 +9,7 @@ import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService } from '@modules/visa';
+import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { LinkButton } from '@/components/ui/Button';
@@ -41,6 +42,7 @@ import {
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
 function visaTone(status: string): BadgeTone {
@@ -59,8 +61,9 @@ function countryName(alpha2: string, tCountries: (code: string) => string): stri
 // internal to the module; this list is the UI's own).
 const CANCELLABLE_STATUSES = ['AWAITING_QUOTATION', 'QUOTATION_SENT', 'AWAITING_DEPOSIT', 'DEPOSIT_PAID', 'FULLY_PAID', 'CONFIRMED'];
 
-export default async function BookingDetailPage({ params }: Props) {
+export default async function BookingDetailPage({ params, searchParams }: Props) {
   const { bookingId } = await params;
+  const { error } = await searchParams;
   const ctx = await requireStaffContext('booking.read');
   const t = await getTranslations('StaffBookingDetail');
   const tCommon = await getTranslations('Common');
@@ -312,28 +315,41 @@ export default async function BookingDetailPage({ params }: Props) {
           </>
         )}
         {booking.status === 'AWAITING_QUOTATION' && (
-          <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm flex-wrap items-end gap-3">
-            <FormField label={t('quoteAmount')} htmlFor="amount">
-              <input
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                defaultValue={costBreakdown?.suggestedTotalMinor != null ? (costBreakdown.suggestedTotalMinor / 100).toFixed(2) : undefined}
-                className="w-full rounded-survey border border-rule px-3 py-2"
-              />
-            </FormField>
-            <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" required defaultValue={costBreakdown?.currency}>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="NAD">NAD</option>
-                <option value="CDF">CDF</option>
-              </Select>
-            </FormField>
-            <SubmitButton pendingLabel={t('sending')}>{t('sendQuotation')}</SubmitButton>
-          </form>
+          <>
+            {error === 'quotationReasonRequired' && (
+              <div className="mt-4 max-w-sm">
+                <Alert tone="error">{t('quotationReasonRequired')}</Alert>
+              </div>
+            )}
+            <form action={sendQuotationAction.bind(null, booking.id)} className="mt-4 flex max-w-sm flex-wrap items-end gap-3">
+              <FormField label={t('quoteAmount')} htmlFor="amount">
+                <input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  defaultValue={costBreakdown?.suggestedTotalMinor != null ? (costBreakdown.suggestedTotalMinor / 100).toFixed(2) : undefined}
+                  className="w-full rounded-survey border border-rule px-3 py-2"
+                />
+              </FormField>
+              <FormField label={t('currency')} htmlFor="currency">
+                <Select name="currency" required defaultValue={costBreakdown?.currency}>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="NAD">NAD</option>
+                  <option value="CDF">CDF</option>
+                </Select>
+              </FormField>
+              {costBreakdown?.suggestedTotalMinor != null && (
+                <FormField label={t('quotationOverrideReason')} htmlFor="overrideReason" optional>
+                  <input name="overrideReason" className="w-full rounded-survey border border-rule px-3 py-2" />
+                </FormField>
+              )}
+              <SubmitButton pendingLabel={t('sending')}>{t('sendQuotation')}</SubmitButton>
+            </form>
+            {costBreakdown?.suggestedTotalMinor != null && <p className="mt-1 text-xs text-mist">{t('quotationOverrideNotice')}</p>}
+          </>
         )}
         {costBreakdown?.suggestedTotalMinor != null && (
           <p className="mt-1 text-xs text-mist">

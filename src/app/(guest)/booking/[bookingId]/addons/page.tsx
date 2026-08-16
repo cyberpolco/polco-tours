@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
+import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { Alert } from '@/components/ui/Alert';
@@ -47,10 +48,24 @@ export default async function AddonsPage({ params }: Props) {
     );
   }
 
-  const [allAddons, selected] = await Promise.all([
+  const [allAddons, selected, country] = await Promise.all([
     catalogService.listActiveAddonServices(ctx),
     booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
+    bookingService.getBookingCountry(ctx, bookingId),
   ]);
+  // DR-128: each add-on's real, chargeable price comes from AddonRate
+  // (country + code, resolved by src/lib/addon-rates.ts) -- AddonService's
+  // own flat priceMinor/currency is no longer used for pricing. An add-on
+  // with no rate configured for this booking's country is simply not
+  // offered here, same "hide, never fall back to a hand-typed price"
+  // posture as every other Operational Rate.
+  const withResolvedRates = await Promise.all(
+    allAddons.map(async (a) => {
+      const rate = await getEffectiveAddonRate(country, a.code);
+      return rate ? { ...a, priceMinor: rate.priceMinor, currency: rate.currency } : null;
+    }),
+  );
+  const countryPricedAddons = withResolvedRates.filter((a): a is NonNullable<typeof a> => a !== null);
   // This app has no FX conversion anywhere (BR-02) -- an add-on priced in a
   // different currency than the booking can never actually be selected
   // (setAddons rejects the mismatch server-side too). Filter here so the
@@ -58,7 +73,7 @@ export default async function AddonsPage({ params }: Props) {
   // production: the seeded add-on catalog is USD-only, but several demo
   // packages are priced in NAD, so every add-on silently failed for those
   // bookings until this filter existed.
-  const addons = allAddons.filter((a) => a.currency === booking.currency);
+  const addons = countryPricedAddons.filter((a) => a.currency === booking.currency);
   const selectedIds = new Set(selected.map((a) => a.addonServiceId));
 
   return (
@@ -75,7 +90,7 @@ export default async function AddonsPage({ params }: Props) {
           addons={addons.map((a) => ({ id: a.id, name: a.name, priceMinor: a.priceMinor, currency: a.currency }))}
           selectedIds={[...selectedIds]}
           alreadyFinalized={Boolean(booking.addonsFinalizedAt)}
-          emptyMessage={allAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency })}
+          emptyMessage={countryPricedAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency })}
         />
       </div>
     </Reveal>

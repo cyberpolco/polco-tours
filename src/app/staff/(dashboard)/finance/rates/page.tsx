@@ -13,6 +13,7 @@ import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
 import {
   createActivityFeeAction,
+  createAddonRateAction,
   createAdminCostRateAction,
   createFoodBeverageRateAction,
   createHotelRateAction,
@@ -20,6 +21,7 @@ import {
   createStaffRateAction,
   createTransportRateAction,
   deleteActivityFeeAction,
+  deleteAddonRateAction,
   deleteAdminCostRateAction,
   deleteFoodBeverageRateAction,
   deleteHotelRateAction,
@@ -80,8 +82,9 @@ export default async function FinanceRatesPage() {
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const t = await getTranslations('StaffFinanceRates');
   const tCountries = await getTranslations('Countries');
+  const tAddons = await getTranslations('TripAddons');
 
-  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, hotels, activities, sites] =
+  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, addonRates, hotels, activities, sites] =
     await Promise.all([
       financeService.listStaffRates(ctx),
       financeService.listHotelRates(ctx),
@@ -90,6 +93,7 @@ export default async function FinanceRatesPage() {
       financeService.listActivityFees(ctx),
       financeService.listImmigrationCostRates(ctx),
       financeService.listAdminCostRates(ctx),
+      financeService.listAddonRates(ctx),
       itineraryService.listHotels(ctx),
       itineraryService.listActivities(ctx),
       itineraryService.listSites(ctx),
@@ -578,6 +582,72 @@ export default async function FinanceRatesPage() {
             </FormField>
             <FormField label={t('dailyRate')} htmlFor="dailyRate">
               <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
+            </FormField>
+            <FormField label={t('currency')} htmlFor="currency">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
+                {CURRENCY_OPTIONS}
+              </Select>
+            </FormField>
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
+            </SubmitButton>
+          </form>
+        )}
+      </Card>
+
+      <Card>
+        <p className="eyebrow text-mist">{t('addonServices')}</p>
+        <p className="mt-1 text-xs text-mist">{t('addonServicesNotice')}</p>
+        {addonRates.length === 0 ? (
+          <p className="mt-2 text-sm text-mist">{t('noAddonRates')}</p>
+        ) : (
+          <Table className="mt-2">
+            <thead>
+              <TableHeaderRow>
+                <Th>{t('country')}</Th>
+                <Th>{t('addonService')}</Th>
+                <Th>{t('price')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {addonRates.map((r) => (
+                <Tr key={r.id}>
+                  <Td>{tCountries(r.country)}</Td>
+                  <Td>{tAddons(r.code)}</Td>
+                  <Td>{format(money(r.priceMinor, r.currency))}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteAddonRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+        {canWrite && (
+          <form action={createAddonRateAction} className="mt-3 flex flex-wrap items-end gap-3">
+            <FormField label={t('country')} htmlFor="country">
+              <Select name="country" required className="text-sm">
+                {countryOptions(tCountries)}
+              </Select>
+            </FormField>
+            <FormField label={t('addonService')} htmlFor="code">
+              <Select name="code" required className="text-sm">
+                <option value="PHOTOGRAPHY">{tAddons('PHOTOGRAPHY')}</option>
+                <option value="VIDEOGRAPHY">{tAddons('VIDEOGRAPHY')}</option>
+                <option value="TRANSLATOR">{tAddons('TRANSLATOR')}</option>
+                <option value="VISA_ASSISTANCE">{tAddons('VISA_ASSISTANCE')}</option>
+              </Select>
+            </FormField>
+            <FormField label={t('price')} htmlFor="price">
+              <input name="price" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" defaultValue="NAD" required className="text-sm">
