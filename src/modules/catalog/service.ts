@@ -94,6 +94,7 @@ export const catalogService = {
     // gate applies to either published sub-status -- an "unavailable"
     // package is still a real, priced package, just temporarily not
     // bookable, not an excuse to skip the price/duration requirement.
+    let regenerateSlugFromTitle: string | undefined;
     if (input.status && isPublishedStatus(input.status)) {
       const existing = await catalogRepository.findPackageById(organizationId, packageId);
       if (existing?.priceMinor == null) {
@@ -103,9 +104,21 @@ export const catalogService = {
       if (durationDays == null) {
         throw Errors.conflict('This package has no duration set yet -- set one before publishing');
       }
+      // DR-131: first publish (DRAFT -> a published status) re-derives the
+      // slug from the title the package is actually launching with, rather
+      // than whatever it was called at creation (DR-118). Already-published
+      // packages (PUBLISHED_AVAILABLE <-> PUBLISHED_UNAVAILABLE) keep their
+      // slug frozen, same as before.
+      if (existing?.status === 'DRAFT') {
+        regenerateSlugFromTitle = input.title ?? existing.title;
+      }
     }
     const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
+    if (regenerateSlugFromTitle) {
+      const withNewSlug = await catalogRepository.regeneratePackageSlug(organizationId, packageId, regenerateSlugFromTitle);
+      if (withNewSlug) return withNewSlug;
+    }
     return updated;
   },
 

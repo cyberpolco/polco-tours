@@ -93,31 +93,49 @@ async function nextPackageReference(tx: TenantTx): Promise<string> {
   return formatPackageReference(row.nextval);
 }
 
-/** DR-118: a guest-facing package URL isn't org-scoped, so a slug must be
- * unique across every organization, not just this one -- deliberately the
- * plain unscoped `prisma` client (not `tx`), since RLS would otherwise hide
- * another org's slug and let two orgs collide on the same one. Appends
- * -2, -3, ... on collision; never reassigned once a package has one. */
-async function nextUniqueSlug(title: string): Promise<string> {
+const MAX_SLUG_ATTEMPTS = 50;
+
+function isSlugUniqueConstraintViolation(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002';
+}
+
+/** DR-118/DR-131: a guest-facing package URL isn't org-scoped, so a slug
+ * must be unique across every organization, not just this one. This can't
+ * be checked with a pre-write SELECT: `tour_packages` has FORCE ROW LEVEL
+ * SECURITY, and a query with no `app.org_id` GUC set (this helper never
+ * opens a tenant transaction) sees zero rows under Postgres's own
+ * deny-by-default policy -- including every other org's rows, which is
+ * exactly what a global-uniqueness check needs to see. A unique index,
+ * unlike a SELECT, is not RLS-filtered -- it still rejects a value already
+ * used by another org's row whether that row is visible to the caller or
+ * not -- so collisions are instead detected by attempting the write itself
+ * (via `attempt`) and retrying with `-2`, `-3`, ... on a real unique-
+ * constraint conflict. Once a package has a slug it's never reassigned,
+ * except DR-131's own first-publish regeneration. */
+async function withUniqueSlug<T>(title: string, attempt: (slug: string) => Promise<T>): Promise<T> {
   const base = slugify(title) || 'package';
-  let candidate = base;
-  let suffix = 2;
-  while (await prisma.tourPackage.findUnique({ where: { slug: candidate } })) {
-    candidate = `${base}-${suffix}`;
-    suffix += 1;
+  for (let suffix = 1; suffix <= MAX_SLUG_ATTEMPTS; suffix += 1) {
+    const candidate = suffix === 1 ? base : `${base}-${suffix}`;
+    try {
+      return await attempt(candidate);
+    } catch (e) {
+      if (isSlugUniqueConstraintViolation(e) && suffix < MAX_SLUG_ATTEMPTS) continue;
+      throw e;
+    }
   }
-  return candidate;
+  throw new Error('Could not generate a unique package slug');
 }
 
 export const catalogRepository = {
   async createPackage(organizationId: string, input: CreatePackageInput): Promise<TourPackageView> {
-    const slug = await nextUniqueSlug(input.title);
-    return withOrg(organizationId, async (tx) => {
-      const p = await tx.tourPackage.create({
-        data: { organizationId, packageReference: await nextPackageReference(tx), slug, ...input },
-      });
-      return toPackageView(p);
-    });
+    return withUniqueSlug(input.title, (slug) =>
+      withOrg(organizationId, async (tx) => {
+        const p = await tx.tourPackage.create({
+          data: { organizationId, packageReference: await nextPackageReference(tx), slug, ...input },
+        });
+        return toPackageView(p);
+      }),
+    );
   },
 
   /** Public package-detail lookup by its personalized URL slug (DR-118). */
@@ -153,6 +171,24 @@ export const catalogRepository = {
       const p = await tx.tourPackage.update({ where: { id }, data: { priceMinor } });
       return toPackageView(p);
     });
+  },
+
+  /** DR-131: re-derives a package's slug from `title` at first publish
+   * (DRAFT -> a PUBLISHED_* status), so the public URL reflects whatever
+   * title the package actually launched with rather than whatever it was
+   * called at creation time (DR-118's slug is otherwise frozen forever).
+   * Deliberately outside UpdatePackageInput/updatePackage -- same
+   * bypass-the-generic-update precedent as updatePackagePrice above -- since
+   * staff must never set a slug directly. */
+  async regeneratePackageSlug(organizationId: string, id: string, title: string): Promise<TourPackageView | null> {
+    return withUniqueSlug(title, (slug) =>
+      withOrg(organizationId, async (tx) => {
+        const existing = await tx.tourPackage.findUnique({ where: { id } });
+        if (!existing || existing.deletedAt) return null;
+        const p = await tx.tourPackage.update({ where: { id }, data: { slug } });
+        return toPackageView(p);
+      }),
+    );
   },
 
   /** Soft delete (DR-028) -- sets deletedAt; every read in this module already

@@ -19,10 +19,35 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-130 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-131 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-131** re-derives `TourPackage.slug` from the title at first publish
+> (DRAFT → a `PUBLISHED_*` status) instead of leaving it frozen at whatever
+> it was called at creation (DR-118) — explicit user request, confirmed via
+> a clarifying question since it partially reverses DR-118's "generated
+> once, never reassigned" rule. `catalogService.updatePackage` calls a new
+> `catalogRepository.regeneratePackageSlug` only when the *pre*-update
+> status was `DRAFT` and the incoming status is published; a title edited
+> while still `DRAFT` no longer ships with a stale slug, and the slug stays
+> frozen across any later `PUBLISHED_AVAILABLE` ↔ `PUBLISHED_UNAVAILABLE`
+> toggle, matching DR-118's original link-rot intent for anything already
+> public. Building this surfaced a real latent bug in DR-118 itself:
+> `nextUniqueSlug`'s cross-org uniqueness check was a pre-write `SELECT` run
+> through the plain unscoped `prisma` client (no `app.org_id` GUC set) —
+> `tour_packages` has `FORCE ROW LEVEL SECURITY`, so under the correct
+> least-privilege `polco_app` role that query silently returns zero rows
+> **for every org, not just others'** (deny-by-default), meaning the "is
+> this slug already taken" check has never actually worked when connected
+> through the intended production role (a `BYPASSRLS` role like
+> `neondb_owner` masks this locally). Replaced with `withUniqueSlug`, which
+> detects a real collision by attempting the write and retrying `-2`, `-3`,
+> ... on an actual unique-constraint violation (`P2002`) instead of a
+> SELECT — a unique index is enforced independent of RLS visibility, so
+> this works regardless of which role is connected. Both `createPackage`
+> and `regeneratePackageSlug` now go through it. No schema/permission/
+> module-dependency change.
 > **DR-130** fixes a real live-production bug (user-reported: "Something went
 > wrong uploading the image" on the staff package edit page) — root cause was
 > that `src/lib/public-image-blob.ts`'s `uploadPublicImage` (DR-071, reused by
@@ -1209,6 +1234,19 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   polco_app`). `polco_app` isn't an owner, though, so `db:push`/`db:rls`
   still need `neondb_owner`'s connection string — there is currently no
   single credential that does both.
+- **A pre-write `SELECT` is not a reliable way to check global (cross-org)
+  uniqueness against an RLS-`FORCE`d table when connected as `polco_app`**
+  — a query run outside `withOrg` (no `app.org_id` GUC set) returns zero
+  rows under deny-by-default, for every org, not just others' (real latent
+  bug, DR-131: DR-118's original `nextUniqueSlug` used exactly this pattern
+  to check package-slug collisions across orgs and had silently never
+  worked under the correct role, only appearing to work locally under a
+  `BYPASSRLS` role like `neondb_owner`). A unique index, unlike a `SELECT`,
+  is **not** RLS-filtered — an `INSERT`/`UPDATE` still gets a real
+  unique-constraint violation (`P2002`) against a row it can't see. For any
+  value that must be unique across every org, detect the collision by
+  attempting the write and retrying on `P2002` (see `withUniqueSlug` in
+  `src/modules/catalog/repository.ts`), not by pre-checking visibility.
 - **A failed test `beforeAll` can silently wipe an entire unscoped table.**
   Prisma drops `undefined`-valued `where` keys, so a fixture cleanup like
   `deleteMany({ where: { organizationId: orgId } })` becomes an unscoped
