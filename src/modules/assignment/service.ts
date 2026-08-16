@@ -6,7 +6,7 @@ import { authService } from '@modules/auth';
 import { catalogService, hasDepartureEnded, type DepartureView } from '@modules/catalog';
 import { fleetService, maintenanceRecencyScore, type DriverProfileView, type GuideProfileView, type VehicleView } from '@modules/fleet';
 import { audit } from '@lib/audit';
-import { Errors } from '@lib/errors';
+import { ApiError, Errors } from '@lib/errors';
 import { haversineDistanceKm } from '@lib/geo';
 import { assertCan } from '@lib/rbac';
 import {
@@ -27,7 +27,16 @@ function requireOrg(ctx: AuthContext): string {
 
 /** Shared by createAssignment's hard validation and recommendAssignment's
  * eligibility filter -- neither a vehicle nor a driver may already be on a
- * different, date-overlapping departure. */
+ * different, date-overlapping departure.
+ *
+ * A candidate's past assignment can point at a departure whose TourPackage
+ * has since been soft-deleted -- soft-deleting a package doesn't cascade to
+ * its Departure/Assignment rows, so getDepartureDetail 404s on it forever
+ * after (real incident: this crashed the entire departure-detail page and
+ * assignment creation for ANY vehicle/driver/guide that had ever been
+ * assigned to such an orphaned departure, not just that departure itself).
+ * A departure that can no longer be resolved can't meaningfully overlap
+ * anything -- treat it as no conflict instead of letting the 404 escape. */
 async function hasOverlappingAssignment(
   ctx: AuthContext,
   organizationId: string,
@@ -37,7 +46,13 @@ async function hasOverlappingAssignment(
 ): Promise<boolean> {
   for (const otherDepartureId of otherDepartureIds) {
     if (otherDepartureId === departureId) continue;
-    const other = await catalogService.getDepartureDetail(ctx, otherDepartureId);
+    let other;
+    try {
+      other = await catalogService.getDepartureDetail(ctx, otherDepartureId);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) continue;
+      throw err;
+    }
     if (departuresOverlap(departure, other.departure)) return true;
   }
   return false;

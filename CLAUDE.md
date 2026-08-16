@@ -19,8 +19,25 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-132 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
+> Current through DR-133 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-133 was a live production incident** (user-reported:
+> "Application error: a server-side exception has occurred" when assigning
+> a driver, guide, or vehicle) — root-caused via `vercel logs --prod` plus a
+> direct repro script against the shared Neon DB. A `TourPackage` had been
+> soft-deleted while its `Departure` still carried a live `Assignment`;
+> soft-deleting a package doesn't cascade to its Departure/Assignment rows,
+> so `catalogService.getDepartureDetail` 404s on that departure forever
+> after. `assignmentService`'s shared `hasOverlappingAssignment` helper
+> (used by both `recommendAssignment`, the departure-detail page's data
+> source, and `createAssignment` itself) called `getDepartureDetail` on
+> every *other* departure a candidate vehicle/driver/guide had ever been
+> assigned to, with no error handling — so one such orphaned departure
+> crashed assignment viewing/creation for *any* unrelated departure
+> involving that same resource. Fixed by treating a 404 from that lookup as
+> "no conflict" rather than letting it escape. No schema/permission/
+> module-dependency change; no data was altered — the orphaned departure/
+> assignment behind an already-soft-deleted package are left as-is.
+> **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
 > **DR-132** makes Accommodation, Restaurant, and Activity cost-breakdown
