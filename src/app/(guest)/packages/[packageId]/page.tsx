@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { Badge } from '@/components/ui/Badge';
@@ -10,6 +11,18 @@ import { formatOrPending } from '@lib/money';
 
 interface Props {
   params: Promise<{ packageId: string }>;
+}
+
+// Per-package title/description for a shared link's preview -- paired with
+// this route's opengraph-image.tsx (the image half of the same preview).
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { packageId } = await params;
+  try {
+    const { pkg } = await catalogService.getPublicPackageWithDepartures(packageId);
+    return { title: pkg.title, description: pkg.description };
+  } catch {
+    return {};
+  }
 }
 
 export default async function PackageDetailPage({ params }: Props) {

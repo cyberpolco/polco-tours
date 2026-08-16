@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { fallbackGradientFor } from '@lib/package-fallback-gradient';
 
 // DR-068: real photography isn't sourced yet (no rights/licensing resolved
 // -- see CLAUDE.md Open Items), so a package with no `imageUrl` gets one of
@@ -7,22 +8,9 @@ import Image from 'next/image';
 // package id/reference) so the same package always renders the same plate,
 // and different packages spread visually across the set rather than all
 // looking identical. Swapping in a real photo later is just setting
-// `imageUrl` -- no markup change needed at any call site.
-const FALLBACK_GRADIENTS = [
-  'linear-gradient(155deg, #3b1f3a, #d65b2e)',
-  'linear-gradient(155deg, #122b2c, #2f6e4f)',
-  'linear-gradient(155deg, #12222f, #2a6b78)',
-  'linear-gradient(155deg, #d65b2e, #f2b441)',
-  'linear-gradient(155deg, #211a1d, #3b1f3a)',
-];
-
-function hashSeed(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
+// `imageUrl` -- no markup change needed at any call site. The same palette
+// backs the package's opengraph-image route, so a shared link's preview
+// matches what the page itself renders.
 
 interface PackageImageProps {
   imageUrl: string | null;
@@ -49,7 +37,7 @@ export function PackageImage({ imageUrl, alt, seed, className, rounded = true }:
     );
   }
 
-  const gradient = FALLBACK_GRADIENTS[hashSeed(seed) % FALLBACK_GRADIENTS.length];
+  const gradient = fallbackGradientFor(seed);
   return (
     <div className={base} style={{ backgroundImage: gradient }} role="img" aria-label={alt}>
       <svg viewBox="0 0 300 190" preserveAspectRatio="none" className="absolute inset-0 h-full w-full opacity-40">
