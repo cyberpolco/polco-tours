@@ -19,16 +19,20 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-120 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-120's additive schema change (`ItineraryDay.activityIds`) is
-> not yet applied to the shared Neon DB** — code/docs are done, but the
-> `db push` step (this repo's standing by-hand process, explicit user
-> confirmation first) hasn't run yet; treat `ItineraryDay.activityIds` as
-> not-yet-queryable in production until that happens. **DR-117's enum
-> migration, and DR-116/118/119's additive schema changes, are all applied
-> to the shared Neon DB** (two independent Claude
-> Code sessions coordinated one combined `db push`/`db:rls` run, verified
-> via `psql`; CI is green). **DR-120** closes a real DR-116 gap found while
+> Current through DR-121 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
+> DR-117's enum migration, and DR-116/118/119's additive schema changes are
+> all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-121** backfills the DR-119/DR-120 template-copy behavior onto
+> itineraries created before those two DRs shipped (explicit user request) —
+> new `scripts/backfill-itinerary-day-templates.ts` (`npm run
+> itinerary-day-templates:backfill`) fills a pre-existing `ItineraryDay`'s
+> `hotelId`/`restaurantId`/`activityIds` in from its package's matching
+> `PackageItineraryDay` template row **only where that field is still
+> null/empty** — never overwrites a value staff already set. Run once
+> against the shared DB: 13 of 15 inspected pre-existing itinerary days
+> backfilled (all `hotelId`; no inspected template day had a
+> `restaurantId`/`activityIds` to backfill from). **DR-120** closes a real DR-116 gap found while
 > auditing "does the package Day Template survive itinerary creation":
 > `PackageItineraryDay.activityIds` (DR-116's structured Activity picker,
 > which supersedes the legacy free-text `activities` for any template day

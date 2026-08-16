@@ -29,6 +29,7 @@
     "qstash:register-schedule": "tsx scripts/register-qstash-schedule.ts",
     "coords:backfill": "tsx scripts/backfill-coordinates.ts",
     "package-slugs:backfill": "tsx scripts/backfill-package-slugs.ts",
+    "itinerary-day-templates:backfill": "tsx scripts/backfill-itinerary-day-templates.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
