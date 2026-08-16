@@ -57,6 +57,14 @@ export interface DepartureDetail {
   // the PUBLISHED-requires-a-price rule in updatePackage below, so this is
   // a defensive null, not a routine one.
   effectiveUnitPrice: Money | null;
+  // DR-134: only non-null when effectiveUnitPrice came from the package's
+  // own priceMinor (not a departure priceOverrideMinor, and not a bespoke
+  // departure) -- lets booking skip re-taxing a guest who already locked in
+  // a package price that includes tax + platform fee. Per seat, same unit
+  // as effectiveUnitPrice.
+  priceSubtotalMinor: number | null;
+  priceTaxRateBp: number | null;
+  pricePlatformFeeRateBp: number | null;
   bookable: boolean;
 }
 
@@ -126,11 +134,17 @@ export const catalogService = {
    * called only by financeService.saveCostBreakdown once it's computed a
    * price from Operational Rates. Deliberately bypasses updatePackage/
    * UpdatePackageInput (which no longer accepts a priceMinor field at all),
-   * so no other caller can set an arbitrary, non-rate-derived price. */
-  async setComputedPrice(ctx: AuthContext, packageId: string, priceMinor: number): Promise<TourPackageView> {
+   * so no other caller can set an arbitrary, non-rate-derived price. DR-134:
+   * also carries the tax+fee-composition snapshot alongside the price
+   * itself. */
+  async setComputedPrice(
+    ctx: AuthContext,
+    packageId: string,
+    input: { priceMinor: number; priceSubtotalMinor: number | null; priceTaxRateBp: number | null; pricePlatformFeeRateBp: number | null },
+  ): Promise<TourPackageView> {
     assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
-    const updated = await catalogRepository.updatePackagePrice(organizationId, packageId, priceMinor);
+    const updated = await catalogRepository.updatePackagePrice(organizationId, packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
     return updated;
   },
@@ -285,6 +299,9 @@ export const catalogService = {
         packageStatus: null,
         packageCountry: departure.customCountry,
         effectiveUnitPrice: money(departure.priceOverrideMinor, departure.currency),
+        priceSubtotalMinor: null,
+        priceTaxRateBp: null,
+        pricePlatformFeeRateBp: null,
         bookable: false,
       };
     }
@@ -293,11 +310,18 @@ export const catalogService = {
     if (!pkg || !isPackageVisible(pkg, ctx.roles) || !isDepartureVisible(departure, ctx.roles)) {
       throw Errors.notFound('Departure not found');
     }
+    // DR-134: only carry the package's tax+fee snapshot across when the
+    // departure is actually using the package's own priceMinor -- a manual
+    // priceOverrideMinor has no corresponding breakdown to attribute it to.
+    const usingPackagePrice = departure.priceOverrideMinor == null;
     return {
       departure,
       packageStatus: pkg.status,
       packageCountry: pkg.country,
       effectiveUnitPrice: effectivePrice(pkg, departure),
+      priceSubtotalMinor: usingPackagePrice ? pkg.priceSubtotalMinor : null,
+      priceTaxRateBp: usingPackagePrice ? pkg.priceTaxRateBp : null,
+      pricePlatformFeeRateBp: usingPackagePrice ? pkg.pricePlatformFeeRateBp : null,
       bookable: isBookable(pkg, departure),
     };
   },
@@ -484,11 +508,15 @@ export const catalogService = {
     if (!pkg || !isPackageVisible(pkg, PUBLIC_VIEW_ROLE) || !isDepartureVisible(departure, PUBLIC_VIEW_ROLE)) {
       throw Errors.notFound('Departure not found');
     }
+    const usingPackagePrice = departure.priceOverrideMinor == null;
     return {
       departure,
       packageStatus: pkg.status,
       packageCountry: pkg.country,
       effectiveUnitPrice: effectivePrice(pkg, departure),
+      priceSubtotalMinor: usingPackagePrice ? pkg.priceSubtotalMinor : null,
+      priceTaxRateBp: usingPackagePrice ? pkg.priceTaxRateBp : null,
+      pricePlatformFeeRateBp: usingPackagePrice ? pkg.pricePlatformFeeRateBp : null,
       bookable: isBookable(pkg, departure),
     };
   },

@@ -58,6 +58,15 @@ export interface BookingView {
   holdExpiresAt: Date | null;
   priceMinor: number | null;
   currency: Currency | null;
+  // DR-134: whole-booking (already x seats) snapshot of the package's own
+  // tax+fee-composition fields, copied at hold-creation time -- null
+  // whenever the departure used a manual priceOverrideMinor, for a
+  // TAILOR_MADE booking, or for a booking that predates DR-134.
+  // invoicingService trusts these instead of resolving tax/platform fee
+  // live when set.
+  priceSubtotalMinor: number | null;
+  priceTaxRateBp: number | null;
+  pricePlatformFeeRateBp: number | null;
   addonsFinalizedAt: Date | null;
   // Snapshotted when add-ons are finalized (setAddons) -- true only if the
   // selection included Visa Assistance. Drives whether the Passport wizard

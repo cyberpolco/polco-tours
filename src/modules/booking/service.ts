@@ -129,6 +129,10 @@ async function finalizeHold(
   if (!detail.effectiveUnitPrice) throw Errors.conflict('This package is not yet priced');
 
   const price = scale(detail.effectiveUnitPrice, seats);
+  // DR-134: whole-booking (x seats) copy of the package's own tax+fee
+  // composition, if any -- see DepartureDetail's own doc comment for when
+  // this is null.
+  const priceSubtotalMinor = detail.priceSubtotalMinor != null ? detail.priceSubtotalMinor * seats : null;
 
   let booking: BookingView;
   try {
@@ -140,6 +144,9 @@ async function finalizeHold(
       priceMinor: price.minor,
       currency: price.currency,
       specialRequests,
+      priceSubtotalMinor,
+      priceTaxRateBp: detail.priceTaxRateBp,
+      pricePlatformFeeRateBp: detail.pricePlatformFeeRateBp,
     });
   } catch (err) {
     if (err instanceof SoldOutError) throw Errors.conflict(err.message);

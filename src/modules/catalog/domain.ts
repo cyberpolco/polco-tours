@@ -24,6 +24,13 @@ export interface TourPackageView {
   // finance module's cost breakdown computes it (or an admin override sets
   // it). Existing packages keep their pre-DR-039 value (grandfathered).
   priceMinor: number | null;
+  // DR-134: components financeService.saveCostBreakdown baked into
+  // priceMinor (per seat) -- null for a package priced any other way.
+  // priceSubtotalMinor is the tax/fee-exclusive base; the two rates are
+  // whatever was effective when the breakdown was last saved.
+  priceSubtotalMinor: number | null;
+  priceTaxRateBp: number | null;
+  pricePlatformFeeRateBp: number | null;
   currency: Currency;
   durationDays: number | null;
   // DR-068: optional hero image. Nullable/additive -- no photography existed

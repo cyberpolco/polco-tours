@@ -95,42 +95,59 @@ export const invoicingService = {
     const existing = await invoicingRepository.findByBookingId(organizationId, bookingId);
     if (existing) return existing;
 
-    // A PREDEFINED_PACKAGE booking's country comes from its departure's
-    // package; a TAILOR_MADE booking has no departure at all, so it carries
-    // its own customCountry instead (set at creation, see
-    // bookingService.createTailorMadeRequest).
-    let country: string;
-    if (booking.departureId) {
-      ({ packageCountry: country } = await catalogService.getDepartureDetail(ctx, booking.departureId));
-    } else if (booking.customCountry) {
-      country = booking.customCountry;
-    } else {
-      throw Errors.conflict('This booking has no destination country to determine tax');
-    }
-
-    let rateBp: number;
-    try {
-      ({ rateBp } = await getEffectiveTaxRate(country));
-    } catch {
-      // Missing tax config is an operator gap, not a caller error.
-      throw Errors.conflict('No tax rate configured for this country');
-    }
-
-    // Settings module (DR-042; additive since DR-127): the platform's fee,
-    // charged to the customer on top of package price + tax. Same
-    // "missing config is an operator gap" treatment as tax.
-    let platformFeeRateBp: number;
-    try {
-      ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
-    } catch {
-      throw Errors.conflict('No platform rate configured');
-    }
-
     // Base seat price + finalized add-ons (DR-015) -- throws until the
     // traveler manifest/passport/add-ons wizard steps are all complete, so an
     // invoice's subtotal can never be created before add-ons are decided.
     const billable = await bookingService.getBillableTotal(ctx, bookingId);
-    const subtotal = money(billable.totalMinor, billable.currency);
+
+    let rateBp: number;
+    let platformFeeRateBp: number;
+    let subtotalBaseMinor: number;
+
+    if (booking.priceSubtotalMinor != null && booking.priceTaxRateBp != null && booking.pricePlatformFeeRateBp != null) {
+      // DR-134: this booking's package price was already computed tax +
+      // platform-fee inclusive, at the rate effective when it was priced --
+      // trust that snapshot rather than resolving live rates again, so the
+      // guest is never taxed twice.
+      subtotalBaseMinor = booking.priceSubtotalMinor;
+      rateBp = booking.priceTaxRateBp;
+      platformFeeRateBp = booking.pricePlatformFeeRateBp;
+    } else {
+      // Unchanged from before DR-134: TAILOR_MADE, a departure with its own
+      // manual priceOverrideMinor, or a booking that predates DR-134. A
+      // PREDEFINED_PACKAGE booking's country comes from its departure's
+      // package; a TAILOR_MADE booking has no departure at all, so it
+      // carries its own customCountry instead (set at creation, see
+      // bookingService.createTailorMadeRequest).
+      let country: string;
+      if (booking.departureId) {
+        ({ packageCountry: country } = await catalogService.getDepartureDetail(ctx, booking.departureId));
+      } else if (booking.customCountry) {
+        country = booking.customCountry;
+      } else {
+        throw Errors.conflict('This booking has no destination country to determine tax');
+      }
+
+      try {
+        ({ rateBp } = await getEffectiveTaxRate(country));
+      } catch {
+        // Missing tax config is an operator gap, not a caller error.
+        throw Errors.conflict('No tax rate configured for this country');
+      }
+
+      // Settings module (DR-042; additive since DR-127): the platform's fee,
+      // charged to the customer on top of package price + tax. Same
+      // "missing config is an operator gap" treatment as tax.
+      try {
+        ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
+      } catch {
+        throw Errors.conflict('No platform rate configured');
+      }
+
+      subtotalBaseMinor = billable.baseMinor;
+    }
+
+    const subtotal = money(subtotalBaseMinor + billable.addonsMinor, billable.currency);
     // DR-104/DR-127: no coupon yet at creation time (discountBp omitted) --
     // same math computeInvoiceAmounts uses for applyCoupon/removeCoupon
     // later. platformFeeMinor comes back as part of `amounts`, already

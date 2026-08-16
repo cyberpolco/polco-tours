@@ -500,6 +500,17 @@ model TourPackage {
   // treats null as not-bookable. Existing packages keep their pre-DR-039
   // value (grandfathered, no cost breakdown required retroactively).
   priceMinor       Int?
+  // DR-134: the components financeService.saveCostBreakdown baked into
+  // priceMinor (per seat, tax + platform-fee-inclusive) -- null for a
+  // package priced any other way (pre-DR-134, or grandfathered). Lets
+  // booking/invoicing detect "this price already includes tax + platform
+  // fee" and skip resolving them live again, so a guest is never taxed
+  // twice. priceSubtotalMinor is the tax/fee-exclusive base (base cost +
+  // agency margin); the two rates are whatever was effective when this
+  // package's cost breakdown was last saved.
+  priceSubtotalMinor     Int?
+  priceTaxRateBp         Int?
+  pricePlatformFeeRateBp Int?
   currency         Currency
   durationDays     Int?
   // DR-068: optional hero image for the guest package card/detail page.
@@ -689,6 +700,17 @@ model Booking {
   // time. Null for TAILOR_MADE until staff sends a quotation (sendQuotation).
   priceMinor             Int?
   currency               Currency?
+  // DR-134: whole-booking (already x seats) copy of the package's own
+  // price*/priceSubtotalMinor fields, snapshotted at hold-creation time --
+  // null whenever the departure used a manual priceOverrideMinor (no
+  // package breakdown to copy from) or for a TAILOR_MADE booking (priced
+  // via sendQuotation, never package-derived). invoicingService trusts
+  // these instead of resolving tax/platform fee live when they're set, so
+  // a guest whose package price already includes tax + platform fee is
+  // never taxed twice.
+  priceSubtotalMinor     Int?
+  priceTaxRateBp         Int?
+  pricePlatformFeeRateBp Int?
   // Set when the add-ons wizard step is submitted, even choosing none --
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
@@ -1900,6 +1922,17 @@ model PackageCostBreakdown {
   computedActivitiesMinor    Int?
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?
+  // DR-134: display/audit-trail snapshot of the tax + platform fee folded
+  // into TourPackage.priceMinor (whole-group, like the computed*Minor
+  // fields above) -- computedTotalMinor = computedSellingPriceMinor + tax +
+  // platform fee. The two *RateBpSnapshot fields record whatever rate was
+  // actually effective when this breakdown was last saved (never re-read
+  // live afterward).
+  computedTaxMinor           Int?
+  computedPlatformFeeMinor   Int?
+  computedTotalMinor         Int?
+  taxRateBpSnapshot          Int?
+  platformFeeRateBpSnapshot  Int?
   // Override + audit trail (spec: "Administrators may override calculated
   // prices when necessary while maintaining an audit trail"). The audit
   // trail itself lives in the append-only audit_logs table (via audit()),

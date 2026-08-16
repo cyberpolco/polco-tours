@@ -27,6 +27,9 @@ function toPackageView(p: TourPackage): TourPackageView {
     country: p.country,
     countries: p.countries,
     priceMinor: p.priceMinor,
+    priceSubtotalMinor: p.priceSubtotalMinor,
+    priceTaxRateBp: p.priceTaxRateBp,
+    pricePlatformFeeRateBp: p.pricePlatformFeeRateBp,
     currency: p.currency,
     durationDays: p.durationDays,
     imageUrl: p.imageUrl,
@@ -163,12 +166,26 @@ export const catalogRepository = {
   // not routed through updatePackage/UpdatePackageInput (which no longer
   // carries a priceMinor field at all) so a package's price can never be set
   // by anything other than financeService.saveCostBreakdown's own
-  // Operational-Rates-derived computation.
-  async updatePackagePrice(organizationId: string, id: string, priceMinor: number): Promise<TourPackageView | null> {
+  // Operational-Rates-derived computation. DR-134: also writes the
+  // tax+fee-composition snapshot fields alongside priceMinor in the same
+  // update, since they're only ever set together.
+  async updatePackagePrice(
+    organizationId: string,
+    id: string,
+    input: { priceMinor: number; priceSubtotalMinor: number | null; priceTaxRateBp: number | null; pricePlatformFeeRateBp: number | null },
+  ): Promise<TourPackageView | null> {
     return withOrg(organizationId, async (tx) => {
       const existing = await tx.tourPackage.findUnique({ where: { id } });
       if (!existing || existing.deletedAt) return null;
-      const p = await tx.tourPackage.update({ where: { id }, data: { priceMinor } });
+      const p = await tx.tourPackage.update({
+        where: { id },
+        data: {
+          priceMinor: input.priceMinor,
+          priceSubtotalMinor: input.priceSubtotalMinor,
+          priceTaxRateBp: input.priceTaxRateBp,
+          pricePlatformFeeRateBp: input.pricePlatformFeeRateBp,
+        },
+      });
       return toPackageView(p);
     });
   },
@@ -219,6 +236,9 @@ export const catalogRepository = {
           country: existing.country,
           countries: existing.countries,
           priceMinor: existing.priceMinor,
+          priceSubtotalMinor: existing.priceSubtotalMinor,
+          priceTaxRateBp: existing.priceTaxRateBp,
+          pricePlatformFeeRateBp: existing.pricePlatformFeeRateBp,
           currency: existing.currency,
           durationDays: existing.durationDays,
           imageUrl: existing.imageUrl,

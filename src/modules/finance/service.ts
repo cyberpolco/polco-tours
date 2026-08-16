@@ -11,7 +11,10 @@ import { catalogService, type PackageItineraryDayView } from '@modules/catalog';
 import { itineraryService } from '@modules/itinerary';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { getEffectivePlatformRate } from '@lib/platform-rate';
+import { applyTaxAndPlatformFee, impliedSubtotalMinor } from '@lib/pricing';
 import { assertCan } from '@lib/rbac';
+import { getEffectiveTaxRate } from '@lib/tax';
 import {
   computeBaseCostMinor,
   computeCostBuckets,
@@ -515,8 +518,33 @@ export const financeService = {
     const buckets = computeCostBuckets(costInputs);
     const baseCostMinor = computeBaseCostMinor(costInputs);
     const sellingPriceTotalMinor = computeSellingPriceMinor(baseCostMinor, input.agencyMarginBp);
-    const computedPerSeat = perSeatPriceMinor(sellingPriceTotalMinor, input.referenceGroupSize);
-    const finalPriceMinor = input.overridePriceMinor ?? computedPerSeat;
+
+    // DR-134: fold tax + the platform fee into the package's stored price
+    // (explicit user request) -- resolved fresh here, at cost-breakdown-save
+    // time, and then snapshotted (see below) so booking/invoicing can trust
+    // it later rather than re-resolving live and taxing the guest twice.
+    let taxRateBp: number;
+    try {
+      ({ rateBp: taxRateBp } = await getEffectiveTaxRate(pkg.country, now));
+    } catch {
+      throw Errors.conflict('No tax rate configured for this country');
+    }
+    let platformFeeRateBp: number;
+    try {
+      ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate(now));
+    } catch {
+      throw Errors.conflict('No platform rate configured');
+    }
+    const { taxMinor, platformFeeMinor, totalMinor } = applyTaxAndPlatformFee(sellingPriceTotalMinor, input.currency, taxRateBp, platformFeeRateBp);
+
+    const computedPerSeatSubtotal = perSeatPriceMinor(sellingPriceTotalMinor, input.referenceGroupSize);
+    const computedPerSeatTotal = perSeatPriceMinor(totalMinor, input.referenceGroupSize);
+    // An override now replaces the FINAL tax+fee-inclusive per-seat price
+    // directly (consistent with priceMinor's new meaning) -- back out an
+    // implied subtotal from it using the same resolved rates so booking/
+    // invoicing can still skip live re-taxation for an overridden package.
+    const finalPriceMinor = input.overridePriceMinor ?? computedPerSeatTotal;
+    const finalPerSeatSubtotal = input.overridePriceMinor != null ? impliedSubtotalMinor(input.overridePriceMinor, taxRateBp, platformFeeRateBp) : computedPerSeatSubtotal;
 
     const breakdown = await financeRepository.upsertBreakdown(
       organizationId,
@@ -541,6 +569,11 @@ export const financeService = {
         computedActivitiesMinor: buckets.activitiesMinor,
         computedBaseCostMinor: baseCostMinor,
         computedSellingPriceMinor: sellingPriceTotalMinor,
+        computedTaxMinor: taxMinor,
+        computedPlatformFeeMinor: platformFeeMinor,
+        computedTotalMinor: totalMinor,
+        taxRateBpSnapshot: taxRateBp,
+        platformFeeRateBpSnapshot: platformFeeRateBp,
         overridePriceMinor: input.overridePriceMinor ?? null,
         overrideReason: input.overrideReason ?? null,
         overriddenByUserId: input.overridePriceMinor != null ? ctx.userId : null,
@@ -549,7 +582,12 @@ export const financeService = {
       input.drinkLineItems.map((li) => ({ foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson })),
     );
 
-    await catalogService.setComputedPrice(ctx, tourPackageId, finalPriceMinor);
+    await catalogService.setComputedPrice(ctx, tourPackageId, {
+      priceMinor: finalPriceMinor,
+      priceSubtotalMinor: finalPerSeatSubtotal,
+      priceTaxRateBp: taxRateBp,
+      pricePlatformFeeRateBp: platformFeeRateBp,
+    });
 
     if (input.overridePriceMinor != null) {
       await audit({
@@ -559,7 +597,7 @@ export const financeService = {
         resourceType: 'TourPackage',
         resourceId: tourPackageId,
         organizationId,
-        metadata: { previousPriceMinor: pkg.priceMinor, computedPriceMinor: computedPerSeat, overridePriceMinor: finalPriceMinor, reason: input.overrideReason },
+        metadata: { previousPriceMinor: pkg.priceMinor, computedPriceMinor: computedPerSeatTotal, overridePriceMinor: finalPriceMinor, reason: input.overrideReason },
       });
     } else {
       await audit({

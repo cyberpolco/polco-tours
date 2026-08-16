@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { testPackageReference } from '../helpers/package-reference';
 import { prisma, withOrg } from '../../src/lib/db';
+import { getEffectivePlatformRate } from '../../src/lib/platform-rate';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getCostBreakdown, PUT as saveCostBreakdown } from '../../src/app/api/v1/catalog/packages/[packageId]/cost-breakdown/route';
 
@@ -25,6 +26,15 @@ let operatorId: string;
 let tourPackageId: string; // has a 4-day template: days 1-3 have hotel+restaurant, day 1 & 3 also have an activity, day 4 is bare
 let unpricedTemplatePackageId: string; // 1-day template with a hotel but no HotelRate configured for it
 let transportRateId: string;
+// DR-134: saveCostBreakdown now resolves tax + the platform rate to fold
+// into TourPackage.priceMinor -- a fresh TaxRate for this fixture's own
+// TEST_COUNTRY isolates the expected math from whatever real country rates
+// seed.ts may or may not have inserted; platformFeeRateBp is read live
+// (mirrors tests/api/invoices.api.test.ts's own convention) rather than
+// assumed, since PlatformRate is mutable, platform-wide config this file
+// doesn't own.
+const TAX_RATE_BP = 1000; // 10%
+let platformFeeRateBp: number;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -48,7 +58,9 @@ beforeAll(async () => {
   await Promise.all([
     admin.staffRate.create({ data: { country: TEST_COUNTRY, role: 'DRIVER', dailyRateMinor: 10000, currency: 'USD' } }),
     admin.staffRate.create({ data: { country: TEST_COUNTRY, role: 'GUIDE', dailyRateMinor: 8000, currency: 'USD' } }),
+    admin.taxRate.create({ data: { country: TEST_COUNTRY, taxType: 'VAT', rateBp: TAX_RATE_BP } }),
   ]);
+  ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
   const transportRate = await admin.transportRate.create({
     data: { country: TEST_COUNTRY, fuelEstimateMinor: 3000, tollFeesMinor: 500, parkingFeesMinor: 200, vehicleOperatingCostMinor: 1000, currency: 'USD' },
   });
@@ -146,6 +158,7 @@ afterAll(async () => {
     await tx.hotel.deleteMany({ where: { organizationId: orgId } });
   });
   await admin.staffRate.deleteMany({ where: { country: TEST_COUNTRY } });
+  await admin.taxRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.hotelRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.restaurantRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
@@ -188,8 +201,24 @@ describe('PUT /api/v1/catalog/packages/:packageId/cost-breakdown', () => {
       expect(breakdown.computedSellingPriceMinor).toBe(384960); // 320800 * 1.2
       expect(breakdown.overridePriceMinor).toBeNull();
 
+      // DR-134: tax + platform fee are folded into TourPackage.priceMinor --
+      // subtotal (384960) -> tax (TAX_RATE_BP) -> platform fee (on
+      // subtotal+tax) -> total, then per-seat (ceil).
+      const taxMinor = Math.round((384960 * TAX_RATE_BP) / 10000);
+      const preFeeTotal = 384960 + taxMinor;
+      const platformFeeMinor = Math.round((preFeeTotal * platformFeeRateBp) / 10000);
+      const totalMinor = preFeeTotal + platformFeeMinor;
+      expect(breakdown.computedTaxMinor).toBe(taxMinor);
+      expect(breakdown.computedPlatformFeeMinor).toBe(platformFeeMinor);
+      expect(breakdown.computedTotalMinor).toBe(totalMinor);
+      expect(breakdown.taxRateBpSnapshot).toBe(TAX_RATE_BP);
+      expect(breakdown.platformFeeRateBpSnapshot).toBe(platformFeeRateBp);
+
       const pkg = await withOrg(orgId, (tx) => tx.tourPackage.findUniqueOrThrow({ where: { id: tourPackageId } }));
-      expect(pkg.priceMinor).toBe(Math.ceil(384960 / 10)); // 38496
+      expect(pkg.priceMinor).toBe(Math.ceil(totalMinor / 10));
+      expect(pkg.priceSubtotalMinor).toBe(Math.ceil(384960 / 10)); // 38496
+      expect(pkg.priceTaxRateBp).toBe(TAX_RATE_BP);
+      expect(pkg.pricePlatformFeeRateBp).toBe(platformFeeRateBp);
     },
     30_000,
   );

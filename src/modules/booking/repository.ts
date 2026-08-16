@@ -22,6 +22,12 @@ export interface CreateHoldParams {
   priceMinor: number;
   currency: Currency;
   specialRequests?: string;
+  // DR-134: whole-booking (already x seats) tax+fee-composition snapshot,
+  // carried through from DepartureDetail -- null when there's no package
+  // breakdown to attribute the price to (see finalizeHold).
+  priceSubtotalMinor: number | null;
+  priceTaxRateBp: number | null;
+  pricePlatformFeeRateBp: number | null;
 }
 
 export interface CreateTailorMadeParams {
@@ -62,6 +68,9 @@ function toBookingView(b: Booking): BookingView {
     holdExpiresAt: b.holdExpiresAt,
     priceMinor: b.priceMinor,
     currency: b.currency,
+    priceSubtotalMinor: b.priceSubtotalMinor,
+    priceTaxRateBp: b.priceTaxRateBp,
+    pricePlatformFeeRateBp: b.pricePlatformFeeRateBp,
     addonsFinalizedAt: b.addonsFinalizedAt,
     requiresPassportUpload: b.requiresPassportUpload,
     bookingReference: b.bookingReference,
@@ -304,6 +313,9 @@ export const bookingRepository = {
             holdExpiresAt: holdExpiryFrom(new Date()),
             priceMinor: params.priceMinor,
             currency: params.currency,
+            priceSubtotalMinor: params.priceSubtotalMinor,
+            priceTaxRateBp: params.priceTaxRateBp,
+            pricePlatformFeeRateBp: params.pricePlatformFeeRateBp,
             bookingReference,
             specialRequests: params.specialRequests,
           },

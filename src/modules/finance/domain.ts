@@ -262,6 +262,16 @@ export interface PackageCostBreakdownView {
   computedActivitiesMinor: number | null;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
+  // DR-134: display/audit-trail snapshot of the tax + platform fee folded
+  // into TourPackage.priceMinor (whole-group, like the computed*Minor
+  // fields above) -- computedTotalMinor = computedSellingPriceMinor + tax +
+  // platform fee. The two *RateBpSnapshot fields record whatever rate was
+  // actually effective when this breakdown was last saved.
+  computedTaxMinor: number | null;
+  computedPlatformFeeMinor: number | null;
+  computedTotalMinor: number | null;
+  taxRateBpSnapshot: number | null;
+  platformFeeRateBpSnapshot: number | null;
   overridePriceMinor: number | null;
   overrideReason: string | null;
   overriddenByUserId: string | null;
