@@ -6,17 +6,20 @@
 import type { SidebarItem } from './sidebar-shell';
 
 export const SETTINGS_ITEMS: SidebarItem[] = [
-  { href: '/staff/settings/tax-rates', labelKey: 'taxRates', permission: 'platform_settings.read' },
-  { href: '/staff/settings/platform-rate', labelKey: 'platformRate', permission: 'platform_settings.read' },
-  // Coupons (DR-104): percentage-discount codes, same platform-wide/
-  // SUPERADMIN-write shape as the two rate settings above.
-  { href: '/staff/settings/coupons', labelKey: 'coupons', permission: 'platform_settings.read' },
+  // Finance: merges Tax Rates, Platform Rate, Coupons, and Operational
+  // Rates into one card hub (/staff/settings/finance) -- those 4 pages kept
+  // their own routes/permission gates and dropped out of this sidebar list,
+  // linking back to the hub instead of appearing here individually. Visible
+  // if the caller holds EITHER underlying permission (platform_settings.read
+  // for the first 3 cards, finance_config.read for Operational Rates) --
+  // in practice every role that holds one holds both, but anyPermission
+  // expresses that honestly rather than picking one arbitrarily.
+  { href: '/staff/settings/finance', labelKey: 'finance', anyPermission: ['platform_settings.read', 'finance_config.read'] },
   // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
   // any role (explicit user choice) -- superadminOnly here is belt-and-
   // suspenders with that, matching Permissions/My Profile below.
   { href: '/staff/content', labelKey: 'siteContent', permission: 'content.read', superadminOnly: true },
   { href: '/staff/country-regulations', labelKey: 'countryRegulations', permission: 'country_regulation.read' },
-  { href: '/staff/finance/rates', labelKey: 'operationalRates', permission: 'finance_config.read' },
   // Sites (DR-083): staff-managed reference list powering the itinerary
   // day form's "planned sites" picker -- moved here from the top-level nav
   // per explicit user direction (a reference-data admin screen, same

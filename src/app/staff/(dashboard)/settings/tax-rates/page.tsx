@@ -1,13 +1,12 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { SETTINGS_ITEMS } from '../../settings-items';
-import { SidebarShell } from '../../sidebar-shell';
 import { createTaxRateAction, deleteTaxRateAction } from './actions';
 
 function countryOptions(tCountries: (code: string) => string) {
@@ -52,77 +51,75 @@ export default async function TaxRatesPage() {
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const taxRates = await settingsService.listTaxRates(ctx);
   const t = await getTranslations('StaffTaxRates');
-  const tSidebar = await getTranslations('StaffSettingsSidebar');
   const tCountries = await getTranslations('Countries');
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
-      <div className="space-y-6">
-        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-        <p className="text-xs text-mist">{t('intro')}</p>
-        {taxRates.length === 0 ? (
-          <p className="text-mist">{t('noneYet')}</p>
-        ) : (
-          <Table>
-            <thead>
-              <TableHeaderRow>
-                <Th>{t('country')}</Th>
-                <Th>{t('type')}</Th>
-                <Th>{t('rate')}</Th>
-                <Th>{t('validFrom')}</Th>
-                <Th>{t('validTo')}</Th>
-                <Th />
-              </TableHeaderRow>
-            </thead>
-            <tbody>
-              {taxRates.map((r) => (
-                <Tr key={r.id}>
-                  <Td>{tCountries(r.country)}</Td>
-                  <Td>{r.taxType}</Td>
-                  <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
-                  <Td>{r.validFrom.toLocaleDateString()}</Td>
-                  <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
-                  <Td>
-                    {canWrite && (
-                      <DeleteButton
-                        action={deleteTaxRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
-                    )}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-        {canWrite && (
-          <form action={createTaxRateAction} className="flex flex-wrap items-end gap-3">
-            <FormField label={t('country')} htmlFor="country">
-              <Select name="country" required className="text-sm">
-                {countryOptions(tCountries)}
-              </Select>
-            </FormField>
-            <FormField label={t('taxType')} htmlFor="taxType" optional>
-              <input name="taxType" placeholder={t('taxTypePlaceholder')} className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('ratePercent')} htmlFor="ratePercent">
-              <input
-                name="ratePercent"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
-              />
-            </FormField>
-            <SubmitButton size="compact" pendingLabel={t('adding')}>
-              {t('add')}
-            </SubmitButton>
-          </form>
-        )}
-      </div>
-    </SidebarShell>
+    <div className="space-y-6">
+      <BackLink href="/staff/settings/finance">{t('backToFinance')}</BackLink>
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+      <p className="text-xs text-mist">{t('intro')}</p>
+      {taxRates.length === 0 ? (
+        <p className="text-mist">{t('noneYet')}</p>
+      ) : (
+        <Table>
+          <thead>
+            <TableHeaderRow>
+              <Th>{t('country')}</Th>
+              <Th>{t('type')}</Th>
+              <Th>{t('rate')}</Th>
+              <Th>{t('validFrom')}</Th>
+              <Th>{t('validTo')}</Th>
+              <Th />
+            </TableHeaderRow>
+          </thead>
+          <tbody>
+            {taxRates.map((r) => (
+              <Tr key={r.id}>
+                <Td>{tCountries(r.country)}</Td>
+                <Td>{r.taxType}</Td>
+                <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
+                <Td>{r.validFrom.toLocaleDateString()}</Td>
+                <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
+                <Td>
+                  {canWrite && (
+                    <DeleteButton
+                      action={deleteTaxRateAction.bind(null, r.id)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removeConfirm')}
+                      removeLabel={t('remove')}
+                    />
+                  )}
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      {canWrite && (
+        <form action={createTaxRateAction} className="flex flex-wrap items-end gap-3">
+          <FormField label={t('country')} htmlFor="country">
+            <Select name="country" required className="text-sm">
+              {countryOptions(tCountries)}
+            </Select>
+          </FormField>
+          <FormField label={t('taxType')} htmlFor="taxType" optional>
+            <input name="taxType" placeholder={t('taxTypePlaceholder')} className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
+          </FormField>
+          <FormField label={t('ratePercent')} htmlFor="ratePercent">
+            <input
+              name="ratePercent"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+            />
+          </FormField>
+          <SubmitButton size="compact" pendingLabel={t('adding')}>
+            {t('add')}
+          </SubmitButton>
+        </form>
+      )}
+    </div>
   );
 }

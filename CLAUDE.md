@@ -19,10 +19,20 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-122 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-123 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-123** merges Tax Rates, Platform Rate, Coupons (Settings module), and
+> Operational Rates (Finance module) into one "Finance" card hub at
+> `/staff/settings/finance` — same card-hub-plus-still-independent-pages
+> shape as DR-095/097/098. Each destination page keeps its own route/
+> permission gate unchanged, just swaps its `SidebarShell`/`SETTINGS_ITEMS`
+> wrapper for a `BackLink` back to the hub; `settings-items.ts` collapses
+> the 4 separate sidebar entries into one. `SidebarItem` gains a new
+> `anyPermission?: Permission[]` field (visible if the caller holds ANY one)
+> since the merged entry spans both `platform_settings.read` and
+> `finance_config.read`. No schema/permission/module-dependency change.
 > **DR-122** relabels the Site detail page's per-activity "Has an entrance
 > fee" checkbox/indicator to just "Fee"/"Free" (`Activity.hasEntranceFee`
 > itself unchanged, still purely informational) and fixes a real bug in
@@ -546,7 +556,8 @@ src/
         fleet/, schedule/, visa-queue/, country-regulations/,
         finance/, insights/, tracking/, ratings/, packages/, profile/,
         map/ (DR-089: booking-reference lookup -> per-day map + PDF),
-        settings/ (tax-rates, platform-rate), admin/ (users, clients, permissions)
+        settings/ (finance hub -> tax-rates, platform-rate, coupons; DR-123),
+        admin/ (users, clients, permissions)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
       booking/[bookingId]/, plan-my-trip/, find-booking/, rate/, gallery/,

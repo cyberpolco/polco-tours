@@ -39,12 +39,9 @@
   },
   "StaffSettingsSidebar": {
     "sectionTitle": "Settings",
-    "taxRates": "Tax Rates",
-    "platformRate": "Platform Rate",
-    "coupons": "Coupons",
+    "finance": "Finance",
     "siteContent": "Site Content",
     "countryRegulations": "Country Regulations",
-    "operationalRates": "Operational Rates",
     "sites": "Sites",
     "insights": "Insights",
     "users": "Users",
@@ -1283,9 +1280,22 @@
     "deleteConfirm": "Delete this country's regulations? This cannot be undone.",
     "deleteCountry": "Delete country"
   },
+  "StaffFinanceHub": {
+    "eyebrow": "Finance",
+    "title": "Finance",
+    "taxRatesTitle": "Tax Rates",
+    "taxRatesDesc": "Per-country VAT/sales tax applied to every invoice.",
+    "platformRateTitle": "Platform Rate",
+    "platformRateDesc": "The platform's own commission on every online payment.",
+    "couponsTitle": "Coupons",
+    "couponsDesc": "Percentage-discount codes applied to an invoice before payment.",
+    "operationalRatesTitle": "Operational Rates",
+    "operationalRatesDesc": "Cost-plus rates feeding every package's cost breakdown."
+  },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
     "title": "Operational Rates",
+    "backToFinance": "back to finance",
     "intro": "Feeds every package's cost breakdown (Base Cost + Agency Margin = Selling Price). Rates are effective-dated — add a new row rather than editing an old one when a rate changes; the most recent row still in its validity window wins.",
     "removing": "Removing…",
     "removeConfirm": "Remove this rate? This cannot be undone.",
@@ -1517,8 +1527,9 @@
     "saveNewPassword": "Save new password"
   },
   "StaffTaxRates": {
-    "eyebrow": "Settings",
+    "eyebrow": "Finance",
     "title": "Tax Rates",
+    "backToFinance": "back to finance",
     "intro": "Per-country VAT/sales tax applied to every invoice (BR-01). Effective-dated — add a new row rather than editing an old one when a rate changes; the most recent row still in its validity window wins.",
     "noneYet": "No tax rates configured yet.",
     "country": "Country",
@@ -1536,8 +1547,9 @@
     "add": "Add"
   },
   "StaffPlatformRate": {
-    "eyebrow": "Settings",
+    "eyebrow": "Finance",
     "title": "Platform Rate",
+    "backToFinance": "back to finance",
     "intro": "The platform's own commission on every online payment processed, shown as an informational split on each invoice — it never changes what the customer pays. Effective-dated, same convention as Tax Rates.",
     "noneYet": "No platform rate configured yet.",
     "rate": "Rate",
@@ -1803,8 +1815,9 @@
     "removing": "Removing…"
   },
   "StaffCoupons": {
-    "eyebrow": "Settings",
+    "eyebrow": "Finance",
     "title": "Coupons",
+    "backToFinance": "back to finance",
     "intro": "Percentage-discount codes applied to an invoice before payment. Codes are generated automatically.",
     "noneYet": "No coupons created yet.",
     "code": "Code",

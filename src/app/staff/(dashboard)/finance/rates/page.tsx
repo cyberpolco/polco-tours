@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { financeService } from '@modules/finance';
 import { itineraryService } from '@modules/itinerary';
+import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -10,8 +11,6 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
-import { SETTINGS_ITEMS } from '../../settings-items';
-import { SidebarShell } from '../../sidebar-shell';
 import {
   createActivityFeeAction,
   createFoodBeverageRateAction,
@@ -78,7 +77,6 @@ export default async function FinanceRatesPage() {
   const ctx = await requireStaffContext('finance_config.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const t = await getTranslations('StaffFinanceRates');
-  const tSidebar = await getTranslations('StaffSettingsSidebar');
   const tCountries = await getTranslations('Countries');
 
   const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, hotels, activities, sites] =
@@ -116,8 +114,8 @@ export default async function FinanceRatesPage() {
   });
 
   return (
-    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
     <div className="space-y-8">
+      <BackLink href="/staff/settings/finance">{t('backToFinance')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
       <p className="text-xs text-mist">{t('intro')}</p>
 
@@ -534,6 +532,5 @@ export default async function FinanceRatesPage() {
         )}
       </Card>
     </div>
-    </SidebarShell>
   );
 }

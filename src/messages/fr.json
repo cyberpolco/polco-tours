@@ -39,12 +39,9 @@
   },
   "StaffSettingsSidebar": {
     "sectionTitle": "Paramètres",
-    "taxRates": "Taux de taxe",
-    "platformRate": "Taux de plateforme",
-    "coupons": "Coupons",
+    "finance": "Finance",
     "siteContent": "Contenu du site",
     "countryRegulations": "Réglementations par pays",
-    "operationalRates": "Tarifs opérationnels",
     "sites": "Sites",
     "insights": "Statistiques",
     "users": "Utilisateurs",
@@ -1283,9 +1280,22 @@
     "deleteConfirm": "Supprimer les réglementations de ce pays ? Cette action est irréversible.",
     "deleteCountry": "Supprimer le pays"
   },
+  "StaffFinanceHub": {
+    "eyebrow": "Finance",
+    "title": "Finance",
+    "taxRatesTitle": "Taux de taxe",
+    "taxRatesDesc": "TVA/taxe de vente par pays appliquée à chaque facture.",
+    "platformRateTitle": "Taux de plateforme",
+    "platformRateDesc": "La commission propre de la plateforme sur chaque paiement en ligne.",
+    "couponsTitle": "Coupons",
+    "couponsDesc": "Codes de réduction en pourcentage appliqués à une facture avant paiement.",
+    "operationalRatesTitle": "Tarifs opérationnels",
+    "operationalRatesDesc": "Tarifs de type coût majoré alimentant la répartition des coûts de chaque circuit."
+  },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
     "title": "Tarifs opérationnels",
+    "backToFinance": "retour à finance",
     "intro": "Alimente la répartition des coûts de chaque circuit (Coût de base + Marge de l'agence = Prix de vente). Les tarifs sont datés d'effet — ajoutez une nouvelle ligne plutôt que de modifier une ancienne lorsqu'un tarif change ; la ligne la plus récente encore dans sa fenêtre de validité s'applique.",
     "removing": "Suppression…",
     "removeConfirm": "Supprimer ce tarif ? Cette action est irréversible.",
@@ -1517,8 +1527,9 @@
     "saveNewPassword": "Enregistrer le nouveau mot de passe"
   },
   "StaffTaxRates": {
-    "eyebrow": "Paramètres",
+    "eyebrow": "Finance",
     "title": "Taux de taxe",
+    "backToFinance": "retour à finance",
     "intro": "TVA/taxe de vente par pays appliquée à chaque facture (BR-01). Datée d'effet — ajoutez une nouvelle ligne plutôt que de modifier une ancienne lorsqu'un taux change ; la ligne la plus récente encore dans sa fenêtre de validité s'applique.",
     "noneYet": "Aucun taux de taxe configuré pour l'instant.",
     "country": "Pays",
@@ -1536,8 +1547,9 @@
     "add": "Ajouter"
   },
   "StaffPlatformRate": {
-    "eyebrow": "Paramètres",
+    "eyebrow": "Finance",
     "title": "Taux de plateforme",
+    "backToFinance": "retour à finance",
     "intro": "La commission propre de la plateforme sur chaque paiement en ligne traité, affichée comme une répartition informative sur chaque facture — elle ne change jamais ce que le client paie. Datée d'effet, même convention que les taux de taxe.",
     "noneYet": "Aucun taux de plateforme configuré pour l'instant.",
     "rate": "Taux",
@@ -1803,8 +1815,9 @@
     "removing": "Suppression…"
   },
   "StaffCoupons": {
-    "eyebrow": "Paramètres",
+    "eyebrow": "Finance",
     "title": "Coupons",
+    "backToFinance": "retour à finance",
     "intro": "Codes de réduction en pourcentage appliqués à une facture avant paiement. Les codes sont générés automatiquement.",
     "noneYet": "Aucun coupon créé pour le moment.",
     "code": "Code",

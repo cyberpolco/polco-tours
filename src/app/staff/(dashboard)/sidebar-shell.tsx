@@ -20,6 +20,11 @@ export interface SidebarItem {
   // (e.g. Clients: SUPERADMIN + TOUR_OPERATOR only, not everyone who
   // happens to hold booking.read).
   requiresAnyRole?: Role[];
+  // For an item merging several pages with different individual gates
+  // (e.g. Finance: tax/platform rates + coupons need platform_settings.read,
+  // Operational Rates needs finance_config.read) -- visible if the caller
+  // holds ANY one of these, not all.
+  anyPermission?: Permission[];
 }
 
 // Settings (DR-042): a left-vertical sub-nav for a
@@ -50,6 +55,7 @@ export function SidebarShell({
   const visibleItems = items.filter((item) => {
     if (item.superadminOnly) return isSuperadmin;
     if (item.requiresAnyRole) return isSuperadmin || item.requiresAnyRole.some((r) => roles.includes(r));
+    if (item.anyPermission) return isSuperadmin || item.anyPermission.some((p) => permissionSet.has(p));
     if (!item.permission) return true;
     return isSuperadmin || permissionSet.has(item.permission);
   });
