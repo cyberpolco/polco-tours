@@ -1,12 +1,13 @@
 // finance module — repository. The only place that touches
 // prisma.staffRate/hotelRate/transportRate/foodBeverageRate/activityFee/
-// immigrationCostRate/packageCostBreakdown/packageCostLineItem for this
-// module. The six rate tables are platform-wide (no organizationId, no RLS
-// -- same precedent as TaxRate, uses the plain global `prisma` client, no
-// withOrg); the cost-breakdown tables ARE org-scoped and go through
-// withOrg like every other tenant table.
+// immigrationCostRate/adminCostRate/packageCostBreakdown/packageCostLineItem
+// for this module. The seven rate tables are platform-wide (no
+// organizationId, no RLS -- same precedent as TaxRate, uses the plain
+// global `prisma` client, no withOrg); the cost-breakdown tables ARE
+// org-scoped and go through withOrg like every other tenant table.
 import type {
   ActivityFee,
+  AdminCostRate,
   BookingCostBreakdown,
   BookingCostLineItem,
   FoodBeverageCategory,
@@ -22,9 +23,11 @@ import type {
 import { prisma, withOrg } from '@lib/db';
 import type {
   ActivityFeeView,
+  AdminCostRateView,
   BookingCostBreakdownView,
   BookingCostLineItemView,
   CreateActivityFeeInput,
+  CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateImmigrationCostRateInput,
@@ -77,6 +80,9 @@ function toImmigrationCostRateView(r: ImmigrationCostRate): ImmigrationCostRateV
     validTo: r.validTo,
   };
 }
+function toAdminCostRateView(r: AdminCostRate): AdminCostRateView {
+  return { id: r.id, country: r.country, dailyRateMinor: r.dailyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+}
 function toLineItemView(li: PackageCostLineItem): PackageCostLineItemView {
   return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson };
 }
@@ -101,6 +107,8 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
     immigrationCostRateId: b.immigrationCostRateId,
+    adminDays: b.adminDays,
+    adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
     computedBaseCostMinor: b.computedBaseCostMinor,
     computedSellingPriceMinor: b.computedSellingPriceMinor,
@@ -134,6 +142,8 @@ function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCo
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
     immigrationCostRateId: b.immigrationCostRateId,
+    adminDays: b.adminDays,
+    adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
     computedBaseCostMinor: b.computedBaseCostMinor,
     computedSellingPriceMinor: b.computedSellingPriceMinor,
@@ -287,6 +297,29 @@ export const financeRepository = {
   async findImmigrationCostRateById(id: string): Promise<ImmigrationCostRateView | null> {
     const r = await prisma.immigrationCostRate.findUnique({ where: { id } });
     return r ? toImmigrationCostRateView(r) : null;
+  },
+
+  // -------------------------------------------------------------- AdminCostRate
+  async listAdminCostRates(): Promise<AdminCostRateView[]> {
+    const rows = await prisma.adminCostRate.findMany({ orderBy: [{ country: 'asc' }, { validFrom: 'desc' }] });
+    return rows.map(toAdminCostRateView);
+  },
+  async createAdminCostRate(input: CreateAdminCostRateInput): Promise<AdminCostRateView> {
+    const r = await prisma.adminCostRate.create({ data: input });
+    return toAdminCostRateView(r);
+  },
+  async deleteAdminCostRate(id: string): Promise<AdminCostRateView | null> {
+    const existing = await prisma.adminCostRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.adminCostRate.delete({ where: { id } });
+    return toAdminCostRateView(existing);
+  },
+  async findEffectiveAdminCostRate(country: string, at: Date): Promise<AdminCostRateView | null> {
+    const r = await prisma.adminCostRate.findFirst({
+      where: { country, validFrom: { lte: at }, OR: [{ validTo: null }, { validTo: { gte: at } }] },
+      orderBy: { validFrom: 'desc' },
+    });
+    return r ? toAdminCostRateView(r) : null;
   },
 
   // ---------------------------------------------------- PackageCostBreakdown

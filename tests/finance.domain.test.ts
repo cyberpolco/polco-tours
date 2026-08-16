@@ -26,6 +26,9 @@ const BASE_INPUTS: CostInputs = {
   requiresVisa: false,
   immigrationCostRate: null,
   lineItems: [],
+  adminDays: 0,
+  adminDailyRateMinor: null,
+  adminCostBasis: 'PER_GROUP',
 };
 
 describe('finance domain', () => {
@@ -85,6 +88,23 @@ describe('finance domain', () => {
       const smallGroup: CostInputs = { ...BASE_INPUTS, referenceGroupSize: 2, breakfastCount: 0, lunchCount: 0, dinnerCount: 0 };
       // accommodation (100000) + transport (18800) + staff (72000) unaffected by group size
       expect(computeBaseCostMinor(smallGroup)).toBe(100000 + 18800 + 72000);
+    });
+
+    it('charges admin cost once for the whole group under PER_GROUP', () => {
+      const withAdminCost: CostInputs = { ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: 1000, adminCostBasis: 'PER_GROUP' };
+      // admin: 1000 * 4 days = 4000 (referenceGroupSize of 10 has no effect), added on top
+      expect(computeBaseCostMinor(withAdminCost)).toBe(370800 + 4000);
+    });
+
+    it('scales admin cost by referenceGroupSize under PER_PERSON', () => {
+      const withAdminCost: CostInputs = { ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: 1000, adminCostBasis: 'PER_PERSON' };
+      // admin: 1000 * 4 days * 10 people = 40000, added on top
+      expect(computeBaseCostMinor(withAdminCost)).toBe(370800 + 40000);
+    });
+
+    it('adds no admin cost when adminDays is 0 or no rate is provided', () => {
+      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 0, adminDailyRateMinor: 1000 })).toBe(370800);
+      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: null })).toBe(370800);
     });
   });
 

@@ -19,10 +19,47 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-124 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-126 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-126** adds a seventh Operational Rate table, `AdminCostRate` (explicit
+> user request) — a flat per-day administrative-overhead fee, per-country
+> and effective-dated exactly like the existing six rate tables (DR-039),
+> configured on the same `/staff/finance/rates` page. Resolved by country +
+> effective date at compute time (`financeRepository.findEffectiveAdminCostRate`),
+> same "no id staff-picks from a dropdown" precedent as `StaffRate` — there's
+> only ever one active rate per country. New enum `AdminCostBasis`
+> (`PER_PERSON` / `PER_GROUP`, default `PER_GROUP`) is a **per cost-breakdown**
+> choice, not part of the rate itself: staff pick it (plus a plain
+> `adminDays` count) when setting up a package's or booking's cost
+> breakdown, deciding whether the resolved daily rate is charged once for
+> the whole group (`PER_GROUP`, like the existing Staff/Transport buckets)
+> or multiplied by the reference group size (`PER_PERSON`, like the
+> existing Restaurant/Visa buckets). `PackageCostBreakdown`/
+> `BookingCostBreakdown` both gain `adminDays`/`adminCostBasis` (additive,
+> same "applies to both cost-breakdown flows" precedent every other bucket
+> already follows); `computeBaseCostMinor` gains one more summed bucket.
+> Full stack mirrors the existing six rate tables: domain/repository/
+> service CRUD (same `requireRateWriter` SUPERADMIN-only gate + `audit()`
+> calls), a new Operational Rates card, and a matching REST pair
+> (`/api/v1/finance/rates/admin-cost` + `[id]`). No permission or
+> module-dependency change. **Schema change (new `AdminCostRate` table +
+> `adminDays`/`adminCostBasis` on `PackageCostBreakdown`/
+> `BookingCostBreakdown`) — not yet applied to the shared Neon DB as of this
+> writing; needs a `db push` (all-additive, no destructive step) before the
+> Operational Rates card or either cost-breakdown form's new section will
+> actually work end-to-end.** **DR-125** is two UX improvements, no schema/
+> permission change: the Sites list (`/staff/settings/sites`) gains an
+> Activities column (grouped from `itineraryService.listActivities` by
+> `siteId`, not a new `SiteView` field) plus the same search/filter/
+> pagination convention DR-091/095/097/098/099/100/101 already established;
+> and every staff-portal search field (17 pages) now updates results live
+> as the user types instead of requiring a manual "Filter" click — new
+> `src/components/ui/SearchField.tsx` debounces each keystroke (300ms) into
+> a `router.replace` carrying the rest of the query string across. Still a
+> plain input inside the existing GET `<form>` — all filtering logic stays
+> server-side (charter rule 1/2); only *when* navigation fires changed.
 > **DR-124** root-causes a `guest-checkout.spec.ts` CI flake that had failed
 > on essentially every run regardless of the actual commit — the guest
 > booking wizard (`(guest)/booking/[bookingId]/`) had no `loading.tsx` of
@@ -628,9 +665,10 @@ src/
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
-    finance/       # Cost-plus pricing engine — 6 rate tables (HotelRate/
+    finance/       # Cost-plus pricing engine — 7 rate tables (HotelRate/
                    #   ActivityFee reference itinerary's Hotel/Activity by
-                   #   id, DR-116) + PackageCostBreakdown (TourPackage) /
+                   #   id, DR-116; AdminCostRate, DR-126, is the 7th) +
+                   #   PackageCostBreakdown (TourPackage) /
                    #   BookingCostBreakdown (TAILOR_MADE Booking, DR-092)
                    #   sharing one resolveRatesForCost helper
     tracking/      # Fleet location + trip-progress composition, no repository.ts

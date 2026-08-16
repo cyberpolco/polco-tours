@@ -13,12 +13,14 @@ import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
 import {
   createActivityFeeAction,
+  createAdminCostRateAction,
   createFoodBeverageRateAction,
   createHotelRateAction,
   createImmigrationCostRateAction,
   createStaffRateAction,
   createTransportRateAction,
   deleteActivityFeeAction,
+  deleteAdminCostRateAction,
   deleteFoodBeverageRateAction,
   deleteHotelRateAction,
   deleteImmigrationCostRateAction,
@@ -79,7 +81,7 @@ export default async function FinanceRatesPage() {
   const t = await getTranslations('StaffFinanceRates');
   const tCountries = await getTranslations('Countries');
 
-  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, hotels, activities, sites] =
+  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, hotels, activities, sites] =
     await Promise.all([
       financeService.listStaffRates(ctx),
       financeService.listHotelRates(ctx),
@@ -87,6 +89,7 @@ export default async function FinanceRatesPage() {
       financeService.listFoodBeverageRates(ctx),
       financeService.listActivityFees(ctx),
       financeService.listImmigrationCostRates(ctx),
+      financeService.listAdminCostRates(ctx),
       itineraryService.listHotels(ctx),
       itineraryService.listActivities(ctx),
       itineraryService.listSites(ctx),
@@ -519,6 +522,62 @@ export default async function FinanceRatesPage() {
             </FormField>
             <FormField label={t('borderPermit')} htmlFor="borderPermitFee">
               <input name="borderPermitFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
+            </FormField>
+            <FormField label={t('currency')} htmlFor="currency">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
+                {CURRENCY_OPTIONS}
+              </Select>
+            </FormField>
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
+            </SubmitButton>
+          </form>
+        )}
+      </Card>
+
+      <Card>
+        <p className="eyebrow text-mist">{t('adminCosts')}</p>
+        <p className="mt-1 text-xs text-mist">{t('adminCostsNotice')}</p>
+        {adminCostRates.length === 0 ? (
+          <p className="mt-2 text-sm text-mist">{t('noAdminCostRates')}</p>
+        ) : (
+          <Table className="mt-2">
+            <thead>
+              <TableHeaderRow>
+                <Th>{t('country')}</Th>
+                <Th>{t('dailyRate')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {adminCostRates.map((r) => (
+                <Tr key={r.id}>
+                  <Td>{tCountries(r.country)}</Td>
+                  <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteAdminCostRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+        {canWrite && (
+          <form action={createAdminCostRateAction} className="mt-3 flex flex-wrap items-end gap-3">
+            <FormField label={t('country')} htmlFor="country">
+              <Select name="country" required className="text-sm">
+                {countryOptions(tCountries)}
+              </Select>
+            </FormField>
+            <FormField label={t('dailyRate')} htmlFor="dailyRate">
+              <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
             </FormField>
             <FormField label={t('currency')} htmlFor="currency">
               <Select name="currency" defaultValue="NAD" required className="text-sm">

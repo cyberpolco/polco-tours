@@ -261,6 +261,22 @@ export default async function CostBreakdownPage({ params }: Props) {
         </div>
 
         <div>
+          <p className="eyebrow text-mist">{t('adminCosts')}</p>
+          <p className="mt-1 text-xs text-mist">{t('ratesResolvedNotice', { country: tCountries(pkg.country) })}</p>
+          <div className="mt-2 grid grid-cols-2 gap-4">
+            <FormField label={t('adminDays')} htmlFor="adminDays" optional>
+              <input name="adminDays" type="number" min={0} defaultValue={breakdown?.adminDays ?? 0} className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label={t('adminCostBasisLabel')} htmlFor="adminCostBasis">
+              <Select name="adminCostBasis" defaultValue={breakdown?.adminCostBasis ?? 'PER_GROUP'}>
+                <option value="PER_GROUP">{t('basisPerGroup')}</option>
+                <option value="PER_PERSON">{t('basisPerPerson')}</option>
+              </Select>
+            </FormField>
+          </div>
+        </div>
+
+        <div>
           <p className="eyebrow text-mist">{t('agencyMargin')}</p>
           <FormField label={t('marginPercent')} htmlFor="agencyMarginPercent">
             <input

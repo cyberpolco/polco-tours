@@ -10,9 +10,10 @@ import { GET as listTransportRates, POST as createTransportRate } from '../../sr
 import { GET as listFoodBeverageRates, POST as createFoodBeverageRate } from '../../src/app/api/v1/finance/rates/food-beverage/route';
 import { GET as listActivityFees, POST as createActivityFee } from '../../src/app/api/v1/finance/rates/activity/route';
 import { GET as listImmigrationCostRates, POST as createImmigrationCostRate } from '../../src/app/api/v1/finance/rates/immigration-cost/route';
+import { GET as listAdminCostRates, POST as createAdminCostRate } from '../../src/app/api/v1/finance/rates/admin-cost/route';
 
 /**
- * Finance Module (DR-039) -- Operational Rates CRUD. These six tables are
+ * Finance Module (DR-039) -- Operational Rates CRUD. These seven tables are
  * platform-wide (no organizationId, no RLS, same precedent as TaxRate), so
  * fixtures only need a SUPERADMIN user, not an org -- but one is still
  * created for realism/consistency with the rest of this test suite.
@@ -75,6 +76,7 @@ afterAll(async () => {
   await admin.foodBeverageRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.immigrationCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
+  await admin.adminCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.site.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
@@ -117,7 +119,7 @@ describe('POST/GET/DELETE /api/v1/finance/rates/staff', () => {
   });
 });
 
-describe('the other five rate categories (smoke test)', () => {
+describe('the other six rate categories (smoke test)', () => {
   it('creates and lists a hotel rate', async () => {
     const headers = await loginAs(superadminId);
     const createReq = jsonRequest('http://localhost/api/v1/finance/rates/hotel', headers, 'POST', {
@@ -190,6 +192,19 @@ describe('the other five rate categories (smoke test)', () => {
     expect((await createImmigrationCostRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
     const listReq = new NextRequest('http://localhost/api/v1/finance/rates/immigration-cost', { headers });
     const listRes = await listImmigrationCostRates(listReq, { params: Promise.resolve({}) });
+    expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
+  });
+
+  it('creates and lists an admin cost rate', async () => {
+    const headers = await loginAs(superadminId);
+    const createReq = jsonRequest('http://localhost/api/v1/finance/rates/admin-cost', headers, 'POST', {
+      country: TEST_COUNTRY,
+      dailyRateMinor: 1500,
+      currency: 'USD',
+    });
+    expect((await createAdminCostRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
+    const listReq = new NextRequest('http://localhost/api/v1/finance/rates/admin-cost', { headers });
+    const listRes = await listAdminCostRates(listReq, { params: Promise.resolve({}) });
     expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
   });
 });

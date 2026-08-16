@@ -10,6 +10,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -76,13 +77,7 @@ export default async function StarlinkKitsListPage({ searchParams }: Props) {
 
       <form method="get" action="/staff/fleet/starlink-kits" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <FormField label={t('search')} htmlFor="q" optional>
-          <input
-            type="text"
-            name="q"
-            defaultValue={q}
-            placeholder={t('searchPlaceholder')}
-            className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-          />
+          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
         </FormField>
         <FormField label={t('status')} htmlFor="status" optional>
           <Select name="status" defaultValue={status}>

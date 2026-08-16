@@ -50,6 +50,8 @@ export async function saveBookingCostBreakdownAction(bookingId: string, formData
     transportDays: Number(formData.get('transportDays') || 0),
     requiresVisa: formData.get('requiresVisa') === 'on',
     immigrationCostRateId: optionalId(formData, 'immigrationCostRateId'),
+    adminDays: Number(formData.get('adminDays') || 0),
+    adminCostBasis: String(formData.get('adminCostBasis') || 'PER_GROUP'),
     agencyMarginBp: Math.round(Number(formData.get('agencyMarginPercent') || 0) * 100),
     lineItems,
     overridePriceMinor,

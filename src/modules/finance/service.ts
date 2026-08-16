@@ -17,8 +17,10 @@ import {
   computeSellingPriceMinor,
   perSeatPriceMinor,
   type ActivityFeeView,
+  type AdminCostRateView,
   type BookingCostBreakdownView,
   type CreateActivityFeeInput,
+  type CreateAdminCostRateInput,
   type CreateFoodBeverageRateInput,
   type CreateHotelRateInput,
   type CreateImmigrationCostRateInput,
@@ -72,6 +74,7 @@ interface ResolvedRates {
   hotelRate: HotelRateView | null;
   transportRate: TransportRateView | null;
   immigrationCostRate: ImmigrationCostRateView | null;
+  adminCostRate: AdminCostRateView | null;
   lineItems: ResolvedLineItem[];
 }
 
@@ -88,6 +91,7 @@ interface RateResolutionInput {
   transportRateId?: string;
   requiresVisa: boolean;
   immigrationCostRateId?: string;
+  adminDays: number;
   lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }>;
 }
 
@@ -97,7 +101,7 @@ interface RateResolutionInput {
  * checks so error wording (and which fields are even required) can differ
  * between the two flows. */
 async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promise<ResolvedRates> {
-  const [driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate] = await Promise.all([
+  const [driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, adminCostRate] = await Promise.all([
     input.driverDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'DRIVER', now) : Promise.resolve(null),
     input.guideDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'GUIDE', now) : Promise.resolve(null),
     input.photographerDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'PHOTOGRAPHER', now) : Promise.resolve(null),
@@ -105,6 +109,7 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
     input.breakfastCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'BREAKFAST', now) : Promise.resolve(null),
     input.lunchCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'LUNCH', now) : Promise.resolve(null),
     input.dinnerCount > 0 ? financeRepository.findEffectiveFoodBeverageRate(input.country, 'DINNER', now) : Promise.resolve(null),
+    input.adminDays > 0 ? financeRepository.findEffectiveAdminCostRate(input.country, now) : Promise.resolve(null),
   ]);
 
   const hotelRate = input.hotelRateId ? await financeRepository.findHotelRateById(input.hotelRateId) : null;
@@ -132,7 +137,7 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
     };
   });
 
-  return { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, lineItems };
+  return { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, adminCostRate, lineItems };
 }
 
 export const financeService = {
@@ -251,6 +256,24 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_deleted', resourceType: 'ImmigrationCostRate', resourceId: id });
   },
 
+  // -------------------------------------------------------------- AdminCostRate
+  async listAdminCostRates(ctx: AuthContext): Promise<AdminCostRateView[]> {
+    assertCan(ctx, 'finance_config.read');
+    return financeRepository.listAdminCostRates();
+  },
+  async createAdminCostRate(ctx: AuthContext, input: CreateAdminCostRateInput): Promise<AdminCostRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.createAdminCostRate(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.admin_cost_rate_created', resourceType: 'AdminCostRate', resourceId: rate.id });
+    return rate;
+  },
+  async deleteAdminCostRate(ctx: AuthContext, id: string): Promise<void> {
+    requireRateWriter(ctx);
+    const deleted = await financeRepository.deleteAdminCostRate(id);
+    if (!deleted) throw Errors.notFound('Admin cost rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.admin_cost_rate_deleted', resourceType: 'AdminCostRate', resourceId: id });
+  },
+
   // ---------------------------------------------------- package cost breakdown
 
   /** Same viewers as who can edit the package -- catalog.write, not a new
@@ -281,7 +304,7 @@ export const financeService = {
 
     const now = new Date();
 
-    const { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, lineItems: resolvedLineItems } =
+    const { driverRate, guideRate, photographerRate, videographerRate, breakfastRate, lunchRate, dinnerRate, hotelRate, transportRate, immigrationCostRate, adminCostRate, lineItems: resolvedLineItems } =
       await resolveRatesForCost(
         {
           country: pkg.country,
@@ -296,6 +319,7 @@ export const financeService = {
           transportRateId: input.transportRateId,
           requiresVisa: input.requiresVisa,
           immigrationCostRateId: input.immigrationCostRateId,
+          adminDays: input.adminDays,
           lineItems: input.lineItems,
         },
         now,
@@ -311,6 +335,7 @@ export const financeService = {
     if (input.hotelRateId && !hotelRate) throw Errors.notFound('Hotel rate not found');
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
     if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
+    if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${pkg.country}`);
 
     const lineItems = resolvedLineItems.map((li) => {
       if (li.perUnitMinor == null) throw Errors.notFound('A referenced drink/activity rate was not found');
@@ -355,6 +380,9 @@ export const financeService = {
           }
         : null,
       lineItems,
+      adminDays: input.adminDays,
+      adminDailyRateMinor: adminCostRate?.dailyRateMinor ?? null,
+      adminCostBasis: input.adminCostBasis,
     });
     const sellingPriceTotalMinor = computeSellingPriceMinor(baseCostMinor, input.agencyMarginBp);
     const computedPerSeat = perSeatPriceMinor(sellingPriceTotalMinor, input.referenceGroupSize);
@@ -380,6 +408,8 @@ export const financeService = {
         transportDays: input.transportDays,
         requiresVisa: input.requiresVisa,
         immigrationCostRateId: input.immigrationCostRateId ?? null,
+        adminDays: input.adminDays,
+        adminCostBasis: input.adminCostBasis,
         agencyMarginBp: input.agencyMarginBp,
         computedBaseCostMinor: baseCostMinor,
         computedSellingPriceMinor: sellingPriceTotalMinor,
@@ -462,6 +492,7 @@ export const financeService = {
       hotelRate,
       transportRate,
       immigrationCostRate,
+      adminCostRate,
       lineItems: resolvedLineItems,
     } = await resolveRatesForCost(
       {
@@ -477,6 +508,7 @@ export const financeService = {
         transportRateId: input.transportRateId,
         requiresVisa: input.requiresVisa,
         immigrationCostRateId: input.immigrationCostRateId,
+        adminDays: input.adminDays,
         lineItems: input.lineItems,
       },
       now,
@@ -492,6 +524,7 @@ export const financeService = {
     if (input.hotelRateId && !hotelRate) throw Errors.notFound('Hotel rate not found');
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
     if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
+    if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${country}`);
 
     const lineItems = resolvedLineItems.map((li) => {
       if (li.perUnitMinor == null) throw Errors.notFound('A referenced drink/activity rate was not found');
@@ -512,6 +545,7 @@ export const financeService = {
       hotelRate?.currency,
       transportRate?.currency,
       immigrationCostRate?.currency,
+      adminCostRate?.currency,
       ...resolvedLineItems.map((li) => li.currency ?? undefined),
     ].filter((c): c is Currency => c != null);
     const distinctRateCurrencies = new Set(rateCurrencies);
@@ -574,6 +608,9 @@ export const financeService = {
           }
         : null,
       lineItems,
+      adminDays: input.adminDays,
+      adminDailyRateMinor: adminCostRate?.dailyRateMinor ?? null,
+      adminCostBasis: input.adminCostBasis,
     });
     const sellingPriceTotalMinor = computeSellingPriceMinor(baseCostMinor, input.agencyMarginBp);
     const finalPriceMinor = input.overridePriceMinor ?? sellingPriceTotalMinor + addonsTotalMinor;
@@ -597,6 +634,8 @@ export const financeService = {
         transportDays: input.transportDays,
         requiresVisa: input.requiresVisa,
         immigrationCostRateId: input.immigrationCostRateId ?? null,
+        adminDays: input.adminDays,
+        adminCostBasis: input.adminCostBasis,
         agencyMarginBp: input.agencyMarginBp,
         computedBaseCostMinor: baseCostMinor,
         computedSellingPriceMinor: sellingPriceTotalMinor,

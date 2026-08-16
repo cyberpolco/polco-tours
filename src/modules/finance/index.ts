@@ -1,7 +1,9 @@
 // finance module — public interface. Other modules import ONLY from here.
 export { financeService } from './service';
 export {
+  AdminCostBasis,
   CreateActivityFeeInput,
+  CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateImmigrationCostRateInput,
@@ -12,6 +14,7 @@ export {
 } from './domain';
 export type {
   ActivityFeeView,
+  AdminCostRateView,
   BookingCostBreakdownView,
   BookingCostLineItemView,
   FoodBeverageRateView,

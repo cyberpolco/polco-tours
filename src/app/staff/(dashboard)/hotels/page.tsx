@@ -8,6 +8,7 @@ import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -91,13 +92,7 @@ export default async function HotelsPage({ searchParams }: Props) {
 
       <form method="get" action="/staff/hotels" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <FormField label={tFields('search')} htmlFor="q" optional>
-          <input
-            type="text"
-            name="q"
-            defaultValue={q}
-            placeholder={t('searchPlaceholder')}
-            className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-          />
+          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
         </FormField>
         <FormField label={tFields('country')} htmlFor="country" optional>
           <Select name="country" defaultValue={country}>

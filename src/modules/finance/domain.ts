@@ -1,9 +1,10 @@
 // finance module — domain types & rules. Pure; no framework or DB imports.
 // Finance Module (DR-039) -- a cost-plus pricing engine replacing
-// TourPackage.priceMinor as a plain staff-typed number. Six platform-wide,
-// effective-dated rate tables (mirrors TaxRate's precedent exactly) feed a
-// per-package cost breakdown; "seasonal pricing" is expressed as
-// overlapping date-ranged rows, no separate season concept.
+// TourPackage.priceMinor as a plain staff-typed number. Seven platform-wide,
+// effective-dated rate tables (mirrors TaxRate's precedent exactly; DR-126
+// added the seventh, AdminCostRate) feed a per-package cost breakdown;
+// "seasonal pricing" is expressed as overlapping date-ranged rows, no
+// separate season concept.
 import type { Currency, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
 import { z } from 'zod';
 
@@ -81,6 +82,21 @@ export interface ImmigrationCostRateView {
   validTo: Date | null;
 }
 
+// DR-126: a flat per-day admin overhead fee, one active row per country
+// (auto-resolved by country + effective date, same as StaffRate -- no id is
+// ever staff-picked from a dropdown for this rate).
+export interface AdminCostRateView {
+  id: string;
+  country: string;
+  dailyRateMinor: number;
+  currency: Currency;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
+export const AdminCostBasis = z.enum(['PER_PERSON', 'PER_GROUP']);
+export type AdminCostBasis = z.infer<typeof AdminCostBasis>;
+
 // ---------------------------------------------------------- rate input schemas
 
 export const CreateStaffRateInput = z.object({
@@ -150,6 +166,14 @@ export const CreateImmigrationCostRateInput = z.object({
 });
 export type CreateImmigrationCostRateInput = z.infer<typeof CreateImmigrationCostRateInput>;
 
+export const CreateAdminCostRateInput = z.object({
+  country: z.string().length(2),
+  dailyRateMinor: z.number().int().nonnegative(),
+  currency: CURRENCY_ENUM,
+  ...EFFECTIVE_DATING,
+});
+export type CreateAdminCostRateInput = z.infer<typeof CreateAdminCostRateInput>;
+
 // ---------------------------------------------------- package cost breakdown
 
 export interface PackageCostLineItemView {
@@ -179,6 +203,8 @@ export interface PackageCostBreakdownView {
   transportDays: number;
   requiresVisa: boolean;
   immigrationCostRateId: string | null;
+  adminDays: number;
+  adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
@@ -221,6 +247,8 @@ export const SaveCostBreakdownInput = z
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),
     immigrationCostRateId: z.string().uuid().optional(),
+    adminDays: z.number().int().nonnegative().default(0),
+    adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),
     lineItems: z.array(LineItemInput).optional().default([]),
     overridePriceMinor: z.number().int().nonnegative().optional(),
@@ -270,15 +298,22 @@ export interface CostInputs {
   // -- already resolved to a flat perUnitMinor by the caller (service.ts),
   // since domain.ts touches no DB.
   lineItems: Array<{ perUnitMinor: number; quantityPerPerson: number }>;
+  // DR-126
+  adminDays: number;
+  adminDailyRateMinor: number | null;
+  adminCostBasis: AdminCostBasis;
 }
 
-/** Sums all six spec buckets (Accommodation + Transportation + Staff Costs +
- * Restaurant Costs + Activity Fees [here: lineItems] + Visa Costs) for the
- * departure's FULL reference group, not per seat -- staff/transport costs
- * are genuinely shared across the whole group, not multiplied per person.
- * Per-person buckets (meals, line items, visa) are scaled by
- * referenceGroupSize; accommodation/transport/staff are not (they're
- * already whole-group figures: nights*rooms, days*vehicle, days*rate). */
+/** Sums all seven spec buckets (Accommodation + Transportation + Staff Costs +
+ * Restaurant Costs + Activity Fees [here: lineItems] + Visa Costs + Admin
+ * Costs) for the departure's FULL reference group, not per seat --
+ * staff/transport costs are genuinely shared across the whole group, not
+ * multiplied per person. Per-person buckets (meals, line items, visa) are
+ * scaled by referenceGroupSize; accommodation/transport/staff are not
+ * (they're already whole-group figures: nights*rooms, days*vehicle,
+ * days*rate). Admin cost is whichever of the two the caller chose
+ * (adminCostBasis): PER_GROUP behaves like staff/transport (charged once),
+ * PER_PERSON behaves like restaurant/visa (scaled by referenceGroupSize). */
 export function computeBaseCostMinor(inputs: CostInputs): number {
   const accommodation = (inputs.hotelNightlyRateMinor ?? 0) * inputs.nights * inputs.roomsNeeded;
 
@@ -314,7 +349,10 @@ export function computeBaseCostMinor(inputs: CostInputs): number {
         inputs.referenceGroupSize
       : 0;
 
-  return Math.round(accommodation + transport + staff + restaurant + lineItemsTotal + visa);
+  const adminCost =
+    (inputs.adminDailyRateMinor ?? 0) * inputs.adminDays * (inputs.adminCostBasis === 'PER_PERSON' ? inputs.referenceGroupSize : 1);
+
+  return Math.round(accommodation + transport + staff + restaurant + lineItemsTotal + visa + adminCost);
 }
 
 /** Base Cost + Agency Margin = Selling Price, for the full reference group. */
@@ -357,6 +395,8 @@ export interface BookingCostBreakdownView {
   transportDays: number;
   requiresVisa: boolean;
   immigrationCostRateId: string | null;
+  adminDays: number;
+  adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
@@ -391,6 +431,8 @@ export const SaveBookingCostBreakdownInput = z
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),
     immigrationCostRateId: z.string().uuid().optional(),
+    adminDays: z.number().int().nonnegative().default(0),
+    adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),
     lineItems: z.array(LineItemInput).optional().default([]),
     overridePriceMinor: z.number().int().nonnegative().optional(),

@@ -1617,12 +1617,14 @@ model ReviewSubjectRating {
 
 // ---------------------------------------------------------- finance (DR-039)
 // Cost-plus pricing engine -- replaces TourPackage.priceMinor as a plain
-// staff-typed number. The six rate tables below are platform-wide config
+// staff-typed number. The rate tables below are platform-wide config
 // (no organizationId, no RLS), same precedent as TaxRate/CountryRegulation,
 // effective-dated (validFrom/validTo) exactly like TaxRate -- "seasonal
 // pricing" is expressed as overlapping date-ranged rows, no separate season
 // concept needed. PackageCostBreakdown/PackageCostLineItem ARE org-scoped
 // (they're real operational data, not shared config) and get standard RLS.
+// DR-126 adds a seventh table, AdminCostRate, same shape/precedent as the
+// original six.
 
 enum StaffRateRole {
   DRIVER
@@ -1767,6 +1769,32 @@ model ImmigrationCostRate {
   @@map("immigration_cost_rates")
 }
 
+enum AdminCostBasis {
+  PER_PERSON
+  PER_GROUP
+}
+
+// DR-126: a flat per-day administrative overhead fee, auto-resolved by
+// country + effective date at compute time exactly like StaffRate (no id
+// staff-picks from a dropdown) -- there's only ever one active rate per
+// country, not several distinct sub-entities the way HotelRate/ActivityFee
+// have. Whether it's charged once for the whole group or multiplied per
+// traveler is a per-breakdown choice (AdminCostBasis on PackageCostBreakdown/
+// BookingCostBreakdown), not part of the rate itself.
+model AdminCostRate {
+  id             String    @id @default(uuid()) @db.Uuid
+  country        String
+  dailyRateMinor Int
+  currency       Currency
+  validFrom      DateTime  @default(now())
+  validTo        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([country, validFrom])
+  @@map("admin_cost_rates")
+}
+
 // One per TourPackage. referenceGroupSize is the divisor for the per-seat
 // price -- deliberately decoupled from any specific Departure.capacity,
 // since a package can have several departures with different capacities
@@ -1796,6 +1824,14 @@ model PackageCostBreakdown {
   transportDays             Int       @default(0)
   requiresVisa              Boolean   @default(false)
   immigrationCostRateId     String?   @db.Uuid
+  // DR-126: admin cost, resolved via AdminCostRate by country + effective
+  // date (same "no stored rate id" precedent as driverDays/guideDays above,
+  // not a staff-picked dropdown like hotelRateId/transportRateId). basis
+  // decides whether the resolved dailyRateMinor is multiplied by
+  // referenceGroupSize (PER_PERSON) or charged once for the whole group
+  // (PER_GROUP, the default -- an admin overhead fee is usually shared).
+  adminDays                 Int            @default(0)
+  adminCostBasis            AdminCostBasis @default(PER_GROUP)
   agencyMarginBp            Int // basis points, e.g. 2000 = 20%
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?
@@ -1870,6 +1906,8 @@ model BookingCostBreakdown {
   transportDays             Int       @default(0)
   requiresVisa              Boolean   @default(false)
   immigrationCostRateId     String?   @db.Uuid
+  adminDays                 Int            @default(0)
+  adminCostBasis            AdminCostBasis @default(PER_GROUP)
   agencyMarginBp            Int
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?

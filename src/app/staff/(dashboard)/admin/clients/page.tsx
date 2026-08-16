@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -86,13 +87,7 @@ export default async function ClientsPage({ searchParams }: Props) {
 
         <form method="get" action="/staff/admin/clients" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <FormField label={t('search')} htmlFor="q" optional>
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              placeholder={t('searchPlaceholder')}
-              className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-            />
+            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
           </FormField>
           <FormField label={t('emailDomain')} htmlFor="domain" optional>
             <Select name="domain" defaultValue={domain}>
