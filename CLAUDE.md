@@ -19,11 +19,19 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-121 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-122 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
-> **DR-121** backfills the DR-119/DR-120 template-copy behavior onto
+> **DR-122** relabels the Site detail page's per-activity "Has an entrance
+> fee" checkbox/indicator to just "Fee"/"Free" (`Activity.hasEntranceFee`
+> itself unchanged, still purely informational) and fixes a real bug in
+> Operational Rates' Activity Fee picker (`finance/rates/page.tsx`), which
+> had been filtering its options to only `hasEntranceFee`-flagged activities
+> — contradicting that flag's own documented "informational only" intent,
+> and inconsistent with `financeService.createActivityFee` itself, which
+> never gated on it. Every `Activity` is now listed/searchable there
+> regardless of its Fee flag. **DR-121** backfills the DR-119/DR-120 template-copy behavior onto
 > itineraries created before those two DRs shipped (explicit user request) —
 > new `scripts/backfill-itinerary-day-templates.ts` (`npm run
 > itinerary-day-templates:backfill`) fills a pre-existing `ItineraryDay`'s

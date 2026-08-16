@@ -102,10 +102,10 @@ export default async function FinanceRatesPage() {
   }));
 
   const siteById = new Map(sites.map((s) => [s.id, s]));
-  // DR-116: only an Activity flagged hasEntranceFee is offered here -- a
-  // free activity has no fee to price, so it never needs its own row.
-  const feeableActivities = activities.filter((a) => a.hasEntranceFee);
-  const activityOptions: SearchableOption[] = feeableActivities.map((a) => {
+  // DR-122: every Activity is offered here regardless of its Fee flag --
+  // staff decide per-country whether a given activity actually gets priced,
+  // not this flag (which is purely informational on the Site detail page).
+  const activityOptions: SearchableOption[] = activities.map((a) => {
     const site = siteById.get(a.siteId);
     const siteLabel = site ? `${site.name} (${tCountries(site.country)})` : '';
     return {
