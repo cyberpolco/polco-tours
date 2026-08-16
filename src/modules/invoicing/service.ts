@@ -7,7 +7,7 @@ import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
-import { money, taxOf } from '@lib/money';
+import { money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
 import { getEffectiveTaxRate } from '@lib/tax';
@@ -116,8 +116,8 @@ export const invoicingService = {
       throw Errors.conflict('No tax rate configured for this country');
     }
 
-    // Settings module (DR-042): the platform's own commission, computed as
-    // an informational split of the total -- never added to it. Same
+    // Settings module (DR-042; additive since DR-127): the platform's fee,
+    // charged to the customer on top of package price + tax. Same
     // "missing config is an operator gap" treatment as tax.
     let platformFeeRateBp: number;
     try {
@@ -131,13 +131,16 @@ export const invoicingService = {
     // invoice's subtotal can never be created before add-ons are decided.
     const billable = await bookingService.getBillableTotal(ctx, bookingId);
     const subtotal = money(billable.totalMinor, billable.currency);
-    // DR-104: no coupon yet at creation time (discountBp omitted) -- same
-    // math computeInvoiceAmounts uses for applyCoupon/removeCoupon later.
-    const amounts = computeInvoiceAmounts({ subtotalMinor: subtotal.minor, currency: subtotal.currency, taxRateBp: rateBp });
-    // Platform fee is a computed split of totalMinor, deliberately NOT
-    // added to it -- depositMinor/balanceMinor/totalMinor above are the
-    // customer's real amounts, unaffected by this.
-    const platformFeeMinor = taxOf(money(amounts.totalMinor, billable.currency), platformFeeRateBp).minor;
+    // DR-104/DR-127: no coupon yet at creation time (discountBp omitted) --
+    // same math computeInvoiceAmounts uses for applyCoupon/removeCoupon
+    // later. platformFeeMinor comes back as part of `amounts`, already
+    // folded into totalMinor/depositMinor/balanceMinor.
+    const amounts = computeInvoiceAmounts({
+      subtotalMinor: subtotal.minor,
+      currency: subtotal.currency,
+      taxRateBp: rateBp,
+      platformFeeRateBp,
+    });
 
     const invoice = await invoicingRepository.create(organizationId, {
       bookingId,
@@ -147,7 +150,6 @@ export const invoicingService = {
       discountBp: null,
       taxRateBp: rateBp,
       ...amounts,
-      platformFeeMinor,
       platformFeeRateBp,
     });
 
@@ -174,12 +176,14 @@ export const invoicingService = {
   },
 
   /** Guest "find my booking" price/payment summary (no-ctx) -- same trust
-   * boundary as getInvoiceStatusForBooking above. Deliberately excludes
-   * platformFeeMinor/platformFeeRateBp (staff-only commission split) and
-   * each payment's touristUserId/providerRef/provider (a stub gateway
-   * reference, no reason to expose to a guest) -- same "never part of this
-   * endpoint's response contract" discipline as applyPaymentOutcome's own
-   * comment above. Returns null when no invoice exists yet -- never calls
+   * boundary as getInvoiceStatusForBooking above. totalMinor/depositMinor/
+   * balanceMinor already include the platform fee (DR-127); this just omits
+   * the itemized platformFeeMinor/platformFeeRateBp breakdown (kept staff-
+   * only for now, no product requirement to break it out here) and each
+   * payment's touristUserId/providerRef/provider (a stub gateway reference,
+   * no reason to expose to a guest) -- same "never part of this endpoint's
+   * response contract" discipline as applyPaymentOutcome's own comment
+   * above. Returns null when no invoice exists yet -- never calls
    * getOrCreateInvoiceForBooking, which is a ctx-gated action with its own
    * validation, not something a guest lookup should trigger as a side
    * effect. */

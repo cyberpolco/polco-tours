@@ -234,6 +234,16 @@ export default async function BookingHomePage({ params }: Props) {
             <p className="text-xs text-mist">{t('tax')}</p>
             <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
           </div>
+          {invoice.platformFeeMinor != null && (
+            <div>
+              <p className="text-xs text-mist">{t('platformFee')}</p>
+              <p className="text-sm">{format(money(invoice.platformFeeMinor, invoice.currency))}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-mist">{t('total')}</p>
+            <p className="text-lg font-semibold text-navy">{format(money(invoice.totalMinor, invoice.currency))}</p>
+          </div>
           <div>
             <p className="text-xs text-mist">{t('depositPct')}</p>
             <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>

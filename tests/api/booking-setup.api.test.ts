@@ -3,6 +3,7 @@ import { testPackageReference } from '../helpers/package-reference';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
+import { getEffectivePlatformRate } from '../../src/lib/platform-rate';
 import { loginAs } from '../helpers/test-auth';
 import { generateBookingReference } from '../../src/modules/booking';
 
@@ -47,6 +48,7 @@ let touristAId: string;
 let guideId: string;
 let operatorId: string;
 let leadTravelerId: string;
+let platformFeeRateBp: number;
 
 function jsonRequest(method: string, url: string, headers: Headers, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -56,6 +58,7 @@ function jsonRequest(method: string, url: string, headers: Headers, body?: unkno
 
 beforeAll(async () => {
   await admin.taxRate.create({ data: { country, taxType: 'VAT', rateBp: 1000 } });
+  ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
 
   const org = await admin.organization.create({
     data: { name: `SETUP-API-TEST-${Date.now()}`, countries: [country], status: 'VERIFIED' },
@@ -324,10 +327,17 @@ describe('POST /api/v1/bookings/:bookingId/addons', () => {
     const invoiceRes = await getInvoice(invoiceReq, { params: Promise.resolve({ bookingId }) });
     expect(invoiceRes.status).toBe(200);
     const invoiceBody = await invoiceRes.json();
-    // 20000 (booking) + 5000 (add-on) = 25000 subtotal, 10% VAT -> 2500 tax.
+    // 20000 (booking) + 5000 (add-on) = 25000 subtotal, 10% VAT -> 2500 tax,
+    // pre-fee total 27500; platform fee (DR-127) is charged to the customer
+    // on top of that, at whatever PlatformRate is actually live (read in
+    // beforeAll, not a hardcoded guess -- DR-042 is platform-wide mutable
+    // config, not something this file seeds itself).
+    const preFeeTotal = 27500;
+    const platformFeeMinor = Math.round((preFeeTotal * platformFeeRateBp) / 10000);
     expect(invoiceBody.invoice.subtotalMinor).toBe(25000);
     expect(invoiceBody.invoice.taxMinor).toBe(2500);
-    expect(invoiceBody.invoice.totalMinor).toBe(27500);
+    expect(invoiceBody.invoice.platformFeeMinor).toBe(platformFeeMinor);
+    expect(invoiceBody.invoice.totalMinor).toBe(preFeeTotal + platformFeeMinor);
   });
 
   it('confirms the booking now shows the fully set-up state', async () => {

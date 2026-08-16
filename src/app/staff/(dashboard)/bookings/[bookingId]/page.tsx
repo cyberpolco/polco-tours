@@ -459,22 +459,26 @@ export default async function BookingDetailPage({ params }: Props) {
               <p className="text-sm">{format(money(invoice.taxMinor, invoice.currency))}</p>
             </div>
             <div>
+              {/* Settings module (DR-042; additive since DR-127): charged to
+                  the customer on top of subtotal + tax -- already folded
+                  into total/deposit/balance below, also shown on the
+                  guest-facing booking page now. */}
+              <p className="text-xs text-mist">{t('platformFee')}</p>
+              <p className="text-sm">
+                {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-mist">{t('total')}</p>
+              <p className="text-lg font-semibold text-navy">{format(money(invoice.totalMinor, invoice.currency))}</p>
+            </div>
+            <div>
               <p className="text-xs text-mist">{t('depositPct')}</p>
               <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
             </div>
             <div>
               <p className="text-xs text-mist">{t('balancePct')}</p>
               <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
-            </div>
-            <div>
-              {/* Settings module (DR-042): an informational split of the total
-                  above, not an extra charge -- staff-only, deliberately not
-                  shown on the guest-facing booking page (a customer could
-                  otherwise misread this as something they owe on top). */}
-              <p className="text-xs text-mist">{t('platformFee')}</p>
-              <p className="text-sm">
-                {invoice.platformFeeMinor != null ? format(money(invoice.platformFeeMinor, invoice.currency)) : '—'}
-              </p>
             </div>
           </Card>
           <CouponForm

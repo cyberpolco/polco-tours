@@ -199,6 +199,7 @@ export const invoicingRepository = {
         subtotalMinor: invoice.subtotalMinor,
         currency: invoice.currency,
         taxRateBp: invoice.taxRateBp,
+        platformFeeRateBp: invoice.platformFeeRateBp ?? 0,
         discountBp: coupon.discountBp,
       });
 
@@ -228,6 +229,7 @@ export const invoicingRepository = {
         subtotalMinor: invoice.subtotalMinor,
         currency: invoice.currency,
         taxRateBp: invoice.taxRateBp,
+        platformFeeRateBp: invoice.platformFeeRateBp ?? 0,
       });
       const updated = await tx.invoice.update({
         where: { id: invoiceId },

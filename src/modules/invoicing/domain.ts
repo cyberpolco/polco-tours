@@ -18,14 +18,16 @@ export interface InvoiceView {
   discountMinor: number;
   taxRateBp: number;
   taxMinor: number;
+  // Settings module (DR-042; additive since DR-127): the platform's fee,
+  // charged to the customer on top of the discounted subtotal + tax --
+  // included in totalMinor/depositMinor/balanceMinor below, not a side
+  // split of them. Null for invoices created before DR-042 shipped
+  // (grandfathered).
+  platformFeeMinor: number | null;
+  platformFeeRateBp: number | null;
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
-  // Settings module (DR-042): informational split of totalMinor -- the
-  // platform's own commission, never added to what the customer owes.
-  // Null for invoices created before this feature shipped (grandfathered).
-  platformFeeMinor: number | null;
-  platformFeeRateBp: number | null;
   status: InvoiceStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -65,20 +67,23 @@ export interface InvoiceAmountsInput {
   subtotalMinor: number;
   currency: Currency;
   taxRateBp: number;
+  platformFeeRateBp: number;
   discountBp?: number; // omitted/0 = no coupon
 }
 
 export interface InvoiceAmounts {
   discountMinor: number;
   taxMinor: number;
+  platformFeeMinor: number;
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
 }
 
-/** DR-104: subtotal -> discount -> discounted subtotal -> tax (on the
- * DISCOUNTED subtotal, not the original) -> total -> deposit/balance split.
- * The ONE place this math is written -- used by both
+/** DR-104/DR-127: subtotal -> discount -> discounted subtotal -> tax (on the
+ * DISCOUNTED subtotal, not the original) -> platform fee (on subtotal + tax,
+ * charged to the customer, not absorbed by the platform) -> total ->
+ * deposit/balance split. The ONE place this math is written -- used by both
  * getOrCreateInvoiceForBooking (discountBp omitted) and applyCoupon/
  * removeCoupon (set/omitted respectively), so the ordering can never drift
  * between the no-discount and with-discount paths. */
@@ -88,9 +93,11 @@ export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmount
   const discountMinor = discountBp > 0 ? discountOf(subtotal, discountBp).minor : 0;
   const discountedSubtotal = money(subtotal.minor - discountMinor, input.currency);
   const tax = taxOf(discountedSubtotal, input.taxRateBp);
-  const totalMinor = discountedSubtotal.minor + tax.minor;
+  const preFeeTotal = money(discountedSubtotal.minor + tax.minor, input.currency);
+  const platformFee = taxOf(preFeeTotal, input.platformFeeRateBp);
+  const totalMinor = preFeeTotal.minor + platformFee.minor;
   const { depositMinor, balanceMinor } = splitDeposit(totalMinor);
-  return { discountMinor, taxMinor: tax.minor, totalMinor, depositMinor, balanceMinor };
+  return { discountMinor, taxMinor: tax.minor, platformFeeMinor: platformFee.minor, totalMinor, depositMinor, balanceMinor };
 }
 
 const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {

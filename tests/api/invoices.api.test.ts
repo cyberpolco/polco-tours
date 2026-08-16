@@ -3,8 +3,25 @@ import { testPackageReference } from '../helpers/package-reference';
 import { NextRequest } from 'next/server';
 import { PrismaClient, type BookingStatus } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
+import { getEffectivePlatformRate } from '../../src/lib/platform-rate';
 import { loginAs } from '../helpers/test-auth';
 import { generateBookingReference } from '../../src/modules/booking';
+
+// PlatformRate (DR-042) is platform-wide, mutable-over-time config, not
+// something this file seeds itself -- reading the LIVE effective rate here
+// (rather than assuming whatever seed.ts's one-time default happened to be)
+// keeps this suite correct regardless of what any other session has set it
+// to since. Mirrors invoicing/domain.ts's computeInvoiceAmounts (DR-127) by
+// hand rather than importing it, so this stays an independent check.
+function expectedAmounts(subtotalMinor: number, taxRateBp: number, platformFeeRateBp: number) {
+  const taxMinor = Math.round((subtotalMinor * taxRateBp) / 10000);
+  const preFeeTotal = subtotalMinor + taxMinor;
+  const platformFeeMinor = Math.round((preFeeTotal * platformFeeRateBp) / 10000);
+  const totalMinor = preFeeTotal + platformFeeMinor;
+  const depositMinor = Math.round(totalMinor * 0.4);
+  const balanceMinor = totalMinor - depositMinor;
+  return { taxMinor, platformFeeMinor, totalMinor, depositMinor, balanceMinor };
+}
 
 // Real RESEND_API_KEY/AFRICAS_TALKING_* credentials now exist in .env/.env.local
 // (2026-07-15) and Vitest loads .env automatically -- without this mock,
@@ -49,6 +66,8 @@ let touristAId: string;
 let touristBId: string;
 let operatorId: string;
 let guideId: string;
+let platformFeeRateBp: number;
+let expected: ReturnType<typeof expectedAmounts>;
 // DR-104 coupon test codes -- collected here so afterAll can clean up every
 // one regardless of which `it` created it.
 const couponCodes: string[] = [];
@@ -61,6 +80,8 @@ function jsonRequest(method: string, url: string, headers: Headers, body?: unkno
 
 beforeAll(async () => {
   await admin.taxRate.create({ data: { country, taxType: 'VAT', rateBp: 1000 } }); // 10%
+  ({ rateBp: platformFeeRateBp } = await getEffectivePlatformRate());
+  expected = expectedAmounts(10000, 1000, platformFeeRateBp);
 
   const org = await admin.organization.create({
     data: { name: `INV-API-TEST-${Date.now()}`, countries: [country], status: 'VERIFIED' },
@@ -183,16 +204,17 @@ describe('GET /api/v1/bookings/:bookingId/invoice', () => {
     invoiceId = body.invoice.id;
     expect(body.invoice.subtotalMinor).toBe(10000);
     expect(body.invoice.taxRateBp).toBe(1000);
-    expect(body.invoice.taxMinor).toBe(1000);
-    expect(body.invoice.totalMinor).toBe(11000);
-    expect(body.invoice.depositMinor).toBe(4400);
-    expect(body.invoice.balanceMinor).toBe(6600);
+    expect(body.invoice.taxMinor).toBe(expected.taxMinor);
+    // Settings module (DR-042; additive since DR-127): platformFeeMinor is
+    // charged to the customer on top -- totalMinor/depositMinor/balanceMinor
+    // below all include it. Rate/amounts computed from whatever PlatformRate
+    // is actually live (see expectedAmounts above), not a hardcoded guess.
+    expect(body.invoice.platformFeeRateBp).toBe(platformFeeRateBp);
+    expect(body.invoice.platformFeeMinor).toBe(expected.platformFeeMinor);
+    expect(body.invoice.totalMinor).toBe(expected.totalMinor);
+    expect(body.invoice.depositMinor).toBe(expected.depositMinor);
+    expect(body.invoice.balanceMinor).toBe(expected.balanceMinor);
     expect(body.invoice.status).toBe('ISSUED');
-    // Settings module (DR-042): platformFeeMinor is an informational split
-    // of totalMinor (5% seeded default) -- depositMinor/balanceMinor/
-    // totalMinor above are completely unaffected by its existence.
-    expect(body.invoice.platformFeeRateBp).toBe(500);
-    expect(body.invoice.platformFeeMinor).toBe(550); // 5% of 11000
   });
 
   it('is idempotent -- returns the same invoice on a second call', async () => {
@@ -232,7 +254,7 @@ describe('POST /api/v1/invoices/:invoiceId/payments', () => {
     depositPaymentId = body.payment.id;
     expect(body.payment.status).toBe('SUCCEEDED');
     expect(body.payment.kind).toBe('DEPOSIT');
-    expect(body.payment.amountMinor).toBe(4400);
+    expect(body.payment.amountMinor).toBe(expected.depositMinor);
     expect(typeof body.redirectUrl).toBe('string');
     // Proves the auto-succeed step's notify() call actually fired -- not a
     // real network call (mocked at the top of this file).
@@ -274,7 +296,7 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.payment.status).toBe('SUCCEEDED');
-    expect(body.payment.amountMinor).toBe(6600);
+    expect(body.payment.amountMinor).toBe(expected.balanceMinor);
 
     const invoiceHeaders = await loginAs(touristAId);
     const invoiceReq = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice`, invoiceHeaders);

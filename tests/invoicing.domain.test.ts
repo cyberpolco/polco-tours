@@ -165,22 +165,45 @@ describe('invoicing domain', () => {
     });
   });
 
-  describe('computeInvoiceAmounts (DR-104)', () => {
-    it('with no discount, reproduces the exact pre-coupon-feature numbers (regression guard)', () => {
-      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000 });
-      expect(amounts).toEqual({ discountMinor: 0, taxMinor: 1000, totalMinor: 11000, depositMinor: 4400, balanceMinor: 6600 });
+  describe('computeInvoiceAmounts (DR-104/DR-127)', () => {
+    it('with no discount and no platform fee, reproduces the exact pre-coupon-feature numbers (regression guard)', () => {
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 0 });
+      expect(amounts).toEqual({
+        discountMinor: 0,
+        taxMinor: 1000,
+        platformFeeMinor: 0,
+        totalMinor: 11000,
+        depositMinor: 4400,
+        balanceMinor: 6600,
+      });
+    });
+
+    it('DR-127: platform fee is charged to the customer on top of subtotal + tax, not absorbed by the platform', () => {
+      // subtotal 10000, 10% tax -> 1000, pre-fee total 11000; platform fee
+      // is 5% of THAT (550), and total/deposit/balance all include it.
+      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 500 });
+      expect(amounts.platformFeeMinor).toBe(550);
+      expect(amounts.totalMinor).toBe(11550); // 10000 + 1000 + 550
+      expect(amounts.depositMinor).toBe(4620); // 40% of 11550
+      expect(amounts.balanceMinor).toBe(6930); // 11550 - 4620
     });
 
     it('discountBp: 0 behaves identically to omitting it', () => {
-      const omitted = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000 });
-      const zero = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 0 });
+      const omitted = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 0 });
+      const zero = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 0, discountBp: 0 });
       expect(zero).toEqual(omitted);
     });
 
     it('computes tax on the DISCOUNTED subtotal, not the original', () => {
       // subtotal 10000, 15% off -> discount 1500, discounted subtotal 8500;
       // tax is 10% of 8500 (850), NOT 10% of 10000 (1000).
-      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 1500 });
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: 10000,
+        currency: 'USD',
+        taxRateBp: 1000,
+        platformFeeRateBp: 0,
+        discountBp: 1500,
+      });
       expect(amounts.discountMinor).toBe(1500);
       expect(amounts.taxMinor).toBe(850);
       expect(amounts.totalMinor).toBe(9350); // (10000 - 1500) + 850
@@ -190,12 +213,24 @@ describe('invoicing domain', () => {
 
     it('rounds the discount half-up, same convention as taxOf/splitDeposit', () => {
       // 9999 * 5% = 499.95 -> rounds to 500.
-      const amounts = computeInvoiceAmounts({ subtotalMinor: 9999, currency: 'USD', taxRateBp: 0, discountBp: 500 });
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: 9999,
+        currency: 'USD',
+        taxRateBp: 0,
+        platformFeeRateBp: 0,
+        discountBp: 500,
+      });
       expect(amounts.discountMinor).toBe(500);
     });
 
     it('a 50% (max allowed) discount halves the subtotal before tax', () => {
-      const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, discountBp: 5000 });
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: 10000,
+        currency: 'USD',
+        taxRateBp: 1000,
+        platformFeeRateBp: 0,
+        discountBp: 5000,
+      });
       expect(amounts.discountMinor).toBe(5000);
       expect(amounts.taxMinor).toBe(500); // 10% of the remaining 5000
       expect(amounts.totalMinor).toBe(5500);

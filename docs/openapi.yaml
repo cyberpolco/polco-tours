@@ -1205,8 +1205,8 @@ paths:
     post:
       summary: Apply a percentage-discount coupon to an invoice (DR-104)
       description: >-
-        Recomputes and persists discountMinor/taxMinor/totalMinor/
-        depositMinor/balanceMinor on the invoice. Blocked once any payment
+        Recomputes and persists discountMinor/taxMinor/platformFeeMinor/
+        totalMinor/depositMinor/balanceMinor on the invoice. Blocked once any payment
         on this invoice has SUCCEEDED. Gated by payment.initiate (the same
         permission as initiating a payment), not invoice.read -- this
         decides what will be charged.
@@ -2989,11 +2989,11 @@ components:
         discountMinor: { type: integer, description: '0 if no coupon applied' }
         taxRateBp: { type: integer, description: Snapshotted at invoice-issue time (DR-006). Computed on (subtotalMinor - discountMinor), not subtotalMinor. }
         taxMinor: { type: integer }
-        totalMinor: { type: integer }
+        platformFeeMinor: { type: integer, nullable: true, description: 'Charged to the customer on top of (subtotalMinor - discountMinor + taxMinor) (DR-042, additive since DR-127) -- included in totalMinor/depositMinor/balanceMinor below. Null for invoices predating DR-042.' }
+        platformFeeRateBp: { type: integer, nullable: true, description: Snapshotted PlatformRate.rateBp at invoice-issue time (DR-042) }
+        totalMinor: { type: integer, description: (subtotalMinor - discountMinor) + taxMinor + platformFeeMinor }
         depositMinor: { type: integer, description: 40% of totalMinor, half-up (DR-012) }
         balanceMinor: { type: integer, description: totalMinor - depositMinor }
-        platformFeeMinor: { type: integer, nullable: true, description: 'Informational split of totalMinor (DR-042) -- never added to what the customer owes. Null for invoices predating this feature.' }
-        platformFeeRateBp: { type: integer, nullable: true, description: Snapshotted PlatformRate.rateBp at invoice-issue time (DR-042) }
         status: { type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
