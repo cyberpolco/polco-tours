@@ -9,6 +9,7 @@
 // pages render these directly via <img>/next/image, unauthenticated, so they
 // need a real public URL.
 import { put } from '@vercel/blob';
+import { logger, newTraceId } from './logger';
 
 export class PublicImageBlobGatewayError extends Error {}
 
@@ -21,12 +22,35 @@ export interface PublicImageBlobGateway {
   uploadPublicImage(pathname: string, body: Buffer, contentType: string): Promise<PublicImageUploadResult>;
 }
 
+// The default `BLOB_READ_WRITE_TOKEN` is bound to `polco-tours-documents`, a
+// store provisioned private-only (documents/gateway.ts's passport uploads) --
+// Vercel Blob stores are public-or-private store-wide, not per-object, so an
+// `access: 'public'` put() against that token always fails. A second store,
+// `polco-tours-public-images`, is connected under a distinct env var for
+// exactly this reason; every public image upload must pass its token
+// explicitly rather than relying on the ambient default.
+const PUBLIC_IMAGE_BLOB_TOKEN = process.env.PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
+
 class VercelPublicImageBlobGateway implements PublicImageBlobGateway {
   async uploadPublicImage(pathname: string, body: Buffer, contentType: string): Promise<PublicImageUploadResult> {
     try {
-      const blob = await put(pathname, body, { access: 'public', addRandomSuffix: true, contentType });
+      const blob = await put(pathname, body, {
+        access: 'public',
+        addRandomSuffix: true,
+        contentType,
+        token: PUBLIC_IMAGE_BLOB_TOKEN,
+      });
       return { pathname: blob.pathname, url: blob.url };
-    } catch {
+    } catch (err) {
+      // The caller only ever surfaces a generic message to the client (no
+      // internals leaked, charter rule) -- this was previously a bare
+      // `catch {}` with no log line at all, making a real failure here
+      // (missing/invalid BLOB_READ_WRITE_TOKEN, a Vercel Blob outage, a
+      // pathname collision, etc.) completely invisible server-side too.
+      logger(newTraceId()).error('public image upload failed', {
+        message: err instanceof Error ? err.message : String(err),
+        pathname,
+      });
       throw new PublicImageBlobGatewayError('Public image upload failed');
     }
   }

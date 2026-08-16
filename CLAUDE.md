@@ -19,10 +19,32 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-129 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-130 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-130** fixes a real live-production bug (user-reported: "Something went
+> wrong uploading the image" on the staff package edit page) — root cause was
+> that `src/lib/public-image-blob.ts`'s `uploadPublicImage` (DR-071, reused by
+> DR-114 for package images) calls Vercel Blob's `put()` with `access:
+> 'public'`, but the project's one and only Blob store, `polco-tours-
+> documents`, was provisioned private-only (`documents/gateway.ts`'s passport
+> uploads) — Blob stores are public-or-private **store-wide**, not
+> per-object, so every public image upload (About/FAQ images too, not just
+> packages) has silently failed since DR-071, previously swallowed by a bare
+> `catch {}` with no server-side trace at all. Fixed at two layers: the catch
+> block now logs the real error before still throwing the same generic
+> client-facing message (charter rule 8); and a second Blob store,
+> `polco-tours-public-images` (`fra1`, same region as the original), is
+> provisioned and connected to the project under `PUBLIC_BLOB_READ_WRITE_
+> TOKEN_READ_WRITE_TOKEN` (Vercel's dashboard "Connect Project" flow
+> namespaces a custom-named connection's sub-values under that prefix — it's
+> not a single flat env var), which `uploadPublicImage` now passes to `put()`
+> explicitly. `documents/gateway.ts` is untouched — it still uses the ambient
+> default `BLOB_READ_WRITE_TOKEN`, unchanged. **Connected for Production +
+> Preview only** — Development wasn't included when the store was linked via
+> the dashboard, so local `npm run dev` package/About/FAQ image upload will
+> still hit the same error until that's added too (see Open Items, OI-15).
 > **DR-129** lets staff bulk-generate a package's itinerary template instead
 > of adding every day one at a time: a new "Generate {N} days" button on
 > `/staff/packages/[packageId]` (`catalogService.generateTemplateDays`, gated
@@ -644,7 +666,7 @@ gaps a fresh Postgres would hit).
 | Database | Neon PostgreSQL (EU region, `eu-central-1`), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB). Multi-domain in production (DR-072) — `src/lib/auth-client.ts` has no hardcoded `baseURL` (falls back to `window.location.origin`); `src/lib/auth.ts`'s `trustedOrigins` allowlists every additional live custom domain beyond `BETTER_AUTH_URL`'s own origin, e.g. `mufasasafaris.com` |
 | Validation | zod `4.4.3` |
-| Object storage | Vercel Blob `2.6.1`, region `fra1` — passports (private, authenticated streaming route); visa decision documents land in Phase 2. DR-071 adds a second, `access: 'public'` variant (`content` module) for staff-uploaded guest-site images — the `next.config.mjs` `images.remotePatterns` allowlist now has one entry for Blob's public host to match |
+| Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): About/FAQ images (DR-071) and package images (DR-114), passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`) by `src/lib/public-image-blob.ts` rather than relying on the ambient default. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — three schedules registered and live in production (`sweep-bookings` every 15 min, `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10); a fourth, `sweep-fleet-cooldowns`/DR-107 (hourly), is coded and added to `scripts/register-qstash-schedule.ts` but **not yet registered against the live deployment** — run `npm run qstash:register-schedule` to activate it |
@@ -1127,6 +1149,12 @@ Surface these to the human — don't invent answers.
   restriction list before the guest `/weather` pages serve live current
   conditions/forecast data. Degrades gracefully until then (charter rule
   8) — towns still list with seasonal notes, just no live weather.
+- **OI-15** (DR-130) `polco-tours-public-images` (the new public Blob store)
+  is connected to the project for Production + Preview only — Development
+  wasn't included in the one-time dashboard "Connect Project" step. Local
+  `npm run dev` package/About/FAQ image upload will fail with the same
+  "Something went wrong uploading the image" error until someone with
+  dashboard access adds Development to that same connection.
 
 **Resolved:** OI-04 (object storage → Vercel Blob), OI-08
 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
@@ -1143,6 +1171,30 @@ These are still-relevant patterns, not one-off incident reports. Full
 incident history (including two production `users`-table wipes since fixed)
 lives in `docs/decisions/DECISION_LOG.md` and git history.
 
+- **A Vercel Blob store is public-or-private for its entire lifetime, not
+  per-object** — passing `access: 'public'` to `put()` against a store that
+  was provisioned private throws `Cannot use public access on a private
+  store`, not a permissions warning. DR-130 (real production incident): every
+  public image upload silently failed since DR-071 because `public-image-
+  blob.ts` reused `documents/gateway.ts`'s private-only store. Any future
+  Blob use needs its own store matching its access mode — check `vercel blob
+  list-stores` before assuming an existing token can serve a different
+  access level. Reproduce a suspected Blob failure locally first (`put()`
+  against the real token in a throwaway script) before assuming it's a code
+  bug — the actual error message names the real cause directly.
+- **The Vercel CLI can only auto-connect a Blob store to a project under the
+  default env var name** (`BLOB_READ_WRITE_TOKEN`) — `vercel blob
+  create-store --yes` errors out if that name is already taken by another
+  store, with no flag to pick a different name. Giving a second store a
+  custom name is a dashboard-only action ("Connect Project" on the store's
+  page) — and when you do, Vercel namespaces the connection's sub-values
+  under your chosen prefix (`<name>_READ_WRITE_TOKEN`, `<name>_STORE_ID`,
+  `<name>_WEBHOOK_PUBLIC_KEY`), not a single flat var of that exact name.
+  Don't try to route around the dashboard step by shuffling the *existing*
+  store's env var via `vercel env rm`/`env pull` instead — that requires
+  pulling live production secrets (DB URL, auth secret, etc., not just the
+  Blob token) to read/relocate one value, which is unsafe even with
+  explicit permission; let a human do the one dashboard click instead.
 - **Prisma's query engine intermittently can't reach the Neon pooler from a
   sandbox, while `psql` on the same credentials connects fine.** Treat as
   transient and retry rather than assuming a real outage. It has also been
