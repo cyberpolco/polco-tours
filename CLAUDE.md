@@ -19,11 +19,23 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-123 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-124 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
-> **DR-123** merges Tax Rates, Platform Rate, Coupons (Settings module), and
+> **DR-124** root-causes a `guest-checkout.spec.ts` CI flake that had failed
+> on essentially every run regardless of the actual commit — the guest
+> booking wizard (`(guest)/booking/[bookingId]/`) had no `loading.tsx` of
+> its own, so a client-side step-to-step navigation (Add-ons → Travelers)
+> blocked the URL/history update on the destination page's *entire* server
+> render finishing, with zero interim state — indistinguishable from frozen
+> until the moment it either completes or the test's timeout wins the race.
+> New `booking/[bookingId]/loading.tsx` gives the whole wizard its own
+> Suspense boundary — a real production UX fix (every guest on a slow
+> connection hit the same "frozen step" experience), not just a test
+> patch. Also parallelizes `/travelers/new/page.tsx`'s conditional
+> `authService.getUser` call into its initial `Promise.all`. See the
+> Gotchas section below for the reusable pattern. **DR-123** merges Tax Rates, Platform Rate, Coupons (Settings module), and
 > Operational Rates (Finance module) into one "Finance" card hub at
 > `/staff/settings/finance` — same card-hub-plus-still-independent-pages
 > shape as DR-095/097/098. Each destination page keeps its own route/
@@ -1089,6 +1101,22 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   Playwright/Chromium. Prefer `await Promise.all([page.waitForURL(...),
   button.click()])` over a bare click whenever the next assertion doesn't
   already retry-until-navigated.
+- **A route segment with no `loading.tsx` (and no ancestor one that
+  actually applies to that specific transition) makes a client-side
+  navigation into it fully blocking** — Next's App Router defers the
+  URL/history update itself until the destination page's *entire* server
+  render resolves, with no interim state at all (DR-124, real incident: a
+  recurring `guest-checkout.spec.ts` flake at the Add-ons→Travelers step).
+  A layout-level `loading.tsx` far up the tree (e.g. `(guest)/loading.tsx`)
+  does **not** re-fire for a same-group nested navigation — it only covers
+  the *first* entry into that group. If a Playwright `waitForURL` after a
+  `router.push()` (especially one following an awaited Server Action call)
+  flakes intermittently with no visible error and the page just looks
+  "stuck" on the old step, check for a missing `loading.tsx` at or below
+  the changing segment before assuming it's random CI load — the fix
+  (adding one) is also a genuine production UX improvement, not just a
+  test workaround, since a real user on a slow connection hits the exact
+  same frozen-looking wait.
 - **A disposable local Postgres needs no sudo/Docker** for reproducing a
   CI-only e2e failure without touching the shared Neon DB: `initdb` into a
   scratch dir, `pg_ctl start` with a short `-k` socket dir (Unix socket path

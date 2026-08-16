@@ -23,9 +23,15 @@ interface Props {
 export default async function NewTravelerPage({ params }: Props) {
   const { bookingId } = await params;
   const ctx = await requireGuestContext();
-  const [booking, travelers] = await Promise.all([
+  // `me` is fetched unconditionally alongside the other two, even though
+  // it's only used in the isAddingTourLead branch below (unknown until
+  // `travelers` resolves) -- cheap enough that always fetching it in
+  // parallel beats serializing it behind a second round trip on the one
+  // path that needs it (the common case: this is the first traveler).
+  const [booking, travelers, me] = await Promise.all([
     bookingService.getById(ctx, bookingId),
     bookingService.listTravelers(ctx, bookingId),
+    authService.getUser(ctx.userId),
   ]);
   const t = await getTranslations('TravelersPage');
 
@@ -92,7 +98,6 @@ export default async function NewTravelerPage({ params }: Props) {
   let prefillDialCode = '264';
   let prefillLocalNumber = '';
   if (isAddingTourLead) {
-    const me = await authService.getUser(ctx.userId);
     if (me?.name) {
       const [first, ...rest] = me.name.trim().split(/\s+/);
       prefillFirstName = first ?? '';
