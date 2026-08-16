@@ -32,7 +32,13 @@ explicit decision to do so.
 > the 4 separate sidebar entries into one. `SidebarItem` gains a new
 > `anyPermission?: Permission[]` field (visible if the caller holds ANY one)
 > since the merged entry spans both `platform_settings.read` and
-> `finance_config.read`. No schema/permission/module-dependency change.
+> `finance_config.read`. The hub itself, unlike Fleet/Packages/Bookings'
+> hubs, keeps the `SidebarShell` wrapper — it's `nav.tsx`'s top-level
+> "Settings" link's landing page, so it must keep the rest of Settings
+> (Country Regulations, Sites, Insights, etc.) one click away; that nav
+> link now points at `/staff/settings/finance` instead of the no-longer-
+> valid `/staff/settings/tax-rates`. No schema/permission/module-dependency
+> change.
 > **DR-122** relabels the Site detail page's per-activity "Has an entrance
 > fee" checkbox/indicator to just "Fee"/"Free" (`Activity.hasEntranceFee`
 > itself unchanged, still purely informational) and fixes a real bug in

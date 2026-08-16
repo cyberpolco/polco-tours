@@ -62,8 +62,11 @@ const LINKS: NavLink[] = [
   // Regulations, Operational Rates, Insights, Users, Permissions -- URLs
   // unchanged) plus 2 new pages (Tax Rates, Platform Rate) into a left
   // vertical sub-nav (SidebarShell), reached from this one aggregate link.
+  // DR-123: lands on the new Finance hub rather than Tax Rates directly --
+  // Tax Rates dropped out of SETTINGS_ITEMS (now reached via the Finance
+  // card hub instead), so it's no longer a valid "first tab" landing page.
   {
-    href: '/staff/settings/tax-rates',
+    href: '/staff/settings/finance',
     labelKey: 'settings',
     anyOfPermissions: [
       'platform_settings.read',

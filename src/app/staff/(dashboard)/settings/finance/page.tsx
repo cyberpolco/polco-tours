@@ -4,6 +4,8 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SETTINGS_ITEMS } from '../../settings-items';
+import { SidebarShell } from '../../sidebar-shell';
 
 // Merges Tax Rates, Platform Rate, Coupons, and Operational Rates -- 4
 // previously separate Settings-sidebar entries -- into one Finance card hub,
@@ -11,12 +13,17 @@ import { PageHeader } from '@/components/ui/PageHeader';
 // Fleet hub. Each card's own page keeps its existing route/permission gate
 // unchanged and links back here (BackLink) instead of appearing in the
 // sidebar directly; only this hub's own single "Finance" entry does now
-// (settings-items.ts). No permission gate here beyond baseline staff access
-// -- individual cards are shown/hidden per the caller's own permission,
-// same as each destination page already re-checks for itself.
+// (settings-items.ts). Unlike the Fleet hub, THIS hub still wraps in
+// SidebarShell -- it's the top-nav "Settings" aggregate link's landing page
+// (nav.tsx), so it must keep the rest of Settings (Country Regulations,
+// Sites, Insights, etc.) one click away, same as every other SETTINGS_ITEMS
+// page already does. No permission gate here beyond baseline staff access --
+// individual cards are shown/hidden per the caller's own permission, same as
+// each destination page already re-checks for itself.
 export default async function FinanceHubPage() {
   const ctx = await requireStaffContext();
   const t = await getTranslations('StaffFinanceHub');
+  const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   const canReadSettings = can(ctx, 'platform_settings.read');
   const canReadFinanceConfig = can(ctx, 'finance_config.read');
@@ -45,18 +52,20 @@ export default async function FinanceHubPage() {
   ].filter((c): c is { href: string; title: string; description: string } => Boolean(c));
 
   return (
-    <div className="space-y-8">
-      <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {cards.map((c) => (
-          <Card key={c.href} interactive className="p-0">
-            <Link href={c.href} className="block p-5">
-              <h2 className="text-lg font-semibold text-navy">{c.title}</h2>
-              <p className="mt-1 text-sm text-mist">{c.description}</p>
-            </Link>
-          </Card>
-        ))}
+    <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
+      <div className="space-y-8">
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {cards.map((c) => (
+            <Card key={c.href} interactive className="p-0">
+              <Link href={c.href} className="block p-5">
+                <h2 className="text-lg font-semibold text-navy">{c.title}</h2>
+                <p className="mt-1 text-sm text-mist">{c.description}</p>
+              </Link>
+            </Card>
+          ))}
+        </div>
       </div>
-    </div>
+    </SidebarShell>
   );
 }
