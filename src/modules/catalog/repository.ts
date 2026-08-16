@@ -348,4 +348,25 @@ export const catalogRepository = {
       return rows.map(toPackageItineraryDayView);
     });
   },
+
+  // DR-129: bulk-fills day numbers 1..durationDays that don't already have a
+  // template row -- skipDuplicates relies on the existing
+  // @@unique([tourPackageId, dayNumber]) constraint, so re-running this after
+  // staff have already edited some days only fills the remaining gaps, never
+  // touches or duplicates an existing row.
+  async generateMissingTemplateDays(
+    organizationId: string,
+    tourPackageId: string,
+    durationDays: number,
+  ): Promise<PackageItineraryDayView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const dayNumbers = Array.from({ length: durationDays }, (_, i) => i + 1);
+      await tx.packageItineraryDay.createMany({
+        data: dayNumbers.map((dayNumber) => ({ organizationId, tourPackageId, dayNumber })),
+        skipDuplicates: true,
+      });
+      const rows = await tx.packageItineraryDay.findMany({ where: { tourPackageId }, orderBy: { dayNumber: 'asc' } });
+      return rows.map(toPackageItineraryDayView);
+    });
+  },
 };

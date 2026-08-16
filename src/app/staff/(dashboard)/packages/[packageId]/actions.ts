@@ -141,3 +141,16 @@ export async function removeTemplateDayAction(packageId: string, dayId: string):
   await catalogService.removeTemplateDay(ctx, dayId);
   revalidatePath(`/staff/packages/${packageId}`);
 }
+
+export async function generateTemplateDaysAction(packageId: string): Promise<void> {
+  const ctx = await requireStaffContext('catalog.write');
+  try {
+    await catalogService.generateTemplateDays(ctx, packageId);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      redirect(`/staff/packages/${packageId}?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
+    }
+    throw err;
+  }
+  revalidatePath(`/staff/packages/${packageId}`);
+}

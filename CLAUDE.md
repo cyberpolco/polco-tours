@@ -19,10 +19,46 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-126 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-127 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-129** lets staff bulk-generate a package's itinerary template instead
+> of adding every day one at a time: a new "Generate {N} days" button on
+> `/staff/packages/[packageId]` (`catalogService.generateTemplateDays`, gated
+> `catalog.write`) reads the package's own `durationDays` and bare-creates
+> any missing `PackageItineraryDay` row for day numbers `1..durationDays`
+> (`catalogRepository.generateMissingTemplateDays`, `createMany({
+> skipDuplicates: true })` against the existing `@@unique([tourPackageId,
+> dayNumber])` constraint) — idempotent, so re-running it only fills gaps and
+> never touches or duplicates a day staff already edited. Each generated day
+> starts bare (day number only) and is then filled in through the existing
+> per-day edit form, unchanged. Throws `Errors.conflict` (same `?error=&
+> detail=` convention as DR-115) if `durationDays` isn't set yet. No schema/
+> permission/module-dependency change. (Note: `DR-128` — an eighth
+> Operational Rate, `AddonRate` — is mid-flight in this working tree
+> (uncommitted changes touching `finance`/`invoicing`/`booking`/`catalog`)
+> but not yet written up here or in the decision log; don't assume it's
+> finished or reflected in this file yet.)
+> **DR-127** makes the platform rate a real customer-facing charge (explicit
+> user request, confirmed via a clarifying question first since it reverses
+> a deliberate prior design choice) — the invoice total guests actually pay
+> is now exactly **package price (subtotal) + tax (per-country, DR-006) +
+> platform rate (DR-042)**, payable as a 40% deposit or in full (both
+> pre-existing, DR-012/DR-024, untouched). Previously `platformFeeMinor` was
+> computed but deliberately *not* added to `totalMinor` — an informational
+> commission split the platform absorbed, never charged to the customer.
+> `computeInvoiceAmounts` (`invoicing/domain.ts`, the one shared formula
+> `getOrCreateInvoiceForBooking`/`applyCoupon`/`removeCoupon` all use) now
+> takes `platformFeeRateBp` as a required input, computes the fee on
+> (discounted subtotal + tax) same as before, and folds it into `totalMinor`
+> ahead of the deposit/balance split; `applyCoupon`/`removeCoupon`
+> (`invoicing/repository.ts`) re-resolve the fee from the invoice's own
+> snapshotted `platformFeeRateBp` (falling back to 0 for a rare grandfathered
+> null) every recompute. Both the guest checkout page and the staff booking-
+> detail page now show explicit "Platform fee" and "Total" line items on the
+> invoice card. No schema change (the two fields already existed, DR-042);
+> no permission/module-dependency change — formula + display only.
 > **DR-126** adds a seventh Operational Rate table, `AdminCostRate` (explicit
 > user request) — a flat per-day administrative-overhead fee, per-country
 > and effective-dated exactly like the existing six rate tables (DR-039),

@@ -178,6 +178,24 @@ export const catalogService = {
     return catalogRepository.listTemplateDays(organizationId, packageId);
   },
 
+  /** DR-129: fills in the day skeleton (day numbers 1..durationDays) for a
+   * package's itinerary template in one go, instead of staff adding every
+   * day one at a time via addTemplateDay -- each generated row starts bare
+   * (no times/hotel/restaurant/activities/notes), left for staff to edit in
+   * place afterward. Idempotent: only fills gaps, never overwrites or
+   * duplicates a day staff already filled in (repository relies on the
+   * existing @@unique([tourPackageId, dayNumber]) constraint). */
+  async generateTemplateDays(ctx: AuthContext, packageId: string): Promise<PackageItineraryDayView[]> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogRepository.findPackageById(organizationId, packageId);
+    if (!pkg) throw Errors.notFound('Package not found');
+    if (pkg.durationDays == null) {
+      throw Errors.conflict('Set a duration (days) for this package before generating itinerary days');
+    }
+    return catalogRepository.generateMissingTemplateDays(organizationId, packageId, pkg.durationDays);
+  },
+
   async listPackages(ctx: AuthContext): Promise<TourPackageView[]> {
     assertCan(ctx, 'catalog.read');
     const all = await catalogRepository.listPackages(requireOrg(ctx));

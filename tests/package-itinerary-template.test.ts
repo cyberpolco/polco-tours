@@ -97,6 +97,53 @@ describe('Package itinerary template', () => {
     expect(afterRemove.map((d) => d.id)).not.toContain(day1.id);
   });
 
+  it('generateTemplateDays (DR-129) fills day numbers 1..durationDays, skips existing days, and rejects a package with no durationDays', async () => {
+    const pkg = await withOrg(orgId, (tx) =>
+      tx.tourPackage.create({
+        data: {
+          organizationId: orgId,
+          packageReference: testPackageReference(),
+          title: 'Generate Days Fixture',
+          description: 'Fixture.',
+          country: 'NA',
+          priceMinor: 10000,
+          currency: 'USD',
+          durationDays: 4,
+          status: 'DRAFT',
+        },
+      }),
+    );
+
+    // Staff already filled in day 2 by hand before generating -- must survive
+    // untouched, not be overwritten by a bare regenerated row.
+    const existingDay2 = await catalogService.addTemplateDay(ctxFor(operatorId), pkg.id, { dayNumber: 2, activities: 'Safari drive' });
+
+    const generated = await catalogService.generateTemplateDays(ctxFor(operatorId), pkg.id);
+    expect(generated.map((d) => d.dayNumber)).toEqual([1, 2, 3, 4]);
+    expect(generated.find((d) => d.dayNumber === 2)?.activities).toBe('Safari drive');
+    expect(generated.find((d) => d.dayNumber === 2)?.id).toBe(existingDay2.id);
+    expect(generated.find((d) => d.dayNumber === 1)?.activities).toBeNull();
+
+    // Idempotent: re-running doesn't duplicate or clobber anything.
+    const regenerated = await catalogService.generateTemplateDays(ctxFor(operatorId), pkg.id);
+    expect(regenerated).toHaveLength(4);
+
+    const noDurationPkg = await withOrg(orgId, (tx) =>
+      tx.tourPackage.create({
+        data: {
+          organizationId: orgId,
+          packageReference: testPackageReference(),
+          title: 'No Duration Fixture',
+          description: 'Fixture.',
+          country: 'NA',
+          currency: 'USD',
+          status: 'DRAFT',
+        },
+      }),
+    );
+    await expect(catalogService.generateTemplateDays(ctxFor(operatorId), noDurationPkg.id)).rejects.toMatchObject({ status: 409 });
+  });
+
   it('createItinerary auto-copies the package template onto the new Itinerary with computed real dates', async () => {
     const startDate = new Date('2026-10-01T00:00:00Z');
     // Split into two transactions -- independent reference data (hotel/

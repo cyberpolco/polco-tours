@@ -24,6 +24,7 @@ import {
   archivePackageAction,
   deletePackageAction,
   duplicatePackageAction,
+  generateTemplateDaysAction,
   removeTemplateDayAction,
   updatePackageAction,
   updateTemplateDayAction,
@@ -262,6 +263,15 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('itineraryTemplate')}</p>
         <p className="mt-2 text-sm text-mist">{t('itineraryTemplateNotice')}</p>
+        {pkg.durationDays != null ? (
+          <form action={generateTemplateDaysAction.bind(null, packageId)} className="mt-3">
+            <SubmitButton variant="secondary" size="compact" pendingLabel={t('generatingDays')}>
+              {t('generateDays', { count: pkg.durationDays })}
+            </SubmitButton>
+          </form>
+        ) : (
+          <p className="mt-3 text-xs text-mist">{t('generateDaysNoDuration')}</p>
+        )}
         {templateDays.length === 0 ? (
           <p className="mt-3 text-sm text-mist">{t('noTemplateDaysYet')}</p>
         ) : (
