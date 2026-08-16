@@ -19,10 +19,41 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-131 — see `docs/decisions/DECISION_LOG.md` for full
+> Current through DR-132 — see `docs/decisions/DECISION_LOG.md` for full
 > history. **DR-120's additive schema change (`ItineraryDay.activityIds`),
 > DR-117's enum migration, and DR-116/118/119's additive schema changes are
 > all applied to the shared Neon DB** (verified via `psql`; CI is green).
+> **DR-132** makes Accommodation, Restaurant, and Activity cost-breakdown
+> buckets fully automatic — explicit user request, confirmed via four
+> clarifying questions first since each had a materially different
+> financial-outcome answer. Both `PackageCostBreakdown` and
+> `BookingCostBreakdown` now derive these three buckets from a package's own
+> Day Template (`PackageItineraryDay.hotelId`/`restaurantId`/`activityIds`)
+> instead of staff-typed inputs — `hotelRateId`/`roomsNeeded`/
+> `breakfastCount`/`lunchCount`/`dinnerCount` are gone from both tables
+> (verified zero rows had any value in them before dropping), replaced by
+> read-only `computedAccommodationMinor`/`computedRestaurantMinor`/
+> `computedActivitiesMinor` snapshot columns. Accommodation is per-traveler
+> now (sum of each Day Template day's hotel's effective `HotelRate`, ×
+> `referenceGroupSize`) rather than the old whole-group `nights × roomsNeeded`
+> figure. A new 9th Operational Rate, `RestaurantRate` (one flat per-day rate
+> per restaurant, since a Day Template only ever assigns one restaurant per
+> day) replaces the old flat `FoodBeverageRate` BREAKFAST/LUNCH/DINNER
+> categories for restaurant costing — those three enum values stay in the
+> schema for historical rows but are no longer read by `computeBaseCostMinor`
+> or offered on the Operational Rates create form. Activities resolve every
+> `activityId` across the Day Template automatically (no more manual
+> line-item picking); `PackageCostLineItem`/`BookingCostLineItem` are
+> drinks-only now (`activityFeeId` dropped, `foodBeverageRateId` required).
+> For a `BookingCostBreakdown`, these three buckets derive from the linked
+> customized package's Day Template (`Booking.customizedPackageId`) — 0, not
+> an error, if none is linked yet. `finance/domain.ts` gained
+> `computeCostBuckets` (all eight buckets individually) alongside the
+> existing `computeBaseCostMinor` (now just sums them) so the total and the
+> persisted per-bucket display snapshots can never drift apart. **Schema
+> change (new `RestaurantRate` table + additive/destructive columns on both
+> cost-breakdown tables) applied to the shared Neon DB** after confirming via
+> `psql` that zero rows anywhere had data in any column being dropped.
 > **DR-131** re-derives `TourPackage.slug` from the title at first publish
 > (DRAFT → a `PUBLISHED_*` status) instead of leaving it frozen at whatever
 > it was called at creation (DR-118) — explicit user request, confirmed via
@@ -784,14 +815,18 @@ src/
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
-    finance/       # Cost-plus pricing engine — 7 rate tables feeding the
+    finance/       # Cost-plus pricing engine — 9 rate tables feeding the
                    #   cost breakdown itself (HotelRate/ActivityFee reference
                    #   itinerary's Hotel/Activity by id, DR-116; AdminCostRate,
-                   #   DR-126, is the 7th) + an 8th, AddonRate (DR-128, prices
-                   #   catalog's AddonService by country+code, resolved via
-                   #   src/lib/addon-rates.ts, not computeBaseCostMinor) +
-                   #   PackageCostBreakdown (TourPackage) /
-                   #   BookingCostBreakdown (TAILOR_MADE Booking, DR-092)
+                   #   DR-126, is the 7th; RestaurantRate, DR-132, referencing
+                   #   itinerary's Restaurant by id, is the 9th) + an 8th,
+                   #   AddonRate (DR-128, prices catalog's AddonService by
+                   #   country+code, resolved via src/lib/addon-rates.ts, not
+                   #   computeBaseCostMinor) + PackageCostBreakdown
+                   #   (TourPackage) / BookingCostBreakdown (TAILOR_MADE
+                   #   Booking, DR-092) — DR-132: Accommodation/Restaurant/
+                   #   Activity buckets on both are derived automatically
+                   #   from the package's own Day Template, not staff-picked,
                    #   sharing one resolveRatesForCost helper
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-

@@ -18,6 +18,7 @@ import type {
   ImmigrationCostRate,
   PackageCostBreakdown,
   PackageCostLineItem,
+  RestaurantRate,
   StaffRate,
   StaffRateRole,
   TransportRate,
@@ -28,20 +29,22 @@ import type {
   AddonRateView,
   AdminCostRateView,
   BookingCostBreakdownView,
-  BookingCostLineItemView,
+  BookingDrinkLineItemView,
   CreateActivityFeeInput,
   CreateAddonRateInput,
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateImmigrationCostRateInput,
+  CreateRestaurantRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
   FoodBeverageRateView,
   HotelRateView,
   ImmigrationCostRateView,
   PackageCostBreakdownView,
-  PackageCostLineItemView,
+  PackageDrinkLineItemView,
+  RestaurantRateView,
   StaffRateView,
   TransportRateView,
 } from './domain';
@@ -51,6 +54,9 @@ function toStaffRateView(r: StaffRate): StaffRateView {
 }
 function toHotelRateView(r: HotelRate): HotelRateView {
   return { id: r.id, country: r.country, hotelId: r.hotelId, roomCategory: r.roomCategory, nightlyRateMinor: r.nightlyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+}
+function toRestaurantRateView(r: RestaurantRate): RestaurantRateView {
+  return { id: r.id, country: r.country, restaurantId: r.restaurantId, dailyRateMinor: r.dailyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toTransportRateView(r: TransportRate): TransportRateView {
   return {
@@ -90,8 +96,8 @@ function toAdminCostRateView(r: AdminCostRate): AdminCostRateView {
 function toAddonRateView(r: AddonRate): AddonRateView {
   return { id: r.id, country: r.country, code: r.code, priceMinor: r.priceMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
-function toLineItemView(li: PackageCostLineItem): PackageCostLineItemView {
-  return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson };
+function toLineItemView(li: PackageCostLineItem): PackageDrinkLineItemView {
+  return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson };
 }
 function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineItem[] }): PackageCostBreakdownView {
   return {
@@ -105,11 +111,6 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     guideDays: b.guideDays,
     photographerDays: b.photographerDays,
     videographerDays: b.videographerDays,
-    hotelRateId: b.hotelRateId,
-    roomsNeeded: b.roomsNeeded,
-    breakfastCount: b.breakfastCount,
-    lunchCount: b.lunchCount,
-    dinnerCount: b.dinnerCount,
     transportRateId: b.transportRateId,
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
@@ -117,17 +118,20 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
+    computedAccommodationMinor: b.computedAccommodationMinor,
+    computedRestaurantMinor: b.computedRestaurantMinor,
+    computedActivitiesMinor: b.computedActivitiesMinor,
     computedBaseCostMinor: b.computedBaseCostMinor,
     computedSellingPriceMinor: b.computedSellingPriceMinor,
     overridePriceMinor: b.overridePriceMinor,
     overrideReason: b.overrideReason,
     overriddenByUserId: b.overriddenByUserId,
     overriddenAt: b.overriddenAt,
-    lineItems: b.lineItems.map(toLineItemView),
+    drinkLineItems: b.lineItems.map(toLineItemView),
   };
 }
-function toBookingLineItemView(li: BookingCostLineItem): BookingCostLineItemView {
-  return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, activityFeeId: li.activityFeeId, quantityPerPerson: li.quantityPerPerson };
+function toBookingLineItemView(li: BookingCostLineItem): BookingDrinkLineItemView {
+  return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson };
 }
 function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCostLineItem[] }): BookingCostBreakdownView {
   return {
@@ -140,11 +144,6 @@ function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCo
     guideDays: b.guideDays,
     photographerDays: b.photographerDays,
     videographerDays: b.videographerDays,
-    hotelRateId: b.hotelRateId,
-    roomsNeeded: b.roomsNeeded,
-    breakfastCount: b.breakfastCount,
-    lunchCount: b.lunchCount,
-    dinnerCount: b.dinnerCount,
     transportRateId: b.transportRateId,
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
@@ -152,6 +151,9 @@ function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCo
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
+    computedAccommodationMinor: b.computedAccommodationMinor,
+    computedRestaurantMinor: b.computedRestaurantMinor,
+    computedActivitiesMinor: b.computedActivitiesMinor,
     computedBaseCostMinor: b.computedBaseCostMinor,
     computedSellingPriceMinor: b.computedSellingPriceMinor,
     addonsTotalMinor: b.addonsTotalMinor,
@@ -159,7 +161,7 @@ function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCo
     overrideReason: b.overrideReason,
     overriddenByUserId: b.overriddenByUserId,
     overriddenAt: b.overriddenAt,
-    lineItems: b.lineItems.map(toBookingLineItemView),
+    drinkLineItems: b.lineItems.map(toBookingLineItemView),
     suggestedTotalMinor:
       b.overridePriceMinor ?? (b.computedSellingPriceMinor != null ? b.computedSellingPriceMinor + b.addonsTotalMinor : null),
   };
@@ -208,6 +210,42 @@ export const financeRepository = {
   async findHotelRateById(id: string): Promise<HotelRateView | null> {
     const r = await prisma.hotelRate.findUnique({ where: { id } });
     return r ? toHotelRateView(r) : null;
+  },
+  /** DR-131: resolves the currently-effective rate for a specific hotel --
+   * replaces the old "staff picks a hotelRateId directly, no date check"
+   * flow now that accommodation is derived automatically from the Day
+   * Template rather than staff-picked. Same effective-dating shape as
+   * findEffectiveStaffRate, keyed by hotelId instead of country+role. */
+  async findEffectiveHotelRateForHotel(hotelId: string, at: Date): Promise<HotelRateView | null> {
+    const r = await prisma.hotelRate.findFirst({
+      where: { hotelId, validFrom: { lte: at }, OR: [{ validTo: null }, { validTo: { gte: at } }] },
+      orderBy: { validFrom: 'desc' },
+    });
+    return r ? toHotelRateView(r) : null;
+  },
+
+  // -------------------------------------------------------- RestaurantRate
+  async listRestaurantRates(): Promise<RestaurantRateView[]> {
+    const rows = await prisma.restaurantRate.findMany({ orderBy: [{ country: 'asc' }, { validFrom: 'desc' }] });
+    return rows.map(toRestaurantRateView);
+  },
+  async createRestaurantRate(input: CreateRestaurantRateInput): Promise<RestaurantRateView> {
+    const r = await prisma.restaurantRate.create({ data: input });
+    return toRestaurantRateView(r);
+  },
+  async deleteRestaurantRate(id: string): Promise<RestaurantRateView | null> {
+    const existing = await prisma.restaurantRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.restaurantRate.delete({ where: { id } });
+    return toRestaurantRateView(existing);
+  },
+  /** Restaurant counterpart to findEffectiveHotelRateForHotel -- identical shape. */
+  async findEffectiveRestaurantRateForRestaurant(restaurantId: string, at: Date): Promise<RestaurantRateView | null> {
+    const r = await prisma.restaurantRate.findFirst({
+      where: { restaurantId, validFrom: { lte: at }, OR: [{ validTo: null }, { validTo: { gte: at } }] },
+      orderBy: { validFrom: 'desc' },
+    });
+    return r ? toRestaurantRateView(r) : null;
   },
 
   // -------------------------------------------------------- TransportRate
@@ -284,6 +322,17 @@ export const financeRepository = {
     if (ids.length === 0) return [];
     const rows = await prisma.activityFee.findMany({ where: { id: { in: ids } } });
     return rows.map(toActivityFeeView);
+  },
+  /** DR-131: resolves the currently-effective fee for a specific Activity --
+   * same "effective by entity id + date" shape as findEffectiveHotelRateForHotel,
+   * now that activities are derived automatically from the Day Template's
+   * activityIds rather than staff-picked as a line item. */
+  async findEffectiveActivityFeeForActivity(activityId: string, at: Date): Promise<ActivityFeeView | null> {
+    const r = await prisma.activityFee.findFirst({
+      where: { activityId, validFrom: { lte: at }, OR: [{ validTo: null }, { validTo: { gte: at } }] },
+      orderBy: { validFrom: 'desc' },
+    });
+    return r ? toActivityFeeView(r) : null;
   },
 
   // -------------------------------------------------------- ImmigrationCostRate
@@ -369,7 +418,7 @@ export const financeRepository = {
       PackageCostBreakdown,
       'id' | 'organizationId' | 'tourPackageId' | 'createdAt' | 'updatedAt'
     >,
-    lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }>,
+    lineItems: Array<{ foodBeverageRateId: string; quantityPerPerson: number }>,
   ): Promise<PackageCostBreakdownView> {
     return withOrg(organizationId, async (tx) => {
       const breakdown = await tx.packageCostBreakdown.upsert({
@@ -405,7 +454,7 @@ export const financeRepository = {
     organizationId: string,
     bookingId: string,
     data: Omit<BookingCostBreakdown, 'id' | 'organizationId' | 'bookingId' | 'createdAt' | 'updatedAt'>,
-    lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }>,
+    lineItems: Array<{ foodBeverageRateId: string; quantityPerPerson: number }>,
   ): Promise<BookingCostBreakdownView> {
     return withOrg(organizationId, async (tx) => {
       const breakdown = await tx.bookingCostBreakdown.upsert({

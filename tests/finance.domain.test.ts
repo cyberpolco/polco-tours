@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { computeBaseCostMinor, computeSellingPriceMinor, perSeatPriceMinor } from '../src/modules/finance/domain';
+import { computeBaseCostMinor, computeCostBuckets, computeSellingPriceMinor, perSeatPriceMinor } from '../src/modules/finance/domain';
 import type { CostInputs } from '../src/modules/finance/domain';
 
+// DR-131: accommodation/restaurant/activities are now derived from the Day
+// Template (one resolved rate per day/activity assignment, summed then
+// scaled by referenceGroupSize -- per-traveler, not the old whole-group
+// nights*roomsNeeded/flat-meal-count model).
 const BASE_INPUTS: CostInputs = {
   referenceGroupSize: 10,
-  nights: 4,
   driverDays: 4,
   guideDays: 4,
   photographerDays: 0,
@@ -13,19 +16,14 @@ const BASE_INPUTS: CostInputs = {
   guideDailyRateMinor: 8000, // $80/day
   photographerDailyRateMinor: null,
   videographerDailyRateMinor: null,
-  hotelNightlyRateMinor: 5000, // $50/night/room
-  roomsNeeded: 5,
-  breakfastCount: 4,
-  lunchCount: 4,
-  dinnerCount: 4,
-  breakfastRateMinor: 1000, // $10/person
-  lunchRateMinor: 1500,
-  dinnerRateMinor: 2000,
+  accommodationDailyRatesMinor: [5000, 5000, 5000, 5000], // 4 Day Template days with a hotel assigned, $50/day each
+  restaurantDailyRatesMinor: [1000, 1000, 1000, 1000], // 4 Day Template days with a restaurant assigned, $10/day each
+  activityFeesMinor: [3000, 2000], // 2 activities assigned across the Day Template
   transportDays: 4,
   transportRate: { fuelEstimateMinor: 3000, tollFeesMinor: 500, parkingFeesMinor: 200, vehicleOperatingCostMinor: 1000 },
   requiresVisa: false,
   immigrationCostRate: null,
-  lineItems: [],
+  drinkLineItems: [],
   adminDays: 0,
   adminDailyRateMinor: null,
   adminCostBasis: 'PER_GROUP',
@@ -33,26 +31,26 @@ const BASE_INPUTS: CostInputs = {
 
 describe('finance domain', () => {
   describe('computeBaseCostMinor', () => {
-    it('sums accommodation + transport + staff + restaurant for a full example', () => {
-      // accommodation: 5000 * 4 nights * 5 rooms = 100000
+    it('sums accommodation + transport + staff + restaurant + activities for a full example', () => {
+      // accommodation: (5000+5000+5000+5000) * 10 people = 200000
       // transport: (3000+500+200+1000) * 4 days = 18800
       // staff: 10000*4 + 8000*4 = 72000
-      // restaurant: (1000*4 + 1500*4 + 2000*4) * 10 people = 180000
-      // total = 100000 + 18800 + 72000 + 180000 = 370800
-      expect(computeBaseCostMinor(BASE_INPUTS)).toBe(370800);
+      // restaurant: (1000+1000+1000+1000) * 10 people = 40000
+      // activities: (3000+2000) * 10 people = 50000
+      // total = 200000 + 18800 + 72000 + 40000 + 50000 = 380800
+      expect(computeBaseCostMinor(BASE_INPUTS)).toBe(380800);
     });
 
-    it('is 0 for a fully-empty input (no hotel, no transport, no staff, no meals)', () => {
+    it('is 0 for a fully-empty input (no hotel/restaurant/activity days, no transport, no staff)', () => {
       const empty: CostInputs = {
         ...BASE_INPUTS,
         driverDays: 0,
         guideDays: 0,
         driverDailyRateMinor: null,
         guideDailyRateMinor: null,
-        hotelNightlyRateMinor: null,
-        breakfastCount: 0,
-        lunchCount: 0,
-        dinnerCount: 0,
+        accommodationDailyRatesMinor: [],
+        restaurantDailyRatesMinor: [],
+        activityFeesMinor: [],
         transportDays: 0,
         transportRate: null,
       };
@@ -65,46 +63,81 @@ describe('finance domain', () => {
         requiresVisa: true,
         immigrationCostRate: { visaFeeMinor: 5000, processingFeeMinor: 1000, invitationLetterFeeMinor: 500, borderPermitFeeMinor: 200 },
       };
-      // visa: (5000+1000+500+200) * 10 = 67000, added on top of the 370800 base
-      expect(computeBaseCostMinor(withVisa)).toBe(370800 + 67000);
+      // visa: (5000+1000+500+200) * 10 = 67000, added on top of the 380800 base
+      expect(computeBaseCostMinor(withVisa)).toBe(380800 + 67000);
 
       const requiresVisaButNoRate: CostInputs = { ...BASE_INPUTS, requiresVisa: true, immigrationCostRate: null };
-      expect(computeBaseCostMinor(requiresVisaButNoRate)).toBe(370800); // unchanged -- no rate, no cost added
+      expect(computeBaseCostMinor(requiresVisaButNoRate)).toBe(380800); // unchanged -- no rate, no cost added
     });
 
-    it('scales line items (drinks/activities) by referenceGroupSize', () => {
-      const withLineItems: CostInputs = {
+    it('scales drink line items by referenceGroupSize', () => {
+      const withDrinks: CostInputs = {
         ...BASE_INPUTS,
-        lineItems: [
-          { perUnitMinor: 200, quantityPerPerson: 2 }, // water
-          { perUnitMinor: 5000, quantityPerPerson: 1 }, // an activity
-        ],
+        drinkLineItems: [{ perUnitMinor: 200, quantityPerPerson: 2 }],
       };
-      // lineItems: (200*2 + 5000*1) * 10 people = 54000, added on top
-      expect(computeBaseCostMinor(withLineItems)).toBe(370800 + 54000);
+      // drinks: (200*2) * 10 people = 4000, added on top
+      expect(computeBaseCostMinor(withDrinks)).toBe(380800 + 4000);
     });
 
-    it('does not multiply staff/transport/accommodation by referenceGroupSize (shared, not per-person)', () => {
-      const smallGroup: CostInputs = { ...BASE_INPUTS, referenceGroupSize: 2, breakfastCount: 0, lunchCount: 0, dinnerCount: 0 };
-      // accommodation (100000) + transport (18800) + staff (72000) unaffected by group size
-      expect(computeBaseCostMinor(smallGroup)).toBe(100000 + 18800 + 72000);
+    it('does not multiply staff/transport by referenceGroupSize (genuinely whole-group, not per-traveler)', () => {
+      const staffTransportOnly: CostInputs = {
+        ...BASE_INPUTS,
+        referenceGroupSize: 2,
+        accommodationDailyRatesMinor: [],
+        restaurantDailyRatesMinor: [],
+        activityFeesMinor: [],
+      };
+      // transport (18800) + staff (72000) unaffected by group size
+      expect(computeBaseCostMinor(staffTransportOnly)).toBe(18800 + 72000);
+    });
+
+    it('DOES multiply accommodation/restaurant/activities by referenceGroupSize (per-traveler, DR-131)', () => {
+      const smallGroup: CostInputs = { ...BASE_INPUTS, referenceGroupSize: 2 };
+      const buckets = computeCostBuckets(smallGroup);
+      expect(buckets.accommodationMinor).toBe(20000 * 2); // 40000, vs 200000 at group size 10
+      expect(buckets.restaurantMinor).toBe(4000 * 2); // 8000, vs 40000 at group size 10
+      expect(buckets.activitiesMinor).toBe(5000 * 2); // 10000, vs 50000 at group size 10
     });
 
     it('charges admin cost once for the whole group under PER_GROUP', () => {
       const withAdminCost: CostInputs = { ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: 1000, adminCostBasis: 'PER_GROUP' };
       // admin: 1000 * 4 days = 4000 (referenceGroupSize of 10 has no effect), added on top
-      expect(computeBaseCostMinor(withAdminCost)).toBe(370800 + 4000);
+      expect(computeBaseCostMinor(withAdminCost)).toBe(380800 + 4000);
     });
 
     it('scales admin cost by referenceGroupSize under PER_PERSON', () => {
       const withAdminCost: CostInputs = { ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: 1000, adminCostBasis: 'PER_PERSON' };
       // admin: 1000 * 4 days * 10 people = 40000, added on top
-      expect(computeBaseCostMinor(withAdminCost)).toBe(370800 + 40000);
+      expect(computeBaseCostMinor(withAdminCost)).toBe(380800 + 40000);
     });
 
     it('adds no admin cost when adminDays is 0 or no rate is provided', () => {
-      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 0, adminDailyRateMinor: 1000 })).toBe(370800);
-      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: null })).toBe(370800);
+      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 0, adminDailyRateMinor: 1000 })).toBe(380800);
+      expect(computeBaseCostMinor({ ...BASE_INPUTS, adminDays: 4, adminDailyRateMinor: null })).toBe(380800);
+    });
+  });
+
+  describe('computeCostBuckets', () => {
+    it('breaks the total down into the same buckets computeBaseCostMinor sums', () => {
+      const buckets = computeCostBuckets(BASE_INPUTS);
+      expect(buckets.accommodationMinor).toBe(200000);
+      expect(buckets.restaurantMinor).toBe(40000);
+      expect(buckets.activitiesMinor).toBe(50000);
+      expect(buckets.transportMinor).toBe(18800);
+      expect(buckets.staffMinor).toBe(72000);
+      expect(buckets.drinksMinor).toBe(0);
+      expect(buckets.visaMinor).toBe(0);
+      expect(buckets.adminMinor).toBe(0);
+      const sum =
+        buckets.accommodationMinor +
+        buckets.transportMinor +
+        buckets.staffMinor +
+        buckets.restaurantMinor +
+        buckets.activitiesMinor +
+        buckets.drinksMinor +
+        buckets.visaMinor +
+        buckets.adminMinor;
+      expect(sum).toBe(computeBaseCostMinor(BASE_INPUTS));
     });
   });
 

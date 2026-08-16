@@ -102,12 +102,16 @@ describe('Row-Level Security: booking_cost_line_items tenant isolation', () => {
 
   it('cannot write a line item into another tenant (WITH CHECK)', async () => {
     const breakdownInOrgA = await withOrg(orgA, (tx) => tx.bookingCostBreakdown.findFirstOrThrow());
+    const foodRate = await admin.foodBeverageRate.create({
+      data: { country: 'NA', category: 'WATER', perUnitMinor: 200, currency: 'USD' },
+    });
     await expect(
       withOrg(orgA, (tx) =>
         tx.bookingCostLineItem.create({
           data: {
             organizationId: orgB,
             bookingCostBreakdownId: breakdownInOrgA.id,
+            foodBeverageRateId: foodRate.id,
             quantityPerPerson: 1,
           },
         }),

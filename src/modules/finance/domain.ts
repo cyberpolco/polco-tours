@@ -41,6 +41,19 @@ export interface HotelRateView {
   validTo: Date | null;
 }
 
+// DR-131: restaurant counterpart to HotelRateView -- see RestaurantRate's
+// schema comment for why this is one flat daily rate rather than split into
+// breakfast/lunch/dinner.
+export interface RestaurantRateView {
+  id: string;
+  country: string;
+  restaurantId: string;
+  dailyRateMinor: number;
+  currency: Currency;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
 export interface TransportRateView {
   id: string;
   country: string;
@@ -139,6 +152,15 @@ export const CreateHotelRateInput = z.object({
 });
 export type CreateHotelRateInput = z.infer<typeof CreateHotelRateInput>;
 
+export const CreateRestaurantRateInput = z.object({
+  country: z.string().length(2),
+  restaurantId: z.string().uuid(),
+  dailyRateMinor: z.number().int().nonnegative(),
+  currency: CURRENCY_ENUM,
+  ...EFFECTIVE_DATING,
+});
+export type CreateRestaurantRateInput = z.infer<typeof CreateRestaurantRateInput>;
+
 export const CreateTransportRateInput = z.object({
   country: z.string().length(2),
   fuelEstimateMinor: z.number().int().nonnegative(),
@@ -203,10 +225,13 @@ export type CreateAddonRateInput = z.infer<typeof CreateAddonRateInput>;
 
 // ---------------------------------------------------- package cost breakdown
 
-export interface PackageCostLineItemView {
+// DR-131: drinks only now (WATER/SOFT_DRINK/JUICE/LOCAL_BEVERAGE/ALCOHOLIC
+// FoodBeverageRate categories) -- activities used to also be a line item
+// here, but are now derived automatically from the Day Template instead of
+// staff-picked (see PackageCostBreakdownView's own comment).
+export interface PackageDrinkLineItemView {
   id: string;
-  foodBeverageRateId: string | null;
-  activityFeeId: string | null;
+  foodBeverageRateId: string;
   quantityPerPerson: number;
 }
 
@@ -221,11 +246,6 @@ export interface PackageCostBreakdownView {
   guideDays: number;
   photographerDays: number;
   videographerDays: number;
-  hotelRateId: string | null;
-  roomsNeeded: number;
-  breakfastCount: number;
-  lunchCount: number;
-  dinnerCount: number;
   transportRateId: string | null;
   transportDays: number;
   requiresVisa: boolean;
@@ -233,29 +253,33 @@ export interface PackageCostBreakdownView {
   adminDays: number;
   adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
+  // DR-131: read-only snapshots of the three Day-Template-derived buckets,
+  // for display -- not independently settable; computedBaseCostMinor is
+  // still the sum of record (accommodation + restaurant + activities +
+  // transport + staff + drinks + visa + admin).
+  computedAccommodationMinor: number | null;
+  computedRestaurantMinor: number | null;
+  computedActivitiesMinor: number | null;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
   overridePriceMinor: number | null;
   overrideReason: string | null;
   overriddenByUserId: string | null;
   overriddenAt: Date | null;
-  lineItems: PackageCostLineItemView[];
+  drinkLineItems: PackageDrinkLineItemView[];
 }
 
-const LineItemInput = z
-  .object({
-    foodBeverageRateId: z.string().uuid().optional(),
-    activityFeeId: z.string().uuid().optional(),
-    quantityPerPerson: z.number().int().positive(),
-  })
-  .refine((v) => (v.foodBeverageRateId != null) !== (v.activityFeeId != null), {
-    message: 'Exactly one of foodBeverageRateId/activityFeeId must be set',
-  });
+const DrinkLineItemInput = z.object({
+  foodBeverageRateId: z.string().uuid(),
+  quantityPerPerson: z.number().int().positive(),
+});
 
 // overrideReason is required together with overridePriceMinor (spec:
 // "Administrators may override calculated prices when necessary while
 // maintaining an audit trail") -- validated by the refine below, not just
-// convention.
+// convention. DR-131: hotelRateId/roomsNeeded/breakfastCount/lunchCount/
+// dinnerCount are gone -- accommodation/restaurant/activities are computed
+// server-side from the package's own Day Template, never caller-supplied.
 export const SaveCostBreakdownInput = z
   .object({
     currency: CURRENCY_ENUM,
@@ -265,11 +289,6 @@ export const SaveCostBreakdownInput = z
     guideDays: z.number().int().nonnegative(),
     photographerDays: z.number().int().nonnegative().default(0),
     videographerDays: z.number().int().nonnegative().default(0),
-    hotelRateId: z.string().uuid().optional(),
-    roomsNeeded: z.number().int().positive().default(1),
-    breakfastCount: z.number().int().nonnegative().default(0),
-    lunchCount: z.number().int().nonnegative().default(0),
-    dinnerCount: z.number().int().nonnegative().default(0),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),
@@ -277,7 +296,7 @@ export const SaveCostBreakdownInput = z
     adminDays: z.number().int().nonnegative().default(0),
     adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),
-    lineItems: z.array(LineItemInput).optional().default([]),
+    drinkLineItems: z.array(DrinkLineItemInput).optional().default([]),
     overridePriceMinor: z.number().int().nonnegative().optional(),
     overrideReason: z.string().min(1).max(500).optional(),
   })
@@ -290,7 +309,6 @@ export type SaveCostBreakdownInput = z.infer<typeof SaveCostBreakdownInput>;
 
 export interface CostInputs {
   referenceGroupSize: number;
-  nights: number;
   driverDays: number;
   guideDays: number;
   photographerDays: number;
@@ -299,14 +317,16 @@ export interface CostInputs {
   guideDailyRateMinor: number | null;
   photographerDailyRateMinor: number | null;
   videographerDailyRateMinor: number | null;
-  hotelNightlyRateMinor: number | null;
-  roomsNeeded: number;
-  breakfastCount: number;
-  lunchCount: number;
-  dinnerCount: number;
-  breakfastRateMinor: number | null;
-  lunchRateMinor: number | null;
-  dinnerRateMinor: number | null;
+  // DR-131: one resolved rate per Day Template day that actually has the
+  // corresponding entity assigned (hotelId/restaurantId/an activityId in
+  // activityIds) -- already resolved to a flat minor-unit rate by the
+  // caller (service.ts), since domain.ts touches no DB. Summed here, then
+  // charged per-traveler (referenceGroupSize), replacing the old single
+  // staff-picked hotelRateId * nights * roomsNeeded model and the old flat
+  // breakfast/lunch/dinner counts.
+  accommodationDailyRatesMinor: number[];
+  restaurantDailyRatesMinor: number[];
+  activityFeesMinor: number[];
   transportDays: number;
   transportRate: {
     fuelEstimateMinor: number;
@@ -321,30 +341,43 @@ export interface CostInputs {
     invitationLetterFeeMinor: number;
     borderPermitFeeMinor: number;
   } | null;
-  // Drinks (beyond the base meal counts) + activities, per-person quantities
-  // -- already resolved to a flat perUnitMinor by the caller (service.ts),
-  // since domain.ts touches no DB.
-  lineItems: Array<{ perUnitMinor: number; quantityPerPerson: number }>;
+  // Drinks only now (beyond-base FoodBeverageRate categories) -- activities
+  // moved to activityFeesMinor above. Already resolved to a flat
+  // perUnitMinor by the caller.
+  drinkLineItems: Array<{ perUnitMinor: number; quantityPerPerson: number }>;
   // DR-126
   adminDays: number;
   adminDailyRateMinor: number | null;
   adminCostBasis: AdminCostBasis;
 }
 
-/** Sums all seven spec buckets (Accommodation + Transportation + Staff Costs +
- * Restaurant Costs + Activity Fees [here: lineItems] + Visa Costs + Admin
- * Costs) for the departure's FULL reference group, not per seat --
- * staff/transport costs are genuinely shared across the whole group, not
- * multiplied per person. Per-person buckets (meals, line items, visa) are
- * scaled by referenceGroupSize; accommodation/transport/staff are not
- * (they're already whole-group figures: nights*rooms, days*vehicle,
- * days*rate). Admin cost is whichever of the two the caller chose
- * (adminCostBasis): PER_GROUP behaves like staff/transport (charged once),
- * PER_PERSON behaves like restaurant/visa (scaled by referenceGroupSize). */
-export function computeBaseCostMinor(inputs: CostInputs): number {
-  const accommodation = (inputs.hotelNightlyRateMinor ?? 0) * inputs.nights * inputs.roomsNeeded;
+export interface CostBuckets {
+  accommodationMinor: number;
+  transportMinor: number;
+  staffMinor: number;
+  restaurantMinor: number;
+  activitiesMinor: number;
+  drinksMinor: number;
+  visaMinor: number;
+  adminMinor: number;
+}
 
-  const transport = inputs.transportRate
+/** Every bucket individually, for both the total (computeBaseCostMinor,
+ * which just sums these) and for display (the three Day-Template-derived
+ * buckets are persisted on the breakdown row as computed*Minor snapshots).
+ * Staff/transport/accommodation/restaurant/activities are all "shared, not
+ * per-seat" in the sense that they're computed once for the trip -- but
+ * unlike staff/transport (genuinely whole-group: days*rate), accommodation/
+ * restaurant/activities/drinks/visa are per-traveler and scaled by
+ * referenceGroupSize (DR-131: previously only drinks/activities/restaurant/
+ * visa were; accommodation used to be a whole-group roomsNeeded figure).
+ * Admin cost is whichever of the two the caller chose (adminCostBasis):
+ * PER_GROUP behaves like staff/transport (charged once), PER_PERSON behaves
+ * like the per-traveler buckets (scaled by referenceGroupSize). */
+export function computeCostBuckets(inputs: CostInputs): CostBuckets {
+  const accommodationMinor = inputs.accommodationDailyRatesMinor.reduce((s, x) => s + x, 0) * inputs.referenceGroupSize;
+
+  const transportMinor = inputs.transportRate
     ? (inputs.transportRate.fuelEstimateMinor +
         inputs.transportRate.tollFeesMinor +
         inputs.transportRate.parkingFeesMinor +
@@ -352,22 +385,20 @@ export function computeBaseCostMinor(inputs: CostInputs): number {
       inputs.transportDays
     : 0;
 
-  const staff =
+  const staffMinor =
     (inputs.driverDailyRateMinor ?? 0) * inputs.driverDays +
     (inputs.guideDailyRateMinor ?? 0) * inputs.guideDays +
     (inputs.photographerDailyRateMinor ?? 0) * inputs.photographerDays +
     (inputs.videographerDailyRateMinor ?? 0) * inputs.videographerDays;
 
-  const restaurant =
-    ((inputs.breakfastRateMinor ?? 0) * inputs.breakfastCount +
-      (inputs.lunchRateMinor ?? 0) * inputs.lunchCount +
-      (inputs.dinnerRateMinor ?? 0) * inputs.dinnerCount) *
-    inputs.referenceGroupSize;
+  const restaurantMinor = inputs.restaurantDailyRatesMinor.reduce((s, x) => s + x, 0) * inputs.referenceGroupSize;
 
-  const lineItemsTotal =
-    inputs.lineItems.reduce((sum, li) => sum + li.perUnitMinor * li.quantityPerPerson, 0) * inputs.referenceGroupSize;
+  const activitiesMinor = inputs.activityFeesMinor.reduce((s, x) => s + x, 0) * inputs.referenceGroupSize;
 
-  const visa =
+  const drinksMinor =
+    inputs.drinkLineItems.reduce((sum, li) => sum + li.perUnitMinor * li.quantityPerPerson, 0) * inputs.referenceGroupSize;
+
+  const visaMinor =
     inputs.requiresVisa && inputs.immigrationCostRate
       ? (inputs.immigrationCostRate.visaFeeMinor +
           inputs.immigrationCostRate.processingFeeMinor +
@@ -376,10 +407,17 @@ export function computeBaseCostMinor(inputs: CostInputs): number {
         inputs.referenceGroupSize
       : 0;
 
-  const adminCost =
+  const adminMinor =
     (inputs.adminDailyRateMinor ?? 0) * inputs.adminDays * (inputs.adminCostBasis === 'PER_PERSON' ? inputs.referenceGroupSize : 1);
 
-  return Math.round(accommodation + transport + staff + restaurant + lineItemsTotal + visa + adminCost);
+  return { accommodationMinor, transportMinor, staffMinor, restaurantMinor, activitiesMinor, drinksMinor, visaMinor, adminMinor };
+}
+
+/** Sums all eight buckets for the departure's FULL reference group (not per
+ * seat) -- see computeCostBuckets for how each one is derived. */
+export function computeBaseCostMinor(inputs: CostInputs): number {
+  const b = computeCostBuckets(inputs);
+  return Math.round(b.accommodationMinor + b.transportMinor + b.staffMinor + b.restaurantMinor + b.activitiesMinor + b.drinksMinor + b.visaMinor + b.adminMinor);
 }
 
 /** Base Cost + Agency Margin = Selling Price, for the full reference group. */
@@ -396,10 +434,9 @@ export function perSeatPriceMinor(sellingPriceTotalMinor: number, referenceGroup
 
 // ----------------------------------------------------- booking cost breakdown
 
-export interface BookingCostLineItemView {
+export interface BookingDrinkLineItemView {
   id: string;
-  foodBeverageRateId: string | null;
-  activityFeeId: string | null;
+  foodBeverageRateId: string;
   quantityPerPerson: number;
 }
 
@@ -413,11 +450,6 @@ export interface BookingCostBreakdownView {
   guideDays: number;
   photographerDays: number;
   videographerDays: number;
-  hotelRateId: string | null;
-  roomsNeeded: number;
-  breakfastCount: number;
-  lunchCount: number;
-  dinnerCount: number;
   transportRateId: string | null;
   transportDays: number;
   requiresVisa: boolean;
@@ -425,6 +457,9 @@ export interface BookingCostBreakdownView {
   adminDays: number;
   adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
+  computedAccommodationMinor: number | null;
+  computedRestaurantMinor: number | null;
+  computedActivitiesMinor: number | null;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
   addonsTotalMinor: number;
@@ -432,7 +467,7 @@ export interface BookingCostBreakdownView {
   overrideReason: string | null;
   overriddenByUserId: string | null;
   overriddenAt: Date | null;
-  lineItems: BookingCostLineItemView[];
+  drinkLineItems: BookingDrinkLineItemView[];
   // Not persisted as its own column -- derived by the repository mapper from
   // the other fields already on this view.
   suggestedTotalMinor: number | null;
@@ -441,7 +476,9 @@ export interface BookingCostBreakdownView {
 // Same shape as SaveCostBreakdownInput minus referenceGroupSize/currency --
 // both are computed server-side for a booking (seats come from the booking
 // itself, currency is derived from whichever rates/add-ons actually resolve),
-// never caller-supplied.
+// never caller-supplied. DR-131: same hotelRateId/roomsNeeded/breakfastCount/
+// lunchCount/dinnerCount removal as SaveCostBreakdownInput -- derived from
+// the linked customized package's Day Template instead (0 if unset).
 export const SaveBookingCostBreakdownInput = z
   .object({
     nights: z.number().int().nonnegative(),
@@ -449,11 +486,6 @@ export const SaveBookingCostBreakdownInput = z
     guideDays: z.number().int().nonnegative(),
     photographerDays: z.number().int().nonnegative().default(0),
     videographerDays: z.number().int().nonnegative().default(0),
-    hotelRateId: z.string().uuid().optional(),
-    roomsNeeded: z.number().int().positive().default(1),
-    breakfastCount: z.number().int().nonnegative().default(0),
-    lunchCount: z.number().int().nonnegative().default(0),
-    dinnerCount: z.number().int().nonnegative().default(0),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),
@@ -461,7 +493,7 @@ export const SaveBookingCostBreakdownInput = z
     adminDays: z.number().int().nonnegative().default(0),
     adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),
-    lineItems: z.array(LineItemInput).optional().default([]),
+    drinkLineItems: z.array(DrinkLineItemInput).optional().default([]),
     overridePriceMinor: z.number().int().nonnegative().optional(),
     overrideReason: z.string().min(1).max(500).optional(),
   })

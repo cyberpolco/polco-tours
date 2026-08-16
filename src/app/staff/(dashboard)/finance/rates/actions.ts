@@ -9,6 +9,7 @@ import {
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateImmigrationCostRateInput,
+  CreateRestaurantRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
   financeService,
@@ -52,6 +53,24 @@ export async function createHotelRateAction(formData: FormData): Promise<void> {
 export async function deleteHotelRateAction(id: string): Promise<void> {
   const ctx = await requireStaffContext('finance_config.write');
   await financeService.deleteHotelRate(ctx, id);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function createRestaurantRateAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateRestaurantRateInput.parse({
+    country: String(formData.get('country') ?? ''),
+    restaurantId: String(formData.get('restaurantId') ?? ''),
+    dailyRateMinor: decimalToMinor(formData, 'dailyRate'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.createRestaurantRate(ctx, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function deleteRestaurantRateAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  await financeService.deleteRestaurantRate(ctx, id);
   revalidatePath('/staff/finance/rates');
 }
 

@@ -6,6 +6,7 @@ import { loginAs } from '../helpers/test-auth';
 import { GET as listStaffRates, POST as createStaffRate } from '../../src/app/api/v1/finance/rates/staff/route';
 import { DELETE as deleteStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
 import { GET as listHotelRates, POST as createHotelRate } from '../../src/app/api/v1/finance/rates/hotel/route';
+import { GET as listRestaurantRates, POST as createRestaurantRate } from '../../src/app/api/v1/finance/rates/restaurant/route';
 import { GET as listTransportRates, POST as createTransportRate } from '../../src/app/api/v1/finance/rates/transport/route';
 import { GET as listFoodBeverageRates, POST as createFoodBeverageRate } from '../../src/app/api/v1/finance/rates/food-beverage/route';
 import { GET as listActivityFees, POST as createActivityFee } from '../../src/app/api/v1/finance/rates/activity/route';
@@ -30,6 +31,8 @@ let createdStaffRateId: string;
 let hotelId: string;
 let siteId: string;
 let activityId: string;
+// DR-131: RestaurantRate requires a real Restaurant id.
+let restaurantId: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -52,6 +55,8 @@ beforeAll(async () => {
   await withOrg(orgId, async (tx) => {
     const hotel = await tx.hotel.create({ data: { organizationId: orgId, name: `Fixture Hotel ${suffix}`, country: 'NA' } });
     hotelId = hotel.id;
+    const restaurant = await tx.restaurant.create({ data: { organizationId: orgId, name: `Fixture Restaurant ${suffix}`, country: 'NA' } });
+    restaurantId = restaurant.id;
     const site = await tx.site.create({
       data: { organizationId: orgId, name: `Fixture Site ${suffix}`, country: 'NA', province: 'Khomas' },
     });
@@ -73,6 +78,7 @@ afterAll(async () => {
   }
   await admin.staffRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.hotelRate.deleteMany({ where: { country: TEST_COUNTRY } });
+  await admin.restaurantRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.transportRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.foodBeverageRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
@@ -82,6 +88,7 @@ afterAll(async () => {
   await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.site.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.hotel.deleteMany({ where: { organizationId: orgId } }));
+  await withOrg(orgId, (tx) => tx.restaurant.deleteMany({ where: { organizationId: orgId } }));
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
   await admin.$disconnect();
@@ -121,7 +128,7 @@ describe('POST/GET/DELETE /api/v1/finance/rates/staff', () => {
   });
 });
 
-describe('the other seven rate categories (smoke test)', () => {
+describe('the other eight rate categories (smoke test)', () => {
   it('creates and lists a hotel rate', async () => {
     const headers = await loginAs(superadminId);
     const createReq = jsonRequest('http://localhost/api/v1/finance/rates/hotel', headers, 'POST', {
@@ -134,6 +141,20 @@ describe('the other seven rate categories (smoke test)', () => {
     expect((await createHotelRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
     const listReq = new NextRequest('http://localhost/api/v1/finance/rates/hotel', { headers });
     const listRes = await listHotelRates(listReq, { params: Promise.resolve({}) });
+    expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
+  });
+
+  it('creates and lists a restaurant rate', async () => {
+    const headers = await loginAs(superadminId);
+    const createReq = jsonRequest('http://localhost/api/v1/finance/rates/restaurant', headers, 'POST', {
+      country: TEST_COUNTRY,
+      restaurantId,
+      dailyRateMinor: 1000,
+      currency: 'USD',
+    });
+    expect((await createRestaurantRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
+    const listReq = new NextRequest('http://localhost/api/v1/finance/rates/restaurant', { headers });
+    const listRes = await listRestaurantRates(listReq, { params: Promise.resolve({}) });
     expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
   });
 

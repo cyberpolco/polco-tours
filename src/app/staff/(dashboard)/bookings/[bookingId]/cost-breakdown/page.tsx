@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { bookingService } from '@modules/booking';
+import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -39,29 +40,33 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
   const t = await getTranslations('StaffCostBreakdown');
   const tCountries = await getTranslations('Countries');
 
-  const [breakdown, addons, hotelRates, transportRates, immigrationCostRates, foodBeverageRates, activityFees] = await Promise.all([
+  const [breakdown, addons, transportRates, immigrationCostRates, foodBeverageRates, templateDays] = await Promise.all([
     financeService.getBookingCostBreakdown(ctx, bookingId),
     bookingService.listAddons(ctx, bookingId),
-    financeService.listHotelRates(ctx),
     financeService.listTransportRates(ctx),
     financeService.listImmigrationCostRates(ctx),
     financeService.listFoodBeverageRates(ctx),
-    financeService.listActivityFees(ctx),
+    booking.customizedPackageId ? catalogService.listTemplateDaysForItineraryCopy(booking.organizationId, booking.customizedPackageId) : Promise.resolve([]),
   ]);
 
-  const countryHotelRates = hotelRates.filter((r) => r.country === country);
   const countryTransportRates = transportRates.filter((r) => r.country === country);
   const countryImmigrationRates = immigrationCostRates.filter((r) => r.country === country);
   const drinkRates = foodBeverageRates.filter(
     (r) => r.country === country && ['WATER', 'SOFT_DRINK', 'JUICE', 'LOCAL_BEVERAGE', 'ALCOHOLIC'].includes(r.category),
   );
-  const countryActivityFees = activityFees.filter((r) => r.country === country);
 
   const lineItemQuantity = new Map<string, number>();
-  for (const li of breakdown?.lineItems ?? []) {
-    if (li.foodBeverageRateId) lineItemQuantity.set(`food_${li.foodBeverageRateId}`, li.quantityPerPerson);
-    if (li.activityFeeId) lineItemQuantity.set(`activity_${li.activityFeeId}`, li.quantityPerPerson);
+  for (const li of breakdown?.drinkLineItems ?? []) {
+    lineItemQuantity.set(li.foodBeverageRateId, li.quantityPerPerson);
   }
+
+  // DR-131: same Day-Template-derived accommodation/restaurant/activities as
+  // the package flow, sourced from this booking's linked customized package
+  // if one exists yet.
+  const hotelDayCount = templateDays.filter((d) => d.hotelId).length;
+  const restaurantDayCount = templateDays.filter((d) => d.restaurantId).length;
+  const activityAssignmentCount = templateDays.reduce((sum, d) => sum + d.activityIds.length, 0);
+  const hasCustomizedPackage = booking.customizedPackageId != null;
 
   const addonsTotalMinor = addons.reduce((sum, a) => sum + a.priceMinor, 0);
   const addonsCurrency = addons[0]?.currency ?? null;
@@ -98,6 +103,18 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
 
       {breakdown && (
         <Card className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-mist">{t('accommodation')}</p>
+            <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedAccommodationMinor, breakdown.currency)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-mist">{t('restaurantCosts')}</p>
+            <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedRestaurantMinor, breakdown.currency)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-mist">{t('activityFees')}</p>
+            <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedActivitiesMinor, breakdown.currency)}</p>
+          </div>
           <div>
             <p className="text-xs text-mist">{t('baseCost')}</p>
             <p className="text-sm font-semibold text-navy">{formatOrPending(breakdown.computedBaseCostMinor, breakdown.currency)}</p>
@@ -154,38 +171,23 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
           </div>
         </div>
 
+        {!hasCustomizedPackage && (
+          <Alert tone="info">{t('noCustomizedPackageYet')}</Alert>
+        )}
+
         <div>
           <p className="eyebrow text-mist">{t('accommodation')}</p>
-          <div className="mt-2 grid grid-cols-2 gap-4">
-            <FormField label={t('hotelRoomCategory')} htmlFor="hotelRateId" optional>
-              <Select name="hotelRateId" defaultValue={breakdown?.hotelRateId ?? ''}>
-                <option value="">{t('none')}</option>
-                {countryHotelRates.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.roomCategory} — {format(money(r.nightlyRateMinor, r.currency))}{t('perNight')}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-            <FormField label={t('roomsNeeded')} htmlFor="roomsNeeded">
-              <input name="roomsNeeded" type="number" min={1} defaultValue={breakdown?.roomsNeeded ?? 1} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-          </div>
+          <p className="mt-1 text-xs text-mist">{t('derivedFromDayPlan', { count: hotelDayCount })}</p>
         </div>
 
         <div>
           <p className="eyebrow text-mist">{t('restaurantCosts')}</p>
-          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <FormField label={t('breakfasts')} htmlFor="breakfastCount">
-              <input name="breakfastCount" type="number" min={0} defaultValue={breakdown?.breakfastCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label={t('lunches')} htmlFor="lunchCount">
-              <input name="lunchCount" type="number" min={0} defaultValue={breakdown?.lunchCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label={t('dinners')} htmlFor="dinnerCount">
-              <input name="dinnerCount" type="number" min={0} defaultValue={breakdown?.dinnerCount ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-          </div>
+          <p className="mt-1 text-xs text-mist">{t('derivedFromDayPlan', { count: restaurantDayCount })}</p>
+        </div>
+
+        <div>
+          <p className="eyebrow text-mist">{t('activityFees')}</p>
+          <p className="mt-1 text-xs text-mist">{t('derivedFromDayPlanActivities', { count: activityAssignmentCount })}</p>
         </div>
 
         {drinkRates.length > 0 && (
@@ -198,7 +200,7 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
                     name={`lineItem_food_${r.id}`}
                     type="number"
                     min={0}
-                    defaultValue={lineItemQuantity.get(`food_${r.id}`) ?? ''}
+                    defaultValue={lineItemQuantity.get(r.id) ?? ''}
                     className="w-full rounded-survey border border-rule px-3 py-2"
                   />
                 </FormField>
@@ -225,25 +227,6 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
             </FormField>
           </div>
         </div>
-
-        {countryActivityFees.length > 0 && (
-          <div>
-            <p className="eyebrow text-mist">{t('activityFees')}</p>
-            <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
-              {countryActivityFees.map((r) => (
-                <FormField key={r.id} label={`${r.name} (${format(money(r.feeMinor, r.currency))})`} htmlFor={`lineItem_activity_${r.id}`} optional>
-                  <input
-                    name={`lineItem_activity_${r.id}`}
-                    type="number"
-                    min={0}
-                    defaultValue={lineItemQuantity.get(`activity_${r.id}`) ?? ''}
-                    className="w-full rounded-survey border border-rule px-3 py-2"
-                  />
-                </FormField>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div>
           <p className="eyebrow text-mist">{t('immigrationVisaCosts')}</p>

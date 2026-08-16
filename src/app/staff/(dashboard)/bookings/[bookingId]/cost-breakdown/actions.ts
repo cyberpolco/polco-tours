@@ -15,19 +15,19 @@ function optionalId(formData: FormData, key: string): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-// Same lineItem_food_<id>/lineItem_activity_<id> dynamic-row convention as
-// packages/[packageId]/cost-breakdown/actions.ts.
+// Same lineItem_food_<id> dynamic-row convention as
+// packages/[packageId]/cost-breakdown/actions.ts. DR-131: accommodation/
+// restaurant/activities are no longer form fields -- derived server-side
+// from the booking's linked customized package's Day Template.
 export async function saveBookingCostBreakdownAction(bookingId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('booking.confirm');
 
-  const lineItems: Array<{ foodBeverageRateId?: string; activityFeeId?: string; quantityPerPerson: number }> = [];
+  const drinkLineItems: Array<{ foodBeverageRateId: string; quantityPerPerson: number }> = [];
   for (const [key, value] of formData.entries()) {
     const quantity = Number(value);
     if (!quantity || quantity <= 0) continue;
     if (key.startsWith('lineItem_food_')) {
-      lineItems.push({ foodBeverageRateId: key.replace('lineItem_food_', ''), quantityPerPerson: quantity });
-    } else if (key.startsWith('lineItem_activity_')) {
-      lineItems.push({ activityFeeId: key.replace('lineItem_activity_', ''), quantityPerPerson: quantity });
+      drinkLineItems.push({ foodBeverageRateId: key.replace('lineItem_food_', ''), quantityPerPerson: quantity });
     }
   }
 
@@ -41,11 +41,6 @@ export async function saveBookingCostBreakdownAction(bookingId: string, formData
     guideDays: Number(formData.get('guideDays') || 0),
     photographerDays: Number(formData.get('photographerDays') || 0),
     videographerDays: Number(formData.get('videographerDays') || 0),
-    hotelRateId: optionalId(formData, 'hotelRateId'),
-    roomsNeeded: Number(formData.get('roomsNeeded') || 1),
-    breakfastCount: Number(formData.get('breakfastCount') || 0),
-    lunchCount: Number(formData.get('lunchCount') || 0),
-    dinnerCount: Number(formData.get('dinnerCount') || 0),
     transportRateId: optionalId(formData, 'transportRateId'),
     transportDays: Number(formData.get('transportDays') || 0),
     requiresVisa: formData.get('requiresVisa') === 'on',
@@ -53,7 +48,7 @@ export async function saveBookingCostBreakdownAction(bookingId: string, formData
     adminDays: Number(formData.get('adminDays') || 0),
     adminCostBasis: String(formData.get('adminCostBasis') || 'PER_GROUP'),
     agencyMarginBp: Math.round(Number(formData.get('agencyMarginPercent') || 0) * 100),
-    lineItems,
+    drinkLineItems,
     overridePriceMinor,
     overrideReason,
   });

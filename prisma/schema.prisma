@@ -1267,6 +1267,10 @@ model Restaurant {
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   days         ItineraryDay[]
   ratings      RestaurantRating[]
+  // DR-131: operational-rate rows (finance module) that reference this
+  // restaurant -- same "cross-module FK, still platform-wide/un-RLS'd"
+  // precedent as Hotel.operationalRates above.
+  operationalRates RestaurantRate[]
 
   @@index([organizationId])
   @@map("restaurants")
@@ -1676,6 +1680,32 @@ model HotelRate {
   @@map("hotel_rates")
 }
 
+// DR-131: restaurant counterpart to HotelRate, priced per (restaurant, day)
+// rather than split into separate breakfast/lunch/dinner rates -- the Day
+// Template only ever assigns one restaurant per day (ItineraryDay/
+// PackageItineraryDay.restaurantId), so one flat daily rate per restaurant
+// is the right granularity, resolved the same "effective by entity id +
+// date" way HotelRate now is. restaurantId is required (unlike HotelRate.
+// hotelId) -- no rows predate this table, so there's no legacy-nullable case
+// to support.
+model RestaurantRate {
+  id             String    @id @default(uuid()) @db.Uuid
+  country        String
+  restaurantId   String    @db.Uuid
+  dailyRateMinor Int
+  currency       Currency
+  validFrom      DateTime  @default(now())
+  validTo        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([country, validFrom])
+  @@index([restaurantId])
+  @@map("restaurant_rates")
+}
+
 // All four figures are per-day estimates, summed then multiplied by a
 // package's transportDays.
 model TransportRate {
@@ -1843,24 +1873,31 @@ model PackageCostBreakdown {
   // unchanged and is added on top at booking time, not here.
   photographerDays          Int       @default(0)
   videographerDays          Int       @default(0)
-  hotelRateId               String?   @db.Uuid
-  roomsNeeded               Int       @default(1)
-  breakfastCount            Int       @default(0)
-  lunchCount                Int       @default(0)
-  dinnerCount               Int       @default(0)
+  // DR-131: accommodation/restaurant/activities are no longer staff-picked
+  // here at all (hotelRateId/roomsNeeded/breakfastCount/lunchCount/
+  // dinnerCount removed) -- they're derived automatically from this
+  // package's own Day Template (PackageItineraryDay.hotelId/restaurantId/
+  // activityIds), resolved against HotelRate/RestaurantRate/ActivityFee by
+  // entity id + effective date, then charged per-traveler
+  // (referenceGroupSize). The three computed*Minor columns below are a
+  // snapshot for display only -- computedBaseCostMinor is still the sum of
+  // record.
   transportRateId           String?   @db.Uuid
   transportDays             Int       @default(0)
   requiresVisa              Boolean   @default(false)
   immigrationCostRateId     String?   @db.Uuid
   // DR-126: admin cost, resolved via AdminCostRate by country + effective
   // date (same "no stored rate id" precedent as driverDays/guideDays above,
-  // not a staff-picked dropdown like hotelRateId/transportRateId). basis
-  // decides whether the resolved dailyRateMinor is multiplied by
-  // referenceGroupSize (PER_PERSON) or charged once for the whole group
-  // (PER_GROUP, the default -- an admin overhead fee is usually shared).
+  // not a staff-picked dropdown like transportRateId). basis decides
+  // whether the resolved dailyRateMinor is multiplied by referenceGroupSize
+  // (PER_PERSON) or charged once for the whole group (PER_GROUP, the
+  // default -- an admin overhead fee is usually shared).
   adminDays                 Int            @default(0)
   adminCostBasis            AdminCostBasis @default(PER_GROUP)
   agencyMarginBp            Int // basis points, e.g. 2000 = 20%
+  computedAccommodationMinor Int?
+  computedRestaurantMinor    Int?
+  computedActivitiesMinor    Int?
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?
   // Override + audit trail (spec: "Administrators may override calculated
@@ -1883,16 +1920,17 @@ model PackageCostBreakdown {
   @@map("package_cost_breakdowns")
 }
 
-// Zero-or-more per breakdown -- one row per selected drink/meal-beyond-base
-// or activity, with a per-person quantity. Exactly one of
-// foodBeverageRateId/activityFeeId is set per row (mirrors
-// ReviewSubjectRating's nullable-pair precedent, DR-037).
+// Zero-or-more per breakdown -- one row per selected drink (a beyond-base
+// FoodBeverageRate category: WATER/SOFT_DRINK/JUICE/LOCAL_BEVERAGE/
+// ALCOHOLIC), with a per-person quantity. DR-131 removed the activityFeeId
+// variant this table used to also carry -- activities are no longer a
+// staff-picked line item, they're derived automatically from the Day
+// Template (see PackageCostBreakdown's own comment).
 model PackageCostLineItem {
   id                     String  @id @default(uuid()) @db.Uuid
   organizationId         String  @db.Uuid
   packageCostBreakdownId String  @db.Uuid
-  foodBeverageRateId     String? @db.Uuid
-  activityFeeId          String? @db.Uuid
+  foodBeverageRateId     String  @db.Uuid
   quantityPerPerson      Int
 
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1925,11 +1963,9 @@ model BookingCostBreakdown {
   guideDays                 Int
   photographerDays          Int       @default(0)
   videographerDays          Int       @default(0)
-  hotelRateId               String?   @db.Uuid
-  roomsNeeded               Int       @default(1)
-  breakfastCount            Int       @default(0)
-  lunchCount                Int       @default(0)
-  dinnerCount               Int       @default(0)
+  // DR-131: same removal/replacement as PackageCostBreakdown above --
+  // accommodation/restaurant/activities derive from the linked customized
+  // package's Day Template (Booking.customizedPackageId), 0 if unset.
   transportRateId           String?   @db.Uuid
   transportDays             Int       @default(0)
   requiresVisa              Boolean   @default(false)
@@ -1937,6 +1973,9 @@ model BookingCostBreakdown {
   adminDays                 Int            @default(0)
   adminCostBasis            AdminCostBasis @default(PER_GROUP)
   agencyMarginBp            Int
+  computedAccommodationMinor Int?
+  computedRestaurantMinor    Int?
+  computedActivitiesMinor    Int?
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?
   // Snapshot of the booking's already-selected add-ons' total at save time
@@ -1962,13 +2001,13 @@ model BookingCostBreakdown {
   @@map("booking_cost_breakdowns")
 }
 
-// Same shape/purpose as PackageCostLineItem, FK'd to BookingCostBreakdown.
+// Same shape/purpose as PackageCostLineItem (drinks only, DR-131), FK'd to
+// BookingCostBreakdown.
 model BookingCostLineItem {
   id                     String  @id @default(uuid()) @db.Uuid
   organizationId         String  @db.Uuid
   bookingCostBreakdownId String  @db.Uuid
-  foodBeverageRateId     String? @db.Uuid
-  activityFeeId          String? @db.Uuid
+  foodBeverageRateId     String  @db.Uuid
   quantityPerPerson      Int
 
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)

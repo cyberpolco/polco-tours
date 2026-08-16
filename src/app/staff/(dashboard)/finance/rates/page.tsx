@@ -18,6 +18,7 @@ import {
   createFoodBeverageRateAction,
   createHotelRateAction,
   createImmigrationCostRateAction,
+  createRestaurantRateAction,
   createStaffRateAction,
   createTransportRateAction,
   deleteActivityFeeAction,
@@ -26,6 +27,7 @@ import {
   deleteFoodBeverageRateAction,
   deleteHotelRateAction,
   deleteImmigrationCostRateAction,
+  deleteRestaurantRateAction,
   deleteStaffRateAction,
   deleteTransportRateAction,
 } from './actions';
@@ -84,10 +86,11 @@ export default async function FinanceRatesPage() {
   const tCountries = await getTranslations('Countries');
   const tAddons = await getTranslations('TripAddons');
 
-  const [staffRates, hotelRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, addonRates, hotels, activities, sites] =
+  const [staffRates, hotelRates, restaurantRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, addonRates, hotels, restaurants, activities, sites] =
     await Promise.all([
       financeService.listStaffRates(ctx),
       financeService.listHotelRates(ctx),
+      financeService.listRestaurantRates(ctx),
       financeService.listTransportRates(ctx),
       financeService.listFoodBeverageRates(ctx),
       financeService.listActivityFees(ctx),
@@ -95,6 +98,7 @@ export default async function FinanceRatesPage() {
       financeService.listAdminCostRates(ctx),
       financeService.listAddonRates(ctx),
       itineraryService.listHotels(ctx),
+      itineraryService.listRestaurants(ctx),
       itineraryService.listActivities(ctx),
       itineraryService.listSites(ctx),
     ]);
@@ -104,6 +108,13 @@ export default async function FinanceRatesPage() {
     value: h.id,
     label: `${h.name} (${tCountries(h.country)})`,
     searchText: `${h.name} ${h.country}`.toLowerCase(),
+  }));
+
+  const restaurantNameById = new Map(restaurants.map((r) => [r.id, r.name]));
+  const restaurantOptions: SearchableOption[] = restaurants.map((r) => ({
+    value: r.id,
+    label: `${r.name} (${tCountries(r.country)})`,
+    searchText: `${r.name} ${r.country}`.toLowerCase(),
   }));
 
   const siteById = new Map(sites.map((s) => [s.id, s]));
@@ -264,6 +275,74 @@ export default async function FinanceRatesPage() {
       </Card>
 
       <Card>
+        <p className="eyebrow text-mist">{t('restaurantRates')}</p>
+        <p className="mt-1 text-xs text-mist">{t('restaurantRatesNotice')}</p>
+        {restaurantRates.length === 0 ? (
+          <p className="mt-2 text-sm text-mist">{t('noRestaurantRates')}</p>
+        ) : (
+          <Table className="mt-2">
+            <thead>
+              <TableHeaderRow>
+                <Th>{t('country')}</Th>
+                <Th>{t('restaurant')}</Th>
+                <Th>{t('dailyRate')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {restaurantRates.map((r) => (
+                <Tr key={r.id}>
+                  <Td>{tCountries(r.country)}</Td>
+                  <Td>{restaurantNameById.get(r.restaurantId) ?? '—'}</Td>
+                  <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
+                  <Td>
+                    {canWrite && (
+                      <DeleteButton
+                        action={deleteRestaurantRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+        {canWrite && (
+          <form action={createRestaurantRateAction} className="mt-3 flex flex-wrap items-end gap-3">
+            <FormField label={t('country')} htmlFor="country">
+              <Select name="country" required className="text-sm">
+                {countryOptions(tCountries)}
+              </Select>
+            </FormField>
+            <FormField label={t('restaurant')} htmlFor="restaurantId">
+              <SearchableSelect
+                name="restaurantId"
+                options={restaurantOptions}
+                placeholder={t('restaurantPlaceholder')}
+                className="w-56"
+                required
+              />
+            </FormField>
+            <FormField label={t('dailyRate')} htmlFor="dailyRate">
+              <input name="dailyRate" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
+            </FormField>
+            <FormField label={t('currency')} htmlFor="currency">
+              <Select name="currency" defaultValue="NAD" required className="text-sm">
+                {CURRENCY_OPTIONS}
+              </Select>
+            </FormField>
+            <SubmitButton size="compact" pendingLabel={t('adding')}>
+              {t('add')}
+            </SubmitButton>
+          </form>
+        )}
+        {canWrite && restaurantOptions.length === 0 && <p className="mt-2 text-xs text-mist">{t('noRestaurantsAvailable')}</p>}
+      </Card>
+
+      <Card>
         <p className="eyebrow text-mist">{t('transportation')}</p>
         {transportRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noTransportRates')}</p>
@@ -335,6 +414,7 @@ export default async function FinanceRatesPage() {
 
       <Card>
         <p className="eyebrow text-mist">{t('foodBeverage')}</p>
+        <p className="mt-1 text-xs text-mist">{t('foodBeverageNotice')}</p>
         {foodBeverageRates.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noFoodBeverageRates')}</p>
         ) : (
@@ -377,9 +457,6 @@ export default async function FinanceRatesPage() {
             </FormField>
             <FormField label={t('category')} htmlFor="category">
               <Select name="category" required className="text-sm">
-                <option value="BREAKFAST">{t('categoryBreakfast')}</option>
-                <option value="LUNCH">{t('categoryLunch')}</option>
-                <option value="DINNER">{t('categoryDinner')}</option>
                 <option value="WATER">{t('categoryWater')}</option>
                 <option value="SOFT_DRINK">{t('categorySoftDrink')}</option>
                 <option value="JUICE">{t('categoryJuice')}</option>
