@@ -6,6 +6,7 @@ import { CreateTailorMadeInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { ApiError } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
+import { isStaffRole } from '@lib/rbac';
 
 export type CreatePlanMyTripResult = { bookingId: string } | { error: string };
 
@@ -49,8 +50,18 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
     // CreateTailorMadeInput below and stored as Booking.contactFirstName/
     // contactLastName (DR-057), since /find-booking's last-name check needs
     // a real last name to match against before any Traveler manifest exists.
+    //
+    // Real incident: resolveSession() resolves whatever session cookie the
+    // browser carries, with no staff-vs-guest distinction -- a staff member
+    // who opens this guest wizard in the same browser they're signed into
+    // /staff with (e.g. to test the flow, or walk a client through it
+    // in person) gets their OWN account back as `ctx`, and typing the
+    // client's name into this step then overwrote the staff member's own
+    // User.name. Guarding on isStaffRole here stops the profile write for
+    // any staff role, not just SUPERADMIN -- the booking itself still
+    // proceeds under that session below, unchanged.
     const name = `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim();
-    if (name) {
+    if (name && !isStaffRole(ctx.roles)) {
       await authService.updateProfile(ctx, {
         name,
         phone: payload.localNumber ? toE164(payload.dialCode, payload.localNumber) : undefined,

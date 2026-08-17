@@ -19,8 +19,22 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-138 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-138** auto-provisions a starter fleet record when a staff
+> Current through DR-139 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-139 was a live production incident** (user-reported: the
+> SUPERADMIN's own `User.name` kept changing to whatever client name was
+> most recently typed into a guest booking wizard, e.g. "it changed to
+> Hanna") — `authService.resolveSession()` resolves whatever session cookie
+> the browser carries with no staff-vs-guest check, so a staff member
+> opening a guest booking page (`/book/[departureId]`, `/book-package/
+> [packageId]`, `/plan-my-trip`) in the same browser they're signed into
+> `/staff` with gets their own account back as `ctx`, and the wizard's
+> contact-step name/phone then overwrote it via `authService.updateProfile`.
+> Fixed by skipping that call in all three actions whenever
+> `isStaffRole(ctx.roles)` is true — covers any staff role, not just
+> SUPERADMIN, per explicit user direction. The booking itself still proceeds
+> under that same session afterward (unchanged, out of scope). New
+> `tests/guest-actions-staff-guard.test.ts` covers all three actions. No
+> schema/permission/module-dependency change. **DR-138** auto-provisions a starter fleet record when a staff
 > account is created or later edited to hold DRIVER/TOUR_GUIDE/
 > VEHICLE_OWNER — explicit user request, confirmed via three clarifying
 > questions first. New `src/lib/provision-fleet-profiles-for-user.ts`
@@ -1434,6 +1448,21 @@ These are still-relevant patterns, not one-off incident reports. Full
 incident history (including two production `users`-table wipes since fixed)
 lives in `docs/decisions/DECISION_LOG.md` and git history.
 
+- **`authService.resolveSession()` resolves whatever session cookie the
+  browser carries, with no staff-vs-guest distinction** — a guest-facing page
+  or Server Action that calls it directly (rather than through
+  `requireStaffContext`/`requireGuestContext`) gets back a real staff
+  account's `ctx` if that's who's actually signed in on that browser. DR-139
+  (real production incident): three guest booking wizards
+  (`(guest)/book/[departureId]`, `(guest)/book-package/[packageId]`,
+  `(guest)/plan-my-trip`) called `authService.updateProfile(ctx, { name,
+  phone })` with the wizard's own typed contact info and no check on whose
+  session `ctx` actually was — a staff member opening one of these pages in
+  the same browser they're signed into `/staff` with got their own account
+  silently overwritten with a client's name. Any new guest-facing write that
+  touches `ctx.userId`'s own data needs an explicit `isStaffRole(ctx.roles)`
+  guard (`src/lib/rbac.ts`) before assuming `ctx` is a genuine anonymous
+  tourist, not just "some session key existed."
 - **A Vercel Blob store is public-or-private for its entire lifetime, not
   per-object** — passing `access: 'public'` to `put()` against a store that
   was provisioned private throws `Cannot use public access on a private

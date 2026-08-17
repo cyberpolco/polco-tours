@@ -6,6 +6,7 @@ import { CreateBookingWithDatesInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { ApiError } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
+import { isStaffRole } from '@lib/rbac';
 
 export type CreateGuestBookingResult = { bookingId: string } | { error: string };
 
@@ -30,7 +31,12 @@ export async function createGuestPackageBookingAction(
     const name = `${firstName} ${lastName}`.trim();
     const dialCode = String(formData.get('dialCode') ?? '');
     const localNumber = String(formData.get('localNumber') ?? '').trim();
-    if (name) {
+    // Real incident: a staff member opening this guest wizard in the same
+    // browser they're signed into /staff with gets their own account back
+    // as `ctx` (resolveSession has no staff-vs-guest distinction) -- without
+    // this guard, typing a client's name here overwrote the staff member's
+    // own User.name. See plan-my-trip/actions.ts's identical guard/comment.
+    if (name && !isStaffRole(ctx.roles)) {
       await authService.updateProfile(ctx, {
         name,
         phone: localNumber ? toE164(dialCode, localNumber) : undefined,
