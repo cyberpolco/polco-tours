@@ -16,6 +16,12 @@ import { applyTaxAndPlatformFee, impliedSubtotalMinor } from '@lib/pricing';
 import { assertCan } from '@lib/rbac';
 import { getEffectiveTaxRate } from '@lib/tax';
 import {
+  renderPackageSummaryPdf,
+  type PackageSummaryPdfAccommodationRow,
+  type PackageSummaryPdfDay,
+  type PdfLocale,
+} from './package-summary-pdf';
+import {
   computeBaseCostMinor,
   computeCostBuckets,
   computeSellingPriceMinor,
@@ -396,6 +402,96 @@ export const financeService = {
     return financeRepository.findBreakdownForPackage(organizationId, tourPackageId);
   },
 
+  /** Explicit user request: one staff-only PDF combining a plain-language
+   * cost summary with the package's day-by-day itinerary template,
+   * downloadable in English or French, linked from the package detail page.
+   * Same viewers as getCostBreakdown (catalog.write, not a new permission).
+   * The per-day accommodation table is resolved fresh here (day-by-day
+   * hotel/rate attribution was never persisted -- DR-132 only persists the
+   * summed bucket) -- a day whose rate can no longer be resolved shows as
+   * such rather than failing the whole document. The cost-summary figures
+   * always come from the persisted breakdown snapshot (never this fresh
+   * resolution) and TourPackage.priceMinor for the grand total, so the
+   * printed document can never disagree with what was actually priced. */
+  async generatePackageSummaryPdf(ctx: AuthContext, tourPackageId: string, locale: PdfLocale): Promise<{ body: Buffer; contentType: string }> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogService.getPackage(ctx, tourPackageId); // 404s if not found/visible
+
+    const breakdown = await financeRepository.findBreakdownForPackage(organizationId, tourPackageId);
+    if (!breakdown) throw Errors.conflict('This package has no cost breakdown yet -- save one before downloading a summary');
+    if (
+      breakdown.computedActivitiesMinor == null ||
+      breakdown.computedAdminMinor == null ||
+      breakdown.computedTransportMinor == null ||
+      breakdown.computedPlatformFeeMinor == null ||
+      pkg.priceMinor == null
+    ) {
+      throw Errors.conflict("This package's cost breakdown predates the current pricing model -- re-save it before downloading a summary");
+    }
+
+    const templateDays = await catalogService.listTemplateDays(ctx, tourPackageId);
+    const hotelIds = [...new Set(templateDays.map((d) => d.hotelId).filter((id): id is string => id != null))];
+    const restaurantIds = [...new Set(templateDays.map((d) => d.restaurantId).filter((id): id is string => id != null))];
+    const activityIds = [...new Set(templateDays.flatMap((d) => d.activityIds))];
+
+    const now = new Date();
+    const [hotels, restaurants, activities, hotelRates] = await Promise.all([
+      hotelIds.length > 0 ? itineraryService.listHotelsByIds(ctx, hotelIds) : Promise.resolve([]),
+      restaurantIds.length > 0 ? itineraryService.listRestaurantsByIds(ctx, restaurantIds) : Promise.resolve([]),
+      activityIds.length > 0 ? itineraryService.listActivitiesByIds(ctx, activityIds) : Promise.resolve([]),
+      Promise.all(hotelIds.map((id) => financeRepository.findEffectiveHotelRateForHotel(id, now))),
+    ]);
+    const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
+    const restaurantNameById = new Map(restaurants.map((r) => [r.id, r.name]));
+    const activityNameById = new Map(activities.map((a) => [a.id, a.name]));
+    const hotelRateByHotelId = new Map(hotelIds.map((id, i) => [id, hotelRates[i]]));
+
+    const days: PackageSummaryPdfDay[] = templateDays.map((d) => {
+      const activityNames = d.activityIds.map((id) => activityNameById.get(id)).filter((n): n is string => n != null);
+      return {
+        dayNumber: d.dayNumber,
+        hotelName: d.hotelId ? (hotelNameById.get(d.hotelId) ?? null) : null,
+        restaurantName: d.restaurantId ? (restaurantNameById.get(d.restaurantId) ?? null) : null,
+        activitiesLabel: activityNames.length > 0 ? activityNames.join(', ') : (d.activities ?? null),
+      };
+    });
+
+    const accommodationRows: PackageSummaryPdfAccommodationRow[] = templateDays
+      .filter((d): d is typeof d & { hotelId: string } => d.hotelId != null)
+      .map((d) => ({
+        dayNumber: d.dayNumber,
+        hotelName: hotelNameById.get(d.hotelId) ?? d.hotelId,
+        nightlyRateMinor: hotelRateByHotelId.get(d.hotelId)?.nightlyRateMinor ?? null,
+      }));
+
+    const body = await renderPackageSummaryPdf({
+      locale,
+      currency: pkg.currency,
+      title: pkg.title,
+      packageReference: pkg.packageReference,
+      referenceGroupSize: breakdown.referenceGroupSize,
+      priceMinor: pkg.priceMinor,
+      computedActivitiesMinor: breakdown.computedActivitiesMinor,
+      computedAdminMinor: breakdown.computedAdminMinor,
+      computedTransportMinor: breakdown.computedTransportMinor,
+      computedPlatformFeeMinor: breakdown.computedPlatformFeeMinor,
+      days,
+      accommodationRows,
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'finance.package_summary_pdf_downloaded',
+      resourceType: 'TourPackage',
+      resourceId: tourPackageId,
+      organizationId,
+    });
+
+    return { body, contentType: 'application/pdf' };
+  },
+
   /** Resolves every referenced rate, computes Base Cost -> Selling Price ->
    * per-seat price via the pure functions in domain.ts, writes the
    * breakdown, and pushes the result into TourPackage.priceMinor through
@@ -567,6 +663,8 @@ export const financeService = {
         computedAccommodationMinor: buckets.accommodationMinor,
         computedRestaurantMinor: buckets.restaurantMinor,
         computedActivitiesMinor: buckets.activitiesMinor,
+        computedTransportMinor: buckets.transportMinor,
+        computedAdminMinor: buckets.adminMinor,
         computedBaseCostMinor: baseCostMinor,
         computedSellingPriceMinor: sellingPriceTotalMinor,
         computedTaxMinor: taxMinor,

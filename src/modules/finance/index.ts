@@ -1,5 +1,6 @@
 // finance module — public interface. Other modules import ONLY from here.
 export { financeService } from './service';
+export type { PdfLocale } from './package-summary-pdf';
 export {
   AdminCostBasis,
   CreateActivityFeeInput,

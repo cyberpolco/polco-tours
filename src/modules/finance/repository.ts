@@ -121,6 +121,8 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     computedAccommodationMinor: b.computedAccommodationMinor,
     computedRestaurantMinor: b.computedRestaurantMinor,
     computedActivitiesMinor: b.computedActivitiesMinor,
+    computedTransportMinor: b.computedTransportMinor,
+    computedAdminMinor: b.computedAdminMinor,
     computedBaseCostMinor: b.computedBaseCostMinor,
     computedSellingPriceMinor: b.computedSellingPriceMinor,
     computedTaxMinor: b.computedTaxMinor,

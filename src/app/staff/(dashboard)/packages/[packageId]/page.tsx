@@ -159,6 +159,18 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         <LinkButton href={`/staff/packages/${packageId}/cost-breakdown`} variant="secondary" size="compact" className="mt-2">
           {t('manageCostBreakdown')}
         </LinkButton>
+        {pkg.priceMinor != null && (
+          <p className="mt-3 text-xs text-mist">
+            {t('downloadSummaryPdf')}{' '}
+            <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=en`} className="font-semibold text-amber underline">
+              {t('downloadSummaryEn')}
+            </a>{' '}
+            ·{' '}
+            <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=fr`} className="font-semibold text-amber underline">
+              {t('downloadSummaryFr')}
+            </a>
+          </p>
+        )}
       </div>
 
       <form action={updatePackageAction.bind(null, packageId)} className="mt-6 space-y-4">

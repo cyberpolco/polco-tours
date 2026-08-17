@@ -19,8 +19,52 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-134 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-134** folds tax and the platform fee into the stored
+> Current through DR-135 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-135** adds a staff-only "download summary PDF" (English or
+> French) on `/staff/packages/[packageId]`, combining a plain-language cost
+> summary with the package's day-by-day itinerary Day Template — explicit
+> user request, content/layout nailed down across several rounds of
+> clarifying questions per the user's own "do not assume" instruction, not
+> guessed. New `financeService.generatePackageSummaryPdf` (gated
+> `catalog.write`, same as `getCostBreakdown`) composes
+> `catalogService.getPackage`/`listTemplateDays` and `itineraryService
+> .listHotelsByIds`/`listRestaurantsByIds`/`listActivitiesByIds` (no new
+> module dependency — finance already depends on both), plus a fresh
+> per-day `HotelRate` resolution for an itemized accommodation table
+> (day-by-day hotel/rate attribution was never persisted, DR-132 only
+> persists the summed bucket, so this one part of the document is resolved
+> live rather than from a snapshot — a day whose rate can no longer be
+> resolved shows as such instead of failing the document). New
+> `src/modules/finance/package-summary-pdf.tsx` renders it via
+> `@react-pdf/renderer`, mirroring `itinerary/map-pdf.tsx`'s existing shape
+> exactly, including the site's own `BrandMark` placeholder mark (no real
+> logo file exists anywhere in this repo) reproduced in SVG. New route
+> `api/v1/catalog/packages/[packageId]/summary-pdf` is a thin pass-through,
+> same convention as the existing map-pdf route. Every cost row is labeled
+> with its basis (per-person vs. whole-group total) and the Grand Total is
+> always `TourPackage.priceMinor` directly, never a hand-recomputed sum, so
+> the document can never disagree with what a guest is actually charged.
+> Company/footer details are fixed user-supplied constants in that one
+> file (not a staff-editable CRUD screen). Two real bugs found and fixed
+> while building this: (1) `PackageCostBreakdown` never individually
+> persisted its Transport/Admin buckets (only Accommodation/Restaurant/
+> Activities got that treatment in DR-132) — fixed with two additive
+> columns, `computedTransportMinor`/`computedAdminMinor`, persisted at
+> save time like the other three, never recomputed live. (2) The
+> French-language PDF initially corrupted every currency amount (react-pdf's
+> built-in Helvetica font lacks the glyph for the narrow no-break space
+> French locale data uses as a thousands separator) — fixed with a
+> PDF-local, ASCII-only `formatMoneyForPdf` helper; the app-wide
+> `src/lib/money.ts` `format` helper is untouched and still correct
+> everywhere else, which renders in real browsers with full Unicode font
+> support. Also surfaced (not fixed, out of scope — this PDF's own
+> hardcoded EN/FR label dictionary works around it): `src/i18n/request.ts`'s
+> `getRequestConfig` ignores any explicit `locale` passed to
+> `getTranslations`, always deriving from the cookie instead — a latent gap
+> for any future feature wanting a genuine per-request locale override.
+> **Schema change (two new nullable columns on `PackageCostBreakdown`, no
+> destructive step) applied by hand to the shared Neon DB.** No permission/
+> module-dependency change. **DR-134** folds tax and the platform fee into the stored
 > `TourPackage.priceMinor` — explicit user request, walked through a
 > concrete numeric example first (base cost → agency margin → subtotal →
 > tax → platform fee → total) and confirmed via two clarifying questions
@@ -884,7 +928,10 @@ src/
                    #   Booking, DR-092) — DR-132: Accommodation/Restaurant/
                    #   Activity buckets on both are derived automatically
                    #   from the package's own Day Template, not staff-picked,
-                   #   sharing one resolveRatesForCost helper
+                   #   sharing one resolveRatesForCost helper +
+                   #   package-summary-pdf.tsx (DR-135: staff "download
+                   #   summary PDF" on the package detail page, EN/FR,
+                   #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx)
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
                    #   generated discount codes, SUPERADMIN-only writes)

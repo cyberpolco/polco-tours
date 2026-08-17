@@ -1920,6 +1920,14 @@ model PackageCostBreakdown {
   computedAccommodationMinor Int?
   computedRestaurantMinor    Int?
   computedActivitiesMinor    Int?
+  // Added for the package summary PDF (staff download, package detail
+  // page): Transport/Admin were already computed by computeCostBuckets at
+  // save time but, unlike the three buckets above, never persisted
+  // individually -- only folded into computedBaseCostMinor. Snapshot only,
+  // same "never re-resolve live" precedent as every other computed*Minor
+  // column here.
+  computedTransportMinor     Int?
+  computedAdminMinor         Int?
   computedBaseCostMinor     Int?
   computedSellingPriceMinor Int?
   // DR-134: display/audit-trail snapshot of the tax + platform fee folded

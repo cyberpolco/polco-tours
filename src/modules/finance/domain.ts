@@ -260,6 +260,12 @@ export interface PackageCostBreakdownView {
   computedAccommodationMinor: number | null;
   computedRestaurantMinor: number | null;
   computedActivitiesMinor: number | null;
+  // Snapshot for the package summary PDF -- computeCostBuckets already
+  // returns these at save time, just never persisted individually before
+  // (unlike Accommodation/Restaurant/Activities above), only folded into
+  // computedBaseCostMinor.
+  computedTransportMinor: number | null;
+  computedAdminMinor: number | null;
   computedBaseCostMinor: number | null;
   computedSellingPriceMinor: number | null;
   // DR-134: display/audit-trail snapshot of the tax + platform fee folded
