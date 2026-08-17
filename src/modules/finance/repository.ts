@@ -184,6 +184,12 @@ export const financeRepository = {
     const r = await prisma.staffRate.create({ data: input });
     return toStaffRateView(r);
   },
+  async updateStaffRate(id: string, input: CreateStaffRateInput): Promise<StaffRateView | null> {
+    const existing = await prisma.staffRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.staffRate.update({ where: { id }, data: input });
+    return toStaffRateView(r);
+  },
   async deleteStaffRate(id: string): Promise<StaffRateView | null> {
     const existing = await prisma.staffRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -206,6 +212,12 @@ export const financeRepository = {
   },
   async createHotelRate(input: CreateHotelRateInput): Promise<HotelRateView> {
     const r = await prisma.hotelRate.create({ data: input });
+    return toHotelRateView(r);
+  },
+  async updateHotelRate(id: string, input: CreateHotelRateInput): Promise<HotelRateView | null> {
+    const existing = await prisma.hotelRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.hotelRate.update({ where: { id }, data: input });
     return toHotelRateView(r);
   },
   async deleteHotelRate(id: string): Promise<HotelRateView | null> {
@@ -240,6 +252,12 @@ export const financeRepository = {
     const r = await prisma.restaurantRate.create({ data: input });
     return toRestaurantRateView(r);
   },
+  async updateRestaurantRate(id: string, input: CreateRestaurantRateInput): Promise<RestaurantRateView | null> {
+    const existing = await prisma.restaurantRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.restaurantRate.update({ where: { id }, data: input });
+    return toRestaurantRateView(r);
+  },
   async deleteRestaurantRate(id: string): Promise<RestaurantRateView | null> {
     const existing = await prisma.restaurantRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -264,6 +282,12 @@ export const financeRepository = {
     const r = await prisma.transportRate.create({ data: input });
     return toTransportRateView(r);
   },
+  async updateTransportRate(id: string, input: CreateTransportRateInput): Promise<TransportRateView | null> {
+    const existing = await prisma.transportRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.transportRate.update({ where: { id }, data: input });
+    return toTransportRateView(r);
+  },
   async deleteTransportRate(id: string): Promise<TransportRateView | null> {
     const existing = await prisma.transportRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -282,6 +306,12 @@ export const financeRepository = {
   },
   async createFoodBeverageRate(input: CreateFoodBeverageRateInput): Promise<FoodBeverageRateView> {
     const r = await prisma.foodBeverageRate.create({ data: input });
+    return toFoodBeverageRateView(r);
+  },
+  async updateFoodBeverageRate(id: string, input: CreateFoodBeverageRateInput): Promise<FoodBeverageRateView | null> {
+    const existing = await prisma.foodBeverageRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.foodBeverageRate.update({ where: { id }, data: input });
     return toFoodBeverageRateView(r);
   },
   async deleteFoodBeverageRate(id: string): Promise<FoodBeverageRateView | null> {
@@ -319,6 +349,12 @@ export const financeRepository = {
     const r = await prisma.activityFee.create({ data: input });
     return toActivityFeeView(r);
   },
+  async updateActivityFee(id: string, input: CreateActivityFeeInput & { name: string }): Promise<ActivityFeeView | null> {
+    const existing = await prisma.activityFee.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.activityFee.update({ where: { id }, data: input });
+    return toActivityFeeView(r);
+  },
   async deleteActivityFee(id: string): Promise<ActivityFeeView | null> {
     const existing = await prisma.activityFee.findUnique({ where: { id } });
     if (!existing) return null;
@@ -351,6 +387,12 @@ export const financeRepository = {
     const r = await prisma.immigrationCostRate.create({ data: input });
     return toImmigrationCostRateView(r);
   },
+  async updateImmigrationCostRate(id: string, input: CreateImmigrationCostRateInput): Promise<ImmigrationCostRateView | null> {
+    const existing = await prisma.immigrationCostRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.immigrationCostRate.update({ where: { id }, data: input });
+    return toImmigrationCostRateView(r);
+  },
   async deleteImmigrationCostRate(id: string): Promise<ImmigrationCostRateView | null> {
     const existing = await prisma.immigrationCostRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -369,6 +411,12 @@ export const financeRepository = {
   },
   async createAdminCostRate(input: CreateAdminCostRateInput): Promise<AdminCostRateView> {
     const r = await prisma.adminCostRate.create({ data: input });
+    return toAdminCostRateView(r);
+  },
+  async updateAdminCostRate(id: string, input: CreateAdminCostRateInput): Promise<AdminCostRateView | null> {
+    const existing = await prisma.adminCostRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.adminCostRate.update({ where: { id }, data: input });
     return toAdminCostRateView(r);
   },
   async deleteAdminCostRate(id: string): Promise<AdminCostRateView | null> {
@@ -399,6 +447,12 @@ export const financeRepository = {
     const r = await prisma.addonRate.create({ data: input });
     return toAddonRateView(r);
   },
+  async updateAddonRate(id: string, input: CreateAddonRateInput): Promise<AddonRateView | null> {
+    const existing = await prisma.addonRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.addonRate.update({ where: { id }, data: input });
+    return toAddonRateView(r);
+  },
   async deleteAddonRate(id: string): Promise<AddonRateView | null> {
     const existing = await prisma.addonRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -411,6 +465,16 @@ export const financeRepository = {
     return withOrg(organizationId, async (tx) => {
       const b = await tx.packageCostBreakdown.findUnique({ where: { tourPackageId }, include: { lineItems: true } });
       return b ? toBreakdownView(b) : null;
+    });
+  },
+
+  /** Every package that already has a saved cost breakdown -- feeds the
+   * rate-update "reapply to all cost breakdown packages" sweep
+   * (financeService.reapplyRatesToAllCostBreakdowns). */
+  async listAllPackageBreakdownTourPackageIds(organizationId: string): Promise<string[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.packageCostBreakdown.findMany({ select: { tourPackageId: true } });
+      return rows.map((r) => r.tourPackageId);
     });
   },
 
@@ -452,6 +516,15 @@ export const financeRepository = {
     return withOrg(organizationId, async (tx) => {
       const b = await tx.bookingCostBreakdown.findUnique({ where: { bookingId }, include: { lineItems: true } });
       return b ? toBookingBreakdownView(b) : null;
+    });
+  },
+
+  /** Booking counterpart to listAllPackageBreakdownTourPackageIds -- same
+   * "feeds the reapply sweep" purpose. */
+  async listAllBookingBreakdownBookingIds(organizationId: string): Promise<string[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.bookingCostBreakdown.findMany({ select: { bookingId: true } });
+      return rows.map((r) => r.bookingId);
     });
   },
 

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { POST as createStaffRate } from '../../src/app/api/v1/finance/rates/staff/route';
+import { PATCH as patchStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
 
 /**
  * Finance Module (DR-039) role-gate coverage. `finance_config.write` is
@@ -93,6 +94,30 @@ describe('finance rates -- role gate', () => {
       currency: 'USD',
     });
     const res = await createStaffRate(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+
+  it('TOUR_OPERATOR (no finance_config.write) is forbidden updating a rate (403)', async () => {
+    const headers = await loginAs(operatorId);
+    const req = jsonRequest('http://localhost/api/v1/finance/rates/staff/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      role: 'DRIVER',
+      dailyRateMinor: 10000,
+      currency: 'USD',
+    });
+    const res = await patchStaffRate(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(403);
+  });
+
+  it('PLATFORM_ADMIN passes the route gate but is rejected updating a rate by the same service-layer SUPERADMIN-only check (403)', async () => {
+    const headers = await loginAs(platformAdminWithGrantId);
+    const req = jsonRequest('http://localhost/api/v1/finance/rates/staff/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      role: 'DRIVER',
+      dailyRateMinor: 10000,
+      currency: 'USD',
+    });
+    const res = await patchStaffRate(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
     expect(res.status).toBe(403);
   });
 });

@@ -19,8 +19,46 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-135 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-135** adds a staff-only "download summary PDF" (English or
+> Current through DR-136 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-136** lets SUPERADMIN update an Operational Rate in place
+> (all eight cost-plus rate tables — Staff/Hotel/Restaurant/Transport/
+> Food & Beverage/Activity Fee/Immigration Cost/Admin Cost — plus Add-on
+> Rate for UI consistency), not just delete-and-recreate it, on
+> `/staff/finance/rates` (an inline `<details>`-based Edit form per row) and
+> via a matching `PATCH /api/v1/finance/rates/*/:id` on every existing rate
+> route — explicit user request. For the eight rates that feed the
+> cost-plus engine, saving an update immediately triggers new
+> `financeService.reapplyRatesToAllCostBreakdowns`: every existing
+> `PackageCostBreakdown` and `BookingCostBreakdown` (any TAILOR_MADE booking
+> that already has one) is replayed through the same `saveCostBreakdown`/
+> `saveBookingCostBreakdown` path the staff form itself uses — re-resolving
+> every referenced rate at its now-current price and re-saving, so
+> `TourPackage.priceMinor` (and a booking's suggested total) reflects the
+> new price immediately rather than staying pinned to whatever was
+> effective when the breakdown was last saved. Confirmed via clarifying
+> questions first: the sweep covers packages *and* tailor-made booking
+> breakdowns; a breakdown carrying a staff price override
+> (`overridePriceMinor`) has its display-only `computed*Minor` bucket
+> snapshots refreshed but the override itself — and therefore
+> `TourPackage.priceMinor` — is deliberately left untouched (an override is
+> a deliberate final word); and one breakdown failing to recompute (an
+> unresolved rate, a booking gone terminal since its breakdown was saved, a
+> package no longer visible) is skipped, not fatal to the sweep or the rate
+> update itself — the caller sees exact counts plus a per-item skip reason,
+> surfaced to staff as a banner on `/staff/finance/rates`
+> (`?reapplied=1&packagesUpdated=&packagesSkipped=&bookingsUpdated=&bookingsSkipped=`,
+> same query-string-summary convention as the existing `?error=&detail=`
+> one). Deliberately global rather than scoped to just the rate that
+> changed — most rates resolve by (country, effective date) rather than a
+> stored FK on the breakdown, so replaying every breakdown is the only
+> reliable way to find out which ones a given rate actually feeds.
+> `AddonRate`'s update has no reapply step — it is resolved live at
+> add-on-selection time (`src/lib/addon-rates.ts`), never snapshotted into
+> a cost breakdown. No schema/permission/module-dependency change —
+> `updateXRate` reuses each rate's own `CreateXInput` zod schema (full
+> replace of every field except identity via the URL id) and the same
+> ownership re-validation/`requireRateWriter` SUPERADMIN-only gate each
+> rate's create path already has. **DR-135** adds a staff-only "download summary PDF" (English or
 > French) on `/staff/packages/[packageId]`, combining a plain-language cost
 > summary with the package's day-by-day itinerary Day Template — explicit
 > user request, content/layout nailed down across several rounds of
@@ -931,7 +969,14 @@ src/
                    #   sharing one resolveRatesForCost helper +
                    #   package-summary-pdf.tsx (DR-135: staff "download
                    #   summary PDF" on the package detail page, EN/FR,
-                   #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx)
+                   #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx) —
+                   #   DR-136: every rate table (Add-on Rate included) can
+                   #   now be updated in place, not just deleted; updating
+                   #   any of the 8 cost-plus rates triggers
+                   #   reapplyRatesToAllCostBreakdowns, which replays every
+                   #   existing package/tailor-made-booking cost breakdown
+                   #   through saveCostBreakdown/saveBookingCostBreakdown so
+                   #   TourPackage.priceMinor tracks the new price
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
                    #   generated discount codes, SUPERADMIN-only writes)

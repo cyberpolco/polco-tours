@@ -30,6 +30,15 @@ import {
   deleteRestaurantRateAction,
   deleteStaffRateAction,
   deleteTransportRateAction,
+  updateActivityFeeAction,
+  updateAddonRateAction,
+  updateAdminCostRateAction,
+  updateFoodBeverageRateAction,
+  updateHotelRateAction,
+  updateImmigrationCostRateAction,
+  updateRestaurantRateAction,
+  updateStaffRateAction,
+  updateTransportRateAction,
 } from './actions';
 
 function countryOptions(tCountries: (code: string) => string) {
@@ -72,6 +81,18 @@ function DeleteButton({
   );
 }
 
+// A dependency-free, JS-free inline edit toggle -- <details>/<summary> keeps
+// this consistent with the rest of the page's plain-<form>-per-row
+// convention (no client component needed just to show/hide an edit form).
+function EditDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-xs font-medium text-navy underline">{label}</summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
 // Finance Module (DR-039) -- "Operational Rates" configuration. Read is
 // available to whoever builds a package's cost breakdown
 // (finance_config.read); the add-row forms and delete buttons are
@@ -79,12 +100,23 @@ function DeleteButton({
 // but is rejected by financeService's explicit requireRateWriter check, so
 // those controls are hidden here too rather than dangling ones that would
 // 403 (same pattern as /staff/country-regulations).
-export default async function FinanceRatesPage() {
+interface Props {
+  searchParams: Promise<{
+    reapplied?: string;
+    packagesUpdated?: string;
+    packagesSkipped?: string;
+    bookingsUpdated?: string;
+    bookingsSkipped?: string;
+  }>;
+}
+
+export default async function FinanceRatesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('finance_config.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const t = await getTranslations('StaffFinanceRates');
   const tCountries = await getTranslations('Countries');
   const tAddons = await getTranslations('TripAddons');
+  const params = await searchParams;
 
   const [staffRates, hotelRates, restaurantRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, addonRates, hotels, restaurants, activities, sites] =
     await Promise.all([
@@ -137,6 +169,19 @@ export default async function FinanceRatesPage() {
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
       <p className="text-xs text-mist">{t('intro')}</p>
 
+      {params.reapplied === '1' && (
+        <Card className="border-forest/40 bg-forest/5">
+          <p className="text-sm text-ink">
+            {t('reapplyBanner', {
+              packagesUpdated: Number(params.packagesUpdated ?? 0),
+              packagesSkipped: Number(params.packagesSkipped ?? 0),
+              bookingsUpdated: Number(params.bookingsUpdated ?? 0),
+              bookingsSkipped: Number(params.bookingsSkipped ?? 0),
+            })}
+          </p>
+        </Card>
+      )}
+
       <Card>
         <p className="eyebrow text-mist">{t('humanResources')}</p>
         {staffRates.length === 0 ? (
@@ -159,12 +204,42 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteStaffRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteStaffRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateStaffRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <Select name="role" defaultValue={r.role} required className="text-sm">
+                              <option value="DRIVER">{t('roleDriver')}</option>
+                              <option value="GUIDE">{t('roleGuide')}</option>
+                              <option value="PHOTOGRAPHER">{t('rolePhotographer')}</option>
+                              <option value="VIDEOGRAPHER">{t('roleVideographer')}</option>
+                            </Select>
+                            <input
+                              name="dailyRate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.dailyRateMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -226,12 +301,50 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.nightlyRateMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteHotelRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteHotelRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateHotelRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <SearchableSelect
+                              name="hotelId"
+                              options={hotelOptions}
+                              defaultValue={r.hotelId ?? undefined}
+                              placeholder={t('hotelPlaceholder')}
+                              className="w-56"
+                              required
+                            />
+                            <input
+                              name="roomCategory"
+                              defaultValue={r.roomCategory}
+                              required
+                              className="w-36 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="nightlyRate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.nightlyRateMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -297,12 +410,44 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteRestaurantRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteRestaurantRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateRestaurantRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <SearchableSelect
+                              name="restaurantId"
+                              options={restaurantOptions}
+                              defaultValue={r.restaurantId}
+                              placeholder={t('restaurantPlaceholder')}
+                              className="w-56"
+                              required
+                            />
+                            <input
+                              name="dailyRate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.dailyRateMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -368,12 +513,63 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.vehicleOperatingCostMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteTransportRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteTransportRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateTransportRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <input
+                              name="fuelEstimate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.fuelEstimateMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="tollFees"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.tollFeesMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="parkingFees"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.parkingFeesMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="vehicleOperatingCost"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.vehicleOperatingCostMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -435,12 +631,43 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.perUnitMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteFoodBeverageRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteFoodBeverageRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateFoodBeverageRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <Select name="category" defaultValue={r.category} required className="text-sm">
+                              <option value="WATER">{t('categoryWater')}</option>
+                              <option value="SOFT_DRINK">{t('categorySoftDrink')}</option>
+                              <option value="JUICE">{t('categoryJuice')}</option>
+                              <option value="LOCAL_BEVERAGE">{t('categoryLocalBeverage')}</option>
+                              <option value="ALCOHOLIC">{t('categoryAlcoholic')}</option>
+                            </Select>
+                            <input
+                              name="perUnit"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.perUnitMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -501,12 +728,44 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.feeMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteActivityFeeAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteActivityFeeAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateActivityFeeAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <SearchableSelect
+                              name="activityId"
+                              options={activityOptions}
+                              defaultValue={r.activityId ?? undefined}
+                              placeholder={t('activityPlaceholder')}
+                              className="w-64"
+                              required
+                            />
+                            <input
+                              name="fee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.feeMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -572,12 +831,63 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.borderPermitFeeMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteImmigrationCostRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteImmigrationCostRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateImmigrationCostRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <input
+                              name="visaFee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.visaFeeMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="processingFee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.processingFeeMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="invitationLetterFee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.invitationLetterFeeMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="borderPermitFee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.borderPermitFeeMinor / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -637,12 +947,36 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteAdminCostRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteAdminCostRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateAdminCostRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <input
+                              name="dailyRate"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.dailyRateMinor / 100).toFixed(2)}
+                              required
+                              className="w-28 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>
@@ -695,12 +1029,42 @@ export default async function FinanceRatesPage() {
                   <Td>{format(money(r.priceMinor, r.currency))}</Td>
                   <Td>
                     {canWrite && (
-                      <DeleteButton
-                        action={deleteAddonRateAction.bind(null, r.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeConfirm')}
-                        removeLabel={t('remove')}
-                      />
+                      <>
+                        <DeleteButton
+                          action={deleteAddonRateAction.bind(null, r.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeConfirm')}
+                          removeLabel={t('remove')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateAddonRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                            <Select name="country" defaultValue={r.country} required className="text-sm">
+                              {countryOptions(tCountries)}
+                            </Select>
+                            <Select name="code" defaultValue={r.code} required className="text-sm">
+                              <option value="PHOTOGRAPHY">{tAddons('PHOTOGRAPHY')}</option>
+                              <option value="VIDEOGRAPHY">{tAddons('VIDEOGRAPHY')}</option>
+                              <option value="TRANSLATOR">{tAddons('TRANSLATOR')}</option>
+                              <option value="VISA_ASSISTANCE">{tAddons('VISA_ASSISTANCE')}</option>
+                            </Select>
+                            <input
+                              name="price"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              defaultValue={(r.priceMinor / 100).toFixed(2)}
+                              required
+                              className="w-28 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                              {CURRENCY_OPTIONS}
+                            </Select>
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>

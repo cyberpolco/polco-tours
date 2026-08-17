@@ -4,8 +4,10 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as listStaffRates, POST as createStaffRate } from '../../src/app/api/v1/finance/rates/staff/route';
-import { DELETE as deleteStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
+import { PATCH as patchStaffRate, DELETE as deleteStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
 import { GET as listHotelRates, POST as createHotelRate } from '../../src/app/api/v1/finance/rates/hotel/route';
+import { PATCH as patchHotelRate } from '../../src/app/api/v1/finance/rates/hotel/[id]/route';
+import { PATCH as patchAddonRate } from '../../src/app/api/v1/finance/rates/addon/[id]/route';
 import { GET as listRestaurantRates, POST as createRestaurantRate } from '../../src/app/api/v1/finance/rates/restaurant/route';
 import { GET as listTransportRates, POST as createTransportRate } from '../../src/app/api/v1/finance/rates/transport/route';
 import { GET as listFoodBeverageRates, POST as createFoodBeverageRate } from '../../src/app/api/v1/finance/rates/food-beverage/route';
@@ -120,11 +122,38 @@ describe('POST/GET/DELETE /api/v1/finance/rates/staff', () => {
     expect(body.rates.some((r: { id: string }) => r.id === createdStaffRateId)).toBe(true);
   });
 
+  it('updates the rate\'s price in place (200) and reapplies it to cost breakdowns (reapply summary present, zero breakdowns to touch)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/finance/rates/staff/${createdStaffRateId}`, headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      role: 'DRIVER',
+      dailyRateMinor: 12500,
+      currency: 'USD',
+    });
+    const res = await patchStaffRate(req, { params: Promise.resolve({ id: createdStaffRateId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rate.dailyRateMinor).toBe(12500);
+    expect(body.reapply).toMatchObject({ packagesUpdated: 0, bookingsUpdated: 0 });
+  });
+
   it('deletes the rate (204)', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest(`http://localhost/api/v1/finance/rates/staff/${createdStaffRateId}`, headers, 'DELETE');
     const res = await deleteStaffRate(req, { params: Promise.resolve({ id: createdStaffRateId }) });
     expect(res.status).toBe(204);
+  });
+
+  it('404s updating a rate that no longer exists', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/finance/rates/staff/${createdStaffRateId}`, headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      role: 'DRIVER',
+      dailyRateMinor: 100,
+      currency: 'USD',
+    });
+    const res = await patchStaffRate(req, { params: Promise.resolve({ id: createdStaffRateId }) });
+    expect(res.status).toBe(404);
   });
 });
 
@@ -138,10 +167,26 @@ describe('the other eight rate categories (smoke test)', () => {
       nightlyRateMinor: 5000,
       currency: 'USD',
     });
-    expect((await createHotelRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
+    const createRes = await createHotelRate(createReq, { params: Promise.resolve({}) });
+    expect(createRes.status).toBe(201);
+    const { rate: created } = await createRes.json();
     const listReq = new NextRequest('http://localhost/api/v1/finance/rates/hotel', { headers });
     const listRes = await listHotelRates(listReq, { params: Promise.resolve({}) });
     expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
+
+    const patchReq = jsonRequest(`http://localhost/api/v1/finance/rates/hotel/${created.id}`, headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      hotelId,
+      roomCategory: 'Deluxe',
+      nightlyRateMinor: 6000,
+      currency: 'USD',
+    });
+    const patchRes = await patchHotelRate(patchReq, { params: Promise.resolve({ id: created.id }) });
+    expect(patchRes.status).toBe(200);
+    const patchBody = await patchRes.json();
+    expect(patchBody.rate.roomCategory).toBe('Deluxe');
+    expect(patchBody.rate.nightlyRateMinor).toBe(6000);
+    expect(patchBody.reapply).toBeDefined();
   });
 
   it('creates and lists a restaurant rate', async () => {
@@ -239,9 +284,25 @@ describe('the other eight rate categories (smoke test)', () => {
       priceMinor: 12000,
       currency: 'USD',
     });
-    expect((await createAddonRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
+    const createRes = await createAddonRate(createReq, { params: Promise.resolve({}) });
+    expect(createRes.status).toBe(201);
+    const { rate: created } = await createRes.json();
     const listReq = new NextRequest('http://localhost/api/v1/finance/rates/addon', { headers });
     const listRes = await listAddonRates(listReq, { params: Promise.resolve({}) });
     expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
+
+    // AddonRate is resolved live (src/lib/addon-rates.ts), never snapshotted
+    // into a cost breakdown -- its PATCH has no reapply sweep at all.
+    const patchReq = jsonRequest(`http://localhost/api/v1/finance/rates/addon/${created.id}`, headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      code: 'PHOTOGRAPHY',
+      priceMinor: 15000,
+      currency: 'USD',
+    });
+    const patchRes = await patchAddonRate(patchReq, { params: Promise.resolve({ id: created.id }) });
+    expect(patchRes.status).toBe(200);
+    const patchBody = await patchRes.json();
+    expect(patchBody.rate.priceMinor).toBe(15000);
+    expect(patchBody.reapply).toBeUndefined();
   });
 });

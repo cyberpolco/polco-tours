@@ -30,3 +30,4 @@ export type {
   StaffRateView,
   TransportRateView,
 } from './domain';
+export type { ReapplyRatesResult } from './service';

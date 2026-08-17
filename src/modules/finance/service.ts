@@ -214,6 +214,64 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
   };
 }
 
+/** Every field the "reapply rates" sweep needs from an already-persisted
+ * PackageCostBreakdownView to replay it through saveCostBreakdown exactly
+ * as the staff form itself would submit it -- no new computation, just
+ * re-resolving the same referenced rates (now at their current price) and
+ * re-saving. `overridePriceMinor`/`overrideReason` are carried through
+ * unchanged, which is what keeps a staff override untouched (see
+ * saveCostBreakdown's own override handling) while still refreshing the
+ * display-only computed*Minor bucket snapshots. */
+function toSaveCostBreakdownInput(b: PackageCostBreakdownView): SaveCostBreakdownInput {
+  return {
+    currency: b.currency,
+    referenceGroupSize: b.referenceGroupSize,
+    nights: b.nights,
+    driverDays: b.driverDays,
+    guideDays: b.guideDays,
+    photographerDays: b.photographerDays,
+    videographerDays: b.videographerDays,
+    transportRateId: b.transportRateId ?? undefined,
+    transportDays: b.transportDays,
+    requiresVisa: b.requiresVisa,
+    immigrationCostRateId: b.immigrationCostRateId ?? undefined,
+    adminDays: b.adminDays,
+    adminCostBasis: b.adminCostBasis,
+    agencyMarginBp: b.agencyMarginBp,
+    drinkLineItems: b.drinkLineItems.map((li) => ({ foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson })),
+    overridePriceMinor: b.overridePriceMinor ?? undefined,
+    overrideReason: b.overrideReason ?? undefined,
+  };
+}
+
+/** Booking counterpart to toSaveCostBreakdownInput -- same replay purpose. */
+function toSaveBookingCostBreakdownInput(b: BookingCostBreakdownView): SaveBookingCostBreakdownInput {
+  return {
+    nights: b.nights,
+    driverDays: b.driverDays,
+    guideDays: b.guideDays,
+    photographerDays: b.photographerDays,
+    videographerDays: b.videographerDays,
+    transportRateId: b.transportRateId ?? undefined,
+    transportDays: b.transportDays,
+    requiresVisa: b.requiresVisa,
+    immigrationCostRateId: b.immigrationCostRateId ?? undefined,
+    adminDays: b.adminDays,
+    adminCostBasis: b.adminCostBasis,
+    agencyMarginBp: b.agencyMarginBp,
+    drinkLineItems: b.drinkLineItems.map((li) => ({ foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson })),
+    overridePriceMinor: b.overridePriceMinor ?? undefined,
+    overrideReason: b.overrideReason ?? undefined,
+  };
+}
+
+export interface ReapplyRatesResult {
+  packagesUpdated: number;
+  packagesSkipped: Array<{ tourPackageId: string; reason: string }>;
+  bookingsUpdated: number;
+  bookingsSkipped: Array<{ bookingId: string; reason: string }>;
+}
+
 export const financeService = {
   // ------------------------------------------------------------ StaffRate
   async listStaffRates(ctx: AuthContext): Promise<StaffRateView[]> {
@@ -225,6 +283,18 @@ export const financeService = {
     const rate = await financeRepository.createStaffRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.staff_rate_created', resourceType: 'StaffRate', resourceId: rate.id });
     return rate;
+  },
+  /** Explicit user request: SUPERADMIN can update a rate's price (and its
+   * other fields) in place, not just delete-and-recreate it -- and once
+   * saved, every existing cost breakdown is recomputed against the new
+   * price (see reapplyRatesToAllCostBreakdowns below). */
+  async updateStaffRate(ctx: AuthContext, id: string, input: CreateStaffRateInput): Promise<{ rate: StaffRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateStaffRate(id, input);
+    if (!rate) throw Errors.notFound('Staff rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.staff_rate_updated', resourceType: 'StaffRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
   },
   async deleteStaffRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
@@ -246,6 +316,15 @@ export const financeService = {
     const rate = await financeRepository.createHotelRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.hotel_rate_created', resourceType: 'HotelRate', resourceId: rate.id });
     return rate;
+  },
+  async updateHotelRate(ctx: AuthContext, id: string, input: CreateHotelRateInput): Promise<{ rate: HotelRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    await itineraryService.getHotel(ctx, input.hotelId);
+    const rate = await financeRepository.updateHotelRate(id, input);
+    if (!rate) throw Errors.notFound('Hotel rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.hotel_rate_updated', resourceType: 'HotelRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
   },
   async deleteHotelRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
@@ -269,6 +348,15 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.restaurant_rate_created', resourceType: 'RestaurantRate', resourceId: rate.id });
     return rate;
   },
+  async updateRestaurantRate(ctx: AuthContext, id: string, input: CreateRestaurantRateInput): Promise<{ rate: RestaurantRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    await itineraryService.getRestaurant(ctx, input.restaurantId);
+    const rate = await financeRepository.updateRestaurantRate(id, input);
+    if (!rate) throw Errors.notFound('Restaurant rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.restaurant_rate_updated', resourceType: 'RestaurantRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
+  },
   async deleteRestaurantRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
     const deleted = await financeRepository.deleteRestaurantRate(id);
@@ -287,6 +375,14 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.transport_rate_created', resourceType: 'TransportRate', resourceId: rate.id });
     return rate;
   },
+  async updateTransportRate(ctx: AuthContext, id: string, input: CreateTransportRateInput): Promise<{ rate: TransportRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateTransportRate(id, input);
+    if (!rate) throw Errors.notFound('Transport rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.transport_rate_updated', resourceType: 'TransportRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
+  },
   async deleteTransportRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
     const deleted = await financeRepository.deleteTransportRate(id);
@@ -304,6 +400,14 @@ export const financeService = {
     const rate = await financeRepository.createFoodBeverageRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.food_beverage_rate_created', resourceType: 'FoodBeverageRate', resourceId: rate.id });
     return rate;
+  },
+  async updateFoodBeverageRate(ctx: AuthContext, id: string, input: CreateFoodBeverageRateInput): Promise<{ rate: FoodBeverageRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateFoodBeverageRate(id, input);
+    if (!rate) throw Errors.notFound('Food/beverage rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.food_beverage_rate_updated', resourceType: 'FoodBeverageRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
   },
   async deleteFoodBeverageRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
@@ -327,6 +431,15 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.activity_fee_created', resourceType: 'ActivityFee', resourceId: fee.id });
     return fee;
   },
+  async updateActivityFee(ctx: AuthContext, id: string, input: CreateActivityFeeInput): Promise<{ fee: ActivityFeeView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const activity = await itineraryService.getActivity(ctx, input.activityId);
+    const fee = await financeRepository.updateActivityFee(id, { ...input, name: activity.name });
+    if (!fee) throw Errors.notFound('Activity fee not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.activity_fee_updated', resourceType: 'ActivityFee', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { fee, reapply };
+  },
   async deleteActivityFee(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
     const deleted = await financeRepository.deleteActivityFee(id);
@@ -345,6 +458,14 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_created', resourceType: 'ImmigrationCostRate', resourceId: rate.id });
     return rate;
   },
+  async updateImmigrationCostRate(ctx: AuthContext, id: string, input: CreateImmigrationCostRateInput): Promise<{ rate: ImmigrationCostRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateImmigrationCostRate(id, input);
+    if (!rate) throw Errors.notFound('Immigration cost rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_updated', resourceType: 'ImmigrationCostRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
+  },
   async deleteImmigrationCostRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
     const deleted = await financeRepository.deleteImmigrationCostRate(id);
@@ -362,6 +483,14 @@ export const financeService = {
     const rate = await financeRepository.createAdminCostRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.admin_cost_rate_created', resourceType: 'AdminCostRate', resourceId: rate.id });
     return rate;
+  },
+  async updateAdminCostRate(ctx: AuthContext, id: string, input: CreateAdminCostRateInput): Promise<{ rate: AdminCostRateView; reapply: ReapplyRatesResult }> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateAdminCostRate(id, input);
+    if (!rate) throw Errors.notFound('Admin cost rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.admin_cost_rate_updated', resourceType: 'AdminCostRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
   },
   async deleteAdminCostRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
@@ -384,11 +513,88 @@ export const financeService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_created', resourceType: 'AddonRate', resourceId: rate.id });
     return rate;
   },
+  // No reapply sweep here, unlike every other rate type above -- an
+  // AddonRate is resolved live at add-on selection time
+  // (src/lib/addon-rates.ts), never snapshotted into a cost breakdown, so
+  // there's nothing to recompute.
+  async updateAddonRate(ctx: AuthContext, id: string, input: CreateAddonRateInput): Promise<AddonRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateAddonRate(id, input);
+    if (!rate) throw Errors.notFound('Addon rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_updated', resourceType: 'AddonRate', resourceId: id });
+    return rate;
+  },
   async deleteAddonRate(ctx: AuthContext, id: string): Promise<void> {
     requireRateWriter(ctx);
     const deleted = await financeRepository.deleteAddonRate(id);
     if (!deleted) throw Errors.notFound('Addon rate not found');
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_deleted', resourceType: 'AddonRate', resourceId: id });
+  },
+
+  /** Explicit user request: after any operational-rate price update, every
+   * existing package/booking cost breakdown is recomputed against the new
+   * rate and re-saved, so TourPackage.priceMinor (and the booking-side
+   * suggested total) reflect the current price immediately rather than
+   * staying pinned to whatever was effective when the breakdown was last
+   * saved. Deliberately global rather than scoped to just the rate that
+   * changed -- most rates resolve by (country, effective date), not a
+   * stored FK on the breakdown, so there is no cheap way to know in advance
+   * which breakdowns a given rate actually feeds; replaying every one is
+   * the only reliable way to find out. Each breakdown is replayed through
+   * its own already-persisted inputs via saveCostBreakdown/
+   * saveBookingCostBreakdown -- the same path the staff form itself uses,
+   * never a separate computation. A breakdown with a staff price override
+   * keeps that override untouched (saveCostBreakdown/saveBookingCostBreakdown
+   * both carry overridePriceMinor through unchanged; only the display-only
+   * computed*Minor bucket snapshots refresh) since an override is a
+   * deliberate final word, not something a rate change should silently
+   * overwrite. One breakdown failing to recompute (an unresolved rate, a
+   * booking that's since gone terminal, a package no longer visible) is
+   * skipped rather than aborting the sweep (charter rule 8's graceful-
+   * degradation posture, applied to a bulk operation) -- the caller sees
+   * exactly which were skipped and why. */
+  async reapplyRatesToAllCostBreakdowns(ctx: AuthContext): Promise<ReapplyRatesResult> {
+    requireRateWriter(ctx);
+    const organizationId = requireOrg(ctx);
+
+    const packageIds = await financeRepository.listAllPackageBreakdownTourPackageIds(organizationId);
+    const packagesSkipped: Array<{ tourPackageId: string; reason: string }> = [];
+    let packagesUpdated = 0;
+    for (const tourPackageId of packageIds) {
+      const breakdown = await financeRepository.findBreakdownForPackage(organizationId, tourPackageId);
+      if (!breakdown) continue;
+      try {
+        await financeService.saveCostBreakdown(ctx, tourPackageId, toSaveCostBreakdownInput(breakdown));
+        packagesUpdated++;
+      } catch (err) {
+        packagesSkipped.push({ tourPackageId, reason: err instanceof Error ? err.message : 'Failed to recompute' });
+      }
+    }
+
+    const bookingIds = await financeRepository.listAllBookingBreakdownBookingIds(organizationId);
+    const bookingsSkipped: Array<{ bookingId: string; reason: string }> = [];
+    let bookingsUpdated = 0;
+    for (const bookingId of bookingIds) {
+      const breakdown = await financeRepository.findBreakdownForBooking(organizationId, bookingId);
+      if (!breakdown) continue;
+      try {
+        await financeService.saveBookingCostBreakdown(ctx, bookingId, toSaveBookingCostBreakdownInput(breakdown));
+        bookingsUpdated++;
+      } catch (err) {
+        bookingsSkipped.push({ bookingId, reason: err instanceof Error ? err.message : 'Failed to recompute' });
+      }
+    }
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'finance.rates_reapplied',
+      resourceType: 'PackageCostBreakdown',
+      organizationId,
+      metadata: { packagesUpdated, packagesSkipped, bookingsUpdated, bookingsSkipped },
+    });
+
+    return { packagesUpdated, packagesSkipped, bookingsUpdated, bookingsSkipped };
   },
 
   // ---------------------------------------------------- package cost breakdown
