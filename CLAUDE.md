@@ -19,8 +19,48 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-133 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-133 was a live production incident** (user-reported:
+> Current through DR-134 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-134** folds tax and the platform fee into the stored
+> `TourPackage.priceMinor` — explicit user request, walked through a
+> concrete numeric example first (base cost → agency margin → subtotal →
+> tax → platform fee → total) and confirmed via two clarifying questions
+> before implementing, since the natural implementation collided with a
+> real double-charging bug: `TourPackage.priceMinor` flows straight through
+> to `Booking.priceMinor` (scaled by seats, snapshotted at hold time) and
+> then into `invoicingService.getOrCreateInvoiceForBooking`, which calls
+> `computeInvoiceAmounts` to add tax + platform fee **again, fresh** — so
+> baking them into `priceMinor` unconditionally would have double-charged
+> every `PREDEFINED_PACKAGE` guest at checkout. Resolved by snapshotting the
+> tax-exclusive subtotal and the two rates that produced a package's price
+> (`TourPackage.priceSubtotalMinor`/`priceTaxRateBp`/
+> `pricePlatformFeeRateBp`, all additive/nullable) onto both the package and,
+> at hold-creation time, the booking itself (`Booking` gains the same three
+> fields, whole-booking) — `invoicingService` trusts this snapshot instead of
+> re-resolving tax/platform fee live when it's present, so a guest is never
+> taxed twice. Explicit, accepted trade-off: a booking now reflects whichever
+> tax/platform rate was effective when its package's cost breakdown was last
+> saved, not a rate that changes afterward (a deliberate, confirmed
+> narrowing of DR-006/DR-127's "always resolve tax fresh" guarantee for this
+> one flow). The snapshot is only ever populated when a departure is
+> actually using its package's own computed price — a manual
+> `priceOverrideMinor`, a bespoke departure, and every `TAILOR_MADE` booking
+> (still priced via `sendQuotation`, untouched) keep resolving tax/platform
+> fee live exactly as before. New shared pure helper `src/lib/pricing.ts`
+> (`applyTaxAndPlatformFee`, `impliedSubtotalMinor` for decomposing a staff
+> override back into a consistent subtotal+rate pair) is deliberately kept
+> independent of invoicing's own `computeInvoiceAmounts`, so this carries
+> zero regression risk to the existing, tested invoicing/coupon formula —
+> `applyCoupon`/`removeCoupon` needed no changes at all, since they already
+> recompute purely from the persisted `Invoice` row. `PackageCostBreakdown`
+> gains five display/audit-trail snapshot columns
+> (`computedTaxMinor`/`computedPlatformFeeMinor`/`computedTotalMinor`/
+> `taxRateBpSnapshot`/`platformFeeRateBpSnapshot`, whole-group, mirroring the
+> existing `computedBaseCostMinor`/`computedSellingPriceMinor` precedent).
+> **Schema change (nine new nullable columns across `TourPackage`/
+> `PackageCostBreakdown`/`Booking`, no destructive step) applied by hand to
+> the shared Neon DB** — verified via `psql` that every new column is null
+> on every pre-existing row; CI is green. No permission/module-dependency
+> change. **DR-133 was a live production incident** (user-reported:
 > "Application error: a server-side exception has occurred" when assigning
 > a driver, guide, or vehicle) — root-caused via `vercel logs --prod` plus a
 > direct repro script against the shared Neon DB. A `TourPackage` had been
