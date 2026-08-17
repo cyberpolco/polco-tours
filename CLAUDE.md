@@ -19,8 +19,30 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-140 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-140** (explicit user request, follow-up to DR-139) rejects a
+> Current through DR-141 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-141** (explicit user request) adds a genuinely permanent,
+> SUPERADMIN-only "Delete" for a staff account, distinct from the existing
+> reversible "Deactivate" (DR-026) — new `User.deletedPermanently` (additive,
+> default `false`) distinguishes the two on the same `deletedAt` column both
+> write to; `authService.deleteUser` (`isSuperAdmin`-gated, same hardcoded-
+> role-under-`admin.all` layering as `isFleetDeleter`/`isBookingDeleter`)
+> blocks self-delete and re-deleting an already-deleted user, and
+> `reactivateUser` now throws once `deletedPermanently` is true instead of
+> silently succeeding. Building this surfaced a real gap: `reactivateUser`
+> calling the existing `findUserById` (which excludes any `deletedAt`-set
+> row, by design, for every other caller) meant it could never actually
+> resolve the very Deactivated account it exists to restore — nothing had
+> exercised that path before, since dormancy (DR-084) doesn't set
+> `deletedAt`. Fixed with a new `authRepository.findUserByIdIncludingDeleted`,
+> used only by `reactivateUser`/`deleteUser`; `reactivateUser` itself now
+> also clears a plain Deactivate, not just dormancy. `/staff/admin/users`
+> gains a fourth status ("Deleted") and a SUPERADMIN-only Delete row action;
+> `isSuperAdmin` (pre-existing in `auth/domain.ts`) is now exported through
+> `auth/index.ts` for that UI check. **Schema change (one additive,
+> defaulted-`false` column on `User`, no destructive step) applied by hand
+> to the shared Neon DB** — verified via `psql` that all 698 pre-existing
+> rows read `false`. No permission-matrix or module-dependency change.
+> **DR-140** (explicit user request, follow-up to DR-139) rejects a
 > guest booking wizard's contact email when it already belongs to a real
 > staff account (any non-`TOURIST` role) — checked in both
 > `(guest)/plan-my-trip/actions.ts` and `(guest)/booking/[bookingId]/
@@ -1343,10 +1365,13 @@ visually coherent with the design package.
   `GuideProfile` (indefinite, no purge), a client (bare `TOURIST` contact
   record, DR-085 — additionally guarded by `src/lib/client-deletion.ts`:
   blocked unless every one of their bookings is `COMPLETED`-and-reviewed or
-  already superadmin-deleted). `StarlinkKit` is a genuine hard delete
-  (confirmed no FK references it). All gated by a `SUPERADMIN`-only
-  service-layer check beneath the route permission, never by the bare
-  permission alone.
+  already superadmin-deleted), and — since DR-141 — a **staff** account
+  itself: `deletedAt` alone means Deactivated (reversible via
+  `reactivateUser`); `deletedPermanently` (`User`, additive) also set means
+  Deleted, permanent, `reactivateUser` refuses forever after. `StarlinkKit`
+  is a genuine hard delete (confirmed no FK references it). All gated by a
+  `SUPERADMIN`-only service-layer check beneath the route permission, never
+  by the bare permission alone.
 - **No generic job runner** — every scheduled job is its own QStash-
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by

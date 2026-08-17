@@ -15,6 +15,7 @@ interface RawUser {
   phone: string | null;
   preferredLocale: PublicUser['preferredLocale'];
   deletedAt: Date | null;
+  deletedPermanently: boolean;
   mustChangePassword: boolean;
   lastLoginAt: Date | null;
   inactiveAt: Date | null;
@@ -32,6 +33,7 @@ function toPublicUser(u: RawUser, roles: Role[]): PublicUser {
     phone: u.phone,
     preferredLocale: u.preferredLocale,
     deletedAt: u.deletedAt,
+    deletedPermanently: u.deletedPermanently,
     mustChangePassword: u.mustChangePassword,
     lastLoginAt: u.lastLoginAt,
     inactiveAt: u.inactiveAt,
@@ -61,6 +63,19 @@ export const authRepository = {
   async findUserById(id: string): Promise<PublicUser | null> {
     const u = await prisma.user.findUnique({ where: { id } });
     if (!u || u.deletedAt) return null;
+    return toPublicUser(u, await resolveRoles(u));
+  },
+
+  /** DR-141: unlike findUserById above, does NOT exclude a deletedAt-set
+   * row -- reactivateUser/deleteUser both need to resolve a Deactivated (or
+   * already-Deleted) account to act on it, exactly the accounts
+   * findUserById's blanket exclusion was written to hide from every other
+   * caller (a real gap found while building this: findUserById's exclusion
+   * meant reactivating a Deactivated, not just dormant, user always 404'd,
+   * even though that same account still shows up on /staff/admin/users). */
+  async findUserByIdIncludingDeleted(id: string): Promise<PublicUser | null> {
+    const u = await prisma.user.findUnique({ where: { id } });
+    if (!u) return null;
     return toPublicUser(u, await resolveRoles(u));
   },
 
@@ -182,10 +197,22 @@ export const authRepository = {
     await prisma.user.update({ where: { id: userId }, data: { mustChangePassword: true } });
   },
 
-  /** DR-026: soft-delete -- see the deletedAt read-side checks above and in
-   * authService.resolveSession, which already treat this as "gone". */
+  /** DR-026: soft-delete ("Deactivate") -- see the deletedAt read-side checks
+   * above and in authService.resolveSession, which already treat this as
+   * "gone". Reversible (DR-141: reactivateUser clears deletedAt again) --
+   * deletedPermanently stays at its default false, distinguishing this from
+   * permanentlyDeleteUser below. Also backs authService.deleteClient
+   * (DR-036/085), which reuses this same method for a bare-tourist client
+   * record. */
   async softDeleteUser(userId: string): Promise<void> {
     await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date() } });
+  },
+
+  /** DR-141: "Delete" -- unlike softDeleteUser above, this can never be
+   * undone (authService.reactivateUser refuses once deletedPermanently is
+   * true). SUPERADMIN-only, gated one layer up in the service. */
+  async permanentlyDeleteUser(userId: string): Promise<void> {
+    await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date(), deletedPermanently: true } });
   },
 
   /** DR-084: scheduled-sweep entry point -- staff roles only (TOURIST
@@ -212,11 +239,15 @@ export const authRepository = {
     return result.count;
   },
 
-  /** DR-084: the only way a dormant account is ever restored -- there is no
-   * self-service path, since a dormant user can't authenticate to trigger
-   * anything themselves. */
+  /** DR-084/DR-141: clears BOTH a dormancy lock (inactiveAt, the automatic
+   * 30-day sweep) and a manual Deactivate (deletedAt) in one call -- from
+   * the caller's perspective both mean "make this account active again",
+   * and clearing whichever one happens to be set is simpler than two
+   * separate repository methods for what's the same user-facing action.
+   * The service layer refuses to call this at all once deletedPermanently
+   * is true, so a genuinely deleted user's deletedAt is never cleared here. */
   async reactivateUser(userId: string): Promise<void> {
-    await prisma.user.update({ where: { id: userId }, data: { inactiveAt: null } });
+    await prisma.user.update({ where: { id: userId }, data: { inactiveAt: null, deletedAt: null } });
   },
 
   /** DR-026: clears the forced-password-change flag after a successful

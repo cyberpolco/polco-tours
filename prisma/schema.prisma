@@ -244,12 +244,20 @@ model User {
   // SUPERADMIN is excluded from the sweep, see authRepository
   // .markDormantUsers). null = active; set = sign-in is actively blocked
   // (databaseHooks.session.create.before in lib/auth.ts) until an admin
-  // reactivates. Distinct from deletedAt -- that's a manual, permanent
-  // deactivation; this is automatic and reversible by any admin.all holder.
+  // reactivates. Distinct from deletedAt -- automatic (the sweep), not
+  // manual (an admin's own Deactivate click).
   inactiveAt         DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  // DR-141: a manual "Deactivate" (deletedPermanently: false, same as a
+  // bare-tourist client record's own soft-delete, DR-085/036) is reversible
+  // via reactivateUser, same as inactiveAt above -- but a manual "Delete"
+  // (deletedPermanently: true, SUPERADMIN-only) is not; reactivateUser
+  // refuses once this is set. Both read the same as "gone" everywhere
+  // deletedAt is already checked (resolveSession, findUserByEmail,
+  // findUserById) -- this column only decides whether recovery is possible.
   deletedAt          DateTime?
+  deletedPermanently Boolean   @default(false)
 
   memberships          Membership[]
   sessions             Session[]
@@ -467,13 +475,13 @@ model AuditLog {
 // Tenant-scoped. RLS policies in rls.sql enforce that a request only sees rows
 // for the organization in the session GUC `app.org_id`.
 model TourPackage {
-  id               String        @id @default(uuid()) @db.Uuid
-  organizationId   String        @db.Uuid
+  id                     String        @id @default(uuid()) @db.Uuid
+  organizationId         String        @db.Uuid
   // Business-facing reference, e.g. PKG-00034, from a plain Postgres sequence
   // (package_reference_seq -- not representable in Prisma's schema DSL, see
   // src/modules/catalog/repository.ts), same coexists-alongside-the-id
   // pattern as Booking.bookingReference (DR-027).
-  packageReference String        @unique
+  packageReference       String        @unique
   // DR-118: a personalized public URL segment generated once from `title`
   // at creation time (src/lib/slug.ts + a uniqueness loop in
   // catalog/repository.ts) -- never regenerated on a later title edit, so a
@@ -481,10 +489,10 @@ model TourPackage {
   // rows created before DR-118 (backfilled by hand,
   // scripts/backfill-package-slugs.ts); every package created from here on
   // always gets one, published or not.
-  slug             String?       @unique
-  title            String
-  description      String
-  country          String // ISO-3166 alpha-2, one of countries[] -- the PRIMARY/billing
+  slug                   String?       @unique
+  title                  String
+  description            String
+  country                String // ISO-3166 alpha-2, one of countries[] -- the PRIMARY/billing
   // country: matches TaxRate.country for invoicing, and is the sole driver of
   // finance/service.ts's resolveRatesForCost. A combo package's OTHER
   // countries live in countries[] below for display/filtering only -- never
@@ -493,13 +501,13 @@ model TourPackage {
   // Full set of countries this package touches (superset including
   // `country` above) -- display/filtering only, e.g. a guest filtering by
   // "Zambia" should also surface a Zambia+Zimbabwe combo package.
-  countries        String[]      @default([])
+  countries              String[]      @default([])
   // Per-seat unit price, integer minor units (BR-02). Nullable since DR-039:
   // a brand-new package starts unpriced until the finance module's cost
   // breakdown computes it (or an admin override sets it) -- isBookable
   // treats null as not-bookable. Existing packages keep their pre-DR-039
   // value (grandfathered, no cost breakdown required retroactively).
-  priceMinor       Int?
+  priceMinor             Int?
   // DR-134: the components financeService.saveCostBreakdown baked into
   // priceMinor (per seat, tax + platform-fee-inclusive) -- null for a
   // package priced any other way (pre-DR-134, or grandfathered). Lets
@@ -511,8 +519,8 @@ model TourPackage {
   priceSubtotalMinor     Int?
   priceTaxRateBp         Int?
   pricePlatformFeeRateBp Int?
-  currency         Currency
-  durationDays     Int?
+  currency               Currency
+  durationDays           Int?
   // DR-068: optional hero image for the guest package card/detail page.
   // Nullable/additive -- no operator-supplied photography existed at first
   // (see CLAUDE.md Open Items), so every existing package stays imageless
@@ -522,14 +530,14 @@ model TourPackage {
   // is a Vercel Blob `access: 'public'` URL (next.config.mjs's
   // `*.public.blob.vercel-storage.com` remotePattern, added DR-071), not a
   // local `/public/images/...` asset path.
-  imageUrl         String?
-  tags             PackageTag[] // interest-matching for the public quiz (DR-016)
-  status           PackageStatus @default(DRAFT)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  imageUrl               String?
+  tags                   PackageTag[] // interest-matching for the public quiz (DR-016)
+  status                 PackageStatus @default(DRAFT)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
   // Soft delete (DR-028) -- already existed, scaffolded but unused until now;
   // reads across this module already filter deletedAt: null.
-  deletedAt        DateTime?
+  deletedAt              DateTime?
 
   organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   departures            Departure[]
@@ -1286,9 +1294,9 @@ model Restaurant {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  days         ItineraryDay[]
-  ratings      RestaurantRating[]
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  days             ItineraryDay[]
+  ratings          RestaurantRating[]
   // DR-131: operational-rate rows (finance module) that reference this
   // restaurant -- same "cross-module FK, still platform-wide/un-RLS'd"
   // precedent as Hotel.operationalRates above.
@@ -1881,20 +1889,20 @@ model AddonRate {
 // but price stays package-level. Rate FKs are nullable (a package might
 // have no accommodation, no visa requirement, etc.).
 model PackageCostBreakdown {
-  id                        String    @id @default(uuid()) @db.Uuid
-  organizationId            String    @db.Uuid
-  tourPackageId             String    @unique @db.Uuid
-  currency                  Currency // must match TourPackage.currency -- no FX conversion anywhere in this app
-  referenceGroupSize        Int
-  nights                    Int
-  driverDays                Int
-  guideDays                 Int
+  id                         String         @id @default(uuid()) @db.Uuid
+  organizationId             String         @db.Uuid
+  tourPackageId              String         @unique @db.Uuid
+  currency                   Currency // must match TourPackage.currency -- no FX conversion anywhere in this app
+  referenceGroupSize         Int
+  nights                     Int
+  driverDays                 Int
+  guideDays                  Int
   // Base-inclusion only (e.g. a premium package that bundles a
   // photographer) -- distinct from the existing per-booking optional
   // AddonService PHOTOGRAPHY/VIDEOGRAPHY purchase (DR-011/015), which stays
   // unchanged and is added on top at booking time, not here.
-  photographerDays          Int       @default(0)
-  videographerDays          Int       @default(0)
+  photographerDays           Int            @default(0)
+  videographerDays           Int            @default(0)
   // DR-131: accommodation/restaurant/activities are no longer staff-picked
   // here at all (hotelRateId/roomsNeeded/breakfastCount/lunchCount/
   // dinnerCount removed) -- they're derived automatically from this
@@ -1904,19 +1912,19 @@ model PackageCostBreakdown {
   // (referenceGroupSize). The three computed*Minor columns below are a
   // snapshot for display only -- computedBaseCostMinor is still the sum of
   // record.
-  transportRateId           String?   @db.Uuid
-  transportDays             Int       @default(0)
-  requiresVisa              Boolean   @default(false)
-  immigrationCostRateId     String?   @db.Uuid
+  transportRateId            String?        @db.Uuid
+  transportDays              Int            @default(0)
+  requiresVisa               Boolean        @default(false)
+  immigrationCostRateId      String?        @db.Uuid
   // DR-126: admin cost, resolved via AdminCostRate by country + effective
   // date (same "no stored rate id" precedent as driverDays/guideDays above,
   // not a staff-picked dropdown like transportRateId). basis decides
   // whether the resolved dailyRateMinor is multiplied by referenceGroupSize
   // (PER_PERSON) or charged once for the whole group (PER_GROUP, the
   // default -- an admin overhead fee is usually shared).
-  adminDays                 Int            @default(0)
-  adminCostBasis            AdminCostBasis @default(PER_GROUP)
-  agencyMarginBp            Int // basis points, e.g. 2000 = 20%
+  adminDays                  Int            @default(0)
+  adminCostBasis             AdminCostBasis @default(PER_GROUP)
+  agencyMarginBp             Int // basis points, e.g. 2000 = 20%
   computedAccommodationMinor Int?
   computedRestaurantMinor    Int?
   computedActivitiesMinor    Int?
@@ -1928,8 +1936,8 @@ model PackageCostBreakdown {
   // column here.
   computedTransportMinor     Int?
   computedAdminMinor         Int?
-  computedBaseCostMinor     Int?
-  computedSellingPriceMinor Int?
+  computedBaseCostMinor      Int?
+  computedSellingPriceMinor  Int?
   // DR-134: display/audit-trail snapshot of the tax + platform fee folded
   // into TourPackage.priceMinor (whole-group, like the computed*Minor
   // fields above) -- computedTotalMinor = computedSellingPriceMinor + tax +
@@ -1946,12 +1954,12 @@ model PackageCostBreakdown {
   // trail itself lives in the append-only audit_logs table (via audit()),
   // not duplicated here -- these columns are just "is an override
   // currently in effect," not history.
-  overridePriceMinor        Int?
-  overrideReason            String?   @db.VarChar(500)
-  overriddenByUserId        String?   @db.Uuid
-  overriddenAt              DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  overridePriceMinor         Int?
+  overrideReason             String?        @db.VarChar(500)
+  overriddenByUserId         String?        @db.Uuid
+  overriddenAt               DateTime?
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   tourPackage  TourPackage           @relation(fields: [tourPackageId], references: [id], onDelete: Cascade)
@@ -1968,10 +1976,10 @@ model PackageCostBreakdown {
 // staff-picked line item, they're derived automatically from the Day
 // Template (see PackageCostBreakdown's own comment).
 model PackageCostLineItem {
-  id                     String  @id @default(uuid()) @db.Uuid
-  organizationId         String  @db.Uuid
-  packageCostBreakdownId String  @db.Uuid
-  foodBeverageRateId     String  @db.Uuid
+  id                     String @id @default(uuid()) @db.Uuid
+  organizationId         String @db.Uuid
+  packageCostBreakdownId String @db.Uuid
+  foodBeverageRateId     String @db.Uuid
   quantityPerPerson      Int
 
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1995,30 +2003,30 @@ model PackageCostLineItem {
 // whichever currency the resolved rates/add-ons are actually in (see
 // financeService.saveBookingCostBreakdown).
 model BookingCostBreakdown {
-  id                        String    @id @default(uuid()) @db.Uuid
-  organizationId            String    @db.Uuid
-  bookingId                 String    @unique @db.Uuid
-  currency                  Currency
-  nights                    Int
-  driverDays                Int
-  guideDays                 Int
-  photographerDays          Int       @default(0)
-  videographerDays          Int       @default(0)
+  id                         String         @id @default(uuid()) @db.Uuid
+  organizationId             String         @db.Uuid
+  bookingId                  String         @unique @db.Uuid
+  currency                   Currency
+  nights                     Int
+  driverDays                 Int
+  guideDays                  Int
+  photographerDays           Int            @default(0)
+  videographerDays           Int            @default(0)
   // DR-131: same removal/replacement as PackageCostBreakdown above --
   // accommodation/restaurant/activities derive from the linked customized
   // package's Day Template (Booking.customizedPackageId), 0 if unset.
-  transportRateId           String?   @db.Uuid
-  transportDays             Int       @default(0)
-  requiresVisa              Boolean   @default(false)
-  immigrationCostRateId     String?   @db.Uuid
-  adminDays                 Int            @default(0)
-  adminCostBasis            AdminCostBasis @default(PER_GROUP)
-  agencyMarginBp            Int
+  transportRateId            String?        @db.Uuid
+  transportDays              Int            @default(0)
+  requiresVisa               Boolean        @default(false)
+  immigrationCostRateId      String?        @db.Uuid
+  adminDays                  Int            @default(0)
+  adminCostBasis             AdminCostBasis @default(PER_GROUP)
+  agencyMarginBp             Int
   computedAccommodationMinor Int?
   computedRestaurantMinor    Int?
   computedActivitiesMinor    Int?
-  computedBaseCostMinor     Int?
-  computedSellingPriceMinor Int?
+  computedBaseCostMinor      Int?
+  computedSellingPriceMinor  Int?
   // Snapshot of the booking's already-selected add-ons' total at save time
   // -- same "snapshot, don't live-join" convention as BookingAddon.priceMinor
   // and Booking.priceMinor itself. Goes stale if add-ons change after a
@@ -2026,13 +2034,13 @@ model BookingCostBreakdown {
   // a staff resave clears it, same as everywhere else in this feature
   // family; the staff UI shows the live add-ons total alongside this
   // snapshot so the gap is visible, not hidden.
-  addonsTotalMinor          Int       @default(0)
-  overridePriceMinor        Int?
-  overrideReason            String?   @db.VarChar(500)
-  overriddenByUserId        String?   @db.Uuid
-  overriddenAt              DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  addonsTotalMinor           Int            @default(0)
+  overridePriceMinor         Int?
+  overrideReason             String?        @db.VarChar(500)
+  overriddenByUserId         String?        @db.Uuid
+  overriddenAt               DateTime?
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime       @updatedAt
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booking      Booking               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -2045,10 +2053,10 @@ model BookingCostBreakdown {
 // Same shape/purpose as PackageCostLineItem (drinks only, DR-131), FK'd to
 // BookingCostBreakdown.
 model BookingCostLineItem {
-  id                     String  @id @default(uuid()) @db.Uuid
-  organizationId         String  @db.Uuid
-  bookingCostBreakdownId String  @db.Uuid
-  foodBeverageRateId     String  @db.Uuid
+  id                     String @id @default(uuid()) @db.Uuid
+  organizationId         String @db.Uuid
+  bookingCostBreakdownId String @db.Uuid
+  foodBeverageRateId     String @db.Uuid
   quantityPerPerson      Int
 
   organization         Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)

@@ -52,10 +52,19 @@ export async function deactivateUserAction(userId: string, redirectQuery: string
   redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }
 
-// DR-084: the only way a dormant (30+ days no sign-in) account is ever
-// restored -- clears User.inactiveAt so the sign-in block lifts.
+// DR-084/DR-141: restores a Deactivated or dormant (30+ days no sign-in)
+// account -- clears whichever of User.deletedAt/inactiveAt is set. Refuses
+// (authService throws) for a permanently Deleted account.
 export async function reactivateUserAction(userId: string, redirectQuery: string): Promise<void> {
   const ctx = await requireStaffContext('admin.all');
   await authService.reactivateUser(ctx, userId);
+  redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
+}
+
+// DR-141: permanent, SUPERADMIN-only counterpart to deactivateUserAction --
+// unlike Deactivate, this can never be undone via reactivateUserAction.
+export async function deleteUserAction(userId: string, redirectQuery: string): Promise<void> {
+  const ctx = await requireStaffContext('admin.all');
+  await authService.deleteUser(ctx, userId);
   redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }

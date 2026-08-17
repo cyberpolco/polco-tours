@@ -37,7 +37,11 @@ export interface PublicUser {
   emailVerified: boolean;
   phone: string | null;
   preferredLocale: Locale;
-  deletedAt: Date | null; // DR-026: null = active, set = soft-deleted/deactivated
+  deletedAt: Date | null; // DR-026: null = active, set = deactivated or deleted (see deletedPermanently)
+  // DR-141: distinguishes a reversible manual Deactivate (false) from a
+  // permanent, SUPERADMIN-only Delete (true) -- only meaningful when
+  // deletedAt is set; reactivateUser refuses once this is true.
+  deletedPermanently: boolean;
   mustChangePassword: boolean; // DR-026
   lastLoginAt: Date | null; // set via databaseHooks.session.create.after in lib/auth.ts
   inactiveAt: Date | null; // DR-084: null = active, set = dormant (sign-in blocked until reactivated)

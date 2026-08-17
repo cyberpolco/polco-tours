@@ -3,6 +3,7 @@ export { authService } from './service';
 export type { AuthContext, PublicUser } from './domain';
 export {
   isOrgMember,
+  isSuperAdmin,
   UpdateProfileInput,
   CreateUserInput,
   UpdateUserInput,

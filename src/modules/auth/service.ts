@@ -171,10 +171,13 @@ export const authService = {
     return { user, temporaryPassword };
   },
 
-  /** Admin-only: soft-deletes a user (DR-026) -- resolveSession/
+  /** Admin-only: deactivates a user (DR-026) -- resolveSession/
    * findUserByEmail/findUserById already treat a deletedAt-set user as
    * unauthenticated, so the next request they make fails closed with no
-   * separate session-revocation step needed. Blocks self-deactivation. */
+   * separate session-revocation step needed. Blocks self-deactivation.
+   * DR-141: reversible via reactivateUser below -- softDeleteUser leaves
+   * deletedPermanently at its default false, distinguishing this from
+   * deleteUser's permanent version. */
   async deactivateUser(ctx: AuthContext, userId: string): Promise<void> {
     assertCan(ctx, 'admin.all');
     if (userId === ctx.userId) throw Errors.conflict('You cannot deactivate your own account');
@@ -193,20 +196,56 @@ export const authService = {
     });
   },
 
-  /** DR-084: clears a dormancy flag so the account can sign in again -- the
-   * only way one is ever restored, since a dormant user can't authenticate
-   * to trigger anything themselves. Same admin.all gate as deactivateUser;
-   * no SUPERADMIN-only narrowing needed here (unlike deleteClient/
-   * deleteVehicle) since this is strictly restorative, not destructive. */
+  /** DR-084/DR-141: clears whichever "not active" state is set -- a
+   * dormancy lock (inactiveAt, the automatic 30-day sweep) or a manual
+   * Deactivate (deletedAt) -- refusing only once deletedPermanently marks
+   * the account as genuinely Deleted, not just Deactivated. Same admin.all
+   * gate either way; no SUPERADMIN-only narrowing here (unlike deleteUser)
+   * since restoring an account is not itself destructive. Uses
+   * findUserByIdIncludingDeleted (not findUserById) since a Deactivated
+   * account's own deletedAt would otherwise make it invisible to this very
+   * lookup -- a real gap found while adding the Deactivate case here (the
+   * pre-existing dormancy-only case never hit it, since dormancy doesn't
+   * set deletedAt). */
   async reactivateUser(ctx: AuthContext, userId: string): Promise<void> {
     assertCan(ctx, 'admin.all');
-    const target = await authRepository.findUserById(userId);
+    const target = await authRepository.findUserByIdIncludingDeleted(userId);
     if (!target) throw Errors.notFound('User not found');
+    if (target.deletedPermanently) {
+      throw Errors.conflict('This account was permanently deleted and cannot be reactivated');
+    }
     await authRepository.reactivateUser(userId);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
       action: 'auth.user_reactivated',
+      resourceType: 'User',
+      resourceId: userId,
+      organizationId: ctx.organizationId ?? undefined,
+    });
+  },
+
+  /** DR-141 (explicit user request): a genuinely permanent counterpart to
+   * deactivateUser -- SUPERADMIN-only (same "route passes via the
+   * DB-editable permission matrix, service still rejects" layering as
+   * isFleetDeleter/isBookingDeleter/isCountryRegulationWriter), and
+   * reactivateUser refuses forever once this runs. Blocks self-delete, same
+   * as deactivateUser. Uses findUserByIdIncludingDeleted so a Deactivated
+   * (or even already-Deleted) account can still be resolved to act on. */
+  async deleteUser(ctx: AuthContext, userId: string): Promise<void> {
+    assertCan(ctx, 'admin.all');
+    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may permanently delete a user');
+    if (userId === ctx.userId) throw Errors.conflict('You cannot delete your own account');
+
+    const target = await authRepository.findUserByIdIncludingDeleted(userId);
+    if (!target) throw Errors.notFound('User not found');
+    if (target.deletedPermanently) throw Errors.conflict('This user has already been deleted');
+
+    await authRepository.permanentlyDeleteUser(userId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'auth.user_deleted',
       resourceType: 'User',
       resourceId: userId,
       organizationId: ctx.organizationId ?? undefined,

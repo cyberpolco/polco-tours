@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { ASSIGNABLE_ROLES, authService, type PublicUser } from '@modules/auth';
+import { ASSIGNABLE_ROLES, authService, isSuperAdmin, type PublicUser } from '@modules/auth';
 import { emailDomain, listEmailDomains, listPhoneDialCodes, matchesPhoneDialCode, matchesSearch, paginate } from '@lib/directory-filters';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
@@ -12,13 +12,13 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { CreateUserForm } from './create-user-form';
-import { deactivateUserAction, reactivateUserAction } from './actions';
+import { deactivateUserAction, deleteUserAction, reactivateUserAction } from './actions';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 
 const PER_PAGE = 10;
 type SortKey = 'name' | 'email' | 'lastLogin';
-type StatusFilter = 'active' | 'inactive' | 'deactivated';
+type StatusFilter = 'active' | 'inactive' | 'deactivated' | 'deleted';
 
 interface Props {
   searchParams: Promise<{
@@ -33,6 +33,7 @@ interface Props {
 }
 
 function userStatus(u: PublicUser): StatusFilter {
+  if (u.deletedPermanently) return 'deleted';
   if (u.deletedAt) return 'deactivated';
   if (u.inactiveAt) return 'inactive';
   return 'active';
@@ -64,7 +65,10 @@ export default async function UsersPage({ searchParams }: Props) {
   const q = params.q ?? '';
   const domain = params.domain ?? '';
   const dial = params.dial ?? '';
-  const status = params.status === 'active' || params.status === 'inactive' || params.status === 'deactivated' ? params.status : '';
+  const status =
+    params.status === 'active' || params.status === 'inactive' || params.status === 'deactivated' || params.status === 'deleted'
+      ? params.status
+      : '';
   const sort: SortKey = params.sort === 'name' || params.sort === 'lastLogin' ? params.sort : 'email';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
@@ -147,6 +151,7 @@ export default async function UsersPage({ searchParams }: Props) {
               <option value="active">{t('active')}</option>
               <option value="inactive">{t('inactive')}</option>
               <option value="deactivated">{t('deactivated')}</option>
+              <option value="deleted">{t('deleted')}</option>
             </Select>
           </FormField>
           <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
@@ -201,19 +206,20 @@ export default async function UsersPage({ searchParams }: Props) {
                   </div>
                 </Td>
                 <Td>
-                  {/* DR-084: Inactive (30+ days no sign-in, auto-flagged) is a
-                      third state alongside the existing manual Active/
-                      Deactivated -- Deactivated always wins when both are
-                      true, since that user can't sign in regardless of
-                      dormancy. */}
-                  <Badge tone={u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
-                    {u.deletedAt ? t('deactivated') : u.inactiveAt ? t('inactive') : t('active')}
+                  {/* DR-084/DR-141: four states -- Inactive (dormant, 30+
+                      days no sign-in, auto-flagged) and Deactivated (manual,
+                      reversible) can both be undone via Reactivate;
+                      Deleted (manual, SUPERADMIN-only) never can. Deleted
+                      wins over Deactivated wins over Inactive, since each
+                      implies the last. */}
+                  <Badge tone={u.deletedPermanently ? 'danger' : u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
+                    {u.deletedPermanently ? t('deleted') : u.deletedAt ? t('deactivated') : u.inactiveAt ? t('inactive') : t('active')}
                   </Badge>
                 </Td>
                 <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : t('never')}</Td>
                 <Td>
                   <div className="flex items-center gap-3">
-                    {u.id !== ctx.userId && (
+                    {u.id !== ctx.userId && !u.deletedPermanently && (
                       <Link href={`/staff/admin/users/${u.id}`} className="text-forest hover:underline">
                         {t('edit')}
                       </Link>
@@ -229,10 +235,29 @@ export default async function UsersPage({ searchParams }: Props) {
                         </SubmitButton>
                       </form>
                     )}
-                    {!u.deletedAt && u.inactiveAt && (
+                    {/* DR-141: Reactivate now also undoes a plain Deactivate,
+                        not just dormancy -- never shown once deletedPermanently
+                        is true (that's the one state Reactivate can't undo). */}
+                    {!u.deletedPermanently && (u.deletedAt || u.inactiveAt) && (
                       <form action={reactivateUserAction.bind(null, u.id, currentQuery)}>
                         <SubmitButton variant="success" size="compact">
                           {t('reactivate')}
+                        </SubmitButton>
+                      </form>
+                    )}
+                    {/* DR-141: permanent, SUPERADMIN-only -- available
+                        regardless of the account's current status (active,
+                        dormant, or deactivated), as long as it isn't already
+                        deleted. */}
+                    {u.id !== ctx.userId && !u.deletedPermanently && isSuperAdmin(ctx.roles) && (
+                      <form action={deleteUserAction.bind(null, u.id, currentQuery)}>
+                        <SubmitButton
+                          variant="secondary"
+                          size="compact"
+                          pendingLabel={t('deleting')}
+                          confirmMessage={t('deleteConfirm', { name: u.name ?? u.email })}
+                        >
+                          {t('delete')}
                         </SubmitButton>
                       </form>
                     )}
