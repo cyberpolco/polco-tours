@@ -155,6 +155,17 @@ export const fleetRepository = {
     });
   },
 
+  /** DR-138: backs the fleet auto-provisioning helper's "does this
+   * VEHICLE_OWNER already own a vehicle" check -- same shape as
+   * findDriverProfileByUserId/findGuideProfileByUserId, just one-to-many
+   * instead of one-to-one (Vehicle.ownerId has no unique constraint). */
+  async findVehiclesByOwnerId(organizationId: string, ownerId: string): Promise<VehicleView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.vehicle.findMany({ where: { ownerId, deletedAt: null } });
+      return rows.map(toVehicleView);
+    });
+  },
+
   /** DR-082 -- the only write path for these two columns, keyed by vehicleId
    * directly (matches Assignment.vehicleId). Same "updateMany, no-op if the
    * id doesn't resolve in this org" shape as updateDriverRatingAggregate. */

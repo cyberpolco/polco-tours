@@ -186,6 +186,23 @@ export const fleetService = {
     return fleetRepository.findDriverProfilesByIds(requireOrg(ctx), ids);
   },
 
+  /** Managers-only lookup of an arbitrary user's DriverProfile by userId --
+   * mirrors findGuideProfileByUserId below. Backs DR-138's fleet
+   * auto-provisioning helper (src/lib/provision-fleet-profiles-for-user.ts). */
+  async findDriverProfileByUserId(ctx: AuthContext, userId: string): Promise<DriverProfileView | null> {
+    assertCan(ctx, 'fleet.read');
+    if (!isFleetManager(ctx.roles)) throw Errors.forbidden("Only fleet managers may look up another user's driver profile");
+    return fleetRepository.findDriverProfileByUserId(requireOrg(ctx), userId);
+  },
+
+  /** Managers-only lookup of every vehicle a given user owns -- backs
+   * DR-138's "does this VEHICLE_OWNER already own a vehicle" check. */
+  async findVehiclesByOwnerId(ctx: AuthContext, ownerId: string): Promise<VehicleView[]> {
+    assertCan(ctx, 'fleet.read');
+    if (!isFleetManager(ctx.roles)) throw Errors.forbidden("Only fleet managers may look up another user's vehicles");
+    return fleetRepository.findVehiclesByOwnerId(requireOrg(ctx), ownerId);
+  },
+
   /** Ratings module (DR-037): resolves the driver(s) a guest is rating, by
    * id, with no ctx -- the caller has already independently verified the
    * guest's two-factor Rating Code before reaching here, same "caller

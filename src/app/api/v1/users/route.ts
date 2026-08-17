@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@lib/route-guard';
+import { provisionFleetProfilesForUser } from '@lib/provision-fleet-profiles-for-user';
 import { CreateUserInput, authService } from '@modules/auth';
 
 export const runtime = 'nodejs';
@@ -17,5 +18,6 @@ export const GET = withAuth('admin.all', async (ctx) => {
 export const POST = withAuth('admin.all', async (ctx, req: NextRequest) => {
   const input = CreateUserInput.parse(await req.json());
   const { user, temporaryPassword } = await authService.createUser(ctx, input);
+  await provisionFleetProfilesForUser(ctx, user.id, user.roles);
   return NextResponse.json({ user, temporaryPassword }, { status: 201 });
 });

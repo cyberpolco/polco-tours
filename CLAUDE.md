@@ -19,8 +19,56 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-136 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-136** lets SUPERADMIN update an Operational Rate in place
+> Current through DR-138 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-138** auto-provisions a starter fleet record when a staff
+> account is created or later edited to hold DRIVER/TOUR_GUIDE/
+> VEHICLE_OWNER — explicit user request, confirmed via three clarifying
+> questions first. New `src/lib/provision-fleet-profiles-for-user.ts`
+> (`provisionFleetProfilesForUser`) composes `auth` + `fleet` one level up
+> from both modules, called right after `authService.createUser`/
+> `updateUser` resolves in both the staff Server Actions
+> (`admin/users/actions.ts`/`admin/users/[userId]/actions.ts`) and the
+> matching `POST`/`PATCH /api/v1/users` REST routes — on an edit, only when
+> that edit's payload actually includes `roles`. DRIVER/TOUR_GUIDE get their
+> 1:1 `DriverProfile`/`GuideProfile` (skipped if one already exists, via new
+> manager-gated `fleetService.findDriverProfileByUserId`/the pre-existing
+> `findGuideProfileByUserId`); `DriverProfile.licenseNumber` (required, no
+> fallback available from `User`) gets a `"PENDING"` placeholder rather than
+> a schema change. VEHICLE_OWNER gets one placeholder `Vehicle`
+> (`plateNumber`/`make`/`model`/`vehicleType: "PENDING"`, `seatCapacity: 1`)
+> only if they don't already own one (new `fleetService
+> .findVehiclesByOwnerId`/`fleetRepository.findVehiclesByOwnerId`) — `Vehicle`
+> isn't a 1:1 profile like the other two, so this is an existence guard, not
+> a unique-constraint one, and it's what stops toggling the role on/off/on
+> from piling up placeholder vehicles. Best-effort throughout: wrapped in a
+> bare try/catch (same "never fail X creation over a Y issue" precedent as
+> `itineraryService.createItinerary`'s template-copy step) so a
+> fleet-provisioning failure can never fail the user create/edit action
+> itself; a successful auto-provision is audited
+> (`fleet.profile_auto_provisioned`). No schema/permission/module-dependency
+> change. **DR-137** adds a staff-only "download detailed itinerary" PDF on
+> `/staff/itineraries/[itineraryId]`, shown once the itinerary reaches
+> `APPROVED` (there is no separate `CONFIRMED` status on `Itinerary` — this
+> maps onto that existing terminal state) — explicit user request. New
+> `itineraryService.streamItinerarySummaryPdf` (gated `itinerary.read`, same
+> permission as the existing per-day Map-tab PDF) 409s if the itinerary
+> isn't yet `APPROVED`, then composes every day's date/times, pickup/
+> drop-off, hotel, restaurant, ordered planned sites, resolved activities,
+> estimated travel time, and notes, plus the itinerary's own top-level notes
+> and emergency contact, into one document via new
+> `src/modules/itinerary/itinerary-summary-pdf.tsx`
+> (`@react-pdf/renderer`) — deliberately mirroring `map-pdf.tsx`'s plain,
+> letterhead-free, English-only layout rather than `finance/
+> package-summary-pdf.tsx`'s branded EN/FR one, since this is an internal
+> operational document, not a client-facing proposal. Neither `Itinerary`
+> nor `ItineraryDay` has ever had a price/money field, so "without the
+> prices" needed no stripping logic. New route `api/v1/itineraries/
+> [itineraryId]/summary-pdf` is a thin pass-through, same convention as the
+> existing day map-pdf route. The download link is visible to anyone who
+> can view the detail page at all (not gated to `itinerary.write`/`.approve`
+> holders) once approved — a TOUR_GUIDE/DRIVER assigned to the trip is
+> exactly who most needs this document. No schema/permission/module-
+> dependency change. **DR-136** lets SUPERADMIN update an Operational Rate in place
 > (all eight cost-plus rate tables — Staff/Hotel/Restaurant/Transport/
 > Food & Beverage/Activity Fee/Immigration Cost/Admin Cost — plus Add-on
 > Rate for UI consistency), not just delete-and-recreate it, on
@@ -912,6 +960,9 @@ src/
                               #   tax, platform-rate, coupons (DR-104), rate-limit, qstash, geo,
                               #   fleet-availability (DR-082 cross-module sync helper),
                               #   client-deletion (DR-085 cross-module delete guard),
+                              #   provision-fleet-profiles-for-user (DR-138:
+                              #   cross-module auto-provision helper — auth +
+                              #   fleet, one level up from both),
                               #   directory-filters (DR-091: shared search/filter/
                               #   pagination helpers for the admin Users/Clients pages),
                               #   weather-towns (DR-113 static town config),
@@ -948,7 +999,10 @@ src/
                    #   ItineraryDay.activityIds directly) +
                    #   HotelRating/RestaurantRating (staff + guide/driver) +
                    #   gateway.ts/map-pdf.tsx (Static Maps + PDF rendering
-                   #   for the Map tab, DR-089)
+                   #   for the Map tab, DR-089) + itinerary-summary-pdf.tsx
+                   #   (DR-137: staff "download detailed itinerary" PDF,
+                   #   shown once APPROVED, no prices — none exist on this
+                   #   module's own tables)
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's

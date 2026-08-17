@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError } from '@lib/errors';
+import { provisionFleetProfilesForUser } from '@lib/provision-fleet-profiles-for-user';
 import { ASSIGNABLE_ROLES, CreateUserInput, authService } from '@modules/auth';
 
 export interface CreateUserState {
@@ -33,6 +34,7 @@ export async function createUserAction(_prevState: CreateUserState, formData: Fo
 
   try {
     const { user, temporaryPassword } = await authService.createUser(ctx, parsed.data);
+    await provisionFleetProfilesForUser(ctx, user.id, user.roles);
     return { success: { email: user.email, temporaryPassword } };
   } catch (err) {
     if (err instanceof ApiError) return { error: err.detail ?? err.title };

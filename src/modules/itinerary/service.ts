@@ -37,6 +37,7 @@ import {
   type UpdateSiteInput,
 } from './domain';
 import { StaticMapsGatewayError, staticMapsGateway } from './gateway';
+import { renderItinerarySummaryPdf } from './itinerary-summary-pdf';
 import { renderDayMapPdf } from './map-pdf';
 import { itineraryRepository } from './repository';
 
@@ -494,6 +495,91 @@ export const itineraryService = {
       action: 'itinerary_day_map.downloaded',
       resourceType: 'ItineraryDay',
       resourceId: dayId,
+      organizationId,
+    });
+
+    return { body, contentType: 'application/pdf' };
+  },
+
+  /** Whole-itinerary detailed PDF -- staff/guide/driver download, only once
+   * the itinerary is APPROVED (a draft plan shouldn't circulate as if
+   * final). There is no price/money field anywhere on Itinerary/
+   * ItineraryDay, so "no prices" needs no stripping -- this data is
+   * inherently price-free (unlike finance's package-summary-pdf.tsx, which
+   * layers a cost section on top of a similar day table). */
+  async streamItinerarySummaryPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string }> {
+    assertCan(ctx, 'itinerary.read');
+    const organizationId = requireOrg(ctx);
+    const itinerary = await getOwnedItinerary(ctx, organizationId, itineraryId);
+    if (itinerary.status !== 'APPROVED') {
+      throw Errors.conflict('This itinerary is not yet approved -- the detailed PDF is only available once it is.');
+    }
+    const booking = await bookingService.getById(ctx, itinerary.bookingId);
+    const days = await itineraryRepository.listDays(organizationId, itineraryId);
+
+    const hotelIds = [...new Set(days.map((d) => d.hotelId).filter((id): id is string => id !== null))];
+    const restaurantIds = [...new Set(days.map((d) => d.restaurantId).filter((id): id is string => id !== null))];
+    const activityIds = [...new Set(days.flatMap((d) => d.activityIds))];
+    const [hotels, restaurants, activities, daySitesLists] = await Promise.all([
+      itineraryRepository.findHotelsByIds(organizationId, hotelIds),
+      itineraryRepository.findRestaurantsByIds(organizationId, restaurantIds),
+      itineraryRepository.findActivitiesByIds(organizationId, activityIds),
+      Promise.all(days.map((day) => itineraryRepository.listDaySites(organizationId, day.id))),
+    ]);
+    const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
+    const restaurantNameById = new Map(restaurants.map((r) => [r.id, r.name]));
+    const activityNameById = new Map(activities.map((a) => [a.id, a.name]));
+    const allSiteIds = [...new Set(daySitesLists.flat().map((s) => s.siteId))];
+    const sites = await itineraryRepository.findSitesByIds(organizationId, allSiteIds);
+    const siteNameById = new Map(sites.map((s) => [s.id, s.name]));
+
+    // Same travel-dates resolution as the staff detail page's own display --
+    // a PREDEFINED_PACKAGE departure's real dates, a TAILOR_MADE booking's
+    // converted custom dates, or a "not scheduled yet" fallback.
+    let travelDates = 'Not scheduled yet';
+    if (booking.departureId) {
+      try {
+        const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+        travelDates = `${departure.startDate.toLocaleDateString()}${departure.endDate ? ` - ${departure.endDate.toLocaleDateString()}` : ''}`;
+      } catch {
+        // departure no longer visible to this role -- fall through to the default text
+      }
+    } else if (booking.customTravelStart) {
+      travelDates = `${booking.customTravelStart.toLocaleDateString()}${booking.customTravelEnd ? ` - ${booking.customTravelEnd.toLocaleDateString()}` : ''}`;
+    }
+
+    const emergencyContact = itinerary.emergencyContactName
+      ? `${itinerary.emergencyContactName}${itinerary.emergencyContactRelation ? ` (${itinerary.emergencyContactRelation})` : ''}${itinerary.emergencyContactPhone ? ` -- ${itinerary.emergencyContactPhone}` : ''}`
+      : null;
+
+    const body = await renderItinerarySummaryPdf({
+      bookingReference: booking.bookingReference,
+      travelDates,
+      emergencyContact,
+      notes: itinerary.notes,
+      days: days.map((day, i) => ({
+        dayNumber: day.dayNumber,
+        date: day.date,
+        departureTime: day.departureTime,
+        arrivalTime: day.arrivalTime,
+        pickupLocation: day.pickupLocation,
+        dropoffLocation: day.dropoffLocation,
+        hotelName: day.hotelId ? hotelNameById.get(day.hotelId) ?? null : null,
+        restaurantName: day.restaurantId ? restaurantNameById.get(day.restaurantId) ?? null : null,
+        siteNames: (daySitesLists[i] ?? []).map((s) => siteNameById.get(s.siteId) ?? '—'),
+        activityNames: day.activityIds.map((id) => activityNameById.get(id) ?? id),
+        activitiesNote: day.activities,
+        estimatedTravelMinutes: day.estimatedTravelMinutes,
+        notes: day.notes,
+      })),
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'itinerary_summary.downloaded',
+      resourceType: 'Itinerary',
+      resourceId: itineraryId,
       organizationId,
     });
 

@@ -10,6 +10,7 @@ import { GET as listMine } from '../../src/app/api/v1/itineraries/mine/route';
 import { GET as listDays, POST as addDay } from '../../src/app/api/v1/itineraries/[itineraryId]/days/route';
 import { GET as mapOverview } from '../../src/app/api/v1/itineraries/map-overview/route';
 import { GET as mapPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/days/[dayId]/map-pdf/route';
+import { GET as summaryPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/summary-pdf/route';
 
 /**
  * Anti-BOLA (Vol. 8, API1) for the DR-033 itinerary module: RLS only
@@ -121,7 +122,11 @@ beforeAll(async () => {
   // tests/api/assignment.api.test.ts).
   await withOrg(orgId, async (tx) => {
     const [itineraryX, itineraryY] = await Promise.all([
-      tx.itinerary.create({ data: { organizationId: orgId, bookingId: bookingXId } }),
+      // APPROVED -- DR-137's summary-pdf gate needs an approved itinerary to
+      // exercise the 200 case; itineraryY stays DRAFT (its own tests never
+      // depend on status, and it also proves the APPROVED gate independently
+      // of the anti-BOLA check below).
+      tx.itinerary.create({ data: { organizationId: orgId, bookingId: bookingXId, status: 'APPROVED' } }),
       tx.itinerary.create({ data: { organizationId: orgId, bookingId: bookingYId } }),
     ]);
     itineraryXId = itineraryX.id;
@@ -344,6 +349,45 @@ describe('anti-BOLA: itinerary day map PDF (DR-089)', () => {
     const headers = await loginAs(touristId);
     const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/days/${dayXId}/map-pdf`, { headers });
     const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId, dayId: dayXId }) });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('anti-BOLA + status gate: itinerary detailed summary PDF (DR-137)', () => {
+  // @react-pdf/renderer pays a real one-time cold-start cost (font/module
+  // init) on its very first render in a process -- every other itinerary
+  // PDF test in this file (map-pdf) throws before ever reaching its own
+  // render call, so this is the first test in the whole suite to actually
+  // exercise that path. 20s (the file's default testTimeout) isn't enough
+  // for that cold render plus this test's own several sequential Neon
+  // round-trips; a per-test override avoids loosening the global default
+  // for every other (fast) test in this file.
+  it('a TOUR_GUIDE assigned to departureX gets 200 for the APPROVED itineraryX', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/summary-pdf`, { headers });
+    const res = await summaryPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/pdf');
+  }, 45000);
+
+  it('the same TOUR_GUIDE gets 404 (not 403) for itineraryY on the unrelated departure', async () => {
+    const headers = await loginAs(guideId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryYId}/summary-pdf`, { headers });
+    const res = await summaryPdf(req, { params: Promise.resolve({ itineraryId: itineraryYId }) });
+    expect(res.status).toBe(404);
+  });
+
+  it('an operator (manager) gets 409 for itineraryY -- still DRAFT, not yet approved', async () => {
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryYId}/summary-pdf`, { headers });
+    const res = await summaryPdf(req, { params: Promise.resolve({ itineraryId: itineraryYId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('a TOURIST gets 403 (no itinerary.read permission)', async () => {
+    const headers = await loginAs(touristId);
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/summary-pdf`, { headers });
+    const res = await summaryPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId }) });
     expect(res.status).toBe(403);
   });
 });

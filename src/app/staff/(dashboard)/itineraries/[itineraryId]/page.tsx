@@ -174,6 +174,14 @@ export default async function ItineraryDetailPage({ params }: Props) {
           </p>
         )}
 
+        {itinerary.status === 'APPROVED' && (
+          <p className="mt-2 text-sm">
+            <LinkButton href={`/api/v1/itineraries/${itineraryId}/summary-pdf`} prefetch={false} variant="secondary" size="compact">
+              {t('downloadItineraryPdf')}
+            </LinkButton>
+          </p>
+        )}
+
         {bookingLocked && (
           <div className="mt-4">
             <Alert tone="info">{t('bookingLocked', { status: tBookingStatus(booking.status) })}</Alert>

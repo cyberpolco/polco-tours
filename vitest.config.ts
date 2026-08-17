@@ -2,6 +2,16 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'url';
 
 export default defineConfig({
+  // Real Next.js builds use the automatic JSX runtime (no `React` import
+  // needed in scope) -- vitest's default esbuild transform doesn't infer
+  // that from this repo's tsconfig `"jsx": "preserve"`, and falls back to
+  // the classic transform instead, which throws "React is not defined" the
+  // moment a test actually renders a .tsx file's JSX (as opposed to just
+  // type-checking it) -- a real latent gap, only surfaced once a test
+  // exercised @react-pdf/renderer's rendering path (DR-137) for the first
+  // time; itinerary/map-pdf.tsx and finance/package-summary-pdf.tsx have
+  // had this same bug all along, just never actually rendered under vitest.
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

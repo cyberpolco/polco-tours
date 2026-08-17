@@ -881,7 +881,8 @@
     "plannedSitesAfterCreateNotice": "Les sites prévus et les épingles de prise en charge/dépose s'ajoutent après la création du jour, depuis « Modifier le jour » ci-dessous.",
     "estimatedTravelMinutesLabel": "Trajet estimé (minutes)",
     "addDay": "Ajouter le jour",
-    "bookingLocked": "Cette réservation est {status} et ne peut plus être modifiée — l'itinéraire est désormais en lecture seule."
+    "bookingLocked": "Cette réservation est {status} et ne peut plus être modifiée — l'itinéraire est désormais en lecture seule.",
+    "downloadItineraryPdf": "Télécharger l'itinéraire détaillé (PDF)"
   },
   "PlaceFields": {
     "name": "Nom",

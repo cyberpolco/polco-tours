@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@lib/route-guard';
+import { provisionFleetProfilesForUser } from '@lib/provision-fleet-profiles-for-user';
 import { UpdateUserInput, authService } from '@modules/auth';
 
 export const runtime = 'nodejs';
@@ -14,6 +15,9 @@ interface Params {
 export const PATCH = withAuth<Params>('admin.all', async (ctx, req: NextRequest, { userId }) => {
   const input = UpdateUserInput.parse(await req.json());
   const user = await authService.updateUser(ctx, userId, input);
+  // DR-138: only when this edit actually touched roles (see the identical
+  // guard in the staff admin/users Server Action).
+  if (input.roles) await provisionFleetProfilesForUser(ctx, user.id, user.roles);
   return NextResponse.json({ user });
 });
 

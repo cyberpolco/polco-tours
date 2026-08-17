@@ -881,7 +881,8 @@
     "plannedSitesAfterCreateNotice": "Planned sites, pickup/drop-off pins are added after the day is created, from \"Edit day\" below.",
     "estimatedTravelMinutesLabel": "Estimated travel (minutes)",
     "addDay": "Add day",
-    "bookingLocked": "This booking is {status} and can no longer be edited — the itinerary is now read-only."
+    "bookingLocked": "This booking is {status} and can no longer be edited — the itinerary is now read-only.",
+    "downloadItineraryPdf": "Download detailed itinerary (PDF)"
   },
   "PlaceFields": {
     "name": "Name",

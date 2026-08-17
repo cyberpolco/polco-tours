@@ -44,6 +44,9 @@ afterAll(async () => {
     await prisma.$disconnect();
     return;
   }
+  // DriverProfile/GuideProfile cascade from User (onDelete: Cascade) --
+  // Vehicle.ownerId does not, so it's deleted explicitly here.
+  await withOrg(orgId, (tx) => tx.vehicle.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.membership.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.auditLog.deleteMany({ where: { organizationId: orgId } }));
   await admin.user.deleteMany({ where: { organizationId: orgId } });
@@ -74,7 +77,35 @@ describe('POST /api/v1/users', () => {
 
     const memberships = await withOrg(orgId, (tx) => tx.membership.findMany({ where: { userId: createdUserId } }));
     expect(memberships.map((m) => m.role).sort()).toEqual(['DRIVER', 'TOUR_GUIDE']);
+
+    // DR-138: DRIVER/TOUR_GUIDE both auto-provision their 1:1 fleet profile,
+    // pre-filled with whatever's available (just userId/organizationId) --
+    // everything else (here, licenseNumber) is a PENDING placeholder for
+    // staff to fill in later on /staff/fleet/*.
+    const driverProfile = await withOrg(orgId, (tx) => tx.driverProfile.findUnique({ where: { userId: createdUserId } }));
+    expect(driverProfile?.licenseNumber).toBe('PENDING');
+    const guideProfile = await withOrg(orgId, (tx) => tx.guideProfile.findUnique({ where: { userId: createdUserId } }));
+    expect(guideProfile).not.toBeNull();
   }, 60_000); // createUser is several sequential DB round-trips (signUpEmail, finalize, memberships, audit, re-fetch); this sandbox's Neon latency can exceed the 20s default
+
+  it('DR-138: creating a VEHICLE_OWNER auto-provisions one placeholder Vehicle', async () => {
+    const headers = await loginAs(superadminId);
+    const email = `owner-${Date.now()}@example.test`;
+    const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {
+      name: 'New Owner',
+      email,
+      roles: ['VEHICLE_OWNER'],
+    });
+    const res = await createUser(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+
+    const vehicles = await withOrg(orgId, (tx) => tx.vehicle.findMany({ where: { ownerId: body.user.id } }));
+    expect(vehicles).toHaveLength(1);
+    const [vehicle] = vehicles;
+    expect(vehicle?.plateNumber.startsWith('PENDING-')).toBe(true);
+    expect(vehicle?.seatCapacity).toBe(1);
+  }, 60_000);
 
   it('rejects creating a user with an already-used email (409)', async () => {
     const headers = await loginAs(superadminId);
@@ -214,6 +245,45 @@ describe('PATCH /api/v1/users/:userId', () => {
     );
     const res = await updateUser(req, { params: Promise.resolve({ userId: '00000000-0000-0000-0000-000000000000' }) });
     expect(res.status).toBe(404);
+  });
+
+  it('DR-138: adding VEHICLE_OWNER to an existing user via edit auto-provisions a placeholder Vehicle', async () => {
+    const target = await admin.user.create({
+      data: { email: `edit-owner-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId },
+    });
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/users/${target.id}`, headers, 'PATCH', {
+      roles: ['DRIVER', 'VEHICLE_OWNER'],
+    });
+    const res = await updateUser(req, { params: Promise.resolve({ userId: target.id }) });
+    expect(res.status).toBe(200);
+
+    const vehicles = await withOrg(orgId, (tx) => tx.vehicle.findMany({ where: { ownerId: target.id } }));
+    expect(vehicles).toHaveLength(1);
+
+    // Re-submitting the same roles (e.g. re-saving the edit form unchanged)
+    // must not pile up a second placeholder vehicle -- guarded by "does this
+    // user already own any vehicle."
+    const req2 = jsonRequest(`http://localhost/api/v1/users/${target.id}`, headers, 'PATCH', {
+      roles: ['DRIVER', 'VEHICLE_OWNER'],
+    });
+    const res2 = await updateUser(req2, { params: Promise.resolve({ userId: target.id }) });
+    expect(res2.status).toBe(200);
+    const vehiclesAfterReSubmit = await withOrg(orgId, (tx) => tx.vehicle.findMany({ where: { ownerId: target.id } }));
+    expect(vehiclesAfterReSubmit).toHaveLength(1);
+  });
+
+  it('DR-138: an edit that never touches roles does not re-run fleet provisioning', async () => {
+    const target = await admin.user.create({
+      data: { email: `edit-noroles-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId },
+    });
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/users/${target.id}`, headers, 'PATCH', { name: 'Just A Rename' });
+    const res = await updateUser(req, { params: Promise.resolve({ userId: target.id }) });
+    expect(res.status).toBe(200);
+
+    const driverProfile = await withOrg(orgId, (tx) => tx.driverProfile.findUnique({ where: { userId: target.id } }));
+    expect(driverProfile).toBeNull();
   });
 });
 
