@@ -420,7 +420,8 @@
     "relationPlaceholder": "Époux/épouse, parent…",
     "tourLeadCheckboxLabel": "Chef de groupe (notre principal point de contact pour le groupe)",
     "finishTravelers": "Terminer les voyageurs",
-    "addTravelerContinue": "Ajouter le voyageur et continuer"
+    "addTravelerContinue": "Ajouter le voyageur et continuer",
+    "emailInUse": "Cette adresse e-mail est déjà associée à un compte sur cette plateforme. Veuillez nous contacter directement si vous souhaitez continuer."
   },
   "PlanMyTripPage": {
     "eyebrow": "Planifier mon voyage",

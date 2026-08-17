@@ -12,16 +12,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * isStaffRole(ctx.roles) is true. Same vi.mock/vi.hoisted pattern as
  * tests/staff-guard.test.ts.
  */
-const { resolveSession, updateProfile, headersMock, cookiesMock } = vi.hoisted(() => ({
+const { resolveSession, updateProfile, getUserByEmail, headersMock, cookiesMock, requireGuestContext } = vi.hoisted(() => ({
   resolveSession: vi.fn(),
   updateProfile: vi.fn(),
+  getUserByEmail: vi.fn(),
   headersMock: vi.fn(async () => new Headers()),
   cookiesMock: vi.fn(async () => ({ get: () => undefined })),
+  requireGuestContext: vi.fn(),
 }));
 
 vi.mock('@modules/auth', () => ({
-  authService: { resolveSession, updateProfile },
+  authService: { resolveSession, updateProfile, getUserByEmail },
 }));
+
+vi.mock('@lib/guest-guard', () => ({ requireGuestContext }));
 
 vi.mock('next/headers', () => ({
   headers: headersMock,
@@ -31,15 +35,22 @@ vi.mock('next/headers', () => ({
 const createHold = vi.fn();
 const createHoldWithDates = vi.fn();
 const createTailorMadeRequest = vi.fn();
+const addTraveler = vi.fn();
+const listTravelers = vi.fn();
+const getById = vi.fn();
 
 vi.mock('@modules/booking', async () => {
   const actual = await vi.importActual<typeof import('@modules/booking')>('@modules/booking');
-  return { ...actual, bookingService: { createHold, createHoldWithDates, createTailorMadeRequest } };
+  return {
+    ...actual,
+    bookingService: { createHold, createHoldWithDates, createTailorMadeRequest, addTraveler, listTravelers, getById },
+  };
 });
 
 const { createGuestBookingAction } = await import('../src/app/(guest)/book/[departureId]/actions');
 const { createGuestPackageBookingAction } = await import('../src/app/(guest)/book-package/[packageId]/actions');
 const { createPlanMyTripRequestAction } = await import('../src/app/(guest)/plan-my-trip/actions');
+const { addTravelerAction } = await import('../src/app/(guest)/booking/[bookingId]/travelers/new/actions');
 
 const STAFF_CTX = {
   userId: 'staff-1',
@@ -69,9 +80,14 @@ describe('guest booking wizards never overwrite a staff session\'s own profile (
   beforeEach(() => {
     resolveSession.mockReset();
     updateProfile.mockReset();
+    getUserByEmail.mockReset();
     createHold.mockReset();
     createHoldWithDates.mockReset();
     createTailorMadeRequest.mockReset();
+    addTraveler.mockReset();
+    listTravelers.mockReset();
+    getById.mockReset();
+    requireGuestContext.mockReset();
   });
 
   it('createGuestBookingAction skips updateProfile when the resolved session is staff', async () => {
@@ -148,5 +164,131 @@ describe('guest booking wizards never overwrite a staff session\'s own profile (
       localNumber: '811234567',
     });
     expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ name: 'Real Guest' }));
+  });
+});
+
+/**
+ * DR-140 (explicit user request, follow-up to DR-139): a guest shouldn't be
+ * able to book/register a real staff account's email as their own contact
+ * email. Checked against authService.getUserByEmail + isStaffRole -- only
+ * blocks an email belonging to a real staff account (any non-TOURIST role),
+ * never a returning guest re-using their own email.
+ */
+const STAFF_PUBLIC_USER = {
+  id: 'staff-1',
+  email: 'lam@polcotours.com',
+  name: 'Lam',
+  role: 'SUPERADMIN',
+  roles: ['SUPERADMIN'],
+  organizationId: 'org-1',
+  emailVerified: true,
+  phone: null,
+  preferredLocale: 'EN',
+  deletedAt: null,
+  mustChangePassword: false,
+  lastLoginAt: null,
+  inactiveAt: null,
+};
+
+describe('guest booking wizards reject an email already belonging to a staff account (DR-140)', () => {
+  beforeEach(() => {
+    resolveSession.mockReset();
+    getUserByEmail.mockReset();
+    createTailorMadeRequest.mockReset();
+    addTraveler.mockReset();
+    listTravelers.mockReset();
+    getById.mockReset();
+    requireGuestContext.mockReset();
+  });
+
+  it('createPlanMyTripRequestAction rejects when the contact email belongs to a staff account', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    getUserByEmail.mockResolvedValue(STAFF_PUBLIC_USER);
+    const result = await createPlanMyTripRequestAction({
+      countries: ['NA'],
+      customTravelStart: '2026-09-01',
+      customTravelEnd: '2026-09-10',
+      seats: 2,
+      preferredTags: [],
+      preferredSites: [],
+      countryOfResidence: 'US',
+      citizenship: 'US',
+      firstName: 'Hanna',
+      lastName: 'Client',
+      email: STAFF_PUBLIC_USER.email,
+      dialCode: '+264',
+      localNumber: '811234567',
+    });
+    expect(result).toEqual({ error: expect.stringContaining('already associated with an account') });
+    expect(createTailorMadeRequest).not.toHaveBeenCalled();
+  });
+
+  it('createPlanMyTripRequestAction still proceeds for an email with no matching staff account', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    getUserByEmail.mockResolvedValue(null);
+    createTailorMadeRequest.mockResolvedValue({ id: 'booking-6' });
+    const result = await createPlanMyTripRequestAction({
+      countries: ['NA'],
+      customTravelStart: '2026-09-01',
+      customTravelEnd: '2026-09-10',
+      seats: 2,
+      preferredTags: [],
+      preferredSites: [],
+      countryOfResidence: 'US',
+      citizenship: 'US',
+      firstName: 'Real',
+      lastName: 'Guest',
+      email: 'nobody@example.test',
+      dialCode: '+264',
+      localNumber: '811234567',
+    });
+    expect(result).toEqual({ bookingId: 'booking-6' });
+  });
+
+  it('addTravelerAction redirects with ?error=email_in_use when the tour lead email belongs to a staff account', async () => {
+    requireGuestContext.mockResolvedValue(GUEST_CTX);
+    getUserByEmail.mockResolvedValue(STAFF_PUBLIC_USER);
+    const formData = bookingFormData({
+      firstName: 'Hanna',
+      lastName: 'Client',
+      age: '30',
+      sex: 'F',
+      nationality: 'US',
+      idOrPassportNumber: 'X123456',
+      dialCode: '264',
+      localNumber: '811234567',
+      email: STAFF_PUBLIC_USER.email,
+      countryOfResidence: 'US',
+      isTourLead: 'on',
+    });
+    await expect(addTravelerAction('booking-7', formData)).rejects.toMatchObject({
+      digest: expect.stringContaining('/booking/booking-7/travelers/new?error=email_in_use'),
+    });
+    expect(addTraveler).not.toHaveBeenCalled();
+  });
+
+  it('addTravelerAction still adds the traveler when the tour lead email matches no staff account', async () => {
+    requireGuestContext.mockResolvedValue(GUEST_CTX);
+    getUserByEmail.mockResolvedValue(null);
+    addTraveler.mockResolvedValue({ id: 'traveler-1' });
+    listTravelers.mockResolvedValue([{ id: 'traveler-1', isTourLead: true }]);
+    getById.mockResolvedValue({ id: 'booking-8', seats: 2, requiresPassportUpload: false });
+    const formData = bookingFormData({
+      firstName: 'Real',
+      lastName: 'Guest',
+      age: '30',
+      sex: 'F',
+      nationality: 'US',
+      idOrPassportNumber: 'X654321',
+      dialCode: '264',
+      localNumber: '811234567',
+      email: 'nobody@example.test',
+      countryOfResidence: 'US',
+      isTourLead: 'on',
+    });
+    await expect(addTravelerAction('booking-8', formData)).rejects.toMatchObject({
+      digest: expect.stringContaining('/booking/booking-8/travelers/new'),
+    });
+    expect(addTraveler).toHaveBeenCalledWith(GUEST_CTX, 'booking-8', expect.objectContaining({ email: 'nobody@example.test' }));
   });
 });

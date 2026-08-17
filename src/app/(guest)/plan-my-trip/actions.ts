@@ -68,6 +68,17 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       });
     }
 
+    // DR-140: reject a plan-my-trip request typed under an email that
+    // already belongs to a real staff account (any non-TOURIST role) --
+    // explicit user request. Only staff accounts are checked, not every
+    // existing User row: a returning guest re-using their own email is
+    // expected and fine.
+    const contactEmail = payload.email.trim();
+    const existingByEmail = await authService.getUserByEmail(contactEmail);
+    if (existingByEmail && isStaffRole(existingByEmail.roles)) {
+      return { error: 'This email address is already associated with an account on this platform. Please contact us directly if you\'d like to proceed.' };
+    }
+
     const input = CreateTailorMadeInput.parse({
       countries: payload.countries.map((c) => c.trim().toUpperCase()),
       customTravelStart: payload.customTravelStart,
@@ -77,7 +88,7 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       specialRequests: payload.specialRequests?.trim() || undefined,
       preferredTags: payload.preferredTags,
       preferredSites: payload.preferredSites,
-      email: payload.email.trim(),
+      email: contactEmail,
       firstName: payload.firstName.trim(),
       lastName: payload.lastName.trim(),
       preferredAddons: payload.preferredAddons,

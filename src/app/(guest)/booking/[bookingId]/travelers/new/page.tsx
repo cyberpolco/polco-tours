@@ -4,6 +4,7 @@ import { requireGuestContext } from '@lib/guest-guard';
 import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
+import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -18,10 +19,12 @@ import { addTravelerAction } from './actions';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
-export default async function NewTravelerPage({ params }: Props) {
+export default async function NewTravelerPage({ params, searchParams }: Props) {
   const { bookingId } = await params;
+  const { error } = await searchParams;
   const ctx = await requireGuestContext();
   // `me` is fetched unconditionally alongside the other two, even though
   // it's only used in the isAddingTourLead branch below (unknown until
@@ -120,6 +123,12 @@ export default async function NewTravelerPage({ params }: Props) {
       <p className="eyebrow mt-4 text-mist">{t('setupTravelers')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{t('travelerOf', { number: travelerNumber, total: booking.seats })}</h1>
       <p className="mt-1 text-sm text-mist">{t('enteredOf', { current: travelers.length, total: booking.seats })}</p>
+
+      {error === 'email_in_use' && (
+        <div className="mt-4">
+          <Alert tone="error">{t('emailInUse')}</Alert>
+        </div>
+      )}
 
       <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">

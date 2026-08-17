@@ -19,8 +19,19 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-139 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-139 was a live production incident** (user-reported: the
+> Current through DR-140 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-140** (explicit user request, follow-up to DR-139) rejects a
+> guest booking wizard's contact email when it already belongs to a real
+> staff account (any non-`TOURIST` role) — checked in both
+> `(guest)/plan-my-trip/actions.ts` and `(guest)/booking/[bookingId]/
+> travelers/new/actions.ts` (the only two guest-facing points that actually
+> collect a real email) via `authService.getUserByEmail` +
+> `isStaffRole(user.roles)`. A match returns `{ error }` (plan-my-trip's
+> existing `useActionState` convention) or redirects with
+> `?error=email_in_use` (travelers/new, new — same `?error=` convention as
+> the Passport step). A returning guest re-using their own email is
+> untouched — only a staff-owned email is blocked. No schema/permission/
+> module-dependency change. **DR-139 was a live production incident** (user-reported: the
 > SUPERADMIN's own `User.name` kept changing to whatever client name was
 > most recently typed into a guest booking wizard, e.g. "it changed to
 > Hanna") — `authService.resolveSession()` resolves whatever session cookie

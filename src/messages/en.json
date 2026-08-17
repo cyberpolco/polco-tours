@@ -420,7 +420,8 @@
     "relationPlaceholder": "Spouse, parent…",
     "tourLeadCheckboxLabel": "Tour lead (our main point of contact for the group)",
     "finishTravelers": "Finish travelers",
-    "addTravelerContinue": "Add traveler & continue"
+    "addTravelerContinue": "Add traveler & continue",
+    "emailInUse": "This email address is already associated with an account on this platform. Please contact us directly if you'd like to proceed."
   },
   "PlanMyTripPage": {
     "eyebrow": "Plan my trip",

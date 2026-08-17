@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { requireGuestContext } from '@lib/guest-guard';
 import { toE164 } from '@lib/country-codes';
+import { isStaffRole } from '@lib/rbac';
+import { authService } from '@modules/auth';
 import { AddTravelerInput, bookingService } from '@modules/booking';
 
 function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
@@ -16,6 +18,18 @@ export async function addTravelerAction(bookingId: string, formData: FormData): 
   const dialCode = String(formData.get('dialCode') ?? '');
   const localNumber = String(formData.get('localNumber') ?? '').trim();
 
+  // DR-140: reject a tour lead's email if it already belongs to a real
+  // staff account (any non-TOURIST role) -- explicit user request, same
+  // check as plan-my-trip/actions.ts. Only present for the tour lead (the
+  // form doesn't render this field for any other traveler).
+  const tourLeadEmail = emptyToUndefined(formData.get('email'));
+  if (tourLeadEmail) {
+    const existingByEmail = await authService.getUserByEmail(tourLeadEmail);
+    if (existingByEmail && isStaffRole(existingByEmail.roles)) {
+      redirect(`/booking/${bookingId}/travelers/new?error=email_in_use`);
+    }
+  }
+
   const input = AddTravelerInput.parse({
     firstName: String(formData.get('firstName') ?? ''),
     lastName: String(formData.get('lastName') ?? ''),
@@ -27,7 +41,7 @@ export async function addTravelerAction(bookingId: string, formData: FormData): 
     // for any other traveler (the form doesn't render those inputs), so
     // these all naturally resolve to undefined for them.
     phone: localNumber ? toE164(dialCode, localNumber) : undefined,
-    email: emptyToUndefined(formData.get('email')),
+    email: tourLeadEmail,
     countryOfResidence: emptyToUndefined(formData.get('countryOfResidence')),
     allergies: emptyToUndefined(formData.get('allergies')),
     emergencyContactName: emptyToUndefined(formData.get('emergencyContactName')),
