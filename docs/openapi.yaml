@@ -2425,6 +2425,25 @@ paths:
                     description: '{ organization, drivers, guides } -- each an averageRating/ratingCount aggregate'
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /ratings/{reviewId}:
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      summary: Delete an individual review (rating.delete, SUPERADMIN-only)
+      description: >-
+        DR-148: hard delete -- Review has no soft-delete column. Its
+        ReviewSubjectRating rows cascade away via the schema FK; every
+        driver/guide/org rating aggregate the review had contributed to is
+        recomputed from what's left. The review's own RatingCode row is NOT
+        deleted (the FK runs the other way) and stays marked used.
+      responses:
+        '204': { description: No Content }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /insights:
     get:
       summary: Read-only executive dashboard (insights.read)

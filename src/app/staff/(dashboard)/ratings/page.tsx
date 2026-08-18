@@ -4,7 +4,29 @@ import { authService } from '@modules/auth';
 import { ratingsService } from '@modules/ratings';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { RatingStars } from '@/components/ui/RatingStars';
+import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
+import { deleteReviewAction } from './actions';
+
+function DeleteReviewButton({
+  reviewId,
+  removingLabel,
+  removeConfirm,
+  removeLabel,
+}: {
+  reviewId: string;
+  removingLabel: string;
+  removeConfirm: string;
+  removeLabel: string;
+}) {
+  return (
+    <form action={deleteReviewAction.bind(null, reviewId)}>
+      <SubmitButton variant="secondary" size="compact" pendingLabel={removingLabel} confirmMessage={removeConfirm}>
+        {removeLabel}
+      </SubmitButton>
+    </form>
+  );
+}
 
 function formatAverage(
   averageRating: number | null,
@@ -21,6 +43,7 @@ function formatAverage(
 // detail page, not here.
 export default async function RatingsPage() {
   const ctx = await requireStaffContext('rating.read');
+  const canDelete = ctx.roles.includes('SUPERADMIN');
   const [summary, reviews] = await Promise.all([ratingsService.getAggregateSummary(ctx), ratingsService.listReviews(ctx)]);
   const t = await getTranslations('StaffRatings');
 
@@ -104,6 +127,7 @@ export default async function RatingsPage() {
                 <Th>{t('comment')}</Th>
                 <Th>{t('driverGuideRatings')}</Th>
                 <Th>{t('submitted')}</Th>
+                {canDelete && <Th />}
               </TableHeaderRow>
             </thead>
             <tbody>
@@ -119,6 +143,16 @@ export default async function RatingsPage() {
                           .join(', ')}
                   </Td>
                   <Td>{r.createdAt.toLocaleDateString()}</Td>
+                  {canDelete && (
+                    <Td>
+                      <DeleteReviewButton
+                        reviewId={r.id}
+                        removingLabel={t('deleting')}
+                        removeConfirm={t('deleteConfirm')}
+                        removeLabel={t('delete')}
+                      />
+                    </Td>
+                  )}
                 </Tr>
               ))}
             </tbody>

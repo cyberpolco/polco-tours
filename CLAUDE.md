@@ -19,8 +19,33 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-147 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-147** (explicit user request) removes `PHOTOGRAPHER`/
+> Current through DR-148 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-148** (explicit user request) lets SUPERADMIN genuinely
+> (hard) delete an individual guest review from `/staff/ratings`'s
+> "Individual reviews" table — `Review` has no soft-delete column and none
+> was added; a deleted row is just gone, an audit log entry
+> (`rating.review_deleted`) is the record. New `rating.delete` permission
+> (never seeded to any role) plus a new `isRatingDeleter` boolean helper
+> (`ratings/domain.ts`) gate `ratingsService.deleteReview` beneath
+> `assertCan`, same two-layer "route passes the DB-editable matrix, the
+> service's hardcoded SUPERADMIN check is the real gate" convention as
+> `isBookingDeleter`/`isFleetDeleter`/`isCountryRegulationWriter`/
+> `isFinanceConfigWriter`. `ratingsRepository.deleteReview` (a genuine
+> `tx.review.delete`, still scoped through `withOrg`) cascades away that
+> review's `ReviewSubjectRating` rows via the existing schema FK; the
+> service then recomputes every driver/guide aggregate the deleted review
+> had contributed to (from its own pre-delete `subjectRatings` snapshot)
+> plus the org-wide aggregate, reusing `submitRating`'s own
+> `recomputeDriverAggregate`/`recomputeGuideAggregate`/
+> `recomputeOrganizationAggregate` calls, so a deleted review's score never
+> lingers in an average. New `DELETE /api/v1/ratings/[reviewId]` route +
+> `deleteReviewAction` Server Action back a per-row Delete button, visible
+> only when `ctx.roles.includes('SUPERADMIN')`, using the standard
+> `SubmitButton`/`confirmMessage` destructive-action pattern (DR-086/109).
+> `Review.ratingCodeId` cascades *from* `Review` to `RatingCode`, not the
+> reverse, so the review's own `RatingCode` row survives deletion, still
+> marked used — deleting a review does not free up a fresh rating attempt
+> on that booking. No schema/module-dependency change. **DR-147** (explicit user request) removes `PHOTOGRAPHER`/
 > `VIDEOGRAPHER` from `StaffRateRole` and drops `photographerDays`/
 > `videographerDays` from both `PackageCostBreakdown` and
 > `BookingCostBreakdown` — a photographer/videographer is priced as a
@@ -1166,7 +1191,10 @@ src/
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
-                   #   staff-only hotel/restaurant ratings
+                   #   staff-only hotel/restaurant ratings; DR-148: SUPERADMIN
+                   #   can hard-delete an individual Review (isRatingDeleter),
+                   #   cascading its subject ratings and recomputing every
+                   #   affected aggregate
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
     finance/       # Cost-plus pricing engine — 9 rate tables feeding the
                    #   cost breakdown itself (HotelRate/ActivityFee reference
@@ -1310,12 +1338,13 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   role — the code-level union alone grants nothing.
   Several permissions (`booking.delete`, `fleet.delete`,
   `country_regulation.write`, `finance_config.write`,
-  `platform_settings.write`) are **never seeded to any role**, gated instead
-  by a hardcoded `SUPERADMIN`-only check one layer below the route/service
-  permission gate (`isBookingDeleter`, `isFleetDeleter`,
-  `isCountryRegulationWriter`, `isFinanceConfigWriter`,
-  `requireSettingsWriter`) — granting the bare permission via the runtime
-  matrix editor would still not unlock the action for anyone but SUPERADMIN.
+  `platform_settings.write`, `rating.delete`) are **never seeded to any
+  role**, gated instead by a hardcoded `SUPERADMIN`-only check one layer
+  below the route/service permission gate (`isBookingDeleter`,
+  `isFleetDeleter`, `isCountryRegulationWriter`, `isFinanceConfigWriter`,
+  `requireSettingsWriter`, `isRatingDeleter`) — granting the bare permission
+  via the runtime matrix editor would still not unlock the action for
+  anyone but SUPERADMIN.
 - **Launch tenancy (DR-005):** single operator **Lam** (Namibia + DRC), seeded
   as `lam@polcotours.com` with role `SUPERADMIN` (PLATFORM_ADMIN + own-org
   TOUR_OPERATOR). Multi-tenant isolation stays on so more operators can onboard
@@ -1501,9 +1530,12 @@ visually coherent with the design package.
   itself: `deletedAt` alone means Deactivated (reversible via
   `reactivateUser`); `deletedPermanently` (`User`, additive) also set means
   Deleted, permanent, `reactivateUser` refuses forever after. `StarlinkKit`
-  is a genuine hard delete (confirmed no FK references it). All gated by a
-  `SUPERADMIN`-only service-layer check beneath the route permission, never
-  by the bare permission alone.
+  is a genuine hard delete (confirmed no FK references it), and — since
+  DR-148 — so is an individual `Review` (no soft-delete column exists or was
+  added; its `ReviewSubjectRating` rows cascade away with it, and every
+  driver/guide/org rating aggregate it had contributed to is recomputed).
+  All gated by a `SUPERADMIN`-only service-layer check beneath the route
+  permission, never by the bare permission alone.
 - **No generic job runner** — every scheduled job is its own QStash-
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by

@@ -18,6 +18,7 @@ import {
   canIssueRatingCode,
   canSubmitRating,
   isRatingCodeUsable,
+  isRatingDeleter,
   ratingCodeExpiryFromTourEnd,
   type RatableDriver,
   type RatableGuide,
@@ -214,6 +215,50 @@ export const ratingsService = {
   async listReviews(ctx: AuthContext): Promise<ReviewView[]> {
     assertCan(ctx, 'rating.read');
     return ratingsRepository.listReviews(requireOrg(ctx));
+  },
+
+  /** DR-148 (explicit user request): SUPERADMIN-only genuine delete of an
+   * individual review. `assertCan` alone isn't enough, since `rating.delete`
+   * could in principle be granted to another role via the runtime-editable
+   * permission matrix -- `isRatingDeleter` is the real gate, same layering
+   * as fleetService.deleteVehicle/bookingService.deleteBooking. The review
+   * contributed to driver/guide/org rating aggregates on submission
+   * (submitRating), so deleting it recomputes those same aggregates from
+   * what's left, using the pre-delete row's own subjectRatings to know which
+   * driver/guide ids need it -- otherwise a deleted review's score would
+   * linger in every average forever. */
+  async deleteReview(ctx: AuthContext, reviewId: string): Promise<void> {
+    assertCan(ctx, 'rating.delete');
+    if (!isRatingDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a review');
+    const organizationId = requireOrg(ctx);
+
+    const deleted = await ratingsRepository.deleteReview(organizationId, reviewId);
+    if (!deleted) throw Errors.notFound('Review not found');
+
+    const driverProfileIds = new Set(
+      deleted.subjectRatings.filter((s) => s.driverProfileId !== null).map((s) => s.driverProfileId as string),
+    );
+    const guideUserIds = new Set(
+      deleted.subjectRatings.filter((s) => s.guideUserId !== null).map((s) => s.guideUserId as string),
+    );
+    for (const d of driverProfileIds) {
+      const aggregate = await ratingsRepository.recomputeDriverAggregate(organizationId, d);
+      await fleetService.recordDriverRatingAggregate(organizationId, d, aggregate);
+    }
+    for (const g of guideUserIds) {
+      const aggregate = await ratingsRepository.recomputeGuideAggregate(organizationId, g);
+      await fleetService.recordGuideRatingAggregateByUserId(organizationId, g, aggregate);
+    }
+    await ratingsRepository.recomputeOrganizationAggregate(organizationId);
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'rating.review_deleted',
+      resourceType: 'Review',
+      resourceId: reviewId,
+      organizationId,
+    });
   },
 
   /** Staff moderation/insights source: agency-wide + per-driver/per-guide

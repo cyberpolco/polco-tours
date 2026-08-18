@@ -1795,7 +1795,10 @@
     "driverFallback": "Driver",
     "guideFallback": "Guide",
     "subjectDriver": "Driver",
-    "subjectGuide": "Guide"
+    "subjectGuide": "Guide",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "deleteConfirm": "Permanently delete this review? Its driver/guide ratings are removed too, and every affected average is recomputed. This cannot be undone."
   },
   "StaffDepartureDetail": {
     "eyebrow": "Departure",

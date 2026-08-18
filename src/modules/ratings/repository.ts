@@ -137,6 +137,20 @@ export const ratingsRepository = {
     });
   },
 
+  /** DR-148: genuine hard delete -- ReviewSubjectRating.reviewId cascades
+   * from Review (schema.prisma), so this alone removes its subject ratings
+   * too. Returns the pre-delete view (subjectRatings included) so the
+   * caller knows which driver/guide aggregates need recomputing, same
+   * "read before delete" shape as settingsRepository.deleteCoupon. */
+  async deleteReview(organizationId: string, reviewId: string): Promise<ReviewView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.review.findUnique({ where: { id: reviewId }, include: { subjectRatings: true } });
+      if (!existing) return null;
+      await tx.review.delete({ where: { id: reviewId } });
+      return toReviewView(existing);
+    });
+  },
+
   async recomputeDriverAggregate(organizationId: string, driverProfileId: string): Promise<RatingAggregate> {
     return withOrg(organizationId, async (tx) => {
       const agg = await tx.reviewSubjectRating.aggregate({

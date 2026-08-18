@@ -1795,7 +1795,10 @@
     "driverFallback": "Chauffeur",
     "guideFallback": "Guide",
     "subjectDriver": "Chauffeur",
-    "subjectGuide": "Guide"
+    "subjectGuide": "Guide",
+    "delete": "Supprimer",
+    "deleting": "Suppression…",
+    "deleteConfirm": "Supprimer définitivement cet avis ? Ses notes chauffeur/guide seront également supprimées, et chaque moyenne concernée sera recalculée. Cette action est irréversible."
   },
   "StaffDepartureDetail": {
     "eyebrow": "Départ",

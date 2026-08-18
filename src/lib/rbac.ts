@@ -68,6 +68,13 @@ export type Permission =
   // `itinerary.write`/`itinerary.read` precedent, not `booking.confirm`'s.
   | 'rating.issue'
   | 'rating.read'
+  // DR-148: deletes an individual Review (and its ReviewSubjectRating rows,
+  // via schema cascade) -- never seeded to any role in DEFAULT_PERMISSIONS,
+  // same layering as booking.delete/fleet.delete/country_regulation.write:
+  // ratingsService's isRatingDeleter check (roles.includes('SUPERADMIN'))
+  // is the real gate, this permission alone unlocks nothing for anyone but
+  // SUPERADMIN's hardcoded wildcard.
+  | 'rating.delete'
   // Insights & Decision Making (DR-038). Gates the executive-dashboard
   // page/route itself; every metric it composes still re-checks its own
   // underlying permission (assignment.write, invoice.read, fleet.read,
@@ -154,6 +161,7 @@ export const ALL_PERMISSIONS = [
   'admin.all',
   'rating.issue',
   'rating.read',
+  'rating.delete', // DR-148: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isRatingDeleter in ratings/domain.ts, same layering as booking.delete/fleet.delete
   'insights.read',
   'finance_config.read',
   'finance_config.write',

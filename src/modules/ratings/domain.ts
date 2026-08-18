@@ -2,7 +2,7 @@
 // Customer Ratings & Feedback (DR-037) -- closes the gap DR-029/030
 // deliberately left open ("no rating field -- deferred until a real reviews
 // system exists").
-import type { BookingStatus, InvoiceStatus } from '@prisma/client';
+import type { BookingStatus, InvoiceStatus, Role } from '@prisma/client';
 import { z } from 'zod';
 
 export interface RatingCodeView {
@@ -48,6 +48,15 @@ export interface ReviewView {
 // last day at all.
 export const RATING_CODE_VALIDITY_DAYS_AFTER_TOUR_END = 5;
 export const RATING_ELIGIBILITY_DELAY_HOURS = 24;
+
+/** DR-148: genuinely destructive (Review has no soft-delete column, and
+ * deleting one is meant to actually remove it, not archive it) --
+ * SUPERADMIN-only, same "route passes via the DB-editable permission
+ * matrix, service still rejects" layering as isBookingDeleter/
+ * isFleetDeleter/isCountryRegulationWriter. */
+export function isRatingDeleter(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN');
+}
 
 // Same shape as booking's generateBookingReference (excludes 0/O/1/I --
 // unambiguous when read aloud or handwritten) -- duplicated rather than
