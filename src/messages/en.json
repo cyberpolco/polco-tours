@@ -1588,7 +1588,6 @@
     "noneYet": "No platform rate configured yet.",
     "rate": "Rate",
     "validFrom": "Valid from",
-    "validTo": "Valid to",
     "removing": "Removing…",
     "removeConfirm": "Remove this platform rate? This cannot be undone.",
     "remove": "Remove",

@@ -54,7 +54,6 @@ export default async function PlatformRatePage() {
             <TableHeaderRow>
               <Th>{t('rate')}</Th>
               <Th>{t('validFrom')}</Th>
-              <Th>{t('validTo')}</Th>
               <Th />
             </TableHeaderRow>
           </thead>
@@ -63,7 +62,6 @@ export default async function PlatformRatePage() {
               <Tr key={r.id}>
                 <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
                 <Td>{r.validFrom.toLocaleDateString()}</Td>
-                <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
                 <Td>
                   {canWrite && (
                     <DeleteButton

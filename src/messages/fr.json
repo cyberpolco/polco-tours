@@ -1588,7 +1588,6 @@
     "noneYet": "Aucun taux de plateforme configuré pour l'instant.",
     "rate": "Taux",
     "validFrom": "Valide à partir de",
-    "validTo": "Valide jusqu'au",
     "removing": "Suppression…",
     "removeConfirm": "Supprimer ce taux de plateforme ? Cette action est irréversible.",
     "remove": "Supprimer",
