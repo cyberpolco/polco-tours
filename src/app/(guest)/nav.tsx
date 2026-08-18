@@ -36,7 +36,12 @@ export function GuestNav() {
     <>
       <nav className="hidden gap-x-6 gap-y-2 text-sm sm:flex sm:flex-wrap">
         {LINKS.map(({ href, key }) => (
-          <Link key={href} href={href} className={linkClassName(href)}>
+          // prefetch={false}: every link here sits in the initial viewport
+          // at once, so Next's default viewport-triggered prefetch would
+          // eagerly render all 7 destinations on every page load, not just
+          // the one the visitor actually picks -- a real, needless
+          // multiplier on server/DB load. A click still navigates normally.
+          <Link key={href} href={href} prefetch={false} className={linkClassName(href)}>
             {t(key)}
           </Link>
         ))}
@@ -55,7 +60,7 @@ export function GuestNav() {
       {open && (
         <nav className="absolute inset-x-0 top-full z-20 flex flex-col gap-1 border-b border-rule bg-navy px-4 py-4 text-sm shadow-lift sm:hidden">
           {LINKS.map(({ href, key }) => (
-            <Link key={href} href={href} onClick={() => setOpen(false)} className={`py-2 ${linkClassName(href)}`}>
+            <Link key={href} href={href} prefetch={false} onClick={() => setOpen(false)} className={`py-2 ${linkClassName(href)}`}>
               {t(key)}
             </Link>
           ))}

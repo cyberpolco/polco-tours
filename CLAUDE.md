@@ -1762,6 +1762,32 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   `db:seed` sequence CI does. Re-running e2e against the same un-reset
   local DB across attempts accumulates fixture rows with no dedup — use
   `db push --force-reset` or a fresh `initdb` between attempts.
+- **A top nav/sidebar with every link visible in the initial viewport turns
+  Next.js's default `<Link>` prefetching into a real-load multiplier** —
+  real incident, 2026-08-18 (user-reported: "website is too slow, and it
+  kicks me out after a while"). `StaffNav` (up to 12 links) and
+  `SidebarShell` (up to 7) render every destination in one always-visible
+  row/column on **every** staff page (63 of them); none had
+  `prefetch={false}`, so the App Router's default viewport-triggered
+  prefetch fired a full server request — `requireStaffContext` (session
+  lookup + non-SUPERADMIN permission resolution, 2-3 DB queries, memoized
+  only *within* one request via `cache()`, never across separate ones) plus
+  that page's own data queries — for every sibling link on every single
+  page view, confirmed directly in `vercel logs` (visiting one settings
+  page logged real λ invocations for every other sidebar item within the
+  same second). That's a 10-20x multiplier on real DB load having nothing
+  to do with what the user actually clicked; under enough concurrent
+  traffic it's a plausible root cause for both generalized slowness and the
+  30-minute inactivity session timeout (DR-063) lapsing early, since that
+  timeout's own `updateAge` refresh is itself a DB write that can silently
+  lose a race under connection-pool contention. Fixed by adding
+  `prefetch={false}` to every `<Link>` in `nav.tsx`/`sidebar-shell.tsx`
+  (both staff and guest) and `footer.tsx` — a click still navigates
+  normally, only the eager background prefetch-on-viewport-entry is
+  disabled. Apply this to any future always-visible link list (nav bars,
+  sidebars, tab strips) rendered on a page that does real per-request DB
+  work — a link list that's naturally below the fold or only a couple of
+  items doesn't need it.
 - Missing `package-lock.json` breaks `npm ci` + Actions npm cache — keep it
   committed and in sync.
 - `apply-rls.mjs`/`apply-sequences.mjs` strip SQL comments before splitting

@@ -56,28 +56,28 @@ export async function GuestFooter() {
             </div>
           </div>
           <nav className="flex flex-col gap-2 text-sm">
-            <Link href="/packages" className="hover:text-amber">
+            <Link href="/packages" prefetch={false} className="hover:text-amber">
               {t('browse')}
             </Link>
-            <Link href="/plan-my-trip" className="hover:text-amber">
+            <Link href="/plan-my-trip" prefetch={false} className="hover:text-amber">
               {t('planMyTrip')}
             </Link>
-            <Link href="/find-booking" className="hover:text-amber">
+            <Link href="/find-booking" prefetch={false} className="hover:text-amber">
               {t('findBooking')}
             </Link>
-            <Link href="/rate" className="hover:text-amber">
+            <Link href="/rate" prefetch={false} className="hover:text-amber">
               {t('rateMyTrip')}
             </Link>
-            <Link href="/weather" className="hover:text-amber">
+            <Link href="/weather" prefetch={false} className="hover:text-amber">
               {t('weather')}
             </Link>
-            <Link href="/about" className="hover:text-amber">
+            <Link href="/about" prefetch={false} className="hover:text-amber">
               {t('about')}
             </Link>
-            <Link href="/faq" className="hover:text-amber">
+            <Link href="/faq" prefetch={false} className="hover:text-amber">
               {t('faq')}
             </Link>
-            <Link href="/contact" className="hover:text-amber">
+            <Link href="/contact" prefetch={false} className="hover:text-amber">
               {t('contact')}
             </Link>
           </nav>
@@ -98,10 +98,10 @@ export async function GuestFooter() {
             Product.
           </p>
           <div className="flex items-center gap-4 text-xs text-mist">
-            <Link href="/terms" className="hover:text-amber">
+            <Link href="/terms" prefetch={false} className="hover:text-amber">
               {t('terms')}
             </Link>
-            <Link href="/staff/login" className="hover:text-amber">
+            <Link href="/staff/login" prefetch={false} className="hover:text-amber">
               {t('adminAccess')}
             </Link>
           </div>

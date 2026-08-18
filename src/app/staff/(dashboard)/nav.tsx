@@ -130,8 +130,15 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
           links here); below that it collapses into a hamburger-triggered
           drawer, same pattern as (guest)/nav.tsx. */}
       <div className="hidden items-center gap-6 text-sm md:flex">
+        {/* prefetch={false}: up to 12 links, all in the initial viewport at
+            once -- Next's default viewport-triggered prefetch would eagerly
+            render every one of them (full requireStaffContext + that page's
+            own DB queries) on every single staff page load, not just the
+            one link actually clicked. A real, needless multiplier on DB
+            load across the whole dashboard. A click still navigates
+            normally, just without the eager background render. */}
         {visibleLinks.map(({ href, labelKey }) => (
-          <Link key={href} href={href} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
+          <Link key={href} href={href} prefetch={false} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
             {t(labelKey)}
           </Link>
         ))}
@@ -153,6 +160,7 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
             <Link
               key={href}
               href={href}
+              prefetch={false}
               onClick={() => setOpen(false)}
               className={`py-2 ${href === activeHref ? 'text-amber' : 'hover:text-amber'}`}
             >

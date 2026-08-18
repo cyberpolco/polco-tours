@@ -72,10 +72,15 @@ export function SidebarShell({
           overflow-x-auto, not the whole page) stacked above the content. */}
       <nav className="flex gap-2 overflow-x-auto pb-1 text-sm lg:w-48 lg:shrink-0 lg:flex-col lg:gap-1 lg:space-y-1 lg:overflow-visible lg:pb-0">
         <p className="eyebrow hidden shrink-0 text-mist lg:mb-3 lg:block">{sectionTitle}</p>
+        {/* prefetch={false}: same reasoning as StaffNav (nav.tsx) -- every
+            item here is visible at once, so the default viewport-triggered
+            prefetch would eagerly render every sub-page on every visit to
+            any one of them. */}
         {visibleItems.map(({ href, labelKey }) => (
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className={`shrink-0 rounded-survey px-2 py-1 lg:block ${href === activeHref ? 'bg-bone font-medium text-navy' : 'text-mist hover:text-navy'}`}
           >
             {t(labelKey)}
