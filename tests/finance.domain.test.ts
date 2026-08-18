@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBaseCostMinor, computeCostBuckets, computeSellingPriceMinor, perSeatPriceMinor } from '../src/modules/finance/domain';
+import { blendedTaxRateBp, computeBaseCostMinor, computeCostBuckets, computeSellingPriceMinor, perSeatPriceMinor } from '../src/modules/finance/domain';
 import type { CostInputs } from '../src/modules/finance/domain';
 
 // DR-131: accommodation/restaurant/activities are now derived from the Day
@@ -161,6 +161,27 @@ describe('finance domain', () => {
     it('throws for a non-positive group size', () => {
       expect(() => perSeatPriceMinor(100000, 0)).toThrow();
       expect(() => perSeatPriceMinor(100000, -1)).toThrow();
+    });
+  });
+
+  describe('blendedTaxRateBp', () => {
+    it('returns the single rate unchanged for a single-country breakdown', () => {
+      expect(blendedTaxRateBp([{ nights: 7, rateBp: 1500 }])).toBe(1500);
+    });
+
+    it('weights each country by its own night count', () => {
+      // 5 nights at 15% + 5 nights at 16% -> 15.5%, an even split
+      expect(blendedTaxRateBp([{ nights: 5, rateBp: 1500 }, { nights: 5, rateBp: 1600 }])).toBe(1550);
+    });
+
+    it('skews toward whichever country has more nights', () => {
+      // 8 nights at 15% + 2 nights at 16% -> 15.2%
+      expect(blendedTaxRateBp([{ nights: 8, rateBp: 1500 }, { nights: 2, rateBp: 1600 }])).toBe(1520);
+    });
+
+    it('rounds to the nearest whole basis point', () => {
+      // 1 night at 15% + 2 nights at 16% -> 15.666...% -> rounds to 1567
+      expect(blendedTaxRateBp([{ nights: 1, rateBp: 1500 }, { nights: 2, rateBp: 1600 }])).toBe(1567);
     });
   });
 });

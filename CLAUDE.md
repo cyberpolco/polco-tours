@@ -19,8 +19,36 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-144 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-144** (explicit user request, reverses DR-104's original
+> Current through DR-145 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-145** (explicit user request, confirmed via three clarifying
+> questions first) taxes a combo package/booking (its Day Template's hotels
+> spanning 2+ countries) per country instead of at one flat rate. Scope,
+> confirmed with the user: tax only — Staff/Transport/Admin Cost/
+> Immigration/Add-on rates still resolve from the package's single primary
+> `country` unchanged, since Accommodation/Restaurant/Activity costs were
+> already location-correct (`HotelRate`/`RestaurantRate`/`ActivityFee`
+> resolve by the specific hotel/restaurant/activity id, DR-131, never by the
+> package's `country`); attribution is derived (each Day Template night's
+> country comes from its assigned hotel's own `HotelRate.country`, not the
+> staff-typed `TourPackage.country`/`countries[]`, DR-114), weighted by
+> night count; applies to both standard packages and TAILOR_MADE bookings.
+> New pure `finance/domain.ts`'s `blendedTaxRateBp` backs a new async
+> `computeBlendedTaxRate` (`finance/service.ts`), collapsing to a single
+> plain `getEffectiveTaxRate` lookup — identical to prior behavior — for a
+> single-country package or one with no hotel-tagged Day Template yet.
+> `financeService.saveCostBreakdown` uses it in place of a direct
+> `pkg.country` lookup; the result still flows through the unchanged DR-134
+> snapshot (`TourPackage.priceTaxRateBp`), so no schema change was needed.
+> Exposed cross-module as `financeService.resolveEffectiveTaxRateBp` for a
+> **new `invoicing` → `finance` module dependency** (confirmed acyclic):
+> `invoicingService.getOrCreateInvoiceForBooking`'s live tax-resolution
+> branch now blends using a TAILOR_MADE booking's linked
+> `Booking.customizedPackageId` Day Template when one exists, instead of
+> taxing the whole trip at just its single `customCountry`.
+> `financeService.saveBookingCostBreakdown` is untouched — it never
+> computed/snapshotted a tax rate itself; TAILOR_MADE tax has always
+> resolved live at invoicing time, which is exactly where this plugs in. No
+> schema/permission change. **DR-144** (explicit user request, reverses DR-104's original
 > design) replaces Coupon's soft-deactivate-only lifecycle with a genuine
 > Delete plus a new Update — confirmed via two clarifying questions since
 > DR-104 deliberately avoided a hard delete (`CouponRedemption` has a real
@@ -1064,7 +1092,7 @@ src/
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
                    #   applied via a shared computeInvoiceAmounts helper);
-                   #   DR-144: a TAILOR_MADE booking's tax rate is blended
+                   #   DR-145: a TAILOR_MADE booking's tax rate is blended
                    #   across its linked customized package's Day Template
                    #   countries via financeService.resolveEffectiveTaxRateBp
                    #   (new invoicing -> finance dependency)
@@ -1119,7 +1147,7 @@ src/
                    #   reapplyRatesToAllCostBreakdowns, which replays every
                    #   existing package/tailor-made-booking cost breakdown
                    #   through saveCostBreakdown/saveBookingCostBreakdown so
-                   #   TourPackage.priceMinor tracks the new price — DR-144:
+                   #   TourPackage.priceMinor tracks the new price — DR-145:
                    #   a combo package/booking (Day Template hotels spanning
                    #   2+ countries) has its tax rate blended by night count
                    #   per country (computeBlendedTaxRate/blendedTaxRateBp),
@@ -1174,7 +1202,7 @@ real Hotel/Activity a rate is priced for) — confirmed acyclic the same way
 `invoicing`/`visa`/`itinerary` already depend on `booking`: `booking` itself
 only imports `{auth, catalog, notifications}`, and `itinerary` only imports
 `{auth, assignment, booking, catalog}`, neither reaching back into `finance`.
-Since DR-144, `invoicing` also depends on `finance` (to blend a TAILOR_MADE
+Since DR-145, `invoicing` also depends on `finance` (to blend a TAILOR_MADE
 booking's tax rate the same way a package's own cost breakdown does) —
 confirmed acyclic the same way: `finance` itself only imports
 `{auth, catalog, booking, itinerary}`, never reaching back into `invoicing`.

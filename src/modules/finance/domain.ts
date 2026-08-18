@@ -448,6 +448,19 @@ export function perSeatPriceMinor(sellingPriceTotalMinor: number, referenceGroup
   return Math.ceil(sellingPriceTotalMinor / referenceGroupSize);
 }
 
+/** A combo package/booking's Day Template can span more than one country's
+ * hotels -- blends each distinct country's own effective tax rate, weighted
+ * by how many Day Template nights that country's hotel covers, instead of
+ * taxing the whole trip at a single country's rate. Callers only invoke
+ * this once there are 2+ distinct countries (a single country is just that
+ * country's own rate, resolved directly with no blending needed), so
+ * `nightsByCountry` is always non-empty here. */
+export function blendedTaxRateBp(nightsByCountry: Array<{ nights: number; rateBp: number }>): number {
+  const totalNights = nightsByCountry.reduce((sum, c) => sum + c.nights, 0);
+  const weightedSum = nightsByCountry.reduce((sum, c) => sum + c.nights * c.rateBp, 0);
+  return Math.round(weightedSum / totalNights);
+}
+
 // ----------------------------------------------------- booking cost breakdown
 
 export interface BookingDrinkLineItemView {

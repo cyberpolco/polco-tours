@@ -4,13 +4,18 @@ import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prism
 import type { AuthContext } from '@modules/auth';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+// New invoicing -> finance dependency (confirmed acyclic -- finance depends
+// on {auth, catalog, booking, itinerary}, never invoicing) so a TAILOR_MADE
+// booking's tax rate can be blended across its linked customized package's
+// Day Template countries the same way a standard package's own cost
+// breakdown already is.
+import { financeService } from '@modules/finance';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
-import { getEffectiveTaxRate } from '@lib/tax';
 import { validateCoupon, type CouponUnavailableReason } from '@lib/coupons';
 import { amountForPaymentKind, canInitiatePayment, computeInvoiceAmounts, type InvoiceView, type PaymentView } from './domain';
 import { paymentGateway } from './gateway';
@@ -128,8 +133,20 @@ export const invoicingService = {
         throw Errors.conflict('This booking has no destination country to determine tax');
       }
 
+      // Explicit user request: a TAILOR_MADE booking's linked customized
+      // package (Booking.customizedPackageId, DR-108) may itself be a combo
+      // package -- blend tax across its Day Template's hotel countries the
+      // same way financeService.saveCostBreakdown does for a standard
+      // package, instead of taxing the whole trip at just `country`. A
+      // PREDEFINED_PACKAGE departure with its own manual priceOverrideMinor
+      // has no such link, so it keeps resolving `country` as a single rate,
+      // same as before.
+      const templateDays = booking.customizedPackageId
+        ? await catalogService.listTemplateDaysForItineraryCopy(organizationId, booking.customizedPackageId)
+        : [];
+
       try {
-        ({ rateBp } = await getEffectiveTaxRate(country));
+        ({ rateBp } = await financeService.resolveEffectiveTaxRateBp(country, templateDays));
       } catch {
         // Missing tax config is an operator gap, not a caller error.
         throw Errors.conflict('No tax rate configured for this country');

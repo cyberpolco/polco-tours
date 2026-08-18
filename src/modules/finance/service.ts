@@ -22,6 +22,7 @@ import {
   type PdfLocale,
 } from './package-summary-pdf';
 import {
+  blendedTaxRateBp,
   computeBaseCostMinor,
   computeCostBuckets,
   computeSellingPriceMinor,
@@ -212,6 +213,47 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
     unresolvedRestaurantDayNumbers,
     unresolvedActivityDayNumbers,
   };
+}
+
+/** Explicit user request: a combo package/booking (a Day Template whose
+ * hotels span more than one country) is taxed per country instead of at a
+ * single flat rate -- weighted by how many Day Template nights each
+ * country's hotel covers. `HotelRate.country` (not the package's own
+ * `country`/`countries[]`, which are staff-typed and never read by tax/rate
+ * resolution, DR-114) is the ground truth for "which country was this
+ * night actually in," since it's already keyed to a specific real hotel
+ * (DR-131's findEffectiveHotelRateForHotel). Collapses to a single
+ * `getEffectiveTaxRate` lookup -- identical to pre-existing behavior -- for
+ * a single-country package or one with no hotel-tagged Day Template yet. */
+async function computeBlendedTaxRate(
+  fallbackCountry: string,
+  templateDays: Pick<PackageItineraryDayView, 'hotelId'>[],
+  at: Date,
+): Promise<{ rateBp: number; countries: string[] }> {
+  const hotelIds = [...new Set(templateDays.map((d) => d.hotelId).filter((id): id is string => id != null))];
+  const hotelRates = await Promise.all(hotelIds.map((id) => financeRepository.findEffectiveHotelRateForHotel(id, at)));
+  const hotelRateByHotelId = new Map(hotelIds.map((id, i) => [id, hotelRates[i]]));
+
+  const nightsByCountry = new Map<string, number>();
+  for (const day of templateDays) {
+    if (!day.hotelId) continue;
+    const rate = hotelRateByHotelId.get(day.hotelId);
+    if (!rate) continue;
+    nightsByCountry.set(rate.country, (nightsByCountry.get(rate.country) ?? 0) + 1);
+  }
+  const distinctCountries = [...nightsByCountry.keys()];
+
+  if (distinctCountries.length <= 1) {
+    const { rateBp } = await getEffectiveTaxRate(fallbackCountry, at);
+    return { rateBp, countries: distinctCountries.length === 1 ? distinctCountries : [fallbackCountry] };
+  }
+
+  const rateEntries = await Promise.all(
+    distinctCountries.map(async (country) => [country, (await getEffectiveTaxRate(country, at)).rateBp] as const),
+  );
+  const rateBpByCountry = new Map(rateEntries);
+  const rateBp = blendedTaxRateBp([...nightsByCountry.entries()].map(([country, nights]) => ({ nights, rateBp: rateBpByCountry.get(country)! })));
+  return { rateBp, countries: distinctCountries };
 }
 
 /** Every field the "reapply rates" sweep needs from an already-persisted
@@ -698,6 +740,19 @@ export const financeService = {
     return { body, contentType: 'application/pdf' };
   },
 
+  /** Public (no ctx -- same "rate tables are platform-wide reference data,
+   * no permission gate" convention as resolveRatesForCost/getEffectiveTaxRate
+   * themselves) so invoicing can blend a TAILOR_MADE booking's tax rate the
+   * same way saveCostBreakdown does for a standard package, without a
+   * second finance -> booking-shaped dependency for just this one lookup. */
+  async resolveEffectiveTaxRateBp(
+    fallbackCountry: string,
+    templateDays: Pick<PackageItineraryDayView, 'hotelId'>[],
+    at: Date = new Date(),
+  ): Promise<{ rateBp: number; countries: string[] }> {
+    return computeBlendedTaxRate(fallbackCountry, templateDays, at);
+  },
+
   /** Resolves every referenced rate, computes Base Cost -> Selling Price ->
    * per-seat price via the pure functions in domain.ts, writes the
    * breakdown, and pushes the result into TourPackage.priceMinor through
@@ -825,9 +880,12 @@ export const financeService = {
     // (explicit user request) -- resolved fresh here, at cost-breakdown-save
     // time, and then snapshotted (see below) so booking/invoicing can trust
     // it later rather than re-resolving live and taxing the guest twice.
+    // DR-145: a combo package (this Day Template's hotels spanning 2+
+    // countries) blends each country's own rate by night count instead of
+    // taxing the whole trip at just pkg.country -- see computeBlendedTaxRate.
     let taxRateBp: number;
     try {
-      ({ rateBp: taxRateBp } = await getEffectiveTaxRate(pkg.country, now));
+      ({ rateBp: taxRateBp } = await computeBlendedTaxRate(pkg.country, templateDays, now));
     } catch {
       throw Errors.conflict('No tax rate configured for this country');
     }
