@@ -19,8 +19,15 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-142 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-142** (explicit user request, follow-up to DR-141; batches
+> Current through DR-143 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-143** (explicit user request) removes the "Valid to" column
+> from `/staff/settings/platform-rate`'s rate table — purely cosmetic:
+> `PlatformRate.validTo` has never been settable by any create/edit path (every
+> row is `null`, so the column only ever rendered "—"). The schema field
+> itself, and its no-op read in `src/lib/platform-rate.ts`'s effective-rate
+> resolution, are untouched; only the display column and its now-unused
+> `StaffPlatformRate.validTo` EN/FR message key are gone. No schema/
+> permission/module-dependency change. **DR-142** (explicit user request, follow-up to DR-141; batches
 > in one unrelated small UI change, same precedent as DR-086) stops a
 > permanently Deleted staff account from appearing on `/staff/admin/users`
 > at all — `authRepository.listStaff` now excludes `deletedPermanently:
