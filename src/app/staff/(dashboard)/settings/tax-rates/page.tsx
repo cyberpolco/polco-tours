@@ -5,6 +5,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
@@ -48,7 +49,9 @@ function DeleteButton({
 function EditDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <details className="mt-1">
-      <summary className="cursor-pointer text-xs font-medium text-navy underline">{label}</summary>
+      <summary className="cursor-pointer text-xs font-medium text-navy underline decoration-rule transition-colors hover:text-amber hover:decoration-amber">
+        {label}
+      </summary>
       <div className="mt-2">{children}</div>
     </details>
   );
@@ -85,6 +88,7 @@ export default async function TaxRatesPage({ searchParams }: Props) {
     <div className="space-y-6">
       <BackLink href="/staff/settings/finance">{t('backToFinance')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+      <Reveal className="space-y-6">
       <p className="text-xs text-mist">{t('intro')}</p>
 
       {params.reapplied === '1' && (
@@ -118,7 +122,9 @@ export default async function TaxRatesPage({ searchParams }: Props) {
               <Tr key={r.id}>
                 <Td>{tCountries(r.country)}</Td>
                 <Td>{r.taxType}</Td>
-                <Td>{(r.rateBp / 100).toFixed(2)}%</Td>
+                <Td>
+                  <span className="text-base font-semibold text-navy">{(r.rateBp / 100).toFixed(2)}%</span>
+                </Td>
                 <Td>{r.validFrom.toLocaleDateString()}</Td>
                 <Td>
                   {canWrite && (
@@ -187,6 +193,7 @@ export default async function TaxRatesPage({ searchParams }: Props) {
           </SubmitButton>
         </form>
       )}
+      </Reveal>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createRestaurantAction } from './actions';
@@ -18,6 +19,7 @@ export default async function NewRestaurantPage() {
     <div className="max-w-md space-y-6">
       <BackLink href="/staff/restaurants">{t('backToRestaurants')}</BackLink>
       <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
+      <Reveal>
       <form action={createRestaurantAction} className="mt-6 space-y-4">
         <FormField label={tFields('name')} htmlFor="name">
           <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -46,6 +48,7 @@ export default async function NewRestaurantPage() {
         <MapLocationPicker optional />
         <SubmitButton>{t('addRestaurant')}</SubmitButton>
       </form>
+      </Reveal>
     </div>
   );
 }

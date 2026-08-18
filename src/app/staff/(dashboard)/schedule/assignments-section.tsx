@@ -28,8 +28,11 @@ export async function AssignmentsSection({ title, rows }: { title?: string; rows
           {rows.map(({ assignment, detail, vehicle, driverProfile, guide, progress }) => (
             <Tr key={assignment.id}>
               <Td>
-                {detail.departure.startDate.toLocaleDateString()} · {detail.packageCountry}{' '}
-                <Badge tone={DEPARTURE_STATUS_TONE[detail.departure.status]}>{tDepartureStatus(detail.departure.status)}</Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink">{detail.departure.startDate.toLocaleDateString()}</span>
+                  <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{detail.packageCountry}</span>
+                  <Badge tone={DEPARTURE_STATUS_TONE[detail.departure.status]}>{tDepartureStatus(detail.departure.status)}</Badge>
+                </div>
                 {progress?.status === 'IN_PROGRESS' && (
                   <>
                     <span className="ml-2 text-xs text-mist">

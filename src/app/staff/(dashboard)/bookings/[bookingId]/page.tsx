@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import type { Currency } from '@prisma/client';
 import { getTranslations } from 'next-intl/server';
@@ -16,6 +17,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
@@ -106,34 +108,38 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
         : `/staff/bookings/${bookingId}/passport`;
 
     return (
-      <div className="max-w-md space-y-6">
-        <div>
-          <PageHeader eyebrow={t('setupEyebrow')} title={booking.bookingReference} />
-          <p className="mt-1 flex items-center gap-2 text-mist">
-            {t('seats', { count: booking.seats })} ·{' '}
-            <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> ·{' '}
-            {formatOrPending(booking.priceMinor, booking.currency)}
-          </p>
-        </div>
-        <ul className="space-y-2 text-sm">
-          <li className={addonsDone ? 'text-forest' : 'text-ink'}>
-            {addonsDone ? '✓' : '○'} {t('addOns')}
-          </li>
-          <li className={travelersDone ? 'text-forest' : 'text-ink'}>
-            {travelersDone ? '✓' : '○'} {t('travelersCount', { current: travelers.length, total: booking.seats })}
-          </li>
-          {booking.requiresPassportUpload && (
-            <li className={passportDone ? 'text-forest' : 'text-ink'}>
-              {passportDone ? '✓' : '○'}{' '}
-              {t('passportsCount', {
-                current: travelers.filter((tv) => !!tv.passportDocumentId).length,
-                total: travelers.length,
-              })}
+      <Reveal>
+        <div className="max-w-md space-y-6">
+          <div>
+            <PageHeader eyebrow={t('setupEyebrow')} title={booking.bookingReference} />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                {t('seats', { count: booking.seats })}
+              </span>
+              <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge>
+              <span className="text-lg font-bold text-navy">{formatOrPending(booking.priceMinor, booking.currency)}</span>
+            </div>
+          </div>
+          <ul className="space-y-2 text-sm">
+            <li className={addonsDone ? 'text-forest' : 'text-ink'}>
+              {addonsDone ? '✓' : '○'} {t('addOns')}
             </li>
-          )}
-        </ul>
-        <LinkButton href={nextHref}>{t('continueSetup')}</LinkButton>
-      </div>
+            <li className={travelersDone ? 'text-forest' : 'text-ink'}>
+              {travelersDone ? '✓' : '○'} {t('travelersCount', { current: travelers.length, total: booking.seats })}
+            </li>
+            {booking.requiresPassportUpload && (
+              <li className={passportDone ? 'text-forest' : 'text-ink'}>
+                {passportDone ? '✓' : '○'}{' '}
+                {t('passportsCount', {
+                  current: travelers.filter((tv) => !!tv.passportDocumentId).length,
+                  total: travelers.length,
+                })}
+              </li>
+            )}
+          </ul>
+          <LinkButton href={nextHref}>{t('continueSetup')}</LinkButton>
+        </div>
+      </Reveal>
     );
   }
 
@@ -221,7 +227,8 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   );
 
   return (
-    <div className="space-y-8">
+    <Reveal>
+      <div className="space-y-8">
       <div>
         {/* Add-ons/travelers/passport stay re-editable up to first payment
             (setAddons has no status gate) -- the invoice snapshot below is
@@ -235,20 +242,28 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
         <p className="mt-1 text-xs text-mist">
           {booking.origin === 'TAILOR_MADE' ? t('tailorMadeRequest') : t('predefinedPackage')}
         </p>
-        <p className="mt-1 flex items-center gap-2 text-mist">
-          {t('seats', { count: booking.seats })} ·{' '}
-          <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> ·{' '}
-          {formatOrPending(booking.priceMinor, booking.currency)}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+            {t('seats', { count: booking.seats })}
+          </span>
+          <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge>
+          <span className="text-lg font-bold text-navy">{formatOrPending(booking.priceMinor, booking.currency)}</span>
+        </div>
         {booking.specialRequests && (
           <p className="mt-1 text-sm text-mist">{t('specialRequestsLabel', { text: booking.specialRequests })}</p>
         )}
         {booking.origin === 'TAILOR_MADE' && (
-          <p className="mt-1 text-sm text-mist">
-            {booking.customCountry && countryName(booking.customCountry, tCountries)} · {booking.customTravelStart?.toLocaleDateString()} –{' '}
-            {booking.customTravelEnd?.toLocaleDateString()}
-            {booking.customDescription && <> · {booking.customDescription}</>}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {booking.customCountry && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                {countryName(booking.customCountry, tCountries)}
+              </span>
+            )}
+            <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+              {booking.customTravelStart?.toLocaleDateString()} – {booking.customTravelEnd?.toLocaleDateString()}
+            </span>
+            {booking.customDescription && <span className="text-sm text-mist">{booking.customDescription}</span>}
+          </div>
         )}
         {/* preferredCountries[0] === customCountry always (that's how it's
             derived, DR-047) -- only show this line when the guest picked
@@ -486,7 +501,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             </div>
             <div>
               <p className="text-xs text-mist">{t('total')}</p>
-              <p className="text-lg font-semibold text-navy">{format(money(invoice.totalMinor, invoice.currency))}</p>
+              <p className="text-lg font-bold text-navy">{format(money(invoice.totalMinor, invoice.currency))}</p>
             </div>
             <div>
               <p className="text-xs text-mist">{t('depositPct')}</p>
@@ -516,15 +531,21 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
           {payments.length === 0 ? (
             <p className="mt-2 text-sm text-mist">{t('noPaymentAttempts')}</p>
           ) : (
-            <ul className="mt-2 space-y-2 text-sm">
+            <RevealGroup
+              as="ul"
+              itemAs="li"
+              className="mt-2 space-y-2 text-sm"
+              itemClassName="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-2"
+            >
               {payments.map((p) => (
-                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-2">
-                  <span className="flex items-center gap-2">
-                    {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))}
+                <Fragment key={p.id}>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{tPaymentKind(p.kind)}</span>
+                    <span className="font-semibold text-navy">{format(money(p.amountMinor, p.currency))}</span>
                     <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
                   </span>
                   {p.status === 'PENDING' && (
-                    <div className="flex gap-2">
+                    <span className="flex gap-2">
                       <form action={resolvePaymentAction.bind(null, p.id, 'SUCCEEDED', booking.id)}>
                         <SubmitButton variant="success" size="compact" pendingLabel={tCommon('saving')}>
                           {t('markPaid')}
@@ -535,11 +556,11 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                           {t('markFailed')}
                         </SubmitButton>
                       </form>
-                    </div>
+                    </span>
                   )}
-                </li>
+                </Fragment>
               ))}
-            </ul>
+            </RevealGroup>
           )}
 
           <div className="mt-4 flex gap-3">
@@ -565,9 +586,9 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('visa')}</p>
-        <ul className="mt-2 space-y-1 text-sm">
+        <RevealGroup as="ul" itemAs="li" className="mt-2 space-y-1 text-sm" itemClassName="flex flex-col gap-0.5">
           {visaStatuses.map(({ traveler, status, rejectionReason, resubmissionCount }) => (
-            <li key={traveler.id} className="flex flex-col gap-0.5">
+            <Fragment key={traveler.id}>
               <span className="flex items-center gap-2">
                 {traveler.firstName} {traveler.lastName}:{' '}
                 <Badge tone={visaTone(status)}>
@@ -578,9 +599,9 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
               {status === 'REJECTED' && rejectionReason && (
                 <span className="text-xs text-mist">{t('reason', { reason: rejectionReason })}</span>
               )}
-            </li>
+            </Fragment>
           ))}
-        </ul>
+        </RevealGroup>
       </div>
 
       <div>
@@ -626,6 +647,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
           )}
         </div>
       )}
-    </div>
+      </div>
+    </Reveal>
   );
 }

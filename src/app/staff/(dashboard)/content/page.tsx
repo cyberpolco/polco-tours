@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { contentService, type ContentLocale } from '@modules/content';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
@@ -56,6 +58,7 @@ export default async function ContentPage({ searchParams }: Props) {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-8">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <Reveal className="space-y-8">
         <p className="text-xs text-mist">{t('intro')}</p>
 
         <div className="flex gap-2 text-sm">
@@ -106,9 +109,9 @@ export default async function ContentPage({ searchParams }: Props) {
 
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('faqCount', { count: faqs.length })}</h2>
-          <div className="space-y-3">
+          <RevealGroup as="div" itemAs="div" className="space-y-3">
             {faqs.map((f) => (
-              <div key={f.id} className="rounded-card border border-rule p-4">
+              <Card key={f.id}>
                 {canWrite ? (
                   <form action={updateFaqEntryAction.bind(null, f.id)} className="space-y-2">
                     <input
@@ -150,9 +153,9 @@ export default async function ContentPage({ searchParams }: Props) {
                     <p className="mt-1 text-sm text-mist">{f.answer}</p>
                   </>
                 )}
-              </div>
+              </Card>
             ))}
-          </div>
+          </RevealGroup>
           {canWrite && (
             <form action={createFaqEntryAction} className="space-y-2 rounded-card border border-dashed border-rule p-4">
               <input type="hidden" name="locale" value={locale} />
@@ -192,6 +195,7 @@ export default async function ContentPage({ searchParams }: Props) {
             </form>
           </section>
         )}
+        </Reveal>
       </div>
     </SidebarShell>
   );

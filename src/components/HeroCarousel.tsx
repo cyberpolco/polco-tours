@@ -87,14 +87,24 @@ export function HeroCarousel({ slides, browseHref, browseLabel, planHref, planLa
             exit={{ opacity: 0 }}
             transition={transition}
           >
-            <Image
-              src={slide.image}
-              alt=""
-              fill
-              priority={index === 0}
-              sizes="100vw"
-              className="object-cover"
-            />
+            {/* Ken Burns -- a slow, continuous scale for the slide's full
+                dwell time (not the 0.9s crossfade transition above), keyed
+                the same way so it restarts fresh on every slide change. */}
+            <motion.div
+              className="absolute inset-0"
+              initial={{ scale: 1 }}
+              animate={{ scale: reduceMotion ? 1 : 1.06 }}
+              transition={{ duration: SLIDE_DURATION_MS / 1000, ease: 'linear' }}
+            >
+              <Image
+                src={slide.image}
+                alt=""
+                fill
+                priority={index === 0}
+                sizes="100vw"
+                className="object-cover"
+              />
+            </motion.div>
             <div className="absolute inset-0" style={{ backgroundImage: slide.gradient }} />
           </motion.div>
         </AnimatePresence>

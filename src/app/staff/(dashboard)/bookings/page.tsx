@@ -5,6 +5,7 @@ import { bookingService } from '@modules/booking';
 import { FILTERABLE_BOOKING_STATUSES } from '@lib/booking-statuses';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RevealGroup } from '@/components/ui/Reveal';
 
 // DR-098: same card-hub-plus-list-pages shape as DR-095 (fleet) and DR-097
 // (packages).
@@ -27,7 +28,7 @@ export default async function BookingsPage() {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('dashboardEyebrow')} title={t('bookingsTitle')} />
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <RevealGroup as="div" itemAs="div" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">
             <Link href={s.href} className="block p-5">
@@ -39,7 +40,7 @@ export default async function BookingsPage() {
             </Link>
           </Card>
         ))}
-      </div>
+      </RevealGroup>
     </div>
   );
 }

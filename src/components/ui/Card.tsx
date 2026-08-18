@@ -19,7 +19,9 @@ export function Card({ as = 'div', className, interactive = false, children }: C
     <Component
       className={[
         'rounded-card border border-rule p-4 shadow-card',
-        interactive && 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift',
+        // `group` lets a descendant (e.g. PackageImage's photo) key its own
+        // hover animation off this card's hover state, not just its own.
+        interactive && 'group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift',
         className,
       ]
         .filter(Boolean)

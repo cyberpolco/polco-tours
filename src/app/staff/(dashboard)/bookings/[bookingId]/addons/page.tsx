@@ -7,6 +7,7 @@ import { catalogService } from '@modules/catalog';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { finalizeAddonsAction } from './actions';
@@ -98,34 +99,38 @@ export default async function AddonsPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
-        {addons.length === 0 ? (
-          <p className="text-sm text-mist">
-            {countryPricedAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency ?? '' })}
-          </p>
-        ) : (
-          addons.map((a) => (
-            <SelectableCard
-              key={a.id}
-              type="checkbox"
-              name="addonServiceId"
-              value={a.id}
-              defaultChecked={booking.addonsFinalizedAt ? selectedIds.has(a.id) : selectedIds.has(a.id) || requestedCodes.has(a.code)}
-            >
-              <span className="flex flex-1 items-center justify-between">
-                <span>
-                  {a.name}
-                  {!booking.addonsFinalizedAt && requestedCodes.has(a.code) && (
-                    <span className="ml-2 text-xs uppercase tracking-wide text-forest">{t('guestRequestedBadge')}</span>
-                  )}
-                </span>
-                <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
-              </span>
-            </SelectableCard>
-          ))
-        )}
-        <SubmitButton>{booking.addonsFinalizedAt ? t('saveChanges') : t('continueLabel')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form action={finalizeAddonsAction.bind(null, bookingId)} className="mt-6 space-y-3">
+          {addons.length === 0 ? (
+            <p className="text-sm text-mist">
+              {countryPricedAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency ?? '' })}
+            </p>
+          ) : (
+            <RevealGroup as="div" itemAs="div" className="space-y-3">
+              {addons.map((a) => (
+                <SelectableCard
+                  key={a.id}
+                  type="checkbox"
+                  name="addonServiceId"
+                  value={a.id}
+                  defaultChecked={booking.addonsFinalizedAt ? selectedIds.has(a.id) : selectedIds.has(a.id) || requestedCodes.has(a.code)}
+                >
+                  <span className="flex flex-1 items-center justify-between">
+                    <span>
+                      {a.name}
+                      {!booking.addonsFinalizedAt && requestedCodes.has(a.code) && (
+                        <span className="ml-2 text-xs uppercase tracking-wide text-forest">{t('guestRequestedBadge')}</span>
+                      )}
+                    </span>
+                    <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
+                  </span>
+                </SelectableCard>
+              ))}
+            </RevealGroup>
+          )}
+          <SubmitButton>{booking.addonsFinalizedAt ? t('saveChanges') : t('continueLabel')}</SubmitButton>
+        </form>
+      </Reveal>
     </div>
   );
 }

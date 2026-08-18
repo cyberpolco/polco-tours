@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RevealGroup } from '@/components/ui/Reveal';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 
@@ -55,7 +56,7 @@ export default async function FinanceHubPage() {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-8">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <RevealGroup as="div" itemAs="div" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {cards.map((c) => (
             <Card key={c.href} interactive className="p-0">
               <Link href={c.href} className="block p-5">
@@ -64,7 +65,7 @@ export default async function FinanceHubPage() {
               </Link>
             </Card>
           ))}
-        </div>
+        </RevealGroup>
       </div>
     </SidebarShell>
   );

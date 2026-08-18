@@ -5,6 +5,7 @@ import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { uploadPassportAction } from './actions';
 
@@ -52,16 +53,18 @@ export default async function PassportPage({ params, searchParams }: Props) {
           <Alert tone="error">{t('choosePdfFile')}</Alert>
         </div>
       )}
-      <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
-        <input
-          type="file"
-          name="passport"
-          accept="application/pdf"
-          required
-          className="w-full rounded-survey border border-rule px-3 py-2"
-        />
-        <SubmitButton pendingLabel={t('uploading')}>{t('uploadAndContinue')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
+          <input
+            type="file"
+            name="passport"
+            accept="application/pdf"
+            required
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+          <SubmitButton pendingLabel={t('uploading')}>{t('uploadAndContinue')}</SubmitButton>
+        </form>
+      </Reveal>
     </div>
   );
 }

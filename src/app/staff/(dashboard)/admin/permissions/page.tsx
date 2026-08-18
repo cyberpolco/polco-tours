@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ALL_PERMISSIONS, EDITABLE_ROLES } from '@lib/rbac';
 import { authService } from '@modules/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { PermissionMatrixForm } from './permission-matrix-form';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
@@ -28,8 +29,10 @@ export default async function PermissionsPage() {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-        <p className="max-w-2xl text-sm text-mist">{t('intro')}</p>
-        <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
+        <Reveal className="space-y-6">
+          <p className="max-w-2xl text-sm text-mist">{t('intro')}</p>
+          <PermissionMatrixForm matrix={matrix} roles={EDITABLE_ROLES} permissions={ALL_PERMISSIONS} />
+        </Reveal>
       </div>
     </SidebarShell>
   );

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -73,95 +74,99 @@ export default async function AllBookingsPage({ searchParams }: Props) {
       <BackLink href="/staff/bookings">{t('backToBookings')}</BackLink>
       <PageHeader eyebrow={t('bookingsEyebrow')} title={t('allBookingsTitle')} />
 
-      <form method="get" action="/staff/bookings/all" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('status')} htmlFor="status" optional>
-          <Select name="status" defaultValue={status}>
-            <option value="">{t('all')}</option>
-            {FILTERABLE_BOOKING_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {tStatus(s)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField label={t('source')} htmlFor="origin" optional>
-          <Select name="origin" defaultValue={origin}>
-            <option value="">{t('all')}</option>
-            <option value="PREDEFINED_PACKAGE">{t('packageLabel')}</option>
-            <option value="TAILOR_MADE">{t('planMyTripLabel')}</option>
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || status || origin) && (
-            <Link href="/staff/bookings/all" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
+      <Reveal>
+        <div className="space-y-8">
+          <form method="get" action="/staff/bookings/all" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <FormField label={t('search')} htmlFor="q" optional>
+              <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+            </FormField>
+            <FormField label={t('status')} htmlFor="status" optional>
+              <Select name="status" defaultValue={status}>
+                <option value="">{t('all')}</option>
+                {FILTERABLE_BOOKING_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {tStatus(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label={t('source')} htmlFor="origin" optional>
+              <Select name="origin" defaultValue={origin}>
+                <option value="">{t('all')}</option>
+                <option value="PREDEFINED_PACKAGE">{t('packageLabel')}</option>
+                <option value="TAILOR_MADE">{t('planMyTripLabel')}</option>
+              </Select>
+            </FormField>
+            <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+              <SubmitButton size="compact">{t('filter')}</SubmitButton>
+              {(q || status || origin) && (
+                <Link href="/staff/bookings/all" className="text-sm text-mist hover:underline">
+                  {t('clearFilters')}
+                </Link>
+              )}
+            </div>
+          </form>
+
+          <p className="text-sm text-mist">{t('bookingCount', { count: totalItems })}</p>
+
+          {bookings.length === 0 ? (
+            <p className="text-mist">{t('noMatches')}</p>
+          ) : (
+            <Table>
+              <thead>
+                <TableHeaderRow>
+                  <Th>{t('reference')}</Th>
+                  <Th>{t('source')}</Th>
+                  <Th>{t('status')}</Th>
+                  <Th>{t('seats')}</Th>
+                  <Th>{t('price')}</Th>
+                  <Th>{t('created')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {bookings.map((b) => (
+                  <Tr key={b.id}>
+                    <Td className="font-mono text-xs">{b.bookingReference}</Td>
+                    <Td className="text-xs text-mist">{ORIGIN_LABEL[b.origin] ?? b.origin}</Td>
+                    <Td>
+                      <Badge tone={BOOKING_STATUS_TONE[b.status]}>{tStatus(b.status)}</Badge>
+                    </Td>
+                    <Td>{b.seats}</Td>
+                    <Td>{formatOrPending(b.priceMinor, b.currency)}</Td>
+                    <Td>{b.createdAt.toLocaleDateString()}</Td>
+                    <Td>
+                      <div className="flex items-center gap-3">
+                        <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
+                          {t('view')}
+                        </Link>
+                        {/* DR-058: SUPERADMIN-only, any status -- see the detail
+                            page's own comment on why this role check (not just
+                            the route's booking.delete permission) is the real
+                            gate for rendering the control at all. */}
+                        {ctx.roles.includes('SUPERADMIN') && (
+                          <form action={deleteBookingAction.bind(null, b.id)}>
+                            <SubmitButton
+                              variant="secondary"
+                              size="compact"
+                              pendingLabel={t('deleting')}
+                              confirmMessage={t('deleteConfirm', { ref: b.bookingReference })}
+                            >
+                              {t('delete')}
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
           )}
+
+          <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
         </div>
-      </form>
-
-      <p className="text-sm text-mist">{t('bookingCount', { count: totalItems })}</p>
-
-      {bookings.length === 0 ? (
-        <p className="text-mist">{t('noMatches')}</p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{t('reference')}</Th>
-              <Th>{t('source')}</Th>
-              <Th>{t('status')}</Th>
-              <Th>{t('seats')}</Th>
-              <Th>{t('price')}</Th>
-              <Th>{t('created')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {bookings.map((b) => (
-              <Tr key={b.id}>
-                <Td className="font-mono text-xs">{b.bookingReference}</Td>
-                <Td className="text-xs text-mist">{ORIGIN_LABEL[b.origin] ?? b.origin}</Td>
-                <Td>
-                  <Badge tone={BOOKING_STATUS_TONE[b.status]}>{tStatus(b.status)}</Badge>
-                </Td>
-                <Td>{b.seats}</Td>
-                <Td>{formatOrPending(b.priceMinor, b.currency)}</Td>
-                <Td>{b.createdAt.toLocaleDateString()}</Td>
-                <Td>
-                  <div className="flex items-center gap-3">
-                    <Link href={`/staff/bookings/${b.id}`} className="text-forest hover:underline">
-                      {t('view')}
-                    </Link>
-                    {/* DR-058: SUPERADMIN-only, any status -- see the detail
-                        page's own comment on why this role check (not just
-                        the route's booking.delete permission) is the real
-                        gate for rendering the control at all. */}
-                    {ctx.roles.includes('SUPERADMIN') && (
-                      <form action={deleteBookingAction.bind(null, b.id)}>
-                        <SubmitButton
-                          variant="secondary"
-                          size="compact"
-                          pendingLabel={t('deleting')}
-                          confirmMessage={t('deleteConfirm', { ref: b.bookingReference })}
-                        >
-                          {t('delete')}
-                        </SubmitButton>
-                      </form>
-                    )}
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createDriverProfileAction } from './actions';
 
@@ -25,18 +26,20 @@ export default async function NewDriverPage({ searchParams }: Props) {
           <Alert tone="error">{t('driverNotFound')}</Alert>
         </div>
       )}
-      <form action={createDriverProfileAction} className="mt-6 space-y-4">
-        <FormField label={t('accountEmail')} htmlFor="email">
-          <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-        <FormField label={t('licenseNumberLabel')} htmlFor="licenseNumber">
-          <input name="licenseNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-        <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
-          <input name="licenseExpiresAt" type="date" className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-        <SubmitButton>{t('addDriverSubmit')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form action={createDriverProfileAction} className="mt-6 space-y-4">
+          <FormField label={t('accountEmail')} htmlFor="email">
+            <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label={t('licenseNumberLabel')} htmlFor="licenseNumber">
+            <input name="licenseNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
+            <input name="licenseExpiresAt" type="date" className="w-full rounded-survey border border-rule px-3 py-2" />
+          </FormField>
+          <SubmitButton>{t('addDriverSubmit')}</SubmitButton>
+        </form>
+      </Reveal>
     </div>
   );
 }

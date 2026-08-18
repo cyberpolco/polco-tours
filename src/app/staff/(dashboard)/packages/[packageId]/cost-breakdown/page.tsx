@@ -8,6 +8,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
@@ -76,6 +77,8 @@ export default async function CostBreakdownPage({ params, searchParams }: Props)
 
       {error && <Alert tone="error">{t('saveError', { detail: detail || t('pleaseTryAgain') })}</Alert>}
 
+      <Reveal>
+      <div className="space-y-8">
       {breakdown && (
         <Card className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
@@ -289,6 +292,8 @@ export default async function CostBreakdownPage({ params, searchParams }: Props)
 
         <SubmitButton pendingLabel={t('saving')}>{t('saveCostBreakdown')}</SubmitButton>
       </form>
+      </div>
+      </Reveal>
     </div>
   );
 }

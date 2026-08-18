@@ -4,6 +4,7 @@ import { authService } from '@modules/auth';
 import { ratingsService } from '@modules/ratings';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { RatingStars } from '@/components/ui/RatingStars';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { deleteReviewAction } from './actions';
@@ -37,6 +38,13 @@ function formatAverage(
   return `${averageRating.toFixed(1)} ★ (${ratingCount})`;
 }
 
+// Pill-style stat used in place of the old plain "Name -- 4.5 ★ (12)" text
+// line, matching the neutral-pill recipe just introduced on the guest
+// package pages (rounded-pill bg-mist/10 text-mist).
+function Pill({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{children}</span>;
+}
+
 // Customer Ratings & Feedback (DR-037) -- staff moderation/insights view.
 // Org-wide + per-driver/per-guide averages, plus every individual review
 // with its comments. Read-only: Rating Codes are issued from the booking-
@@ -63,9 +71,10 @@ export default async function RatingsPage() {
     <div className="space-y-8">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
+      <Reveal className="space-y-8">
       <div>
         <p className="eyebrow text-mist">{t('agencyOverall')}</p>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-3">
           {/* rating=0 renders the muted underlying row with the gold overlay
               clipped to 0% width -- i.e. 5 plain grey stars, the honest
               "nothing rated yet" state rather than fabricating a positive
@@ -73,11 +82,16 @@ export default async function RatingsPage() {
               homepage's TrustSummary, just not hidden entirely here since
               this is a staff-only insights view, not public marketing). */}
           <RatingStars rating={summary.organization.averageRating ?? 0} size="md" />
-          <p className="text-lg font-semibold text-navy">
-            {formatAverage(summary.organization.averageRating, summary.organization.ratingCount, t)}
-          </p>
+          {summary.organization.averageRating == null || summary.organization.ratingCount === 0 ? (
+            <p className="text-lg font-semibold text-navy">{t('noRatingsYet')}</p>
+          ) : (
+            <p className="text-2xl font-bold text-navy">
+              {summary.organization.averageRating.toFixed(1)}
+              <span className="ml-1.5 text-xs font-medium text-mist">★ ({summary.organization.ratingCount})</span>
+            </p>
+          )}
         </div>
-        <a href="#individual-reviews" className="mt-1 inline-block text-sm text-forest hover:underline">
+        <a href="#individual-reviews" className="mt-2 inline-block text-sm text-forest hover:underline">
           {t('seeReviews')}
         </a>
       </div>
@@ -88,13 +102,24 @@ export default async function RatingsPage() {
         {summary.drivers.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noDriverProfiles')}</p>
         ) : (
-          <ul className="mt-2 space-y-1 text-sm">
+          <RevealGroup as="ul" itemAs="li" className="mt-2 space-y-2">
             {summary.drivers.map((d) => (
-              <li key={d.id}>
-                {driverNames.get(d.id)} -- {formatAverage(d.averageRating, d.ratingCount, t)}
-              </li>
+              <div
+                key={d.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-rule px-3 py-2 text-sm"
+              >
+                <span className="font-medium text-ink">{driverNames.get(d.id)}</span>
+                {d.averageRating == null || d.ratingCount === 0 ? (
+                  <Pill>{t('noRatingsYet')}</Pill>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <RatingStars rating={d.averageRating} size="sm" />
+                    <Pill>{formatAverage(d.averageRating, d.ratingCount, t)}</Pill>
+                  </span>
+                )}
+              </div>
             ))}
-          </ul>
+          </RevealGroup>
         )}
       </div>
 
@@ -104,13 +129,24 @@ export default async function RatingsPage() {
         {summary.guides.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noGuideProfiles')}</p>
         ) : (
-          <ul className="mt-2 space-y-1 text-sm">
+          <RevealGroup as="ul" itemAs="li" className="mt-2 space-y-2">
             {summary.guides.map((g) => (
-              <li key={g.userId}>
-                {guideNames.get(g.userId)} -- {formatAverage(g.averageRating, g.ratingCount, t)}
-              </li>
+              <div
+                key={g.userId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-rule px-3 py-2 text-sm"
+              >
+                <span className="font-medium text-ink">{guideNames.get(g.userId)}</span>
+                {g.averageRating == null || g.ratingCount === 0 ? (
+                  <Pill>{t('noRatingsYet')}</Pill>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <RatingStars rating={g.averageRating} size="sm" />
+                    <Pill>{formatAverage(g.averageRating, g.ratingCount, t)}</Pill>
+                  </span>
+                )}
+              </div>
             ))}
-          </ul>
+          </RevealGroup>
         )}
       </div>
 
@@ -133,14 +169,20 @@ export default async function RatingsPage() {
             <tbody>
               {reviews.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.overallRating} ★</Td>
+                  <Td className="font-semibold text-navy">{r.overallRating} ★</Td>
                   <Td>{r.overallComment ?? '—'}</Td>
                   <Td>
-                    {r.subjectRatings.length === 0
-                      ? '—'
-                      : r.subjectRatings
-                          .map((s) => `${subjectLabel(s.subjectType)} ${s.rating}★${s.comment ? ` (${s.comment})` : ''}`)
-                          .join(', ')}
+                    {r.subjectRatings.length === 0 ? (
+                      '—'
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {r.subjectRatings.map((s, i) => (
+                          <Pill key={i}>
+                            {subjectLabel(s.subjectType)} {s.rating}★{s.comment ? ` · ${s.comment}` : ''}
+                          </Pill>
+                        ))}
+                      </div>
+                    )}
                   </Td>
                   <Td>{r.createdAt.toLocaleDateString()}</Td>
                   {canDelete && (
@@ -159,6 +201,7 @@ export default async function RatingsPage() {
           </Table>
         )}
       </div>
+      </Reveal>
     </div>
   );
 }

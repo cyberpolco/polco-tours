@@ -4,10 +4,12 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { itineraryService, type RestaurantView } from '@modules/itinerary';
 import { paginate } from '@lib/directory-filters';
+import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -86,70 +88,76 @@ export default async function RestaurantsPage({ searchParams }: Props) {
         {canWrite && <LinkButton href="/staff/restaurants/new">{t('addRestaurant')}</LinkButton>}
       </div>
 
-      <form method="get" action="/staff/restaurants" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label={tFields('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={tFields('country')} htmlFor="country" optional>
-          <Select name="country" defaultValue={country}>
-            <option value="">{tFields('all')}</option>
-            {countryOptions.map((c) => (
-              <option key={c} value={c}>
-                {tCountries(c)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
-          {(q || country) && (
-            <Link href="/staff/restaurants" className="text-sm text-mist hover:underline">
-              {tFields('clearFilters')}
-            </Link>
-          )}
-        </div>
-      </form>
+      <Reveal className="space-y-6">
+        <form method="get" action="/staff/restaurants" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <FormField label={tFields('search')} htmlFor="q" optional>
+            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+          </FormField>
+          <FormField label={tFields('country')} htmlFor="country" optional>
+            <Select name="country" defaultValue={country}>
+              <option value="">{tFields('all')}</option>
+              {countryOptions.map((c) => (
+                <option key={c} value={c}>
+                  {tCountries(c)}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+            <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
+            {(q || country) && (
+              <Link href="/staff/restaurants" className="text-sm text-mist hover:underline">
+                {tFields('clearFilters')}
+              </Link>
+            )}
+          </div>
+        </form>
 
-      <p className="text-sm text-mist">{t('restaurantCount', { count: totalItems })}</p>
+        <p className="text-sm text-mist">{t('restaurantCount', { count: totalItems })}</p>
 
-      {restaurants.length === 0 ? (
-        <p className="text-mist">
-          {totalItems === 0 && !q && !country ? (canWrite ? t('noneRegistered') : t('noneToRate')) : t('noMatches')}
-        </p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{tFields('name')}</Th>
-              <Th>{tFields('country')}</Th>
-              <Th>{tFields('address')}</Th>
-              <Th>{t('contactCol')}</Th>
-              <Th>{t('ratingCol')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {restaurants.map((r) => (
-              <Tr key={r.id}>
-                <Td>{r.name}</Td>
-                <Td>{tCountries(r.country)}</Td>
-                <Td>{r.address ?? '—'}</Td>
-                <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
-                <Td>
-                  {r.averageRating != null ? tFields('ratedSummary', { rating: r.averageRating.toFixed(1), count: r.ratingCount }) : '—'}
-                </Td>
-                <Td>
-                  <Link href={`/staff/restaurants/${r.id}`} className="text-forest hover:underline">
-                    {canWrite ? tFields('edit') : canRate ? tFields('rate') : tFields('view')}
-                  </Link>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+        {restaurants.length === 0 ? (
+          <p className="text-mist">
+            {totalItems === 0 && !q && !country ? (canWrite ? t('noneRegistered') : t('noneToRate')) : t('noMatches')}
+          </p>
+        ) : (
+          <Table>
+            <thead>
+              <TableHeaderRow>
+                <Th>{tFields('name')}</Th>
+                <Th>{tFields('country')}</Th>
+                <Th>{tFields('address')}</Th>
+                <Th>{t('contactCol')}</Th>
+                <Th>{t('ratingCol')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {restaurants.map((r) => (
+                <Tr key={r.id}>
+                  <Td>{r.name}</Td>
+                  <Td>{tCountries(r.country)}</Td>
+                  <Td>{r.address ?? '—'}</Td>
+                  <Td>{r.contactPhone ?? r.contactEmail ?? '—'}</Td>
+                  <Td>
+                    {r.averageRating != null ? (
+                      <Badge tone="neutral">{tFields('ratedSummary', { rating: r.averageRating.toFixed(1), count: r.ratingCount })}</Badge>
+                    ) : (
+                      <span className="text-xs text-mist">{tFields('notYetRated')}</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <Link href={`/staff/restaurants/${r.id}`} className="text-forest hover:underline">
+                      {canWrite ? tFields('edit') : canRate ? tFields('rate') : tFields('view')}
+                    </Link>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
 
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+        <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

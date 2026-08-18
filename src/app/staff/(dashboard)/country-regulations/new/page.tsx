@@ -3,8 +3,10 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createCountryRegulationAction } from './actions';
@@ -18,7 +20,9 @@ export default async function NewCountryRegulationPage() {
     <div className="max-w-2xl space-y-6">
       <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
       <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
-      <form action={createCountryRegulationAction} className="mt-6 space-y-4">
+      <Reveal>
+      <Card>
+      <form action={createCountryRegulationAction} className="mt-2 space-y-4">
         <FormField label={t('country')} htmlFor="country">
           <Select name="country" required>
             {COUNTRY_CODES.map((c) => (
@@ -79,6 +83,8 @@ export default async function NewCountryRegulationPage() {
         </FormField>
         <SubmitButton>{t('addCountrySubmit')}</SubmitButton>
       </form>
+      </Card>
+      </Reveal>
     </div>
   );
 }

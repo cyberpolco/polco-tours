@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { trackingService } from '@modules/tracking';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { LOCATION_FRESHNESS_TONE } from '@lib/status-tones';
 
@@ -24,7 +25,7 @@ export default async function TrackingPage() {
     <div className="space-y-10">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
-      <div>
+      <Reveal>
         <h1 className="text-2xl font-bold text-navy">{t('fleetLocationsTitle')}</h1>
         <p className="mt-1 text-xs text-mist">{t('fleetLocationsNotice')}</p>
         {fleet.length === 0 ? (
@@ -63,9 +64,9 @@ export default async function TrackingPage() {
             </tbody>
           </Table>
         )}
-      </div>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.1}>
         <div className="survey-rule mb-4" />
         <h1 className="text-2xl font-bold text-navy">{t('activeTripsTitle')}</h1>
         <p className="mt-1 text-xs text-mist">{t('activeTripsNotice')}</p>
@@ -105,7 +106,7 @@ export default async function TrackingPage() {
             </tbody>
           </Table>
         )}
-      </div>
+      </Reveal>
     </div>
   );
 }

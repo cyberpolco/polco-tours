@@ -22,7 +22,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           narrow phone -- without wrap, the tail end (SignOutButton) got
           pushed off-screen with no scroll affordance instead of dropping
           to its own row. */}
-      <nav className="relative flex flex-wrap items-center justify-between gap-y-2 border-b border-rule bg-navy px-4 py-4 text-bone sm:px-8">
+      <nav className="relative flex flex-wrap items-center justify-between gap-y-2 border-b border-rule bg-navy px-4 py-4 text-bone shadow-[0_1px_12px_rgba(33,26,29,0.12)] sm:px-8">
         {/* The public homepage, same target as /staff/login's own
             back-arrow-to-/ link -- a plain client-side navigation, so it
             never touches the session cookie/sign-out flow; the staff

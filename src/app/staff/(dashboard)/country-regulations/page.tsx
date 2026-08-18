@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
@@ -29,6 +30,7 @@ export default async function CountryRegulationsPage() {
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
         {canWrite && <LinkButton href="/staff/country-regulations/new">{t('addCountry')}</LinkButton>}
       </div>
+      <Reveal>
       {regulations.length === 0 ? (
         <p className="text-mist">{t('noneYet')}</p>
       ) : (
@@ -48,7 +50,7 @@ export default async function CountryRegulationsPage() {
                 <Td>{r.processingTimeDays != null ? t('processingTimeDays', { days: r.processingTimeDays }) : '—'}</Td>
                 <Td>{r.embassyName ?? '—'}</Td>
                 <Td>
-                  <Link href={`/staff/country-regulations/${r.country}`} className="text-forest hover:underline">
+                  <Link href={`/staff/country-regulations/${r.country}`} className="font-medium text-forest transition-colors hover:text-amber hover:underline">
                     {canWrite ? t('edit') : t('view')}
                   </Link>
                 </Td>
@@ -57,6 +59,7 @@ export default async function CountryRegulationsPage() {
           </tbody>
         </Table>
       )}
+      </Reveal>
     </div>
     </SidebarShell>
   );

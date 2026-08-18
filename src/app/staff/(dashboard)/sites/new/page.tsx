@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
 import { SiteForm } from '../site-form';
@@ -15,9 +16,9 @@ export default async function NewSitePage() {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="max-w-md">
         <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
-        <div className="mt-6">
+        <Reveal className="mt-6">
           <SiteForm action={createSiteAction} submitLabel={t('addSite')} pendingLabel={t('adding')} />
-        </div>
+        </Reveal>
       </div>
     </SidebarShell>
   );

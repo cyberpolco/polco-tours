@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -82,6 +83,7 @@ export default async function ClientsPage({ searchParams }: Props) {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="space-y-6">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+        <Reveal className="space-y-6">
         <p className="text-sm text-mist">{t('intro')}</p>
         {detail && <Alert tone="error">{t('deleteError', { detail })}</Alert>}
 
@@ -161,6 +163,7 @@ export default async function ClientsPage({ searchParams }: Props) {
             <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
           </>
         )}
+        </Reveal>
       </div>
     </SidebarShell>
   );

@@ -2,9 +2,11 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { itineraryService } from '@modules/itinerary';
+import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../../settings-items';
 import { SidebarShell } from '../../sidebar-shell';
@@ -33,6 +35,7 @@ export default async function SiteDetailPage({ params }: Props) {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="max-w-md space-y-8">
         <PageHeader eyebrow={t('detailEyebrow')} title={site.name} />
+        <Reveal className="space-y-8">
         <SiteForm
           action={updateSiteAction.bind(null, siteId)}
           defaultValues={{
@@ -53,12 +56,19 @@ export default async function SiteDetailPage({ params }: Props) {
           {activities.length === 0 ? (
             <p className="mt-2 text-sm text-mist">{t('noActivitiesYet')}</p>
           ) : (
-            <ul className="mt-3 space-y-2">
+            <RevealGroup
+              as="ul"
+              itemAs="li"
+              className="mt-3 space-y-2"
+              itemClassName="flex items-center justify-between gap-3 rounded-survey border border-rule px-3 py-2 text-sm transition-colors hover:border-forest/40"
+            >
               {activities.map((a) => (
-                <li key={a.id} className="flex items-center justify-between rounded-survey border border-rule px-3 py-2 text-sm">
-                  <span>
+                <div key={a.id} className="contents">
+                  <span className="flex items-center gap-2">
                     {a.name}
-                    <span className="ml-2 text-xs text-mist">{a.hasEntranceFee ? t('entranceFeeYes') : t('entranceFeeNo')}</span>
+                    <Badge tone={a.hasEntranceFee ? 'warning' : 'success'}>
+                      {a.hasEntranceFee ? t('entranceFeeYes') : t('entranceFeeNo')}
+                    </Badge>
                   </span>
                   <form action={deleteActivityAction.bind(null, siteId, a.id)}>
                     <SubmitButton
@@ -70,9 +80,9 @@ export default async function SiteDetailPage({ params }: Props) {
                       {t('removeActivity')}
                     </SubmitButton>
                   </form>
-                </li>
+                </div>
               ))}
-            </ul>
+            </RevealGroup>
           )}
           <form action={createActivityAction.bind(null, siteId)} className="mt-4 flex flex-wrap items-end gap-3">
             <FormField label={t('activityName')} htmlFor="name">
@@ -98,6 +108,7 @@ export default async function SiteDetailPage({ params }: Props) {
             {t('deleteSite')}
           </SubmitButton>
         </form>
+        </Reveal>
       </div>
     </SidebarShell>
   );

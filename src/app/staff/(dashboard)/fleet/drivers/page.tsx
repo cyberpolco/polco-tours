@@ -11,6 +11,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -78,92 +79,94 @@ export default async function DriversListPage({ searchParams }: Props) {
         <LinkButton href="/staff/fleet/drivers/new">{t('addDriver')}</LinkButton>
       </div>
 
-      <form method="get" action="/staff/fleet/drivers" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('status')} htmlFor="status" optional>
-          <Select name="status" defaultValue={status}>
-            <option value="">{t('all')}</option>
-            <option value="ACTIVE">{tDriverStatus('ACTIVE')}</option>
-            <option value="SUSPENDED">{tDriverStatus('SUSPENDED')}</option>
-          </Select>
-        </FormField>
-        <FormField label={t('availability')} htmlFor="availability" optional>
-          <Select name="availability" defaultValue={availability}>
-            <option value="">{t('all')}</option>
-            <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
-            <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
-            <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-3">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || status || availability) && (
-            <Link href="/staff/fleet/drivers" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
-          )}
-        </div>
-      </form>
+      <Reveal className="space-y-6">
+        <form method="get" action="/staff/fleet/drivers" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <FormField label={t('search')} htmlFor="q" optional>
+            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+          </FormField>
+          <FormField label={t('status')} htmlFor="status" optional>
+            <Select name="status" defaultValue={status}>
+              <option value="">{t('all')}</option>
+              <option value="ACTIVE">{tDriverStatus('ACTIVE')}</option>
+              <option value="SUSPENDED">{tDriverStatus('SUSPENDED')}</option>
+            </Select>
+          </FormField>
+          <FormField label={t('availability')} htmlFor="availability" optional>
+            <Select name="availability" defaultValue={availability}>
+              <option value="">{t('all')}</option>
+              <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
+              <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
+              <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
+            </Select>
+          </FormField>
+          <div className="col-span-2 flex items-end gap-3 sm:col-span-3">
+            <SubmitButton size="compact">{t('filter')}</SubmitButton>
+            {(q || status || availability) && (
+              <Link href="/staff/fleet/drivers" className="text-sm text-mist hover:underline">
+                {t('clearFilters')}
+              </Link>
+            )}
+          </div>
+        </form>
 
-      <p className="text-sm text-mist">{t('driverCount', { count: totalItems })}</p>
+        <p className="text-sm text-mist">{t('driverCount', { count: totalItems })}</p>
 
-      {drivers.length === 0 ? (
-        <p className="text-mist">{t('noMatches')}</p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{t('name')}</Th>
-              <Th>{t('email')}</Th>
-              <Th>{t('licenseNumber')}</Th>
-              <Th>{t('status')}</Th>
-              <Th>{t('availability')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {drivers.map((d) => {
-              const user = userByDriverId.get(d.id) ?? null;
-              return (
-                <Tr key={d.id}>
-                  <Td>{user?.name ?? '—'}</Td>
-                  <Td>{user?.email ?? '—'}</Td>
-                  <Td>{d.licenseNumber}</Td>
-                  <Td>
-                    <Badge tone={DRIVER_STATUS_TONE[d.status]}>{tDriverStatus(d.status)}</Badge>
-                  </Td>
-                  <Td>
-                    <Badge tone={AVAILABILITY_STATUS_TONE[d.availability]}>{tAvailabilityStatus(d.availability)}</Badge>
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-3">
-                      <Link href={`/staff/fleet/drivers/${d.id}`} className="text-forest hover:underline">
-                        {t('view')}
-                      </Link>
-                      {ctx.roles.includes('SUPERADMIN') && (
-                        <form action={deleteDriverProfileAction.bind(null, d.id)}>
-                          <SubmitButton
-                            variant="secondary"
-                            size="compact"
-                            pendingLabel={t('deleting')}
-                            confirmMessage={t('deleteConfirm')}
-                          >
-                            {t('delete')}
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </div>
-                  </Td>
-                </Tr>
-              );
-            })}
-          </tbody>
-        </Table>
-      )}
+        {drivers.length === 0 ? (
+          <p className="text-mist">{t('noMatches')}</p>
+        ) : (
+          <Table>
+            <thead>
+              <TableHeaderRow>
+                <Th>{t('name')}</Th>
+                <Th>{t('email')}</Th>
+                <Th>{t('licenseNumber')}</Th>
+                <Th>{t('status')}</Th>
+                <Th>{t('availability')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {drivers.map((d) => {
+                const user = userByDriverId.get(d.id) ?? null;
+                return (
+                  <Tr key={d.id}>
+                    <Td>{user?.name ?? '—'}</Td>
+                    <Td>{user?.email ?? '—'}</Td>
+                    <Td>{d.licenseNumber}</Td>
+                    <Td>
+                      <Badge tone={DRIVER_STATUS_TONE[d.status]}>{tDriverStatus(d.status)}</Badge>
+                    </Td>
+                    <Td>
+                      <Badge tone={AVAILABILITY_STATUS_TONE[d.availability]}>{tAvailabilityStatus(d.availability)}</Badge>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-3">
+                        <Link href={`/staff/fleet/drivers/${d.id}`} className="text-forest hover:underline">
+                          {t('view')}
+                        </Link>
+                        {ctx.roles.includes('SUPERADMIN') && (
+                          <form action={deleteDriverProfileAction.bind(null, d.id)}>
+                            <SubmitButton
+                              variant="secondary"
+                              size="compact"
+                              pendingLabel={t('deleting')}
+                              confirmMessage={t('deleteConfirm')}
+                            >
+                              {t('delete')}
+                            </SubmitButton>
+                          </form>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        )}
 
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+        <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

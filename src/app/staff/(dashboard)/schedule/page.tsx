@@ -7,6 +7,7 @@ import { itineraryService } from '@modules/itinerary';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RevealGroup } from '@/components/ui/Reveal';
 import { Table, TableHeaderRow, Th, Tr, Td } from '@/components/ui/Table';
 import { ITINERARY_STATUS_TONE } from '@lib/status-tones';
 import { buildScheduleRows } from './build-schedule-rows';
@@ -87,7 +88,7 @@ export default async function MySchedulePage() {
       {rows.length === 0 ? (
         <p className="text-mist">{t('noAssignmentsYet')}</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <RevealGroup as="div" itemAs="div" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {sections.map((s) => (
             <Card key={s.href} interactive className="p-0">
               <Link href={s.href} className="block p-5">
@@ -98,72 +99,94 @@ export default async function MySchedulePage() {
               </Link>
             </Card>
           ))}
-        </div>
+        </RevealGroup>
       )}
 
       {showClientDetails && rows.length > 0 && (
         <div className="space-y-8">
           <div className="survey-rule" />
           <PageHeader eyebrow={t('eyebrow')} title={t('dailyItineraryClients')} />
-          {rows.map(({ assignment, detail }) => {
-            const groups = clientGroupsByDeparture.get(detail.departure.id) ?? [];
-            return (
-              <div key={assignment.id} className="space-y-4">
-                <h2 className="text-lg font-semibold text-navy">
-                  {detail.departure.startDate.toLocaleDateString()} · {detail.packageCountry}
-                  {detail.departure.pickupLatitude != null && detail.departure.pickupLongitude != null && (
-                    <span className="ml-2 text-sm font-normal text-mist">
-                      {t('pickupLabel', {
-                        coords: `${detail.departure.pickupLatitude.toFixed(4)}, ${detail.departure.pickupLongitude.toFixed(4)}`,
-                      })}
+          <RevealGroup as="div" itemAs="div" className="space-y-6">
+            {rows.map(({ assignment, detail }) => {
+              const groups = clientGroupsByDeparture.get(detail.departure.id) ?? [];
+              return (
+                <div key={assignment.id} className="space-y-4">
+                  <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-navy">
+                    {detail.departure.startDate.toLocaleDateString()}
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                      {detail.packageCountry}
                     </span>
+                    {detail.departure.pickupLatitude != null && detail.departure.pickupLongitude != null && (
+                      <span className="text-sm font-normal text-mist">
+                        {t('pickupLabel', {
+                          coords: `${detail.departure.pickupLatitude.toFixed(4)}, ${detail.departure.pickupLongitude.toFixed(4)}`,
+                        })}
+                      </span>
+                    )}
+                  </h2>
+                  {groups.length === 0 ? (
+                    <p className="text-sm text-mist">{t('noPaidBookings')}</p>
+                  ) : (
+                    <RevealGroup as="div" itemAs="div" className="space-y-4">
+                      {groups.map((group) => (
+                        <Card key={group.booking.id}>
+                          <p className="text-sm font-medium text-navy">
+                            {group.booking.bookingReference}
+                            {group.booking.specialRequests && (
+                              <span className="ml-2 font-normal text-mist">{t('tourNotes', { text: group.booking.specialRequests })}</span>
+                            )}
+                          </p>
+                          <Table className="mt-3">
+                            <thead>
+                              <TableHeaderRow>
+                                <Th>{t('name')}</Th>
+                                <Th>{t('nationality')}</Th>
+                                <Th>{t('notes')}</Th>
+                                <Th>{t('emergencyContact')}</Th>
+                              </TableHeaderRow>
+                            </thead>
+                            <tbody>
+                              {group.travelers.map((tv) => (
+                                <Tr key={tv.id}>
+                                  <Td>
+                                    {tv.firstName} {tv.lastName} {tv.isTourLead && <Badge tone="neutral">{t('tourLead')}</Badge>}
+                                  </Td>
+                                  <Td>{tv.nationality}</Td>
+                                  <Td>
+                                    {[tv.disabilities, tv.allergies, tv.drinkPreference].filter(Boolean).length > 0 ? (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {[tv.disabilities, tv.allergies, tv.drinkPreference]
+                                          .filter(Boolean)
+                                          .map((note, i) => (
+                                            <span
+                                              key={i}
+                                              className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist"
+                                            >
+                                              {note}
+                                            </span>
+                                          ))}
+                                      </div>
+                                    ) : (
+                                      '—'
+                                    )}
+                                  </Td>
+                                  <Td>
+                                    {tv.emergencyContactName
+                                      ? `${tv.emergencyContactName}${tv.emergencyContactRelation ? ` (${tv.emergencyContactRelation})` : ''}${tv.emergencyContactPhone ? ` · ${tv.emergencyContactPhone}` : ''}`
+                                      : '—'}
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </tbody>
+                          </Table>
+                        </Card>
+                      ))}
+                    </RevealGroup>
                   )}
-                </h2>
-                {groups.length === 0 ? (
-                  <p className="text-sm text-mist">{t('noPaidBookings')}</p>
-                ) : (
-                  groups.map((group) => (
-                    <div key={group.booking.id} className="rounded-survey border border-rule p-4">
-                      <p className="text-sm font-medium text-navy">
-                        {group.booking.bookingReference}
-                        {group.booking.specialRequests && (
-                          <span className="ml-2 font-normal text-mist">{t('tourNotes', { text: group.booking.specialRequests })}</span>
-                        )}
-                      </p>
-                      <Table className="mt-3">
-                        <thead>
-                          <TableHeaderRow>
-                            <Th>{t('name')}</Th>
-                            <Th>{t('nationality')}</Th>
-                            <Th>{t('notes')}</Th>
-                            <Th>{t('emergencyContact')}</Th>
-                          </TableHeaderRow>
-                        </thead>
-                        <tbody>
-                          {group.travelers.map((tv) => (
-                            <Tr key={tv.id}>
-                              <Td>
-                                {tv.firstName} {tv.lastName} {tv.isTourLead && <Badge tone="neutral">{t('tourLead')}</Badge>}
-                              </Td>
-                              <Td>{tv.nationality}</Td>
-                              <Td>
-                                {[tv.disabilities, tv.allergies, tv.drinkPreference].filter(Boolean).join(' · ') || '—'}
-                              </Td>
-                              <Td>
-                                {tv.emergencyContactName
-                                  ? `${tv.emergencyContactName}${tv.emergencyContactRelation ? ` (${tv.emergencyContactRelation})` : ''}${tv.emergencyContactPhone ? ` · ${tv.emergencyContactPhone}` : ''}`
-                                  : '—'}
-                              </Td>
-                            </Tr>
-                          ))}
-                        </tbody>
-                      </Table>
-                    </div>
-                  ))
-                )}
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
+          </RevealGroup>
         </div>
       )}
 
@@ -171,9 +194,9 @@ export default async function MySchedulePage() {
         <div className="space-y-4">
           <div className="survey-rule" />
           <PageHeader eyebrow={t('eyebrow')} title={t('itinerariesTitle')} />
-          <ul className="space-y-2 text-sm">
+          <RevealGroup as="ul" itemAs="li" className="space-y-2 text-sm">
             {myItineraries.map((itinerary) => (
-              <li key={itinerary.id} className="flex items-center justify-between border-b border-rule pb-2">
+              <div key={itinerary.id} className="flex items-center justify-between border-b border-rule pb-2">
                 <span>{itineraryBookingRefs.get(itinerary.id)}</span>
                 <span className="flex items-center gap-3">
                   <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
@@ -181,9 +204,9 @@ export default async function MySchedulePage() {
                     {t('view')}
                   </Link>
                 </span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </RevealGroup>
         </div>
       )}
     </div>

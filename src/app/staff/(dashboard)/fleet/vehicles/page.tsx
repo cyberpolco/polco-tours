@@ -10,6 +10,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -88,108 +89,110 @@ export default async function VehiclesListPage({ searchParams }: Props) {
         <LinkButton href="/staff/fleet/vehicles/new">{t('addVehicle')}</LinkButton>
       </div>
 
-      <form method="get" action="/staff/fleet/vehicles" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('status')} htmlFor="status" optional>
-          <Select name="status" defaultValue={status}>
-            <option value="">{t('all')}</option>
-            <option value="ACTIVE">{tVehicleStatus('ACTIVE')}</option>
-            <option value="MAINTENANCE">{tVehicleStatus('MAINTENANCE')}</option>
-            <option value="RETIRED">{tVehicleStatus('RETIRED')}</option>
-          </Select>
-        </FormField>
-        <FormField label={t('availability')} htmlFor="availability" optional>
-          <Select name="availability" defaultValue={availability}>
-            <option value="">{t('all')}</option>
-            <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
-            <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
-            <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
-          </Select>
-        </FormField>
-        <FormField label={t('type')} htmlFor="type" optional>
-          <Select name="type" defaultValue={type}>
-            <option value="">{t('all')}</option>
-            {typeOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || status || availability || type) && (
-            <Link href="/staff/fleet/vehicles" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
-          )}
-        </div>
-      </form>
+      <Reveal className="space-y-6">
+        <form method="get" action="/staff/fleet/vehicles" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <FormField label={t('search')} htmlFor="q" optional>
+            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+          </FormField>
+          <FormField label={t('status')} htmlFor="status" optional>
+            <Select name="status" defaultValue={status}>
+              <option value="">{t('all')}</option>
+              <option value="ACTIVE">{tVehicleStatus('ACTIVE')}</option>
+              <option value="MAINTENANCE">{tVehicleStatus('MAINTENANCE')}</option>
+              <option value="RETIRED">{tVehicleStatus('RETIRED')}</option>
+            </Select>
+          </FormField>
+          <FormField label={t('availability')} htmlFor="availability" optional>
+            <Select name="availability" defaultValue={availability}>
+              <option value="">{t('all')}</option>
+              <option value="AVAILABLE">{tAvailabilityStatus('AVAILABLE')}</option>
+              <option value="BOOKED">{tAvailabilityStatus('BOOKED')}</option>
+              <option value="INACTIVE">{tAvailabilityStatus('INACTIVE')}</option>
+            </Select>
+          </FormField>
+          <FormField label={t('type')} htmlFor="type" optional>
+            <Select name="type" defaultValue={type}>
+              <option value="">{t('all')}</option>
+              {typeOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
+            <SubmitButton size="compact">{t('filter')}</SubmitButton>
+            {(q || status || availability || type) && (
+              <Link href="/staff/fleet/vehicles" className="text-sm text-mist hover:underline">
+                {t('clearFilters')}
+              </Link>
+            )}
+          </div>
+        </form>
 
-      <p className="text-sm text-mist">{t('vehicleCount', { count: totalItems })}</p>
+        <p className="text-sm text-mist">{t('vehicleCount', { count: totalItems })}</p>
 
-      {vehicles.length === 0 ? (
-        <p className="text-mist">{t('noMatches')}</p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{t('plate')}</Th>
-              <Th>{t('makeModel')}</Th>
-              <Th>{t('type')}</Th>
-              <Th>{t('seats')}</Th>
-              <Th>{t('status')}</Th>
-              <Th>{t('availability')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {vehicles.map((v) => (
-              <Tr key={v.id}>
-                <Td>{v.plateNumber}</Td>
-                <Td>
-                  {v.make} {v.model}
-                </Td>
-                <Td>{v.vehicleType}</Td>
-                <Td>{v.seatCapacity}</Td>
-                <Td>
-                  <Badge tone={VEHICLE_STATUS_TONE[v.status]}>{tVehicleStatus(v.status)}</Badge>
-                </Td>
-                <Td>
-                  <Badge tone={AVAILABILITY_STATUS_TONE[v.availability]}>{tAvailabilityStatus(v.availability)}</Badge>
-                </Td>
-                <Td>
-                  <div className="flex items-center gap-3">
-                    <Link href={`/staff/fleet/vehicles/${v.id}`} className="text-forest hover:underline">
-                      {t('view')}
-                    </Link>
-                    {/* DR-059: SUPERADMIN-only -- see the vehicle detail
-                        page's own comment on why this role check (not just
-                        the route's fleet.delete permission) is the real
-                        gate for rendering the control at all. */}
-                    {ctx.roles.includes('SUPERADMIN') && (
-                      <form action={deleteVehicleAction.bind(null, v.id)}>
-                        <SubmitButton
-                          variant="secondary"
-                          size="compact"
-                          pendingLabel={t('deleting')}
-                          confirmMessage={t('deleteConfirm', { plate: v.plateNumber })}
-                        >
-                          {t('delete')}
-                        </SubmitButton>
-                      </form>
-                    )}
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+        {vehicles.length === 0 ? (
+          <p className="text-mist">{t('noMatches')}</p>
+        ) : (
+          <Table>
+            <thead>
+              <TableHeaderRow>
+                <Th>{t('plate')}</Th>
+                <Th>{t('makeModel')}</Th>
+                <Th>{t('type')}</Th>
+                <Th>{t('seats')}</Th>
+                <Th>{t('status')}</Th>
+                <Th>{t('availability')}</Th>
+                <Th />
+              </TableHeaderRow>
+            </thead>
+            <tbody>
+              {vehicles.map((v) => (
+                <Tr key={v.id}>
+                  <Td>{v.plateNumber}</Td>
+                  <Td>
+                    {v.make} {v.model}
+                  </Td>
+                  <Td>{v.vehicleType}</Td>
+                  <Td>{v.seatCapacity}</Td>
+                  <Td>
+                    <Badge tone={VEHICLE_STATUS_TONE[v.status]}>{tVehicleStatus(v.status)}</Badge>
+                  </Td>
+                  <Td>
+                    <Badge tone={AVAILABILITY_STATUS_TONE[v.availability]}>{tAvailabilityStatus(v.availability)}</Badge>
+                  </Td>
+                  <Td>
+                    <div className="flex items-center gap-3">
+                      <Link href={`/staff/fleet/vehicles/${v.id}`} className="text-forest hover:underline">
+                        {t('view')}
+                      </Link>
+                      {/* DR-059: SUPERADMIN-only -- see the vehicle detail
+                          page's own comment on why this role check (not just
+                          the route's fleet.delete permission) is the real
+                          gate for rendering the control at all. */}
+                      {ctx.roles.includes('SUPERADMIN') && (
+                        <form action={deleteVehicleAction.bind(null, v.id)}>
+                          <SubmitButton
+                            variant="secondary"
+                            size="compact"
+                            pendingLabel={t('deleting')}
+                            confirmMessage={t('deleteConfirm', { plate: v.plateNumber })}
+                          >
+                            {t('delete')}
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
 
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+        <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

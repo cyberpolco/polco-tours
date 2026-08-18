@@ -9,10 +9,12 @@ import { itineraryService } from '@modules/itinerary';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { MultiSearchableSelect } from '@/components/ui/MultiSearchableSelect';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -132,6 +134,7 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
+      <Reveal>
       <div className="mt-4 flex gap-3">
         <form action={duplicatePackageAction.bind(null, packageId)}>
           <SubmitButton variant="secondary" pendingLabel={t('duplicating')}>
@@ -152,9 +155,9 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         </form>
       </div>
 
-      <div className="mt-6 rounded-survey border border-rule p-4">
+      <Card className="mt-6">
         <p className="text-xs text-mist">{t('pricePerSeat')}</p>
-        <p className="text-lg font-semibold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency, t('notYetPriced'))}</p>
+        <p className="text-lg font-bold text-navy">{formatOrPending(pkg.priceMinor, pkg.currency, t('notYetPriced'))}</p>
         <p className="mt-1 text-xs text-mist">{t('priceComputedNotice')}</p>
         <LinkButton href={`/staff/packages/${packageId}/cost-breakdown`} variant="secondary" size="compact" className="mt-2">
           {t('manageCostBreakdown')}
@@ -185,7 +188,7 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
             </p>
           </>
         )}
-      </div>
+      </Card>
 
       <form action={updatePackageAction.bind(null, packageId)} className="mt-6 space-y-4">
         <FormField label={t('title')} htmlFor="title">
@@ -301,9 +304,9 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         {templateDays.length === 0 ? (
           <p className="mt-3 text-sm text-mist">{t('noTemplateDaysYet')}</p>
         ) : (
-          <div className="mt-4 space-y-3">
+          <RevealGroup as="div" itemAs="div" className="mt-4 space-y-3">
             {templateDays.map((day) => (
-              <div key={day.id} className="rounded-survey border border-rule p-4">
+              <Card key={day.id}>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-navy">
                     {t('dayLabel', { number: day.dayNumber })}
@@ -443,9 +446,9 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                     </SubmitButton>
                   </form>
                 </details>
-              </div>
+              </Card>
             ))}
-          </div>
+          </RevealGroup>
         )}
 
         <details className="mt-6">
@@ -512,6 +515,7 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
           </form>
         </details>
       </div>
+      </Reveal>
     </div>
   );
 }

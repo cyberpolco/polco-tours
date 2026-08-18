@@ -3,7 +3,9 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService } from '@modules/auth';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { EditUserForm } from './edit-user-form';
 import { ResetPasswordPanel } from './reset-password-panel';
 
@@ -40,8 +42,12 @@ export default async function EditUserPage({ params }: Props) {
     <div className="max-w-md space-y-10">
       <BackLink href="/staff/admin/users">{t('backToUsers')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={user.name ?? user.email} />
-      <EditUserForm userId={user.id} user={user} assignableRoles={ASSIGNABLE_ROLES} />
-      <ResetPasswordPanel userId={user.id} />
+      <Reveal>
+        <Card>
+          <EditUserForm userId={user.id} user={user} assignableRoles={ASSIGNABLE_ROLES} />
+          <ResetPasswordPanel userId={user.id} />
+        </Card>
+      </Reveal>
     </div>
   );
 }

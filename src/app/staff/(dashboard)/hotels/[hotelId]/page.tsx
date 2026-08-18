@@ -4,10 +4,13 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
+import { Badge } from '@/components/ui/Badge';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { deleteHotelAction, rateHotelAction, updateHotelAction } from './actions';
@@ -50,6 +53,7 @@ export default async function HotelDetailPage({ params }: Props) {
     <div className="max-w-md space-y-8">
       <BackLink href="/staff/hotels">{t('backToHotels')}</BackLink>
       <PageHeader eyebrow={t('detailEyebrow')} title={hotel.name} />
+      <Reveal className="space-y-8">
       {canWrite ? (
         <form action={updateHotelAction.bind(null, hotelId)} className="space-y-4">
           <FormField label={tFields('name')} htmlFor="name">
@@ -80,18 +84,24 @@ export default async function HotelDetailPage({ params }: Props) {
           <SubmitButton>{tFields('saveChanges')}</SubmitButton>
         </form>
       ) : (
-        <div className="space-y-1 text-sm text-mist">
-          <p>
-            {flagEmoji(hotel.country)} {tCountries(hotel.country)}
-          </p>
-          {hotel.address && <p>{hotel.address}</p>}
-          <p>{hotel.contactPhone ?? hotel.contactEmail ?? tFields('noContactOnFile')}</p>
-          <p>
-            {hotel.averageRating != null
-              ? tFields('ratedSummary', { rating: hotel.averageRating.toFixed(1), count: hotel.ratingCount })
-              : tFields('notYetRated')}
-          </p>
-        </div>
+        <Card className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+              {flagEmoji(hotel.country)} {tCountries(hotel.country)}
+            </span>
+            {hotel.address && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{hotel.address}</span>
+            )}
+          </div>
+          <p className="text-sm text-mist">{hotel.contactPhone ?? hotel.contactEmail ?? tFields('noContactOnFile')}</p>
+          <div>
+            {hotel.averageRating != null ? (
+              <Badge tone="neutral">{tFields('ratedSummary', { rating: hotel.averageRating.toFixed(1), count: hotel.ratingCount })}</Badge>
+            ) : (
+              <span className="text-xs text-mist">{tFields('notYetRated')}</span>
+            )}
+          </div>
+        </Card>
       )}
       {canWrite && (
         <form action={deleteHotelAction.bind(null, hotelId)}>
@@ -101,8 +111,7 @@ export default async function HotelDetailPage({ params }: Props) {
         </form>
       )}
       {canRate && (
-        <div>
-          <div className="survey-rule mb-4" />
+        <Card>
           <p className="eyebrow text-mist">{tFields('yourRating')}</p>
           <form action={rateHotelAction.bind(null, hotelId)} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label={tFields('rating')} htmlFor="rating">
@@ -126,8 +135,9 @@ export default async function HotelDetailPage({ params }: Props) {
             </FormField>
             <SubmitButton pendingLabel={tFields('saving')}>{myRating ? tFields('update') : tFields('rate')}</SubmitButton>
           </form>
-        </div>
+        </Card>
       )}
+      </Reveal>
     </div>
   );
 }

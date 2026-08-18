@@ -10,6 +10,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -79,65 +80,69 @@ export default async function CustomizedPackagesPage({ searchParams }: Props) {
       </div>
       <p className="-mt-4 text-sm text-mist">{t('customizedNotice')}</p>
 
-      <form method="get" action="/staff/packages/customized" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('status')} htmlFor="status" optional>
-          <Select name="status" defaultValue={status}>
-            <option value="">{t('all')}</option>
-            <option value="DRAFT">{t('draft')}</option>
-            <option value="ARCHIVED">{t('archived')}</option>
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || status) && (
-            <Link href="/staff/packages/customized" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
+      <Reveal>
+        <div className="space-y-8">
+          <form method="get" action="/staff/packages/customized" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <FormField label={t('search')} htmlFor="q" optional>
+              <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+            </FormField>
+            <FormField label={t('status')} htmlFor="status" optional>
+              <Select name="status" defaultValue={status}>
+                <option value="">{t('all')}</option>
+                <option value="DRAFT">{t('draft')}</option>
+                <option value="ARCHIVED">{t('archived')}</option>
+              </Select>
+            </FormField>
+            <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+              <SubmitButton size="compact">{t('filter')}</SubmitButton>
+              {(q || status) && (
+                <Link href="/staff/packages/customized" className="text-sm text-mist hover:underline">
+                  {t('clearFilters')}
+                </Link>
+              )}
+            </div>
+          </form>
+
+          <p className="text-sm text-mist">{t('packageCount', { count: totalItems })}</p>
+
+          {packages.length === 0 ? (
+            <p className="text-mist">{t('noCustomizedMatches')}</p>
+          ) : (
+            <Table>
+              <thead>
+                <TableHeaderRow>
+                  <Th>{t('reference')}</Th>
+                  <Th>{t('packageTitle')}</Th>
+                  <Th>{t('country')}</Th>
+                  <Th>{t('price')}</Th>
+                  <Th>{t('status')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {packages.map((p) => (
+                  <Tr key={p.id}>
+                    <Td className="font-mono text-xs">{p.packageReference}</Td>
+                    <Td>{p.title}</Td>
+                    <Td>{p.countries.map((c) => tCountries(c)).join(' + ')}</Td>
+                    <Td>{formatOrPending(p.priceMinor, p.currency, t('notYetPriced'))}</Td>
+                    <Td>
+                      <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{tPackageStatus(p.status)}</Badge>
+                    </Td>
+                    <Td>
+                      <Link href={`/staff/packages/${p.id}`} className="text-forest hover:underline">
+                        {t('view')}
+                      </Link>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
           )}
+
+          <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
         </div>
-      </form>
-
-      <p className="text-sm text-mist">{t('packageCount', { count: totalItems })}</p>
-
-      {packages.length === 0 ? (
-        <p className="text-mist">{t('noCustomizedMatches')}</p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{t('reference')}</Th>
-              <Th>{t('packageTitle')}</Th>
-              <Th>{t('country')}</Th>
-              <Th>{t('price')}</Th>
-              <Th>{t('status')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {packages.map((p) => (
-              <Tr key={p.id}>
-                <Td className="font-mono text-xs">{p.packageReference}</Td>
-                <Td>{p.title}</Td>
-                <Td>{p.countries.map((c) => tCountries(c)).join(' + ')}</Td>
-                <Td>{formatOrPending(p.priceMinor, p.currency, t('notYetPriced'))}</Td>
-                <Td>
-                  <Badge tone={PACKAGE_STATUS_TONE[p.status]}>{tPackageStatus(p.status)}</Badge>
-                </Td>
-                <Td>
-                  <Link href={`/staff/packages/${p.id}`} className="text-forest hover:underline">
-                    {t('view')}
-                  </Link>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

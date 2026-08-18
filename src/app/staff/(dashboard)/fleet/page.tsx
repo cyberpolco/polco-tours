@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { fleetService } from '@modules/fleet';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { RevealGroup } from '@/components/ui/Reveal';
 
 // DR-095: the fleet dashboard used to be one page with all four tables
 // (Vehicles/Drivers/Guides/Starlink Kits) rendered end to end -- fine while
@@ -33,7 +34,7 @@ export default async function FleetPage() {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <RevealGroup as="div" itemAs="div" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">
             <Link href={s.href} className="block p-5">
@@ -45,7 +46,7 @@ export default async function FleetPage() {
             </Link>
           </Card>
         ))}
-      </div>
+      </RevealGroup>
     </div>
   );
 }

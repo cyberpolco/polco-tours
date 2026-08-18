@@ -7,6 +7,7 @@ import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { ItineraryCircuitMap } from '@/components/ui/ItineraryCircuitMap';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 
 interface Props {
@@ -45,27 +46,33 @@ export default async function MapPage({ searchParams }: Props) {
     <div className="max-w-3xl space-y-8">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
-      <form method="get" className="flex items-end gap-3">
-        <div className="flex-1">
-          <FormField label={t('bookingReference')} htmlFor="bookingReference">
-            <input
-              name="bookingReference"
-              defaultValue={bookingReference ?? ''}
-              placeholder={t('bookingReferencePlaceholder')}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
-            />
-          </FormField>
-        </div>
-        <SubmitButton pendingLabel={t('lookingUp')}>{t('lookUp')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form method="get" className="flex items-end gap-3">
+          <div className="flex-1">
+            <FormField label={t('bookingReference')} htmlFor="bookingReference">
+              <input
+                name="bookingReference"
+                defaultValue={bookingReference ?? ''}
+                placeholder={t('bookingReferencePlaceholder')}
+                required
+                className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
+              />
+            </FormField>
+          </div>
+          <SubmitButton pendingLabel={t('lookingUp')}>{t('lookUp')}</SubmitButton>
+        </form>
 
-      {lookupFailed && <Alert tone="error">{t('lookupFailed')}</Alert>}
+        {lookupFailed && (
+          <div className="mt-4">
+            <Alert tone="error">{t('lookupFailed')}</Alert>
+          </div>
+        )}
 
-      {overview && overview.days.length === 0 && <p className="text-sm text-mist">{t('noDaysYet')}</p>}
+        {overview && overview.days.length === 0 && <p className="mt-4 text-sm text-mist">{t('noDaysYet')}</p>}
+      </Reveal>
 
       {overview && circuitDays && circuitDays.length > 0 && (
-        <div className="space-y-6">
+        <Reveal delay={0.1} className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-navy">{t('circuitFor', { reference: overview.bookingReference })}</p>
             <LinkButton href={`/api/v1/itineraries/${overview.itineraryId}/map-pdf`} prefetch={false} variant="secondary">
@@ -75,15 +82,15 @@ export default async function MapPage({ searchParams }: Props) {
 
           <ItineraryCircuitMap days={circuitDays} />
 
-          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-mist">
+          <RevealGroup as="ul" itemAs="li" className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-mist" itemClassName="flex items-center gap-2">
             {circuitDays.map((day) => (
-              <li key={day.dayNumber} className="flex items-center gap-2">
+              <span key={day.dayNumber} className="flex items-center gap-2">
                 <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: circuitColorAsCss(day.color) }} />
                 {t('dayLabel', { number: day.dayNumber })} · {day.date.toLocaleDateString()}
-              </li>
+              </span>
             ))}
-          </ul>
-        </div>
+          </RevealGroup>
+        </Reveal>
       )}
     </div>
   );

@@ -5,7 +5,9 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService, type CountryRegulationView } from '@modules/immigration';
 import { visaService } from '@modules/visa';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { VISA_STATUS_TONE } from '@lib/status-tones';
@@ -78,21 +80,23 @@ export default async function VisaQueuePage({ searchParams }: Props) {
     <div className="space-y-8">
       <div className="space-y-6">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-        <div className="flex flex-wrap gap-6 text-sm text-mist">
-          <p>
-            <span className="font-semibold text-navy">{pendingCount}</span> {t('tasksAwaitingDecision', { count: pendingCount })}
-          </p>
-          <p>
-            <span className="font-semibold text-navy">{missingDocCount}</span> {t('missingDocuments', { count: missingDocCount })}
-          </p>
-          <p>
-            <span className="font-semibold text-navy">{needingApplication.length}</span>{' '}
-            {t('travelersNeedingApplication', { count: needingApplication.length })}
-          </p>
-        </div>
+        <RevealGroup as="div" itemAs="div" className="flex flex-wrap gap-4" itemClassName="min-w-[220px] flex-1">
+          <Card>
+            <p className="text-2xl font-bold text-navy">{pendingCount}</p>
+            <p className="text-sm text-mist">{t('tasksAwaitingDecision', { count: pendingCount })}</p>
+          </Card>
+          <Card>
+            <p className="text-2xl font-bold text-navy">{missingDocCount}</p>
+            <p className="text-sm text-mist">{t('missingDocuments', { count: missingDocCount })}</p>
+          </Card>
+          <Card>
+            <p className="text-2xl font-bold text-navy">{needingApplication.length}</p>
+            <p className="text-sm text-mist">{t('travelersNeedingApplication', { count: needingApplication.length })}</p>
+          </Card>
+        </RevealGroup>
 
         {needingApplication.length > 0 && (
-          <div>
+          <Reveal>
             <h2 className="mb-2 text-sm font-semibold text-navy">{t('needsApplication')}</h2>
             <p className="mb-3 text-xs text-mist">{t('needsApplicationNotice')}</p>
             <Table>
@@ -137,15 +141,15 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                 ))}
               </tbody>
             </Table>
-          </div>
+          </Reveal>
         )}
       </div>
 
-      <div>
+      <Reveal>
         <div className="mb-3 flex flex-wrap gap-2 text-sm">
           <Link
             href={pillHref(undefined)}
-            className={`rounded-survey border border-rule px-3 py-1 ${!origin ? 'bg-navy text-bone' : 'text-ink'}`}
+            className={`rounded-pill border border-rule px-3 py-1 transition-colors ${!origin ? 'bg-navy text-bone' : 'text-ink hover:bg-mist/10'}`}
           >
             {t('all')} ({allApplications.length})
           </Link>
@@ -156,7 +160,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
               <Link
                 key={o}
                 href={pillHref(o)}
-                className={`rounded-survey border border-rule px-3 py-1 ${origin === o ? 'bg-navy text-bone' : 'text-ink'}`}
+                className={`rounded-pill border border-rule px-3 py-1 transition-colors ${origin === o ? 'bg-navy text-bone' : 'text-ink hover:bg-mist/10'}`}
               >
                 {ORIGIN_LABEL[o]} ({count})
               </Link>
@@ -288,7 +292,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
             </tbody>
           </Table>
         )}
-      </div>
+      </Reveal>
     </div>
   );
 }

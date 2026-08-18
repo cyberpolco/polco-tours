@@ -81,7 +81,9 @@ export function SidebarShell({
             key={href}
             href={href}
             prefetch={false}
-            className={`shrink-0 rounded-survey px-2 py-1 lg:block ${href === activeHref ? 'bg-bone font-medium text-navy' : 'text-mist hover:text-navy'}`}
+            className={`shrink-0 rounded-survey px-2 py-1 transition-colors duration-150 lg:block ${
+              href === activeHref ? 'bg-amber-soft font-semibold text-navy' : 'text-mist hover:bg-mist/10 hover:text-navy'
+            }`}
           >
             {t(labelKey)}
           </Link>

@@ -3,8 +3,10 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { deleteCountryRegulationAction, updateCountryRegulationAction } from './actions';
@@ -38,6 +40,8 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
       <div className="max-w-2xl space-y-6">
         <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
         <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
+        <Reveal>
+        <Card>
         <dl className="space-y-4 text-sm">
           <div>
             <dt className="text-mist">{t('visaRequirements')}</dt>
@@ -85,6 +89,8 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             <dd className="whitespace-pre-wrap">{regulation.specialRestrictions ?? '—'}</dd>
           </div>
         </dl>
+        </Card>
+        </Reveal>
       </div>
     );
   }
@@ -93,6 +99,8 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
     <div className="max-w-2xl space-y-8">
       <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
+      <Reveal>
+      <Card>
       <form action={updateCountryRegulationAction.bind(null, regulation.country)} className="space-y-4">
         <FormField label={t('visaRequirements')} htmlFor="visaRequirements">
           <textarea
@@ -205,6 +213,8 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
         </FormField>
         <SubmitButton>{t('saveChanges')}</SubmitButton>
       </form>
+      </Card>
+      </Reveal>
       <form action={deleteCountryRegulationAction.bind(null, regulation.country)}>
         <SubmitButton
           variant="secondary"

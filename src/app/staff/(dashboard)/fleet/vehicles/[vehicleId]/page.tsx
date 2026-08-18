@@ -7,6 +7,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SelectOrOther } from '@/components/ui/SelectOrOther';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -57,59 +58,61 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
         {t('availabilityLabel')} <Badge tone={AVAILABILITY_STATUS_TONE[vehicle.availability]}>{tAvailabilityStatus(vehicle.availability)}</Badge>
       </p>
 
-      <form action={updateVehicleAction.bind(null, vehicleId)} className="space-y-4">
-        <div className="survey-rule mb-2" />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('plateNumber')} htmlFor="plateNumber">
-            <input name="plateNumber" defaultValue={vehicle.plateNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label={t('vin')} htmlFor="vin" optional>
-            <input name="vin" defaultValue={vehicle.vin ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-        </div>
-        <VehicleMakeModelFields defaultMake={vehicle.make} defaultModel={vehicle.model} />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('status')} htmlFor="status">
-            <Select name="status" defaultValue={vehicle.status}>
-              <option value="ACTIVE">{tVehicleStatus('ACTIVE')}</option>
-              <option value="MAINTENANCE">{tVehicleStatus('MAINTENANCE')}</option>
-              <option value="RETIRED">{tVehicleStatus('RETIRED')}</option>
-            </Select>
-          </FormField>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('type')} htmlFor="vehicleType">
-            <SelectOrOther
-              name="vehicleType"
-              options={VEHICLE_TYPES}
-              defaultValue={vehicle.vehicleType}
-              placeholder={t('vehicleTypePlaceholder')}
-              required
-            />
-          </FormField>
-          <FormField label={t('year')} htmlFor="year" optional>
+      <Reveal>
+        <form action={updateVehicleAction.bind(null, vehicleId)} className="space-y-4">
+          <div className="survey-rule mb-2" />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label={t('plateNumber')} htmlFor="plateNumber">
+              <input name="plateNumber" defaultValue={vehicle.plateNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label={t('vin')} htmlFor="vin" optional>
+              <input name="vin" defaultValue={vehicle.vin ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+          </div>
+          <VehicleMakeModelFields defaultMake={vehicle.make} defaultModel={vehicle.model} />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label={t('status')} htmlFor="status">
+              <Select name="status" defaultValue={vehicle.status}>
+                <option value="ACTIVE">{tVehicleStatus('ACTIVE')}</option>
+                <option value="MAINTENANCE">{tVehicleStatus('MAINTENANCE')}</option>
+                <option value="RETIRED">{tVehicleStatus('RETIRED')}</option>
+              </Select>
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label={t('type')} htmlFor="vehicleType">
+              <SelectOrOther
+                name="vehicleType"
+                options={VEHICLE_TYPES}
+                defaultValue={vehicle.vehicleType}
+                placeholder={t('vehicleTypePlaceholder')}
+                required
+              />
+            </FormField>
+            <FormField label={t('year')} htmlFor="year" optional>
+              <input
+                name="year"
+                type="number"
+                defaultValue={vehicle.year ?? undefined}
+                className="w-full rounded-survey border border-rule px-3 py-2"
+              />
+            </FormField>
+          </div>
+          <FormField label={t('seatCapacity')} htmlFor="seatCapacity">
             <input
-              name="year"
+              name="seatCapacity"
               type="number"
-              defaultValue={vehicle.year ?? undefined}
+              min={1}
+              defaultValue={vehicle.seatCapacity}
+              required
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-        </div>
-        <FormField label={t('seatCapacity')} htmlFor="seatCapacity">
-          <input
-            name="seatCapacity"
-            type="number"
-            min={1}
-            defaultValue={vehicle.seatCapacity}
-            required
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <SubmitButton>{t('saveChanges')}</SubmitButton>
-      </form>
+          <SubmitButton>{t('saveChanges')}</SubmitButton>
+        </form>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.1}>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('complianceDocuments')}</p>
         {error === 'missing_file' && (
@@ -122,7 +125,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             <Alert tone="error">{t('chooseDocumentType')}</Alert>
           </div>
         )}
-        <div className="mt-4 space-y-6">
+        <RevealGroup as="div" itemAs="div" className="mt-4 space-y-6">
           {VEHICLE_DOCUMENT_KINDS.map(({ kind, labelKey }) => {
             const latest = documents
               .filter((d) => d.kind === kind)
@@ -130,25 +133,29 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             const status = complianceStatus(latest?.expiresAt ?? null, now);
 
             return (
-              <div key={kind} className="border-b border-rule pb-4">
+              <div key={kind} className="rounded-card border border-rule p-4 shadow-card">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-ink">{t(labelKey)}</span>
                   <Badge tone={COMPLIANCE_STATUS_TONE[status]}>{tComplianceStatus(status)}</Badge>
                 </div>
                 {latest && (
-                  <p className="mt-1 text-sm text-mist">
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-mist">
                     <a
                       href={`/api/v1/fleet/vehicles/${vehicleId}/documents/${latest.id}`}
                       className="text-forest hover:underline"
                     >
                       {t('downloadCurrentFile')}
                     </a>
-                    {latest.expiresAt && ` · ${t('expiresOn', { date: latest.expiresAt.toLocaleDateString() })}`}
+                    {latest.expiresAt && (
+                      <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                        {t('expiresOn', { date: latest.expiresAt.toLocaleDateString() })}
+                      </span>
+                    )}
                   </p>
                 )}
                 <form
                   action={uploadVehicleDocumentAction.bind(null, vehicleId)}
-                  className="mt-2 flex flex-wrap items-end gap-3"
+                  className="mt-3 flex flex-wrap items-end gap-3"
                 >
                   <input type="hidden" name="kind" value={kind} />
                   <input type="file" name="file" required className="text-sm" />
@@ -163,25 +170,25 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
               </div>
             );
           })}
-        </div>
-      </div>
+        </RevealGroup>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.15}>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('maintenanceHistory')}</p>
         {maintenanceRecords.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noMaintenanceYet')}</p>
         ) : (
-          <ul className="mt-2 space-y-2 text-sm">
+          <RevealGroup as="ul" itemAs="li" className="mt-2 space-y-2 text-sm">
             {maintenanceRecords.map((m) => (
-              <li key={m.id} className="flex items-center justify-between border-b border-rule pb-2">
+              <div key={m.id} className="flex items-center justify-between border-b border-rule pb-2">
                 <span>
                   {m.performedAt.toLocaleDateString()} · {m.description}
                 </span>
                 {m.costMinor != null && m.currency && <span className="text-mist">{format(money(m.costMinor, m.currency))}</span>}
-              </li>
+              </div>
             ))}
-          </ul>
+          </RevealGroup>
         )}
 
         <form action={addMaintenanceRecordAction.bind(null, vehicleId)} className="mt-4 flex flex-wrap items-end gap-3">
@@ -207,7 +214,7 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
             {t('logMaintenance')}
           </SubmitButton>
         </form>
-      </div>
+      </Reveal>
 
       {/* DR-059: SUPERADMIN-only, any status -- the control itself renders
           only for SUPERADMIN (same convention as booking deletion, DR-058)
@@ -215,14 +222,14 @@ export default async function VehicleDetailPage({ params, searchParams }: Props)
           fleet.delete permission but still 403 in fleetService
           .deleteVehicle's own isFleetDeleter check. */}
       {ctx.roles.includes('SUPERADMIN') && (
-        <div>
+        <Reveal delay={0.2}>
           <div className="survey-rule mb-6" />
           <form action={deleteVehicleAction.bind(null, vehicleId)}>
             <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteVehicleConfirm')}>
               {t('deleteVehicle')}
             </SubmitButton>
           </form>
-        </div>
+        </Reveal>
       )}
     </div>
   );

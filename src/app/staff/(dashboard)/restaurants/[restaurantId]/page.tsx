@@ -4,10 +4,13 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
+import { Badge } from '@/components/ui/Badge';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { deleteRestaurantAction, rateRestaurantAction, updateRestaurantAction } from './actions';
@@ -46,6 +49,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
     <div className="max-w-md space-y-8">
       <BackLink href="/staff/restaurants">{t('backToRestaurants')}</BackLink>
       <PageHeader eyebrow={t('detailEyebrow')} title={restaurant.name} />
+      <Reveal className="space-y-8">
       {canWrite ? (
         <form action={updateRestaurantAction.bind(null, restaurantId)} className="space-y-4">
           <FormField label={tFields('name')} htmlFor="name">
@@ -81,18 +85,26 @@ export default async function RestaurantDetailPage({ params }: Props) {
           <SubmitButton>{tFields('saveChanges')}</SubmitButton>
         </form>
       ) : (
-        <div className="space-y-1 text-sm text-mist">
-          <p>
-            {flagEmoji(restaurant.country)} {tCountries(restaurant.country)}
-          </p>
-          {restaurant.address && <p>{restaurant.address}</p>}
-          <p>{restaurant.contactPhone ?? restaurant.contactEmail ?? tFields('noContactOnFile')}</p>
-          <p>
-            {restaurant.averageRating != null
-              ? tFields('ratedSummary', { rating: restaurant.averageRating.toFixed(1), count: restaurant.ratingCount })
-              : tFields('notYetRated')}
-          </p>
-        </div>
+        <Card className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+              {flagEmoji(restaurant.country)} {tCountries(restaurant.country)}
+            </span>
+            {restaurant.address && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{restaurant.address}</span>
+            )}
+          </div>
+          <p className="text-sm text-mist">{restaurant.contactPhone ?? restaurant.contactEmail ?? tFields('noContactOnFile')}</p>
+          <div>
+            {restaurant.averageRating != null ? (
+              <Badge tone="neutral">
+                {tFields('ratedSummary', { rating: restaurant.averageRating.toFixed(1), count: restaurant.ratingCount })}
+              </Badge>
+            ) : (
+              <span className="text-xs text-mist">{tFields('notYetRated')}</span>
+            )}
+          </div>
+        </Card>
       )}
       {canWrite && (
         <form action={deleteRestaurantAction.bind(null, restaurantId)}>
@@ -102,8 +114,7 @@ export default async function RestaurantDetailPage({ params }: Props) {
         </form>
       )}
       {canRate && (
-        <div>
-          <div className="survey-rule mb-4" />
+        <Card>
           <p className="eyebrow text-mist">{tFields('yourRating')}</p>
           <form action={rateRestaurantAction.bind(null, restaurantId)} className="mt-3 flex flex-wrap items-end gap-3">
             <FormField label={tFields('rating')} htmlFor="rating">
@@ -127,8 +138,9 @@ export default async function RestaurantDetailPage({ params }: Props) {
             </FormField>
             <SubmitButton pendingLabel={tFields('saving')}>{myRating ? tFields('update') : tFields('rate')}</SubmitButton>
           </form>
-        </div>
+        </Card>
       )}
+      </Reveal>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
@@ -52,34 +53,36 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
         </p>
       </div>
 
-      <form action={updateGuideProfileAction.bind(null, guideProfileId)} className="space-y-4">
-        <div className="survey-rule mb-2" />
-        <FormField label={t('status')} htmlFor="status">
-          <Select name="status" defaultValue={guide.status}>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="SUSPENDED">SUSPENDED</option>
-          </Select>
-        </FormField>
-        <FormField label={t('languagesLabel')} htmlFor="languages" optional>
-          <input
-            name="languages"
-            defaultValue={guide.languages.join(', ')}
-            placeholder="en, fr"
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <FormField label={t('specialtiesLabel')} htmlFor="specialties" optional>
-          <input
-            name="specialties"
-            defaultValue={guide.specialties.join(', ')}
-            placeholder="wildlife, gorilla trekking"
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <SubmitButton>{t('saveChanges')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form action={updateGuideProfileAction.bind(null, guideProfileId)} className="space-y-4">
+          <div className="survey-rule mb-2" />
+          <FormField label={t('status')} htmlFor="status">
+            <Select name="status" defaultValue={guide.status}>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="SUSPENDED">SUSPENDED</option>
+            </Select>
+          </FormField>
+          <FormField label={t('languagesLabel')} htmlFor="languages" optional>
+            <input
+              name="languages"
+              defaultValue={guide.languages.join(', ')}
+              placeholder="en, fr"
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
+          </FormField>
+          <FormField label={t('specialtiesLabel')} htmlFor="specialties" optional>
+            <input
+              name="specialties"
+              defaultValue={guide.specialties.join(', ')}
+              placeholder="wildlife, gorilla trekking"
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
+          </FormField>
+          <SubmitButton>{t('saveChanges')}</SubmitButton>
+        </form>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.1}>
         <div className="survey-rule mb-6" />
         <div className="flex items-center justify-between">
           <p className="eyebrow text-mist">{t('guideCertificationDocument')}</p>
@@ -91,14 +94,18 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
           </div>
         )}
         {latestCertification && (
-          <p className="mt-2 text-sm text-mist">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-mist">
             <a
               href={`/api/v1/fleet/guides/${guideProfileId}/documents/${latestCertification.id}`}
               className="text-forest hover:underline"
             >
               {t('downloadCurrentFile')}
             </a>
-            {latestCertification.expiresAt && ` · ${t('expiresOn', { date: latestCertification.expiresAt.toLocaleDateString() })}`}
+            {latestCertification.expiresAt && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                {t('expiresOn', { date: latestCertification.expiresAt.toLocaleDateString() })}
+              </span>
+            )}
           </p>
         )}
         <form
@@ -114,20 +121,20 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
             {t('upload')}
           </SubmitButton>
         </form>
-      </div>
+      </Reveal>
 
       {/* DR-059: SUPERADMIN-only -- see the vehicle detail page's own
           comment for why this role check (not just the route permission)
           is the real gate for rendering the control at all. */}
       {ctx.roles.includes('SUPERADMIN') && (
-        <div>
+        <Reveal delay={0.15}>
           <div className="survey-rule mb-6" />
           <form action={deleteGuideProfileAction.bind(null, guideProfileId)}>
             <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteGuideConfirm')}>
               {t('deleteGuide')}
             </SubmitButton>
           </form>
-        </div>
+        </Reveal>
       )}
     </div>
   );

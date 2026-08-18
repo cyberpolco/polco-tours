@@ -7,6 +7,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
 import { createStaffPackageBookingAction } from './actions';
@@ -47,7 +48,9 @@ export default async function NewBookingPage({ searchParams }: Props) {
       <div className="max-w-md">
         <BackLink href="/staff/bookings/new">{t('back')}</BackLink>
         <PageHeader eyebrow={t('newBookingEyebrow')} title={t('tailorMadeTitle')} />
-        <StaffPlanMyTripForm />
+        <Reveal>
+          <StaffPlanMyTripForm />
+        </Reveal>
       </div>
     );
   }
@@ -65,34 +68,36 @@ export default async function NewBookingPage({ searchParams }: Props) {
           title={`${pkg.title} · ${formatOrPending(pkg.priceMinor, pkg.currency)}${tBookingStart('perSeat')}`}
         />
         <p className="mt-1 text-sm text-mist">{t('dayTrip', { days: pkg.durationDays })}</p>
-        <form action={createStaffPackageBookingAction.bind(null, packageId)} className="mt-6 space-y-4">
-          <FormField label={t('clientEmailLabel')} htmlFor="email">
-            <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label={t('travelStart')} htmlFor="startDate">
-            <input
-              name="startDate"
-              type="date"
-              min={new Date().toISOString().slice(0, 10)}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label={t('seats')} htmlFor="seats">
-            <input
-              name="seats"
-              type="number"
-              min={1}
-              defaultValue={1}
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label={t('specialRequests')} htmlFor="specialRequests" optional>
-            <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <SubmitButton>{t('createBooking')}</SubmitButton>
-        </form>
+        <Reveal>
+          <form action={createStaffPackageBookingAction.bind(null, packageId)} className="mt-6 space-y-4">
+            <FormField label={t('clientEmailLabel')} htmlFor="email">
+              <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label={t('travelStart')} htmlFor="startDate">
+              <input
+                name="startDate"
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                required
+                className="w-full rounded-survey border border-rule px-3 py-2"
+              />
+            </FormField>
+            <FormField label={t('seats')} htmlFor="seats">
+              <input
+                name="seats"
+                type="number"
+                min={1}
+                defaultValue={1}
+                required
+                className="w-full rounded-survey border border-rule px-3 py-2"
+              />
+            </FormField>
+            <FormField label={t('specialRequests')} htmlFor="specialRequests" optional>
+              <textarea name="specialRequests" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <SubmitButton>{t('createBooking')}</SubmitButton>
+          </form>
+        </Reveal>
         <BackLink href="/staff/bookings/new?mode=packages" className="mt-4">
           {t('back')}
         </BackLink>
@@ -113,16 +118,24 @@ export default async function NewBookingPage({ searchParams }: Props) {
         {bookablePackages.length === 0 ? (
           <p className="mt-4 text-mist">{t('noBookablePackages')}</p>
         ) : (
-          <ul className="mt-4 space-y-2">
+          <RevealGroup as="ul" itemAs="li" className="mt-4 space-y-2">
             {bookablePackages.map((p) => (
-              <Card as="li" key={p.id}>
-                <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block text-forest hover:underline">
-                  {/* DR-114: every country a combo package touches, not just its primary one. */}
-                  {p.title} · {p.countries.map((c) => tCountries(c)).join(' + ')} · {formatOrPending(p.priceMinor, p.currency)}
+              <Card key={p.id} interactive>
+                <Link href={`/staff/bookings/new?packageId=${p.id}`} className="block">
+                  <p className="font-semibold text-navy transition-colors group-hover:text-amber">{p.title}</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {/* DR-114: every country a combo package touches, not just its primary one. */}
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                      {p.countries.map((c) => tCountries(c)).join(' + ')}
+                    </span>
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                      {formatOrPending(p.priceMinor, p.currency)}
+                    </span>
+                  </div>
                 </Link>
               </Card>
             ))}
-          </ul>
+          </RevealGroup>
         )}
       </div>
     );
@@ -147,7 +160,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('dashboardEyebrow')} title={t('newBookingEyebrow')} />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <RevealGroup as="div" itemAs="div" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sections.map((s) => (
           <Card key={s.href} interactive className="p-0">
             <Link href={s.href} className="block p-5">
@@ -156,7 +169,7 @@ export default async function NewBookingPage({ searchParams }: Props) {
             </Link>
           </Card>
         ))}
-      </div>
+      </RevealGroup>
     </div>
   );
 }

@@ -138,7 +138,17 @@ export function StaffNav({ roles, permissions }: { roles: Role[]; permissions: P
             load across the whole dashboard. A click still navigates
             normally, just without the eager background render. */}
         {visibleLinks.map(({ href, labelKey }) => (
-          <Link key={href} href={href} prefetch={false} className={href === activeHref ? 'text-amber' : 'hover:text-amber'}>
+          <Link
+            key={href}
+            href={href}
+            prefetch={false}
+            className={[
+              'relative py-1 transition-colors duration-200',
+              href === activeHref
+                ? 'text-amber after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-full after:rounded-pill after:bg-amber'
+                : 'hover:text-amber',
+            ].join(' ')}
+          >
             {t(labelKey)}
           </Link>
         ))}

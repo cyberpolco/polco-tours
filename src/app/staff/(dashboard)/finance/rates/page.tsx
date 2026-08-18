@@ -6,6 +6,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -87,7 +88,9 @@ function DeleteButton({
 function EditDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <details className="mt-1">
-      <summary className="cursor-pointer text-xs font-medium text-navy underline">{label}</summary>
+      <summary className="cursor-pointer text-xs font-medium text-navy underline decoration-rule transition-colors hover:text-amber hover:decoration-amber">
+        {label}
+      </summary>
       <div className="mt-2">{children}</div>
     </details>
   );
@@ -167,6 +170,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
     <div className="space-y-8">
       <BackLink href="/staff/settings/finance">{t('backToFinance')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
+      <Reveal className="space-y-8">
       <p className="text-xs text-mist">{t('intro')}</p>
 
       {params.reapplied === '1' && (
@@ -201,7 +205,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{r.role}</Td>
-                  <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.dailyRateMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -294,7 +298,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{r.hotelId ? (hotelNameById.get(r.hotelId) ?? '—') : '—'}</Td>
                   <Td>{r.roomCategory}</Td>
-                  <Td>{format(money(r.nightlyRateMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.nightlyRateMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -403,7 +407,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{restaurantNameById.get(r.restaurantId) ?? '—'}</Td>
-                  <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.dailyRateMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -503,10 +507,10 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
               {transportRates.map((r) => (
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
-                  <Td>{format(money(r.fuelEstimateMinor, r.currency))}</Td>
-                  <Td>{format(money(r.tollFeesMinor, r.currency))}</Td>
-                  <Td>{format(money(r.parkingFeesMinor, r.currency))}</Td>
-                  <Td>{format(money(r.vehicleOperatingCostMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.fuelEstimateMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.tollFeesMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.parkingFeesMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.vehicleOperatingCostMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -624,7 +628,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{r.category}</Td>
-                  <Td>{format(money(r.perUnitMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.perUnitMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -721,7 +725,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{r.name}</Td>
-                  <Td>{format(money(r.feeMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.feeMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -821,10 +825,10 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
               {immigrationCostRates.map((r) => (
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
-                  <Td>{format(money(r.visaFeeMinor, r.currency))}</Td>
-                  <Td>{format(money(r.processingFeeMinor, r.currency))}</Td>
-                  <Td>{format(money(r.invitationLetterFeeMinor, r.currency))}</Td>
-                  <Td>{format(money(r.borderPermitFeeMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.visaFeeMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.processingFeeMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.invitationLetterFeeMinor, r.currency))}</span></Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.borderPermitFeeMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -940,7 +944,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
               {adminCostRates.map((r) => (
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
-                  <Td>{format(money(r.dailyRateMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.dailyRateMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -1022,7 +1026,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                 <Tr key={r.id}>
                   <Td>{tCountries(r.country)}</Td>
                   <Td>{tAddons(r.code)}</Td>
-                  <Td>{format(money(r.priceMinor, r.currency))}</Td>
+                  <Td><span className="font-semibold text-navy">{format(money(r.priceMinor, r.currency))}</span></Td>
                   <Td>
                     {canWrite && (
                       <>
@@ -1097,6 +1101,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
           </form>
         )}
       </Card>
+      </Reveal>
     </div>
   );
 }

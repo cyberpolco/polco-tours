@@ -49,16 +49,43 @@ export default async function PackageDetailPage({ params }: Props) {
   const tCommon = await getTranslations('Common');
   const tCountries = await getTranslations('Countries');
 
+  const tTags = await getTranslations('TripTags');
+
   return (
     <div>
       <BackLink href="/packages">{t('allPackages')}</BackLink>
-      <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 max-h-96" />
-      {/* DR-114: a combo package shows every country it touches, not just
-          the primary/billing one. */}
-      <p className="eyebrow mt-4 text-mist">{pkg.countries.map((c) => tCountries(c)).join(' + ')}</p>
-      <h1 className="mt-1 text-3xl font-bold text-navy">{pkg.title}</h1>
-      <p className="mt-3 max-w-2xl text-mist">{pkg.description}</p>
-      {pkg.tags.length > 0 && <p className="eyebrow mt-2 text-forest">{pkg.tags.join(' · ')}</p>}
+
+      {/* Full-bleed hero echoing the homepage carousel's own scrim
+          language, instead of a plain photo with the title typed below it. */}
+      <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 !aspect-auto h-80 sm:h-[26rem]">
+        <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/35 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9">
+          <div className="flex flex-wrap gap-2">
+            {/* DR-114: a combo package shows every country it touches, not
+                just the primary/billing one. */}
+            <span className="rounded-pill bg-bone px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-ink">
+              {pkg.countries.map((c) => tCountries(c)).join(' + ')}
+            </span>
+            {pkg.durationDays != null && (
+              <span className="rounded-pill border border-bone/40 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-bone">
+                {t('dayTrip', { days: pkg.durationDays })}
+              </span>
+            )}
+          </div>
+          <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.02] text-bone sm:text-4xl">{pkg.title}</h1>
+        </div>
+      </PackageImage>
+
+      <p className="mt-6 max-w-2xl text-mist">{pkg.description}</p>
+      {pkg.tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {pkg.tags.map((tag) => (
+            <span key={tag} className="rounded-pill bg-forest-soft px-2.5 py-0.5 text-xs font-semibold text-forest">
+              {tTags(tag)}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="survey-rule mt-8" />
       <div className="pt-6">
@@ -66,10 +93,13 @@ export default async function PackageDetailPage({ params }: Props) {
         <Card className="flex items-center justify-between">
           <div>
             <Badge tone={bookable ? 'success' : 'neutral'}>{bookable ? tCommon('available') : tCommon('unavailable')}</Badge>
-            <p className="mt-1 text-sm text-mist">
+            <p className="mt-2 text-2xl font-bold text-navy">
               {formatOrPending(pkg.priceMinor, pkg.currency)}
-              {t('perSeat')}
-              {pkg.durationDays != null && ` · ${t('dayTrip', { days: pkg.durationDays })}`} · {t('chooseOwnStartDate')}
+              <span className="text-sm font-medium text-mist">{t('perSeat')}</span>
+            </p>
+            <p className="mt-1 text-sm text-mist">
+              {pkg.durationDays != null && `${t('dayTrip', { days: pkg.durationDays })} · `}
+              {t('chooseOwnStartDate')}
             </p>
           </div>
           {bookable && <LinkButton href={`/book-package/${pkg.id}`}>{t('bookThisTrip')}</LinkButton>}

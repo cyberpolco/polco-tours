@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -111,78 +112,82 @@ export default async function ItinerariesPage({ searchParams }: Props) {
     <div className="space-y-6">
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
-      <form method="get" action="/staff/itineraries" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('itineraryStatus')} htmlFor="itineraryStatus" optional>
-          <Select name="itineraryStatus" defaultValue={itineraryStatus}>
-            <option value="">{t('all')}</option>
-            {ITINERARY_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {tItineraryStatus(s)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField label={t('bookingStatus')} htmlFor="bookingStatus" optional>
-          <Select name="bookingStatus" defaultValue={bookingStatus}>
-            <option value="">{t('all')}</option>
-            {BOOKING_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {tBookingStatus(s)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || itineraryStatus || bookingStatus) && (
-            <Link href="/staff/itineraries" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
+      <Reveal>
+        <div className="space-y-6">
+          <form method="get" action="/staff/itineraries" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <FormField label={t('search')} htmlFor="q" optional>
+              <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+            </FormField>
+            <FormField label={t('itineraryStatus')} htmlFor="itineraryStatus" optional>
+              <Select name="itineraryStatus" defaultValue={itineraryStatus}>
+                <option value="">{t('all')}</option>
+                {ITINERARY_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {tItineraryStatus(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label={t('bookingStatus')} htmlFor="bookingStatus" optional>
+              <Select name="bookingStatus" defaultValue={bookingStatus}>
+                <option value="">{t('all')}</option>
+                {BOOKING_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {tBookingStatus(s)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+              <SubmitButton size="compact">{t('filter')}</SubmitButton>
+              {(q || itineraryStatus || bookingStatus) && (
+                <Link href="/staff/itineraries" className="text-sm text-mist hover:underline">
+                  {t('clearFilters')}
+                </Link>
+              )}
+            </div>
+          </form>
+
+          <p className="text-sm text-mist">{t('itineraryCount', { count: totalItems })}</p>
+
+          {rows.length === 0 ? (
+            <p className="text-mist">
+              {totalItems === 0 && !q && !itineraryStatus && !bookingStatus ? t('noItinerariesYet') : t('noMatches')}
+            </p>
+          ) : (
+            <Table>
+              <thead>
+                <TableHeaderRow>
+                  <Th>{t('booking')}</Th>
+                  <Th>{t('bookingStatus')}</Th>
+                  <Th>{t('itineraryStatus')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {rows.map(({ itinerary, booking }) => (
+                  <Tr key={itinerary.id}>
+                    <Td>{booking?.bookingReference ?? itinerary.bookingId}</Td>
+                    <Td>
+                      {booking ? <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> : '—'}
+                    </Td>
+                    <Td>
+                      <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
+                    </Td>
+                    <Td>
+                      <Link href={`/staff/itineraries/${itinerary.id}`} className="text-forest hover:underline">
+                        {t('open')}
+                      </Link>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
           )}
+
+          <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
         </div>
-      </form>
-
-      <p className="text-sm text-mist">{t('itineraryCount', { count: totalItems })}</p>
-
-      {rows.length === 0 ? (
-        <p className="text-mist">
-          {totalItems === 0 && !q && !itineraryStatus && !bookingStatus ? t('noItinerariesYet') : t('noMatches')}
-        </p>
-      ) : (
-        <Table>
-          <thead>
-            <TableHeaderRow>
-              <Th>{t('booking')}</Th>
-              <Th>{t('bookingStatus')}</Th>
-              <Th>{t('itineraryStatus')}</Th>
-              <Th />
-            </TableHeaderRow>
-          </thead>
-          <tbody>
-            {rows.map(({ itinerary, booking }) => (
-              <Tr key={itinerary.id}>
-                <Td>{booking?.bookingReference ?? itinerary.bookingId}</Td>
-                <Td>
-                  {booking ? <Badge tone={BOOKING_STATUS_TONE[booking.status]}>{tBookingStatus(booking.status)}</Badge> : '—'}
-                </Td>
-                <Td>
-                  <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
-                </Td>
-                <Td>
-                  <Link href={`/staff/itineraries/${itinerary.id}`} className="text-forest hover:underline">
-                    {t('open')}
-                  </Link>
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
-
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

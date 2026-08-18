@@ -8,6 +8,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
@@ -52,39 +53,41 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
         </p>
       </div>
 
-      <form action={updateDriverProfileAction.bind(null, driverProfileId)} className="space-y-4">
-        <div className="survey-rule mb-2" />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('licenseNumberLabel')} htmlFor="licenseNumber">
-            <input name="licenseNumber" defaultValue={driver.licenseNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
+      <Reveal>
+        <form action={updateDriverProfileAction.bind(null, driverProfileId)} className="space-y-4">
+          <div className="survey-rule mb-2" />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label={t('licenseNumberLabel')} htmlFor="licenseNumber">
+              <input name="licenseNumber" defaultValue={driver.licenseNumber} required className="w-full rounded-survey border border-rule px-3 py-2" />
+            </FormField>
+            <FormField label={t('status')} htmlFor="status">
+              <Select name="status" defaultValue={driver.status}>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="SUSPENDED">SUSPENDED</option>
+              </Select>
+            </FormField>
+          </div>
+          <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
+            <input
+              name="licenseExpiresAt"
+              type="date"
+              defaultValue={driver.licenseExpiresAt ? driver.licenseExpiresAt.toISOString().slice(0, 10) : undefined}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
-          <FormField label={t('status')} htmlFor="status">
-            <Select name="status" defaultValue={driver.status}>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="SUSPENDED">SUSPENDED</option>
-            </Select>
+          <FormField label={t('languagesLabel')} htmlFor="languages" optional>
+            <input
+              name="languages"
+              defaultValue={driver.languages.join(', ')}
+              placeholder="en, fr"
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
           </FormField>
-        </div>
-        <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
-          <input
-            name="licenseExpiresAt"
-            type="date"
-            defaultValue={driver.licenseExpiresAt ? driver.licenseExpiresAt.toISOString().slice(0, 10) : undefined}
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <FormField label={t('languagesLabel')} htmlFor="languages" optional>
-          <input
-            name="languages"
-            defaultValue={driver.languages.join(', ')}
-            placeholder="en, fr"
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
-        <SubmitButton>{t('saveChanges')}</SubmitButton>
-      </form>
+          <SubmitButton>{t('saveChanges')}</SubmitButton>
+        </form>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.1}>
         <div className="survey-rule mb-6" />
         <div className="flex items-center justify-between">
           <p className="eyebrow text-mist">{t('driverLicenseDocument')}</p>
@@ -96,14 +99,18 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
           </div>
         )}
         {latestLicense && (
-          <p className="mt-2 text-sm text-mist">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-mist">
             <a
               href={`/api/v1/fleet/drivers/${driverProfileId}/documents/${latestLicense.id}`}
               className="text-forest hover:underline"
             >
               {t('downloadCurrentFile')}
             </a>
-            {latestLicense.expiresAt && ` · ${t('expiresOn', { date: latestLicense.expiresAt.toLocaleDateString() })}`}
+            {latestLicense.expiresAt && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                {t('expiresOn', { date: latestLicense.expiresAt.toLocaleDateString() })}
+              </span>
+            )}
           </p>
         )}
         <form
@@ -119,20 +126,20 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
             {t('upload')}
           </SubmitButton>
         </form>
-      </div>
+      </Reveal>
 
       {/* DR-059: SUPERADMIN-only -- see the vehicle detail page's own
           comment for why this role check (not just the route permission)
           is the real gate for rendering the control at all. */}
       {ctx.roles.includes('SUPERADMIN') && (
-        <div>
+        <Reveal delay={0.15}>
           <div className="survey-rule mb-6" />
           <form action={deleteDriverProfileAction.bind(null, driverProfileId)}>
             <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteDriverConfirm')}>
               {t('deleteDriver')}
             </SubmitButton>
           </form>
-        </div>
+        </Reveal>
       )}
     </div>
   );

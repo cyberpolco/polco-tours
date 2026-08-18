@@ -7,6 +7,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -62,35 +63,37 @@ export default async function InProgressAssignmentsPage({ searchParams }: Props)
       <BackLink href="/staff/schedule">{t('backToSchedule')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={t('inProgressAssignmentsTitle')} />
 
-      <form method="get" action="/staff/schedule/in-progress" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <FormField label={t('search')} htmlFor="q" optional>
-          <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-        </FormField>
-        <FormField label={t('departureStatus')} htmlFor="departureStatus" optional>
-          <Select name="departureStatus" defaultValue={departureStatus}>
-            <option value="">{t('all')}</option>
-            {DEPARTURE_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {tDepartureStatus(s)}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-          <SubmitButton size="compact">{t('filter')}</SubmitButton>
-          {(q || departureStatus) && (
-            <Link href="/staff/schedule/in-progress" className="text-sm text-mist hover:underline">
-              {t('clearFilters')}
-            </Link>
-          )}
-        </div>
-      </form>
+      <Reveal className="space-y-6">
+        <form method="get" action="/staff/schedule/in-progress" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <FormField label={t('search')} htmlFor="q" optional>
+            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+          </FormField>
+          <FormField label={t('departureStatus')} htmlFor="departureStatus" optional>
+            <Select name="departureStatus" defaultValue={departureStatus}>
+              <option value="">{t('all')}</option>
+              {DEPARTURE_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {tDepartureStatus(s)}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+            <SubmitButton size="compact">{t('filter')}</SubmitButton>
+            {(q || departureStatus) && (
+              <Link href="/staff/schedule/in-progress" className="text-sm text-mist hover:underline">
+                {t('clearFilters')}
+              </Link>
+            )}
+          </div>
+        </form>
 
-      <p className="text-sm text-mist">{t('assignmentCount', { count: totalItems })}</p>
+        <p className="text-sm text-mist">{t('assignmentCount', { count: totalItems })}</p>
 
-      {rows.length === 0 ? <p className="text-mist">{t('noInProgressMatches')}</p> : <AssignmentsSection rows={rows} />}
+        {rows.length === 0 ? <p className="text-mist">{t('noInProgressMatches')}</p> : <AssignmentsSection rows={rows} />}
 
-      <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+        <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+      </Reveal>
     </div>
   );
 }

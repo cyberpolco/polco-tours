@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
-import { Reveal } from '@/components/ui/Reveal';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { PackageCard } from '../package-card';
 
 interface Props {
@@ -72,13 +72,11 @@ export default async function PackagesPage({ searchParams }: Props) {
       {packages.length === 0 ? (
         <p className="mt-6 text-mist">{t('empty')}</p>
       ) : (
-        <Reveal delay={0.1}>
-          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-            {packages.map((p) => (
-              <PackageCard key={p.id} pkg={p} />
-            ))}
-          </ul>
-        </Reveal>
+        <RevealGroup as="ul" itemAs="li" className="mt-6 grid gap-4 sm:grid-cols-2">
+          {packages.map((p) => (
+            <PackageCard key={p.id} pkg={p} as="div" />
+          ))}
+        </RevealGroup>
       )}
     </div>
   );

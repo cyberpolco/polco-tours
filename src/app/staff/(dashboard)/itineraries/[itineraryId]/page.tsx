@@ -9,10 +9,12 @@ import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { MultiSearchableSelect } from '@/components/ui/MultiSearchableSelect';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import type { SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -167,9 +169,10 @@ export default async function ItineraryDetailPage({ params }: Props) {
       <BackLink href="/staff/itineraries">{t('backToItineraries')}</BackLink>
       <div>
         <PageHeader eyebrow={t('itineraryEyebrow')} title={booking.bookingReference} />
-        <p className="mt-1 flex items-center gap-2 text-mist">
-          {travelDates} · <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">{travelDates}</span>
+          <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>
+        </div>
         {booking.departureId && (
           <p className="mt-2 text-sm">
             <LinkButton href={`/staff/departures/${booking.departureId}`}>{t('assignVehicleDriverGuide')}</LinkButton>
@@ -217,6 +220,8 @@ export default async function ItineraryDetailPage({ params }: Props) {
         )}
       </div>
 
+      <Reveal>
+      <div className="space-y-8">
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('notesAndEmergencyContact')}</p>
@@ -277,9 +282,9 @@ export default async function ItineraryDetailPage({ params }: Props) {
         {days.length === 0 ? (
           <p className="mt-2 text-sm text-mist">{t('noDaysYet')}</p>
         ) : (
-          <div className="mt-3 space-y-4">
+          <RevealGroup as="div" itemAs="div" className="mt-3 space-y-4">
             {days.map((day) => (
-              <div key={day.id} className="rounded-survey border border-rule p-4">
+              <Card key={day.id}>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium text-navy">
                     {t('dayLabel', { number: day.dayNumber, date: day.date.toLocaleDateString() })}
@@ -553,9 +558,9 @@ export default async function ItineraryDetailPage({ params }: Props) {
                     </div>
                   </details>
                 )}
-              </div>
+              </Card>
             ))}
-          </div>
+          </RevealGroup>
         )}
 
         {canEdit && (
@@ -630,6 +635,8 @@ export default async function ItineraryDetailPage({ params }: Props) {
           </>
         )}
       </div>
+      </div>
+      </Reveal>
     </div>
   );
 }

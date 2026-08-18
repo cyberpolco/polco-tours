@@ -7,6 +7,7 @@ import { FormField } from '@/components/ui/FormField';
 import { LinkButton } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -107,79 +108,93 @@ export default async function SitesPage({ searchParams }: Props) {
           <LinkButton href="/staff/sites/new">{t('addSite')}</LinkButton>
         </div>
 
-        <form method="get" action="/staff/sites" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <FormField label={tFields('search')} htmlFor="q" optional>
-            <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
-          </FormField>
-          <FormField label={tFields('country')} htmlFor="country" optional>
-            <Select name="country" defaultValue={country}>
-              <option value="">{tFields('all')}</option>
-              {countryOptions.map((c) => (
-                <option key={c} value={c}>
-                  {tCountries(c)}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField label={t('province')} htmlFor="province" optional>
-            <Select name="province" defaultValue={province}>
-              <option value="">{tFields('all')}</option>
-              {provinceOptions.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
-            <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
-            {(q || country || province) && (
-              <Link href="/staff/sites" className="text-sm text-mist hover:underline">
-                {tFields('clearFilters')}
-              </Link>
-            )}
-          </div>
-        </form>
+        <Reveal className="space-y-6">
+          <form method="get" action="/staff/sites" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <FormField label={tFields('search')} htmlFor="q" optional>
+              <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
+            </FormField>
+            <FormField label={tFields('country')} htmlFor="country" optional>
+              <Select name="country" defaultValue={country}>
+                <option value="">{tFields('all')}</option>
+                {countryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {tCountries(c)}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label={t('province')} htmlFor="province" optional>
+              <Select name="province" defaultValue={province}>
+                <option value="">{tFields('all')}</option>
+                {provinceOptions.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
+              <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
+              {(q || country || province) && (
+                <Link href="/staff/sites" className="text-sm text-mist hover:underline">
+                  {tFields('clearFilters')}
+                </Link>
+              )}
+            </div>
+          </form>
 
-        <p className="text-sm text-mist">{t('siteCount', { count: totalItems })}</p>
+          <p className="text-sm text-mist">{t('siteCount', { count: totalItems })}</p>
 
-        {sites.length === 0 ? (
-          <p className="text-mist">{totalItems === 0 && !q && !country ? t('noneRegistered') : t('noMatches')}</p>
-        ) : (
-          <Table>
-            <thead>
-              <TableHeaderRow>
-                <Th>{t('name')}</Th>
-                <Th>{t('country')}</Th>
-                <Th>{t('province')}</Th>
-                <Th>{t('cityTown')}</Th>
-                <Th>{t('activities')}</Th>
-                <Th />
-              </TableHeaderRow>
-            </thead>
-            <tbody>
-              {sites.map((s) => {
-                const activityNames = (activitiesBySite.get(s.id) ?? []).map((a) => a.name);
-                return (
-                  <Tr key={s.id}>
-                    <Td>{s.name}</Td>
-                    <Td>{tCountries(s.country)}</Td>
-                    <Td>{s.province}</Td>
-                    <Td>{s.city ?? '—'}</Td>
-                    <Td>{activityNames.length > 0 ? activityNames.join(', ') : '—'}</Td>
-                    <Td>
-                      <Link href={`/staff/sites/${s.id}`} className="text-forest hover:underline">
-                        {t('edit')}
-                      </Link>
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </tbody>
-          </Table>
-        )}
+          {sites.length === 0 ? (
+            <p className="text-mist">{totalItems === 0 && !q && !country ? t('noneRegistered') : t('noMatches')}</p>
+          ) : (
+            <Table>
+              <thead>
+                <TableHeaderRow>
+                  <Th>{t('name')}</Th>
+                  <Th>{t('country')}</Th>
+                  <Th>{t('province')}</Th>
+                  <Th>{t('cityTown')}</Th>
+                  <Th>{t('activities')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {sites.map((s) => {
+                  const activityNames = (activitiesBySite.get(s.id) ?? []).map((a) => a.name);
+                  return (
+                    <Tr key={s.id}>
+                      <Td>{s.name}</Td>
+                      <Td>{tCountries(s.country)}</Td>
+                      <Td>{s.province}</Td>
+                      <Td>{s.city ?? '—'}</Td>
+                      <Td>
+                        {activityNames.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {activityNames.map((name) => (
+                              <span key={name} className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </Td>
+                      <Td>
+                        <Link href={`/staff/sites/${s.id}`} className="text-forest hover:underline">
+                          {t('edit')}
+                        </Link>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
 
-        <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+          <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
+        </Reveal>
       </div>
     </SidebarShell>
   );

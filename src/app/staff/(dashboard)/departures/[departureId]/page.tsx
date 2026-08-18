@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
@@ -11,6 +12,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SearchableSelect, type SearchableOption } from '@/components/ui/SearchableSelect';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -103,15 +105,21 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
       {departure.tourPackageId && <BackLink href={`/staff/packages/${departure.tourPackageId}`}>{t('backToPackage')}</BackLink>}
       <div>
         <PageHeader eyebrow={t('eyebrow')} title={`${departure.startDate.toLocaleDateString()} · ${tCountries(packageCountry)}`} />
-        <p className="mt-1 flex items-center gap-2 text-mist">
-          {t('capacity', { capacity: departure.capacity })} ·{' '}
-          <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{tDepartureStatus(departure.status)}</Badge> ·{' '}
-          {formatOrPending(effectiveUnitPrice?.minor ?? null, effectiveUnitPrice?.currency ?? null)}
-          {t('perSeat')}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+            {t('capacity', { capacity: departure.capacity })}
+          </span>
+          <Badge tone={DEPARTURE_STATUS_TONE[departure.status]}>{tDepartureStatus(departure.status)}</Badge>
+          <span className="text-lg font-bold text-navy">
+            {formatOrPending(effectiveUnitPrice?.minor ?? null, effectiveUnitPrice?.currency ?? null)}
+            <span className="text-xs font-medium text-mist">{t('perSeat')}</span>
+          </span>
+        </div>
         <p className="mt-1 text-sm text-mist">{t('seatsCovered', { covered: seatsCovered, capacity: departure.capacity })}</p>
       </div>
 
+      <Reveal>
+      <div className="space-y-8">
       <div>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('pickupLocation')}</p>
@@ -147,17 +155,30 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
         {assignments.length === 0 ? (
           <p className="mt-4 text-mist">{t('noAssignmentsYet')}</p>
         ) : (
-          <ul className="mt-4 space-y-3">
+          <RevealGroup
+            as="ul"
+            itemAs="li"
+            className="mt-4 space-y-3"
+            itemClassName="flex flex-wrap items-center justify-between gap-2 border-b border-rule pb-3 text-sm"
+          >
             {assignments.map((a, i) => {
               const vehicle = vehicleById.get(a.vehicleId);
               const driverProfile = driverProfileById.get(a.driverProfileId);
               const guide = guides[i];
               return (
-                <li key={a.id} className="flex items-center justify-between border-b border-rule pb-3 text-sm">
-                  <span>
-                    {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : t('unknownVehicle')} ·{' '}
-                    {driverProfile ? t('licensePrefix', { number: driverProfile.licenseNumber }) : t('unknownDriver')}
-                    {guide && ` · ${t('guidePrefix', { name: guide.name ?? guide.email })}`}
+                <Fragment key={a.id}>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                      {vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})` : t('unknownVehicle')}
+                    </span>
+                    <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                      {driverProfile ? t('licensePrefix', { number: driverProfile.licenseNumber }) : t('unknownDriver')}
+                    </span>
+                    {guide && (
+                      <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                        {t('guidePrefix', { name: guide.name ?? guide.email })}
+                      </span>
+                    )}
                   </span>
                   {!departureLocked && (
                     <form action={removeAssignmentAction.bind(null, departureId, a.id)}>
@@ -171,10 +192,10 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
                       </SubmitButton>
                     </form>
                   )}
-                </li>
+                </Fragment>
               );
             })}
-          </ul>
+          </RevealGroup>
         )}
 
         {!departureLocked && (
@@ -222,6 +243,8 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
           </form>
         )}
       </div>
+      </div>
+      </Reveal>
     </div>
   );
 }

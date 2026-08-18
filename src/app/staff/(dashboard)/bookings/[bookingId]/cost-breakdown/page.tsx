@@ -9,6 +9,7 @@ import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
@@ -84,6 +85,8 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
 
       {error && <Alert tone="error">{t('saveError', { detail: detail || t('pleaseTryAgain') })}</Alert>}
 
+      <Reveal>
+      <div className="space-y-8">
       <Card>
         <p className="text-xs text-mist">{t('addonsAlreadySelected')}</p>
         <p className="text-sm font-semibold text-navy">
@@ -302,6 +305,8 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
 
         <SubmitButton pendingLabel={t('saving')}>{t('saveCostBreakdown')}</SubmitButton>
       </form>
+      </div>
+      </Reveal>
     </div>
   );
 }

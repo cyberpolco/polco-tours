@@ -7,8 +7,10 @@ import { bookingService, isBookingLocked } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -63,16 +65,16 @@ export default async function NewTravelerPage({ params }: Props) {
         <BackLink href={`/staff/bookings/${bookingId}/addons`}>{t('backToAddons')}</BackLink>
         <PageHeader eyebrow={t('setupTravelers')} title={t('travelersOf', { current: travelers.length, total: booking.seats })} />
         <p className="mt-1 text-sm text-mist">{t('allEntered')}</p>
-        <ul className="mt-4 space-y-2">
+        <RevealGroup as="ul" itemAs="li" className="mt-4 space-y-2">
           {travelers.map((tv) => (
-            <li key={tv.id} className="rounded-survey border border-rule p-3 text-sm">
+            <Card key={tv.id} className="text-sm">
               <span className="font-medium text-navy">
                 {tv.firstName} {tv.lastName}
               </span>
               {tv.isTourLead && <span className="ml-2 text-xs uppercase tracking-wide text-forest">{t('tourLead')}</span>}
-            </li>
+            </Card>
           ))}
-        </ul>
+        </RevealGroup>
         <div className="mt-6">
           <LinkButton
             href={booking.requiresPassportUpload ? `/staff/bookings/${bookingId}/passport` : `/staff/bookings/${bookingId}`}
@@ -115,6 +117,7 @@ export default async function NewTravelerPage({ params }: Props) {
       <PageHeader eyebrow={t('setupTravelers')} title={t('travelerOf', { number: travelerNumber, total: booking.seats })} />
       <p className="mt-1 text-sm text-mist">{t('enteredOf', { current: travelers.length, total: booking.seats })}</p>
 
+      <Reveal>
       <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
         {isAddingTourLead && knownFirstName && knownLastName ? (
           <div className="rounded-survey border border-rule bg-bone/50 p-3 text-sm">
@@ -273,6 +276,7 @@ export default async function NewTravelerPage({ params }: Props) {
 
         <SubmitButton>{travelerNumber === booking.seats ? t('finishTravelers') : t('addTravelerContinue')}</SubmitButton>
       </form>
+      </Reveal>
     </div>
   );
 }

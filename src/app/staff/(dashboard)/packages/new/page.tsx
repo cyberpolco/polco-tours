@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -47,6 +48,7 @@ export default async function NewPackagePage({ searchParams }: Props) {
           </Alert>
         </div>
       )}
+      <Reveal>
       <form action={createPackageAction} className="mt-6 space-y-4">
         <FormField label={t('packageTitle')} htmlFor="title">
           <input name="title" required className="w-full rounded-survey border border-rule px-3 py-2" />
@@ -113,6 +115,7 @@ export default async function NewPackagePage({ searchParams }: Props) {
         </div>
         <SubmitButton>{t('createPackage')}</SubmitButton>
       </form>
+      </Reveal>
     </div>
   );
 }

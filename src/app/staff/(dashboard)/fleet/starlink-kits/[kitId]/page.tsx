@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { STARLINK_STATUS_TONE } from '@lib/status-tones';
@@ -39,36 +40,47 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
         <Badge tone={STARLINK_STATUS_TONE[kit.status]}>{tStarlinkStatus(kit.status)}</Badge>
       </div>
 
-      <form action={updateStarlinkKitAction.bind(null, kitId)} className="space-y-4">
-        <div className="survey-rule mb-2" />
-        <FormField label={t('status')} htmlFor="status">
-          <Select name="status" defaultValue={kit.status}>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="INACTIVE">INACTIVE</option>
-            <option value="MAINTENANCE">MAINTENANCE</option>
-          </Select>
-        </FormField>
-        <FormField label={t('assignedVehicle')} htmlFor="vehicleId" optional>
-          <Select name="vehicleId" defaultValue={kit.vehicleId ?? ''}>
-            <option value="">{t('unassigned')}</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.make} {v.model} ({v.plateNumber})
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <SubmitButton>{t('saveChanges')}</SubmitButton>
-      </form>
+      <Reveal>
+        <form action={updateStarlinkKitAction.bind(null, kitId)} className="space-y-4">
+          <div className="survey-rule mb-2" />
+          <FormField label={t('status')} htmlFor="status">
+            <Select name="status" defaultValue={kit.status}>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+              <option value="MAINTENANCE">MAINTENANCE</option>
+            </Select>
+          </FormField>
+          <FormField label={t('assignedVehicle')} htmlFor="vehicleId" optional>
+            <Select name="vehicleId" defaultValue={kit.vehicleId ?? ''}>
+              <option value="">{t('unassigned')}</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.make} {v.model} ({v.plateNumber})
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <SubmitButton>{t('saveChanges')}</SubmitButton>
+        </form>
+      </Reveal>
 
-      <div>
+      <Reveal delay={0.1}>
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('lastKnownLocation')}</p>
-        <p className="mt-1 text-sm text-mist">
-          {kit.lastLatitude != null && kit.lastLongitude != null
-            ? `${kit.lastLatitude}, ${kit.lastLongitude}${kit.lastLocationAt ? ` · ${kit.lastLocationAt.toLocaleString()}` : ''}`
-            : t('notSet')}
-        </p>
+        {kit.lastLatitude != null && kit.lastLongitude != null ? (
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-mist">
+            <span className="font-medium text-ink">
+              {kit.lastLatitude}, {kit.lastLongitude}
+            </span>
+            {kit.lastLocationAt && (
+              <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
+                {kit.lastLocationAt.toLocaleString()}
+              </span>
+            )}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-mist">{t('notSet')}</p>
+        )}
         <p className="mt-1 text-xs text-mist">{t('staffEnteredNotice')}</p>
         <form action={setStarlinkLocationAction.bind(null, kitId)} className="mt-3 space-y-3">
           <MapLocationPicker initialLatitude={kit.lastLatitude} initialLongitude={kit.lastLongitude} />
@@ -76,20 +88,20 @@ export default async function StarlinkKitDetailPage({ params }: Props) {
             {t('updateLocation')}
           </SubmitButton>
         </form>
-      </div>
+      </Reveal>
 
       {/* DR-059: SUPERADMIN-only -- see the vehicle detail page's own
           comment for why this role check (not just the route permission)
           is the real gate for rendering the control at all. */}
       {ctx.roles.includes('SUPERADMIN') && (
-        <div>
+        <Reveal delay={0.15}>
           <div className="survey-rule mb-6" />
           <form action={deleteStarlinkKitAction.bind(null, kitId)}>
             <SubmitButton variant="secondary" pendingLabel={t('deleting')} confirmMessage={t('deleteKitConfirm')}>
               {t('deleteKit')}
             </SubmitButton>
           </form>
-        </div>
+        </Reveal>
       )}
     </div>
   );

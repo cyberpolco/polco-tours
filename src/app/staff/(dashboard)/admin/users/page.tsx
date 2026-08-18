@@ -4,9 +4,11 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ASSIGNABLE_ROLES, authService, isSuperAdmin, type PublicUser } from '@modules/auth';
 import { emailDomain, listEmailDomains, listPhoneDialCodes, matchesPhoneDialCode, matchesSearch, paginate } from '@lib/directory-filters';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Pagination } from '@/components/ui/Pagination';
+import { Reveal } from '@/components/ui/Reveal';
 import { SearchField } from '@/components/ui/SearchField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
@@ -118,6 +120,7 @@ export default async function UsersPage({ searchParams }: Props) {
       <div className="space-y-8">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
+        <Reveal className="space-y-8">
         <form method="get" action="/staff/admin/users" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <FormField label={t('search')} htmlFor="q" optional>
             <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
@@ -272,10 +275,11 @@ export default async function UsersPage({ searchParams }: Props) {
 
         <Pagination page={page} totalPages={totalPages} hrefFor={(p) => hrefWith({ page: p === 1 ? undefined : String(p) })} />
 
-        <div>
+        <Card>
           <h2 className="mb-3 text-lg font-semibold text-navy">{t('createNewUser')}</h2>
           <CreateUserForm assignableRoles={ASSIGNABLE_ROLES} />
-        </div>
+        </Card>
+        </Reveal>
       </div>
     </SidebarShell>
   );

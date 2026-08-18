@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
@@ -34,7 +36,9 @@ export default async function MyProfilePage() {
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
       <div className="max-w-md">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
-        <form action={updateMyProfileAction} className="mt-6 space-y-4">
+        <Reveal>
+        <Card className="mt-6">
+        <form action={updateMyProfileAction} className="space-y-4">
           <FormField label={t('name')} htmlFor="name">
             <input
               name="name"
@@ -69,6 +73,8 @@ export default async function MyProfilePage() {
         <div className="survey-rule my-8" />
         <h2 className="text-lg font-semibold text-navy">{t('password')}</h2>
         <PasswordSection />
+        </Card>
+        </Reveal>
       </div>
     </SidebarShell>
   );
