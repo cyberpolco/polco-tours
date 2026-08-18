@@ -80,8 +80,6 @@ interface ResolvedDrinkLineItem {
 interface ResolvedRates {
   driverRate: StaffRateView | null;
   guideRate: StaffRateView | null;
-  photographerRate: StaffRateView | null;
-  videographerRate: StaffRateView | null;
   transportRate: TransportRateView | null;
   immigrationCostRate: ImmigrationCostRateView | null;
   adminCostRate: AdminCostRateView | null;
@@ -104,8 +102,6 @@ interface RateResolutionInput {
   country: string;
   driverDays: number;
   guideDays: number;
-  photographerDays: number;
-  videographerDays: number;
   transportRateId?: string;
   requiresVisa: boolean;
   immigrationCostRateId?: string;
@@ -122,11 +118,9 @@ interface RateResolutionInput {
  * checks so error wording (and which fields are even required) can differ
  * between the two flows. */
 async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promise<ResolvedRates> {
-  const [driverRate, guideRate, photographerRate, videographerRate, adminCostRate] = await Promise.all([
+  const [driverRate, guideRate, adminCostRate] = await Promise.all([
     input.driverDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'DRIVER', now) : Promise.resolve(null),
     input.guideDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'GUIDE', now) : Promise.resolve(null),
-    input.photographerDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'PHOTOGRAPHER', now) : Promise.resolve(null),
-    input.videographerDays > 0 ? financeRepository.findEffectiveStaffRate(input.country, 'VIDEOGRAPHER', now) : Promise.resolve(null),
     input.adminDays > 0 ? financeRepository.findEffectiveAdminCostRate(input.country, now) : Promise.resolve(null),
   ]);
 
@@ -199,8 +193,6 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
   return {
     driverRate,
     guideRate,
-    photographerRate,
-    videographerRate,
     transportRate,
     immigrationCostRate,
     adminCostRate,
@@ -271,8 +263,6 @@ function toSaveCostBreakdownInput(b: PackageCostBreakdownView): SaveCostBreakdow
     nights: b.nights,
     driverDays: b.driverDays,
     guideDays: b.guideDays,
-    photographerDays: b.photographerDays,
-    videographerDays: b.videographerDays,
     transportRateId: b.transportRateId ?? undefined,
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
@@ -292,8 +282,6 @@ function toSaveBookingCostBreakdownInput(b: BookingCostBreakdownView): SaveBooki
     nights: b.nights,
     driverDays: b.driverDays,
     guideDays: b.guideDays,
-    photographerDays: b.photographerDays,
-    videographerDays: b.videographerDays,
     transportRateId: b.transportRateId ?? undefined,
     transportDays: b.transportDays,
     requiresVisa: b.requiresVisa,
@@ -779,8 +767,6 @@ export const financeService = {
     const {
       driverRate,
       guideRate,
-      photographerRate,
-      videographerRate,
       transportRate,
       immigrationCostRate,
       adminCostRate,
@@ -797,8 +783,6 @@ export const financeService = {
         country: pkg.country,
         driverDays: input.driverDays,
         guideDays: input.guideDays,
-        photographerDays: input.photographerDays,
-        videographerDays: input.videographerDays,
         transportRateId: input.transportRateId,
         requiresVisa: input.requiresVisa,
         immigrationCostRateId: input.immigrationCostRateId,
@@ -811,8 +795,6 @@ export const financeService = {
 
     if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${pkg.country}`);
     if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${pkg.country}`);
-    if (input.photographerDays > 0 && !photographerRate) throw Errors.conflict(`No effective photographer rate configured for ${pkg.country}`);
-    if (input.videographerDays > 0 && !videographerRate) throw Errors.conflict(`No effective videographer rate configured for ${pkg.country}`);
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
     if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
     if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${pkg.country}`);
@@ -840,12 +822,8 @@ export const financeService = {
       referenceGroupSize: input.referenceGroupSize,
       driverDays: input.driverDays,
       guideDays: input.guideDays,
-      photographerDays: input.photographerDays,
-      videographerDays: input.videographerDays,
       driverDailyRateMinor: driverRate?.dailyRateMinor ?? null,
       guideDailyRateMinor: guideRate?.dailyRateMinor ?? null,
-      photographerDailyRateMinor: photographerRate?.dailyRateMinor ?? null,
-      videographerDailyRateMinor: videographerRate?.dailyRateMinor ?? null,
       accommodationDailyRatesMinor,
       restaurantDailyRatesMinor,
       activityFeesMinor,
@@ -915,8 +893,6 @@ export const financeService = {
         nights: input.nights,
         driverDays: input.driverDays,
         guideDays: input.guideDays,
-        photographerDays: input.photographerDays,
-        videographerDays: input.videographerDays,
         transportRateId: input.transportRateId ?? null,
         transportDays: input.transportDays,
         requiresVisa: input.requiresVisa,
@@ -1023,8 +999,6 @@ export const financeService = {
     const {
       driverRate,
       guideRate,
-      photographerRate,
-      videographerRate,
       transportRate,
       immigrationCostRate,
       adminCostRate,
@@ -1041,8 +1015,6 @@ export const financeService = {
         country,
         driverDays: input.driverDays,
         guideDays: input.guideDays,
-        photographerDays: input.photographerDays,
-        videographerDays: input.videographerDays,
         transportRateId: input.transportRateId,
         requiresVisa: input.requiresVisa,
         immigrationCostRateId: input.immigrationCostRateId,
@@ -1055,8 +1027,6 @@ export const financeService = {
 
     if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${country}`);
     if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${country}`);
-    if (input.photographerDays > 0 && !photographerRate) throw Errors.conflict(`No effective photographer rate configured for ${country}`);
-    if (input.videographerDays > 0 && !videographerRate) throw Errors.conflict(`No effective videographer rate configured for ${country}`);
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
     if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
     if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${country}`);
@@ -1082,8 +1052,6 @@ export const financeService = {
     const rateCurrencies = [
       driverRate?.currency,
       guideRate?.currency,
-      photographerRate?.currency,
-      videographerRate?.currency,
       transportRate?.currency,
       immigrationCostRate?.currency,
       adminCostRate?.currency,
@@ -1116,12 +1084,8 @@ export const financeService = {
       referenceGroupSize: booking.seats,
       driverDays: input.driverDays,
       guideDays: input.guideDays,
-      photographerDays: input.photographerDays,
-      videographerDays: input.videographerDays,
       driverDailyRateMinor: driverRate?.dailyRateMinor ?? null,
       guideDailyRateMinor: guideRate?.dailyRateMinor ?? null,
-      photographerDailyRateMinor: photographerRate?.dailyRateMinor ?? null,
-      videographerDailyRateMinor: videographerRate?.dailyRateMinor ?? null,
       accommodationDailyRatesMinor,
       restaurantDailyRatesMinor,
       activityFeesMinor,
@@ -1161,8 +1125,6 @@ export const financeService = {
         nights: input.nights,
         driverDays: input.driverDays,
         guideDays: input.guideDays,
-        photographerDays: input.photographerDays,
-        videographerDays: input.videographerDays,
         transportRateId: input.transportRateId ?? null,
         transportDays: input.transportDays,
         requiresVisa: input.requiresVisa,

@@ -43,8 +43,6 @@ export async function saveCostBreakdownAction(packageId: string, formData: FormD
     nights: Number(formData.get('nights') || 0),
     driverDays: Number(formData.get('driverDays') || 0),
     guideDays: Number(formData.get('guideDays') || 0),
-    photographerDays: Number(formData.get('photographerDays') || 0),
-    videographerDays: Number(formData.get('videographerDays') || 0),
     transportRateId: optionalId(formData, 'transportRateId'),
     transportDays: Number(formData.get('transportDays') || 0),
     requiresVisa: formData.get('requiresVisa') === 'on',

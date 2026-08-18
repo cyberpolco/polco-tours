@@ -219,8 +219,6 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
                             <Select name="role" defaultValue={r.role} required className="text-sm">
                               <option value="DRIVER">{t('roleDriver')}</option>
                               <option value="GUIDE">{t('roleGuide')}</option>
-                              <option value="PHOTOGRAPHER">{t('rolePhotographer')}</option>
-                              <option value="VIDEOGRAPHER">{t('roleVideographer')}</option>
                             </Select>
                             <input
                               name="dailyRate"
@@ -258,8 +256,6 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
               <Select name="role" required className="text-sm">
                 <option value="DRIVER">{t('roleDriver')}</option>
                 <option value="GUIDE">{t('roleGuide')}</option>
-                <option value="PHOTOGRAPHER">{t('rolePhotographer')}</option>
-                <option value="VIDEOGRAPHER">{t('roleVideographer')}</option>
               </Select>
             </FormField>
             <FormField label={t('dailyRate')} htmlFor="dailyRate">

@@ -19,8 +19,31 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-146 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-146** (explicit user request) lets Tax Rates and Platform
+> Current through DR-147 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-147** (explicit user request) removes `PHOTOGRAPHER`/
+> `VIDEOGRAPHER` from `StaffRateRole` and drops `photographerDays`/
+> `videographerDays` from both `PackageCostBreakdown` and
+> `BookingCostBreakdown` — a photographer/videographer is priced as a
+> guest-facing `AddonService` `PHOTOGRAPHY`/`VIDEOGRAPHY` purchase (an
+> `AddonRate`, DR-128), not an operational Staff cost-plus bucket line item;
+> the two were a base-inclusion/add-on-purchase duplication of the same
+> concept. `resolveRatesForCost`/`computeCostBuckets` (`finance/service.ts`/
+> `domain.ts`) no longer resolve or sum a photographer/videographer rate;
+> `CreateStaffRateInput`'s `role` enum narrows to `DRIVER`/`GUIDE`; both cost
+> breakdown forms (package and booking) drop the two input fields, and their
+> now-orphaned EN/FR message keys are removed. **Schema change (drops two
+> `StaffRateRole` enum values + two `Int` columns) not yet applied to the
+> shared Neon DB as of this writing** — two real `StaffRate` rows (Namibia
+> `PHOTOGRAPHER`/`VIDEOGRAPHER`, $1,000/day NAD each, added 2026-08-15) exist
+> and must be deleted before the enum values can be dropped; zero
+> `PackageCostBreakdown`/`BookingCostBreakdown` rows have a nonzero value in
+> either column, so the column drop itself is lossless. Needs explicit user
+> confirmation before running `db push` (destructive, shared DB). Separately
+> noted, not part of this change's scope: no `AddonRate` row exists yet for
+> `PHOTOGRAPHY`/`VIDEOGRAPHY` in any country, so per DR-128's "hide an add-on
+> with no rate configured for the booking's country" rule, both add-ons are
+> currently invisible to every guest everywhere until staff configure one on
+> `/staff/finance/rates`. No permission/module-dependency change. **DR-146** (explicit user request) lets Tax Rates and Platform
 > Rate be updated in place, not just added-as-a-new-row/deleted — same
 > convention as `financeService`'s `updateXRate` family (DR-136) and
 > Coupon's own Update (DR-144). New `UpdateTaxRateInput`/

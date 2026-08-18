@@ -10,12 +10,8 @@ const BASE_INPUTS: CostInputs = {
   referenceGroupSize: 10,
   driverDays: 4,
   guideDays: 4,
-  photographerDays: 0,
-  videographerDays: 0,
   driverDailyRateMinor: 10000, // $100/day
   guideDailyRateMinor: 8000, // $80/day
-  photographerDailyRateMinor: null,
-  videographerDailyRateMinor: null,
   accommodationDailyRatesMinor: [5000, 5000, 5000, 5000], // 4 Day Template days with a hotel assigned, $50/day each
   restaurantDailyRatesMinor: [1000, 1000, 1000, 1000], // 4 Day Template days with a restaurant assigned, $10/day each
   activityFeesMinor: [3000, 2000], // 2 activities assigned across the Day Template

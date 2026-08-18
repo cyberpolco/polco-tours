@@ -162,12 +162,6 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
             <FormField label={t('guideDays')} htmlFor="guideDays">
               <input name="guideDays" type="number" min={0} defaultValue={breakdown?.guideDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
-            <FormField label={t('photographerDays')} htmlFor="photographerDays" optional>
-              <input name="photographerDays" type="number" min={0} defaultValue={breakdown?.photographerDays ?? 0} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label={t('videographerDays')} htmlFor="videographerDays" optional>
-              <input name="videographerDays" type="number" min={0} defaultValue={breakdown?.videographerDays ?? 0} className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
           </div>
         </div>
 

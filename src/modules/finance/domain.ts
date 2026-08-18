@@ -130,9 +130,13 @@ export interface AddonRateView {
 
 // ---------------------------------------------------------- rate input schemas
 
+// DR-147: PHOTOGRAPHER/VIDEOGRAPHER removed from this role enum -- a
+// photographer/videographer is a guest-facing add-on (AddonCode.PHOTOGRAPHY/
+// VIDEOGRAPHY, priced via AddonRate above), not part of the operational
+// Staff cost-plus bucket.
 export const CreateStaffRateInput = z.object({
   country: z.string().length(2),
-  role: z.enum(['DRIVER', 'GUIDE', 'PHOTOGRAPHER', 'VIDEOGRAPHER']),
+  role: z.enum(['DRIVER', 'GUIDE']),
   dailyRateMinor: z.number().int().nonnegative(),
   currency: CURRENCY_ENUM,
   ...EFFECTIVE_DATING,
@@ -244,8 +248,6 @@ export interface PackageCostBreakdownView {
   nights: number;
   driverDays: number;
   guideDays: number;
-  photographerDays: number;
-  videographerDays: number;
   transportRateId: string | null;
   transportDays: number;
   requiresVisa: boolean;
@@ -303,8 +305,6 @@ export const SaveCostBreakdownInput = z
     nights: z.number().int().nonnegative(),
     driverDays: z.number().int().nonnegative(),
     guideDays: z.number().int().nonnegative(),
-    photographerDays: z.number().int().nonnegative().default(0),
-    videographerDays: z.number().int().nonnegative().default(0),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),
@@ -327,12 +327,8 @@ export interface CostInputs {
   referenceGroupSize: number;
   driverDays: number;
   guideDays: number;
-  photographerDays: number;
-  videographerDays: number;
   driverDailyRateMinor: number | null;
   guideDailyRateMinor: number | null;
-  photographerDailyRateMinor: number | null;
-  videographerDailyRateMinor: number | null;
   // DR-131: one resolved rate per Day Template day that actually has the
   // corresponding entity assigned (hotelId/restaurantId/an activityId in
   // activityIds) -- already resolved to a flat minor-unit rate by the
@@ -401,11 +397,7 @@ export function computeCostBuckets(inputs: CostInputs): CostBuckets {
       inputs.transportDays
     : 0;
 
-  const staffMinor =
-    (inputs.driverDailyRateMinor ?? 0) * inputs.driverDays +
-    (inputs.guideDailyRateMinor ?? 0) * inputs.guideDays +
-    (inputs.photographerDailyRateMinor ?? 0) * inputs.photographerDays +
-    (inputs.videographerDailyRateMinor ?? 0) * inputs.videographerDays;
+  const staffMinor = (inputs.driverDailyRateMinor ?? 0) * inputs.driverDays + (inputs.guideDailyRateMinor ?? 0) * inputs.guideDays;
 
   const restaurantMinor = inputs.restaurantDailyRatesMinor.reduce((s, x) => s + x, 0) * inputs.referenceGroupSize;
 
@@ -477,8 +469,6 @@ export interface BookingCostBreakdownView {
   nights: number;
   driverDays: number;
   guideDays: number;
-  photographerDays: number;
-  videographerDays: number;
   transportRateId: string | null;
   transportDays: number;
   requiresVisa: boolean;
@@ -513,8 +503,6 @@ export const SaveBookingCostBreakdownInput = z
     nights: z.number().int().nonnegative(),
     driverDays: z.number().int().nonnegative(),
     guideDays: z.number().int().nonnegative(),
-    photographerDays: z.number().int().nonnegative().default(0),
-    videographerDays: z.number().int().nonnegative().default(0),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
     requiresVisa: z.boolean().default(false),

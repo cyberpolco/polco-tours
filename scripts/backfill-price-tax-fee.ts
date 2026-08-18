@@ -85,8 +85,6 @@ async function main() {
       nights: breakdown.nights,
       driverDays: breakdown.driverDays,
       guideDays: breakdown.guideDays,
-      photographerDays: breakdown.photographerDays,
-      videographerDays: breakdown.videographerDays,
       transportRateId: breakdown.transportRateId ?? undefined,
       transportDays: breakdown.transportDays,
       requiresVisa: breakdown.requiresVisa,
