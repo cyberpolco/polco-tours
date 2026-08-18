@@ -5,7 +5,16 @@
 import { Prisma, type Coupon, type PlatformRate, type TaxRate } from '@prisma/client';
 import { prisma } from '@lib/db';
 import { generateCouponCode } from './domain';
-import type { CouponView, CreateCouponInput, CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView } from './domain';
+import type {
+  CouponView,
+  CreateCouponInput,
+  CreatePlatformRateInput,
+  CreateTaxRateInput,
+  PlatformRateView,
+  TaxRateView,
+  UpdatePlatformRateInput,
+  UpdateTaxRateInput,
+} from './domain';
 
 function toTaxRateView(r: TaxRate): TaxRateView {
   return { id: r.id, country: r.country, taxType: r.taxType, rateBp: r.rateBp, validFrom: r.validFrom, validTo: r.validTo };
@@ -54,6 +63,15 @@ export const settingsRepository = {
     const r = await prisma.taxRate.create({ data: input });
     return toTaxRateView(r);
   },
+  /** Explicit user request: full replace of country/taxType/rateBp (id and
+   * the effective-dating fields, never surfaced on the edit form, are left
+   * untouched) -- same "reuse the create schema" precedent as updateCoupon. */
+  async updateTaxRate(id: string, input: UpdateTaxRateInput): Promise<TaxRateView | null> {
+    const existing = await prisma.taxRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const updated = await prisma.taxRate.update({ where: { id }, data: { country: input.country, taxType: input.taxType, rateBp: input.rateBp } });
+    return toTaxRateView(updated);
+  },
   async deleteTaxRate(id: string): Promise<TaxRateView | null> {
     const existing = await prisma.taxRate.findUnique({ where: { id } });
     if (!existing) return null;
@@ -69,6 +87,13 @@ export const settingsRepository = {
   async createPlatformRate(input: CreatePlatformRateInput): Promise<PlatformRateView> {
     const r = await prisma.platformRate.create({ data: input });
     return toPlatformRateView(r);
+  },
+  /** Same as updateTaxRate above -- explicit user request. */
+  async updatePlatformRate(id: string, input: UpdatePlatformRateInput): Promise<PlatformRateView | null> {
+    const existing = await prisma.platformRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const updated = await prisma.platformRate.update({ where: { id }, data: { rateBp: input.rateBp } });
+    return toPlatformRateView(updated);
   },
   async deletePlatformRate(id: string): Promise<PlatformRateView | null> {
     const existing = await prisma.platformRate.findUnique({ where: { id } });

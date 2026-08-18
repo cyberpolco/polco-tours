@@ -19,8 +19,28 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-145 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-145** (explicit user request, confirmed via three clarifying
+> Current through DR-146 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-146** (explicit user request) lets Tax Rates and Platform
+> Rate be updated in place, not just added-as-a-new-row/deleted — same
+> convention as `financeService`'s `updateXRate` family (DR-136) and
+> Coupon's own Update (DR-144). New `UpdateTaxRateInput`/
+> `UpdatePlatformRateInput` (both alias their `CreateXInput` schema) back
+> new `settingsService.updateTaxRate`/`updatePlatformRate`
+> (`requireSettingsWriter`-gated, unchanged) and a new `PATCH
+> /api/v1/settings/tax-rates/[id]` / `platform-rates/[id]`. Since a
+> package/booking's stored price/tax snapshot (DR-134/DR-145) only refreshes
+> when its own cost breakdown is re-saved, both update paths also call
+> `financeService.reapplyRatesToAllCostBreakdowns` (DR-136's own sweep,
+> reused as-is) — a **new `settings` → `finance` module dependency**
+> (confirmed acyclic: `finance` never imports `settings`) — surfaced as the
+> same `?reapplied=1&packagesUpdated=&...` banner DR-136 introduced.
+> `/staff/settings/tax-rates`/`platform-rate` each gain a per-row Edit
+> disclosure, same local `EditDisclosure` convention as `finance/rates/
+> page.tsx`/`coupons/page.tsx`. Batches one small unrelated cosmetic fix:
+> the "Valid to" column is also dropped from the Tax Rates table —
+> `TaxRate.validTo`, like `PlatformRate.validTo` before it (DR-143), has
+> never been settable by any create/edit path, so it only ever rendered
+> "—"; the schema field is untouched. No schema/permission change. **DR-145** (explicit user request, confirmed via three clarifying
 > questions first) taxes a combo package/booking (its Day Template's hotels
 > spanning 2+ countries) per country instead of at one flat rate. Scope,
 > confirmed with the user: tax only — Staff/Transport/Admin Cost/
@@ -1155,7 +1175,13 @@ src/
                    #   cross-module as financeService.resolveEffectiveTaxRateBp
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
-                   #   generated discount codes, SUPERADMIN-only writes)
+                   #   generated discount codes, SUPERADMIN-only writes) —
+                   #   DR-146: TaxRate/PlatformRate gain an in-place Update
+                   #   (not just add-a-new-row/delete), same convention as
+                   #   Coupon's own Update (DR-144); an update reapplies
+                   #   every existing package/booking cost breakdown via
+                   #   financeService.reapplyRatesToAllCostBreakdowns (new
+                   #   settings -> finance module dependency)
     content/       # SiteContent (About page) + FaqEntry CRUD (DR-071),
                    #   SUPERADMIN-only; public no-ctx read path powers the
                    #   guest /about and /faq pages, mirroring catalog's
@@ -1206,6 +1232,10 @@ Since DR-145, `invoicing` also depends on `finance` (to blend a TAILOR_MADE
 booking's tax rate the same way a package's own cost breakdown does) —
 confirmed acyclic the same way: `finance` itself only imports
 `{auth, catalog, booking, itinerary}`, never reaching back into `invoicing`.
+Since DR-146, `settings` also depends on `finance` (so updating a TaxRate/
+PlatformRate can reapply every existing package/booking cost breakdown, same
+sweep DR-136 introduced for finance's own rate tables) — confirmed acyclic
+the same way: `finance` never imports `settings`.
 
 ---
 

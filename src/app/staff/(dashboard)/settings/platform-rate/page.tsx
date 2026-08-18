@@ -2,11 +2,12 @@ import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
 import { BackLink } from '@/components/ui/BackLink';
+import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { createPlatformRateAction, deletePlatformRateAction } from './actions';
+import { createPlatformRateAction, deletePlatformRateAction, updatePlatformRateAction } from './actions';
 
 function DeleteButton({
   action,
@@ -28,24 +29,63 @@ function DeleteButton({
   );
 }
 
+// Explicit user request: an in-place edit per row, same local
+// dependency-free <details>-based convention as finance/rates/page.tsx's
+// own EditDisclosure -- can't be imported from there directly, a page.tsx
+// may only export `default` plus Next's well-known names.
+function EditDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-xs font-medium text-navy underline">{label}</summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
+interface Props {
+  searchParams: Promise<{
+    reapplied?: string;
+    packagesUpdated?: string;
+    packagesSkipped?: string;
+    bookingsUpdated?: string;
+    bookingsSkipped?: string;
+  }>;
+}
+
 // Settings module (DR-042) -- the platform's own commission on every online
 // payment ("the cost to maintain the platform"), a single global rate (not
 // per-country, unlike Tax Rates). Informational only: shown on the staff
 // booking-detail invoice view as a split of the existing total, never added
 // on top of what the customer pays -- see invoicingService's
-// getOrCreateInvoiceForBooking. Effective-dated, same convention as Tax
-// Rates -- add a new row rather than editing an old one.
-export default async function PlatformRatePage() {
+// getOrCreateInvoiceForBooking. Editing in place (rather than only add-a-
+// new-row) reapplies every existing package/booking cost breakdown, same
+// as financeService's own updateXRate family (DR-136/DR-145).
+export default async function PlatformRatePage({ searchParams }: Props) {
   const ctx = await requireStaffContext('platform_settings.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const platformRates = await settingsService.listPlatformRates(ctx);
   const t = await getTranslations('StaffPlatformRate');
+  const params = await searchParams;
 
   return (
     <div className="space-y-6">
       <BackLink href="/staff/settings/finance">{t('backToFinance')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
       <p className="text-xs text-mist">{t('intro')}</p>
+
+      {params.reapplied === '1' && (
+        <Card className="border-forest/40 bg-forest/5">
+          <p className="text-sm text-ink">
+            {t('reapplyBanner', {
+              packagesUpdated: Number(params.packagesUpdated ?? 0),
+              packagesSkipped: Number(params.packagesSkipped ?? 0),
+              bookingsUpdated: Number(params.bookingsUpdated ?? 0),
+              bookingsSkipped: Number(params.bookingsSkipped ?? 0),
+            })}
+          </p>
+        </Card>
+      )}
+
       {platformRates.length === 0 ? (
         <p className="text-mist">{t('noneYet')}</p>
       ) : (
@@ -64,12 +104,30 @@ export default async function PlatformRatePage() {
                 <Td>{r.validFrom.toLocaleDateString()}</Td>
                 <Td>
                   {canWrite && (
-                    <DeleteButton
-                      action={deletePlatformRateAction.bind(null, r.id)}
-                      removingLabel={t('removing')}
-                      removeConfirm={t('removeConfirm')}
-                      removeLabel={t('remove')}
-                    />
+                    <>
+                      <DeleteButton
+                        action={deletePlatformRateAction.bind(null, r.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                      <EditDisclosure label={t('edit')}>
+                        <form action={updatePlatformRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                          <input
+                            name="ratePercent"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            defaultValue={(r.rateBp / 100).toFixed(2)}
+                            required
+                            className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                          />
+                          <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                            {t('saveChanges')}
+                          </SubmitButton>
+                        </form>
+                      </EditDisclosure>
+                    </>
                   )}
                 </Td>
               </Tr>

@@ -28,6 +28,13 @@ export const CreateTaxRateInput = z.object({
 });
 export type CreateTaxRateInput = z.infer<typeof CreateTaxRateInput>;
 
+// Explicit user request: full replace of country/taxType/rateBp via the URL
+// id, same "reuse the create schema" precedent as UpdateCouponInput/
+// financeService's updateXRate family (DR-136/DR-144) -- an update in place
+// instead of the page's original "add a new row, never edit" convention.
+export const UpdateTaxRateInput = CreateTaxRateInput;
+export type UpdateTaxRateInput = CreateTaxRateInput;
+
 export interface PlatformRateView {
   id: string;
   rateBp: number;
@@ -40,6 +47,11 @@ export const CreatePlatformRateInput = z.object({
   ...EFFECTIVE_DATING,
 });
 export type CreatePlatformRateInput = z.infer<typeof CreatePlatformRateInput>;
+
+// Same as UpdateTaxRateInput above -- explicit user request for an in-place
+// update instead of delete-and-recreate.
+export const UpdatePlatformRateInput = CreatePlatformRateInput;
+export type UpdatePlatformRateInput = CreatePlatformRateInput;
 
 // -------------------------------------------------------------- Coupon
 // DR-104: a percentage-discount code, platform-wide like TaxRate/

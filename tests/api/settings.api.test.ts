@@ -4,9 +4,9 @@ import { PrismaClient } from '@prisma/client';
 import { prisma } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as listTaxRates, POST as createTaxRate } from '../../src/app/api/v1/settings/tax-rates/route';
-import { DELETE as deleteTaxRate } from '../../src/app/api/v1/settings/tax-rates/[id]/route';
+import { PATCH as updateTaxRate, DELETE as deleteTaxRate } from '../../src/app/api/v1/settings/tax-rates/[id]/route';
 import { GET as listPlatformRates, POST as createPlatformRate } from '../../src/app/api/v1/settings/platform-rates/route';
-import { DELETE as deletePlatformRate } from '../../src/app/api/v1/settings/platform-rates/[id]/route';
+import { PATCH as updatePlatformRate, DELETE as deletePlatformRate } from '../../src/app/api/v1/settings/platform-rates/[id]/route';
 import { GET as listCoupons, POST as createCoupon } from '../../src/app/api/v1/settings/coupons/route';
 import { PATCH as updateCoupon, DELETE as deleteCoupon } from '../../src/app/api/v1/settings/coupons/[id]/route';
 
@@ -70,7 +70,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('POST/GET/DELETE /api/v1/settings/tax-rates', () => {
+describe('POST/GET/PATCH/DELETE /api/v1/settings/tax-rates', () => {
   it('a SUPERADMIN creates a tax rate (201)', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest('http://localhost/api/v1/settings/tax-rates', headers, 'POST', {
@@ -94,6 +94,31 @@ describe('POST/GET/DELETE /api/v1/settings/tax-rates', () => {
     expect(body.rates.some((r: { id: string }) => r.id === createdTaxRateId)).toBe(true);
   });
 
+  // Explicit user request: an in-place update, not just delete-and-recreate.
+  it('a SUPERADMIN updates the tax rate in place (200)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/settings/tax-rates/${createdTaxRateId}`, headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      taxType: 'GST',
+      rateBp: 1500,
+    });
+    const res = await updateTaxRate(req, { params: Promise.resolve({ id: createdTaxRateId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rate.rateBp).toBe(1500);
+    expect(body.rate.taxType).toBe('GST');
+  });
+
+  it('updating an unknown tax rate 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/tax-rates/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
+      country: TEST_COUNTRY,
+      rateBp: 1000,
+    });
+    const res = await updateTaxRate(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
+  });
+
   it('deletes the rate (204)', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest(`http://localhost/api/v1/settings/tax-rates/${createdTaxRateId}`, headers, 'DELETE');
@@ -102,7 +127,7 @@ describe('POST/GET/DELETE /api/v1/settings/tax-rates', () => {
   });
 });
 
-describe('POST/GET/DELETE /api/v1/settings/platform-rates', () => {
+describe('POST/GET/PATCH/DELETE /api/v1/settings/platform-rates', () => {
   it('a SUPERADMIN creates a platform rate (201)', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest('http://localhost/api/v1/settings/platform-rates', headers, 'POST', { rateBp: 600 });
@@ -120,6 +145,27 @@ describe('POST/GET/DELETE /api/v1/settings/platform-rates', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.rates.some((r: { id: string }) => r.id === createdPlatformRateId)).toBe(true);
+  });
+
+  // Explicit user request: an in-place update, not just delete-and-recreate.
+  it('a SUPERADMIN updates the platform rate in place (200)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/settings/platform-rates/${createdPlatformRateId}`, headers, 'PATCH', {
+      rateBp: 750,
+    });
+    const res = await updatePlatformRate(req, { params: Promise.resolve({ id: createdPlatformRateId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.rate.rateBp).toBe(750);
+  });
+
+  it('updating an unknown platform rate 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/platform-rates/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
+      rateBp: 500,
+    });
+    const res = await updatePlatformRate(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
   });
 
   it('deletes the rate (204)', async () => {

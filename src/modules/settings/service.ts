@@ -1,10 +1,28 @@
 // settings module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { AuthContext } from '@modules/auth';
+// New settings -> finance dependency (confirmed acyclic -- finance depends
+// on {auth, catalog, booking, itinerary}, never settings): updating a
+// TaxRate/PlatformRate feeds the same TourPackage.priceMinor snapshot the
+// finance module's own 8 cost-plus rates do (DR-134/DR-145), so it reuses
+// the exact same reapply-every-breakdown sweep DR-136 introduced for those,
+// rather than leaving every existing package/booking price stale until
+// someone happens to re-save its cost breakdown.
+import { financeService, type ReapplyRatesResult } from '@modules/finance';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import type { CouponView, CreateCouponInput, CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView, UpdateCouponInput } from './domain';
+import type {
+  CouponView,
+  CreateCouponInput,
+  CreatePlatformRateInput,
+  CreateTaxRateInput,
+  PlatformRateView,
+  TaxRateView,
+  UpdateCouponInput,
+  UpdatePlatformRateInput,
+  UpdateTaxRateInput,
+} from './domain';
 import { settingsRepository } from './repository';
 
 /** Same layering as financeService's requireRateWriter/immigration's
@@ -31,6 +49,21 @@ export const settingsService = {
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.tax_rate_created', resourceType: 'TaxRate', resourceId: rate.id });
     return rate;
   },
+  /** Explicit user request: an in-place update, not just delete-and-
+   * recreate -- since a package/booking's stored price/tax snapshot
+   * (DR-134/DR-145) is only ever refreshed by re-saving its cost
+   * breakdown, this also reapplies every existing one so a changed tax
+   * rate doesn't leave every package's priceMinor stale, same "update
+   * triggers reapply" precedent as financeService's updateXRate family
+   * (DR-136). */
+  async updateTaxRate(ctx: AuthContext, id: string, input: UpdateTaxRateInput): Promise<{ rate: TaxRateView; reapply: ReapplyRatesResult }> {
+    requireSettingsWriter(ctx);
+    const rate = await settingsRepository.updateTaxRate(id, input);
+    if (!rate) throw Errors.notFound('Tax rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.tax_rate_updated', resourceType: 'TaxRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
+  },
   async deleteTaxRate(ctx: AuthContext, id: string): Promise<void> {
     requireSettingsWriter(ctx);
     const deleted = await settingsRepository.deleteTaxRate(id);
@@ -48,6 +81,16 @@ export const settingsService = {
     const rate = await settingsRepository.createPlatformRate(input);
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.platform_rate_created', resourceType: 'PlatformRate', resourceId: rate.id });
     return rate;
+  },
+  /** Same as updateTaxRate above -- explicit user request, same reapply
+   * precedent (PlatformRate feeds the same priceMinor snapshot, DR-127/134). */
+  async updatePlatformRate(ctx: AuthContext, id: string, input: UpdatePlatformRateInput): Promise<{ rate: PlatformRateView; reapply: ReapplyRatesResult }> {
+    requireSettingsWriter(ctx);
+    const rate = await settingsRepository.updatePlatformRate(id, input);
+    if (!rate) throw Errors.notFound('Platform rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.platform_rate_updated', resourceType: 'PlatformRate', resourceId: id });
+    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
+    return { rate, reapply };
   },
   async deletePlatformRate(ctx: AuthContext, id: string): Promise<void> {
     requireSettingsWriter(ctx);
