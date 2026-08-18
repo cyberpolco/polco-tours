@@ -7,6 +7,7 @@ import { catalogService } from '@modules/catalog';
 import { itineraryService, type HotelView, type ItineraryDaySiteView, type RestaurantView } from '@modules/itinerary';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
+import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
@@ -163,6 +164,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-3xl space-y-8">
+      <BackLink href="/staff/itineraries">{t('backToItineraries')}</BackLink>
       <div>
         <PageHeader eyebrow={t('itineraryEyebrow')} title={booking.bookingReference} />
         <p className="mt-1 flex items-center gap-2 text-mist">

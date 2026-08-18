@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
@@ -14,7 +15,8 @@ export default async function NewCountryRegulationPage() {
   const t = await getTranslations('StaffCountryRegulations');
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
+      <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
       <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       <form action={createCountryRegulationAction} className="mt-6 space-y-4">
         <FormField label={t('country')} htmlFor="country">

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { immigrationService } from '@modules/immigration';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
@@ -35,6 +36,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
   if (!canWrite) {
     return (
       <div className="max-w-2xl space-y-6">
+        <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
         <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
         <dl className="space-y-4 text-sm">
           <div>
@@ -89,6 +91,7 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl space-y-8">
+      <BackLink href="/staff/country-regulations">{t('backToCountryRegulations')}</BackLink>
       <PageHeader eyebrow={t('eyebrow')} title={tCountries(regulation.country)} />
       <form action={updateCountryRegulationAction.bind(null, regulation.country)} className="space-y-4">
         <FormField label={t('visaRequirements')} htmlFor="visaRequirements">

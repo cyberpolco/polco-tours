@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
-import { BackButton } from './back-button';
 import { StaffNav } from './nav';
 import { SignOutButton } from './sign-out-button';
 
@@ -44,7 +43,6 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
           custom arbitrary value since Tailwind has nothing named wider
           than 7xl out of the box. */}
       <main className="mx-auto max-w-[100rem] px-4 py-6 sm:px-8 sm:py-10">
-        <BackButton />
         {children}
       </main>
     </div>

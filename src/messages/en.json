@@ -822,6 +822,7 @@
     "open": "Open"
   },
   "StaffItineraryDetail": {
+    "backToItineraries": "back to itineraries",
     "itineraryEyebrow": "Itinerary",
     "notScheduledYet": "Not scheduled yet",
     "assignVehicleDriverGuide": "Assign vehicle/driver/guide",
@@ -910,6 +911,7 @@
     "removing": "Removing…"
   },
   "StaffHotels": {
+    "backToHotels": "back to hotels",
     "eyebrow": "Itinerary Management",
     "title": "Hotels",
     "addHotel": "Add hotel",
@@ -927,6 +929,7 @@
     "newTitle": "Add a hotel"
   },
   "StaffRestaurants": {
+    "backToRestaurants": "back to restaurants",
     "eyebrow": "Itinerary Management",
     "title": "Restaurants",
     "addRestaurant": "Add restaurant",
@@ -1262,6 +1265,7 @@
     "deleteConfirm": "Permanently delete this visa application? This cannot be undone."
   },
   "StaffCountryRegulations": {
+    "backToCountryRegulations": "back to country regulations",
     "eyebrow": "Immigration",
     "title": "Country regulations",
     "addCountry": "Add country",
@@ -1666,6 +1670,7 @@
     "createNewUser": "Create a new user"
   },
   "StaffEditUser": {
+    "backToUsers": "back to users",
     "eyebrow": "Users",
     "editUser": "Edit user",
     "name": "Name",
@@ -1805,6 +1810,7 @@
     "deleteConfirm": "Permanently delete this review? Its driver/guide ratings are removed too, and every affected average is recomputed. This cannot be undone."
   },
   "StaffDepartureDetail": {
+    "backToPackage": "back to package",
     "eyebrow": "Departure",
     "capacity": "Capacity {capacity}",
     "perSeat": "/seat",

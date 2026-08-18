@@ -7,6 +7,7 @@ import { catalogService, hasDepartureEnded } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { Badge } from '@/components/ui/Badge';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -96,6 +97,10 @@ export default async function DepartureDetailPage({ params, searchParams }: Prop
 
   return (
     <div className="max-w-2xl space-y-8">
+      {/* Bespoke (TAILOR_MADE) departures have no parent TourPackage to link
+          back to -- reached instead from the booking/itinerary detail page,
+          which already has their own navigation. */}
+      {departure.tourPackageId && <BackLink href={`/staff/packages/${departure.tourPackageId}`}>{t('backToPackage')}</BackLink>}
       <div>
         <PageHeader eyebrow={t('eyebrow')} title={`${departure.startDate.toLocaleDateString()} · ${tCountries(packageCountry)}`} />
         <p className="mt-1 flex items-center gap-2 text-mist">

@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,7 +15,8 @@ export default async function NewRestaurantPage() {
   const tFields = await getTranslations('PlaceFields');
 
   return (
-    <div className="max-w-md">
+    <div className="max-w-md space-y-6">
+      <BackLink href="/staff/restaurants">{t('backToRestaurants')}</BackLink>
       <PageHeader eyebrow={t('newEyebrow')} title={t('newTitle')} />
       <form action={createRestaurantAction} className="mt-6 space-y-4">
         <FormField label={tFields('name')} htmlFor="name">

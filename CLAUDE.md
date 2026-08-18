@@ -19,8 +19,23 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-152 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-152** (explicit user request) splits the staff package-detail
+> Current through DR-153 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-153** (explicit user request) removes the generic "Back"
+> browser-history button (`back-button.tsx`, rendered on every staff
+> dashboard page via `layout.tsx`) — redundant on any page that already had
+> its own page-specific "back to X" `BackLink`, and less predictable
+> (plain `router.back()`) than an explicit destination everywhere else.
+> `back-button.tsx` and its `NO_BACK_ROUTES` hub-page suppression list are
+> deleted outright. Of the pages that had no other back-navigation: 10
+> already had their own `BackLink`; 10 sit inside the Settings
+> `SidebarShell`, whose persistent sub-nav already covers it; the remaining
+> 9 leaf pages (`admin/users/[userId]`, `country-regulations/new` +
+> `[country]`, `hotels/[hotelId]` + `new`, `restaurants/[restaurantId]` +
+> `new`, `itineraries/[itineraryId]`, `departures/[departureId]`) each got a
+> real `BackLink` added to a real destination — the departure page's link to
+> its parent package is conditional, since a bespoke `TAILOR_MADE`
+> departure has no parent package to link to. Six new EN/FR message keys.
+> No schema/permission/module-dependency change. **DR-152** (explicit user request) splits the staff package-detail
 > "download summary PDF" (DR-135) into two documents: the existing staff
 > version (full cost breakdown, per-day accommodation rates) is unchanged,
 > and a new client-facing version drops every internal cost bucket, showing
@@ -1620,10 +1635,13 @@ visually coherent with the design package.
   browse, guest `/plan-my-trip`, or staff's own "New Booking" flow) shows up
   on `/staff/bookings`, filterable by status/origin — there is no separate
   "pending inquiry" or "quote request" queue.
-- **Staff dashboard** (`staff/(dashboard)/`) is one shell with a shared
-  `BackButton` and a Settings sidebar grouping the admin-facing pages
-  (country regulations, operational rates, insights, users, permissions,
-  clients, tax/platform rates, profile).
+- **Staff dashboard** (`staff/(dashboard)/`) is one shell with a Settings
+  sidebar grouping the admin-facing pages (country regulations, operational
+  rates, insights, users, permissions, clients, tax/platform rates,
+  profile). There is no generic browser-history back button (removed
+  DR-153) — every page's own back-navigation is either a page-specific
+  "back to X" `BackLink`, or (for pages inside the Settings sidebar) the
+  sidebar itself.
 - **Itinerary vs. Assignment**: `Itinerary`/`ItineraryDay` (the day-by-day
   operational plan, 1:1 with a Booking) is a distinct concept from
   `Assignment` (which vehicle/driver/guide serves a `Departure` — shared

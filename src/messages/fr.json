@@ -822,6 +822,7 @@
     "open": "Ouvrir"
   },
   "StaffItineraryDetail": {
+    "backToItineraries": "retour aux itinéraires",
     "itineraryEyebrow": "Itinéraire",
     "notScheduledYet": "Pas encore planifié",
     "assignVehicleDriverGuide": "Affecter véhicule/chauffeur/guide",
@@ -910,6 +911,7 @@
     "removing": "Suppression…"
   },
   "StaffHotels": {
+    "backToHotels": "retour aux hôtels",
     "eyebrow": "Gestion des itinéraires",
     "title": "Hôtels",
     "addHotel": "Ajouter un hôtel",
@@ -927,6 +929,7 @@
     "newTitle": "Ajouter un hôtel"
   },
   "StaffRestaurants": {
+    "backToRestaurants": "retour aux restaurants",
     "eyebrow": "Gestion des itinéraires",
     "title": "Restaurants",
     "addRestaurant": "Ajouter un restaurant",
@@ -1262,6 +1265,7 @@
     "deleteConfirm": "Supprimer définitivement cette demande de visa ? Cette action est irréversible."
   },
   "StaffCountryRegulations": {
+    "backToCountryRegulations": "retour aux réglementations par pays",
     "eyebrow": "Immigration",
     "title": "Réglementations par pays",
     "addCountry": "Ajouter un pays",
@@ -1666,6 +1670,7 @@
     "createNewUser": "Créer un nouvel utilisateur"
   },
   "StaffEditUser": {
+    "backToUsers": "retour aux utilisateurs",
     "eyebrow": "Utilisateurs",
     "editUser": "Modifier l'utilisateur",
     "name": "Nom",
@@ -1805,6 +1810,7 @@
     "deleteConfirm": "Supprimer définitivement cet avis ? Ses notes chauffeur/guide seront également supprimées, et chaque moyenne concernée sera recalculée. Cette action est irréversible."
   },
   "StaffDepartureDetail": {
+    "backToPackage": "retour au circuit",
     "eyebrow": "Départ",
     "capacity": "Capacité {capacity}",
     "perSeat": "/place",

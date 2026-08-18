@@ -4,6 +4,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { can } from '@lib/rbac';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { itineraryService } from '@modules/itinerary';
+import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { MapLocationPicker } from '@/components/ui/MapLocationPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -47,6 +48,7 @@ export default async function HotelDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-md space-y-8">
+      <BackLink href="/staff/hotels">{t('backToHotels')}</BackLink>
       <PageHeader eyebrow={t('detailEyebrow')} title={hotel.name} />
       {canWrite ? (
         <form action={updateHotelAction.bind(null, hotelId)} className="space-y-4">
