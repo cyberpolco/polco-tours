@@ -1844,6 +1844,7 @@
     "lookUp": "Look up",
     "lookupFailed": "No itinerary found for that booking reference, or you don't have access to it.",
     "noDaysYet": "This itinerary has no days yet.",
+    "circuitFor": "Tour circuit for {reference}",
     "dayLabel": "Day {number}",
     "downloadPdf": "Download PDF"
   },

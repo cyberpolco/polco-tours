@@ -9,7 +9,7 @@ import { GET as getItinerary } from '../../src/app/api/v1/itineraries/[itinerary
 import { GET as listMine } from '../../src/app/api/v1/itineraries/mine/route';
 import { GET as listDays, POST as addDay } from '../../src/app/api/v1/itineraries/[itineraryId]/days/route';
 import { GET as mapOverview } from '../../src/app/api/v1/itineraries/map-overview/route';
-import { GET as mapPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/days/[dayId]/map-pdf/route';
+import { GET as mapPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/map-pdf/route';
 import { GET as summaryPdf } from '../../src/app/api/v1/itineraries/[itineraryId]/summary-pdf/route';
 
 /**
@@ -330,25 +330,25 @@ describe('anti-BOLA: itinerary map tab (booking-reference lookup, DR-089)', () =
   });
 });
 
-describe('anti-BOLA: itinerary day map PDF (DR-089)', () => {
-  it('a TOUR_GUIDE assigned to departureX gets 409 for dayX -- no geocoded stops yet, not an empty map', async () => {
+describe('anti-BOLA: itinerary circuit map PDF (DR-150)', () => {
+  it('a TOUR_GUIDE assigned to departureX gets 409 for itineraryX -- no geocoded stops yet, not an empty map', async () => {
     const headers = await loginAs(guideId);
-    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/days/${dayXId}/map-pdf`, { headers });
-    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId, dayId: dayXId }) });
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId }) });
     expect(res.status).toBe(409);
   });
 
-  it('the same TOUR_GUIDE gets 404 (not 403) for dayY on the unrelated itinerary', async () => {
+  it('the same TOUR_GUIDE gets 404 (not 403) for the unrelated itineraryY', async () => {
     const headers = await loginAs(guideId);
-    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryYId}/days/${dayYId}/map-pdf`, { headers });
-    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryYId, dayId: dayYId }) });
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryYId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryYId }) });
     expect(res.status).toBe(404);
   });
 
   it('a TOURIST gets 403 (no itinerary.read permission)', async () => {
     const headers = await loginAs(touristId);
-    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/days/${dayXId}/map-pdf`, { headers });
-    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId, dayId: dayXId }) });
+    const req = new NextRequest(`http://localhost/api/v1/itineraries/${itineraryXId}/map-pdf`, { headers });
+    const res = await mapPdf(req, { params: Promise.resolve({ itineraryId: itineraryXId }) });
     expect(res.status).toBe(403);
   });
 });

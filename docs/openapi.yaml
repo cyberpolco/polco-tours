@@ -2053,21 +2053,16 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /itineraries/{itineraryId}/days/{dayId}/map-pdf:
+  /itineraries/{itineraryId}/map-pdf:
     parameters:
       - $ref: '#/components/parameters/itineraryId'
-      - name: dayId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
     get:
-      summary: Download one day's map + stop list as a PDF (DR-089)
+      summary: Download the whole tour's circuit map + stop list as one PDF (DR-150)
       description: >-
-        itineraryId is part of the path for consistency with the sibling day
-        routes above, but isn't used for authorization -- streamDayMapPdf
-        resolves + re-checks ownership from dayId alone. Renders a Static
-        Maps image (Google Maps Platform) via @react-pdf/renderer; a day
-        with zero geocoded stops 409s rather than returning an empty map.
+        Replaces the old per-day map-pdf route (DR-089). Renders one Static
+        Maps image (Google Maps Platform) covering every day's stops, each
+        day its own color, via @react-pdf/renderer; an itinerary with zero
+        geocoded stops anywhere 409s rather than returning an empty map.
       responses:
         '200':
           description: application/pdf
@@ -2077,7 +2072,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: No geocoded stops on this day yet
+          description: No geocoded stops anywhere in this itinerary yet
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }

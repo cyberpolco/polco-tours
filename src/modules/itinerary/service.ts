@@ -6,6 +6,7 @@ import { assignmentService } from '@modules/assignment';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { audit } from '@lib/audit';
+import { circuitColorAsCss, circuitColorForDayIndex } from '@lib/circuit-colors';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
@@ -38,7 +39,7 @@ import {
 } from './domain';
 import { StaticMapsGatewayError, staticMapsGateway } from './gateway';
 import { renderItinerarySummaryPdf } from './itinerary-summary-pdf';
-import { renderDayMapPdf } from './map-pdf';
+import { renderItineraryMapPdf } from './map-pdf';
 import { itineraryRepository } from './repository';
 
 function requireOrg(ctx: AuthContext): string {
@@ -73,16 +74,6 @@ async function getOwnedItinerary(ctx: AuthContext, organizationId: string, itine
     throw Errors.notFound('Itinerary not found');
   }
   return itinerary;
-}
-
-/** Map-tab anti-BOLA: resolves a day by id, then applies the same
- * manager-or-assigned check as getOwnedItinerary against its parent
- * itinerary -- a day has no owner of its own, only its itinerary does. */
-async function getOwnedDay(ctx: AuthContext, organizationId: string, dayId: string): Promise<{ day: ItineraryDayView; itinerary: ItineraryView }> {
-  const day = await itineraryRepository.findDayById(organizationId, dayId);
-  if (!day) throw Errors.notFound('Itinerary day not found');
-  const itinerary = await getOwnedItinerary(ctx, organizationId, day.itineraryId);
-  return { day, itinerary };
 }
 
 export const itineraryService = {
@@ -459,42 +450,61 @@ export const itineraryService = {
     return { bookingReference: booking.bookingReference, itineraryId: itinerary.id, days: dayViews };
   },
 
-  /** Renders one day's stops as a downloadable PDF (map image + stop list).
-   * Skips any stop with no coordinates when building the map image itself
-   * (Static Maps needs real lat/lng) but still lists it in the PDF text,
-   * flagged "not geocoded", so staff notice the gap rather than silently
-   * losing a planned stop. */
-  async streamDayMapPdf(ctx: AuthContext, dayId: string): Promise<{ body: Buffer; contentType: string }> {
+  /** DR-150: renders the WHOLE tour's circuit as one downloadable PDF --
+   * every day's stops plotted on a single map, each day in its own color
+   * (src/lib/circuit-colors.ts) -- replacing the old per-day map/PDF
+   * entirely. A day with zero geocoded stops is skipped when building the
+   * map image itself (Static Maps needs real lat/lng) but its stops still
+   * appear in the PDF text, flagged "not geocoded", so staff notice the gap
+   * rather than silently losing a planned stop. Deliberately ungated by
+   * approval status, unlike streamItinerarySummaryPdf -- this is staff's
+   * own working tool for checking geocoding/circuit sanity while an
+   * itinerary is still being built, not a client-facing final document. */
+  async streamItineraryMapPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string }> {
     assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
-    const { day } = await getOwnedDay(ctx, organizationId, dayId);
-    const stops = await buildDayStops(organizationId, day);
-    const geocoded = stops.filter(
-      (s): s is MapStopView & { latitude: number; longitude: number } => s.latitude != null && s.longitude != null,
-    );
-    if (geocoded.length === 0) {
-      throw Errors.conflict('This day has no geocoded stops yet -- add coordinates before generating a map.');
+    const itinerary = await getOwnedItinerary(ctx, organizationId, itineraryId);
+    const booking = await bookingService.getById(ctx, itinerary.bookingId);
+    const days = await itineraryRepository.listDays(organizationId, itineraryId);
+    const dayStops = await Promise.all(days.map((day) => buildDayStops(organizationId, day)));
+
+    const circuitDays = days.map((day, i) => {
+      const geocoded = dayStops[i]!.filter(
+        (s): s is MapStopView & { latitude: number; longitude: number } => s.latitude != null && s.longitude != null,
+      );
+      return { color: circuitColorForDayIndex(i), points: geocoded.map((s) => ({ lat: s.latitude, lng: s.longitude })) };
+    });
+    if (circuitDays.every((d) => d.points.length === 0)) {
+      throw Errors.conflict('This itinerary has no geocoded stops yet -- add coordinates before generating a map.');
     }
 
     let mapImage: Buffer;
     try {
-      mapImage = await staticMapsGateway.renderMap({
-        markers: geocoded.map((s) => ({ lat: s.latitude, lng: s.longitude, label: s.label })),
-        path: geocoded.map((s) => ({ lat: s.latitude, lng: s.longitude })),
-      });
+      mapImage = await staticMapsGateway.renderCircuitMap({ days: circuitDays });
     } catch (err) {
       if (err instanceof StaticMapsGatewayError) throw Errors.internal();
       throw err;
     }
 
-    const body = await renderDayMapPdf(day, stops, mapImage);
+    const body = await renderItineraryMapPdf(
+      {
+        bookingReference: booking.bookingReference,
+        days: days.map((day, i) => ({
+          dayNumber: day.dayNumber,
+          date: day.date,
+          color: circuitColorAsCss(circuitColorForDayIndex(i)),
+          stops: dayStops[i]!,
+        })),
+      },
+      mapImage,
+    );
 
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
-      action: 'itinerary_day_map.downloaded',
-      resourceType: 'ItineraryDay',
-      resourceId: dayId,
+      action: 'itinerary_map.downloaded',
+      resourceType: 'Itinerary',
+      resourceId: itineraryId,
       organizationId,
     });
 
@@ -945,7 +955,7 @@ async function requireActivitiesExist(organizationId: string, activityIds: strin
   if (found.length !== activityIds.length) throw Errors.notFound('Activity not found');
 }
 
-/** Shared by resolveMapOverview and streamDayMapPdf -- one day's stops, in
+/** Shared by resolveMapOverview and streamItineraryMapPdf -- one day's stops, in
  * visiting order: pickup, each ItineraryDaySite in sequence, hotel,
  * restaurant, dropoff. A stop with no coordinates is still included
  * (latitude/longitude null) so the caller can decide whether to skip it

@@ -19,8 +19,34 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-149 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-149 was a real, user-reported gap**: a vehicle/driver/guide
+> Current through DR-150 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-150** (explicit user request) replaces the staff Map tab's
+> (DR-089) one-day-at-a-time map + per-day PDF with a single whole-circuit
+> view: every day's stops plotted on one map, each day its own color, and
+> one PDF download for the entire itinerary. New shared, framework-free
+> `src/lib/circuit-colors.ts` (`circuitColorForDayIndex`, a cycling 12-color
+> palette) is the one source of truth for a day's color, read by both the
+> client Google Maps JS widget (`ItineraryCircuitMap.tsx`, replacing
+> `ItineraryDayMap.tsx`) and the server Static Maps image + PDF, so the
+> interactive map, the PDF's map image, and its stop-list swatches always
+> agree. `itinerary/gateway.ts`'s `StaticMapsGateway.renderMap` (one day,
+> one color) is replaced by `renderCircuitMap`, emitting one Static Maps
+> `markers=color:0x...`/`path=color:0x...|weight:3|...` pair per day —
+> Google's API already supports this natively, so it's a wider query
+> string, not a new endpoint. Newly handled: Google's ~8192-char Static Maps
+> URL limit, realistically reachable by a long circuit — `renderCircuitMap`
+> degrades in stages (drop per-stop markers, then thin each day's path
+> points) rather than ever sending a URL `fetch()` would reject.
+> `itineraryService.streamDayMapPdf` is replaced by `streamItineraryMapPdf`
+> (audited as `itinerary_map.downloaded`), deliberately ungated by
+> `Itinerary.status` (unlike the detailed summary PDF's APPROVED-only gate)
+> since this stays staff's own working tool for checking geocoding/circuit
+> sanity while still building the itinerary. Route `GET /api/v1/itineraries/
+> {itineraryId}/days/{dayId}/map-pdf` is replaced by `GET /api/v1/
+> itineraries/{itineraryId}/map-pdf`. The hand-written `google-maps-types.ts`
+> shim gains `LatLngBounds`/`fitBounds`/`Marker.icon`/`SymbolPath.CIRCLE`
+> (additive; `MapLocationPicker.tsx` is unaffected). No schema/permission/
+> module-dependency change. **DR-149 was a real, user-reported gap**: a vehicle/driver/guide
 > stayed marked BOOKED after the departure it was assigned to no longer had
 > any active booking, in two cases the DR-082 sync hook never actually
 > covered. (1) SUPERADMIN hard-deleting a booking (`bookingService
@@ -1126,10 +1152,10 @@ gaps a fresh Postgres would hit).
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
-| Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryDayMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only per-day map on the staff Map tab (DR-089); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
-| Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's per-day PDF map image; `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
+| Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryCircuitMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only whole-circuit map on the staff Map tab (DR-089, whole-circuit since DR-150); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
+| Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's whole-circuit PDF map image (DR-150: every day in its own color, one call covering the whole itinerary instead of one per day); `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
 | Weather data | Google Maps Platform Weather API (DR-113) — reuses the same server-only `GOOGLE_MAPS_SERVER_API_KEY`, not a new credential; that key's Google Cloud project still needs the Weather API product enabled + added to its restriction list (OI-14) before this serves live data (degrades gracefully to town/seasonal-notes-only until then). `src/modules/weather/gateway.ts` (`GoogleWeatherGateway`) calls `currentConditions:lookup`/`forecast/days:lookup`, one bounded retry on a genuine failure (never on timeout), no circuit breaker — call volume is bounded by `src/lib/weather-cache.ts` (Upstash Redis) instead |
-| PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's per-day PDF (Static Maps image + stop list) |
+| PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's whole-circuit PDF (DR-150: one combined Static Maps image covering every day + a color-keyed, day-grouped stop list) |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (country-regulations text, package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
@@ -1156,7 +1182,7 @@ src/
         bookings/, departures/, itineraries/, hotels/, restaurants/, sites/,
         fleet/, schedule/, visa-queue/, country-regulations/,
         finance/, insights/, tracking/, ratings/, packages/, profile/,
-        map/ (DR-089: booking-reference lookup -> per-day map + PDF),
+        map/ (DR-089: booking-reference lookup -> whole-circuit map + PDF, DR-150),
         settings/ (finance hub -> tax-rates, platform-rate, coupons; DR-123),
         admin/ (users, clients, permissions)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
@@ -1212,7 +1238,8 @@ src/
                    #   ItineraryDay.activityIds directly) +
                    #   HotelRating/RestaurantRating (staff + guide/driver) +
                    #   gateway.ts/map-pdf.tsx (Static Maps + PDF rendering
-                   #   for the Map tab, DR-089) + itinerary-summary-pdf.tsx
+                   #   for the Map tab's whole-circuit view, DR-089/DR-150)
+                   #   + itinerary-summary-pdf.tsx
                    #   (DR-137: staff "download detailed itinerary" PDF,
                    #   shown once APPROVED, no prices — none exist on this
                    #   module's own tables)
