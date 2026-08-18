@@ -129,6 +129,19 @@ describe('syncFleetAvailabilityForDeparture', () => {
     expect(await readAvailability()).toEqual({ vehicle: 'AVAILABLE', driver: 'AVAILABLE', guide: 'AVAILABLE' });
   });
 
+  it('frees everything back to AVAILABLE once a CONFIRMED booking is soft-deleted (DR-149)', async () => {
+    // softDelete (bookingService.deleteBooking, DR-058) never touches
+    // `status` -- only setting deletedAt reproduces that shape here, same
+    // as tests/booking-delete.test.ts's own raw-fixture convention.
+    await withOrg(orgId, (tx) => tx.booking.update({ where: { id: bookingId }, data: { status: 'CONFIRMED', deletedAt: null } }));
+    await syncFleetAvailabilityForDeparture(orgId, departureId);
+    expect(await readAvailability()).toEqual({ vehicle: 'BOOKED', driver: 'BOOKED', guide: 'BOOKED' });
+
+    await withOrg(orgId, (tx) => tx.booking.update({ where: { id: bookingId }, data: { deletedAt: new Date() } }));
+    await syncFleetAvailabilityForDeparture(orgId, departureId);
+    expect(await readAvailability()).toEqual({ vehicle: 'AVAILABLE', driver: 'AVAILABLE', guide: 'AVAILABLE' });
+  });
+
   it('is a silent no-op for a departure with no assignments at all', async () => {
     const bareDeparture = await withOrg(orgId, async (tx) => {
       const pkg = await tx.tourPackage.findFirstOrThrow({ where: { organizationId: orgId } });

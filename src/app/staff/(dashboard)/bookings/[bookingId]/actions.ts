@@ -175,9 +175,19 @@ export async function issueRatingCodeAction(bookingId: string) {
 // step fails afterward, the booking is still visible with its itinerary
 // gone (recreatable); the other order would risk exactly the dangling-
 // itinerary regression DR-059 already had to fix once.
+//
+// DR-149 follow-up: also resyncs fleet availability for the booking's
+// departure, same as confirm/cancel/refund above -- a deleted CONFIRMED/
+// IN_PROGRESS booking used to leave its assigned vehicle/driver/guide stuck
+// at BOOKED forever, since nothing else re-evaluates that departure once
+// its only active booking is gone. departureId/organizationId are read
+// BEFORE deleteBooking, since the booking is gone (soft-deleted, invisible
+// to every read path in this module) immediately after.
 export async function deleteBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.delete');
+  const booking = await bookingService.getById(ctx, bookingId);
   await itineraryService.deleteForBooking(ctx, bookingId);
   await bookingService.deleteBooking(ctx, bookingId);
+  if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   redirect('/staff/bookings');
 }

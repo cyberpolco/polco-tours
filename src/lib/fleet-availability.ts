@@ -48,8 +48,8 @@ export async function syncFleetAvailabilityForDeparture(organizationId: string, 
 }
 
 /** DR-107: none of syncFleetAvailabilityForDeparture's other call sites
- * (assignment create/remove, booking confirm/cancel/refund, the lifecycle
- * sweep's own COMPLETED transition) fire again on their own once the
+ * (assignment create/remove, booking confirm/cancel/refund/delete, the
+ * lifecycle sweep's own COMPLETED transition) fire again on their own once the
  * post-tour cooldown above has actually elapsed -- this is the only thing
  * that re-evaluates a resource stuck at BOOKED and flips it to AVAILABLE
  * once its window is up. Re-syncing is idempotent regardless of a

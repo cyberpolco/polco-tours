@@ -30,6 +30,7 @@
     "coords:backfill": "tsx scripts/backfill-coordinates.ts",
     "package-slugs:backfill": "tsx scripts/backfill-package-slugs.ts",
     "itinerary-day-templates:backfill": "tsx scripts/backfill-itinerary-day-templates.ts",
+    "fleet-availability:backfill": "tsx scripts/backfill-fleet-availability.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

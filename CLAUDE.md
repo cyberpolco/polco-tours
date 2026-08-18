@@ -19,8 +19,36 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-148 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-148** (explicit user request) lets SUPERADMIN genuinely
+> Current through DR-149 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-149 was a real, user-reported gap**: a vehicle/driver/guide
+> stayed marked BOOKED after the departure it was assigned to no longer had
+> any active booking, in two cases the DR-082 sync hook never actually
+> covered. (1) SUPERADMIN hard-deleting a booking (`bookingService
+> .deleteBooking`, DR-058) never called `syncFleetAvailabilityForDeparture`
+> at all — fixed by having both call sites (the staff `deleteBookingAction`
+> and the `DELETE /api/v1/bookings/[bookingId]` route) read the booking's
+> `departureId`/`organizationId` *before* deleting (the row is invisible to
+> every read path immediately after) and sync afterward, same as the
+> pre-existing confirm/cancel/refund call sites. (2) Even where the hook
+> *was* already wired up (cancel/refund/the COMPLETED sweep), a genuinely
+> latent bug meant a soft-deleted booking could still count as "active":
+> `bookingRepository.hasActiveBookingForDeparture` filtered only on
+> `status: { in: ['CONFIRMED', 'IN_PROGRESS'] }`, with no `deletedAt: null`
+> — `softDelete` never touches `status`, so a deleted CONFIRMED/IN_PROGRESS
+> booking still matched. Fixed by adding `deletedAt: null` to that query.
+> `COMPLETED`/`CANCELLED`/`REFUNDED` were never affected by either bug (both
+> already excluded by the status filter, and both already had a working
+> sync call site) — this closes the one remaining path (delete) and the one
+> latent correctness gap (soft-delete visibility) in an otherwise-working
+> DR-082 feature, not a new sync mechanism. One-off
+> `scripts/backfill-fleet-availability.ts` (`npm run
+> fleet-availability:backfill`) re-syncs every departure that has ever had
+> an Assignment, across every organization, to correct any resource already
+> stuck stale from these two gaps — safe to re-run, since
+> `syncFleetAvailabilityForDeparture` always recomputes fresh from current
+> state. New test case in `tests/fleet-availability-sync.test.ts` covers the
+> soft-delete fix directly. No schema/permission/module-dependency change.
+> **DR-148** (explicit user request) lets SUPERADMIN genuinely
 > (hard) delete an individual guest review from `/staff/ratings`'s
 > "Individual reviews" table — `Review` has no soft-delete column and none
 > was added; a deleted row is just gone, an audit log entry

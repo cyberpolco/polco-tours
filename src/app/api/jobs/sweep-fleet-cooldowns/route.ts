@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic';
  * vehicle/driver/guide from BOOKED back to AVAILABLE once its post-tour
  * cooldown window (fleet/domain.ts's POST_TOUR_AVAILABILITY_DELAY_HOURS)
  * has actually elapsed. None of syncFleetAvailabilityForDeparture's other
- * call sites (assignment create/remove, booking confirm/cancel/refund, the
- * lifecycle sweep's own COMPLETED transition) fire again on their own after
+ * call sites (assignment create/remove, booking confirm/cancel/refund/
+ * delete, the lifecycle sweep's own COMPLETED transition) fire again on their own after
  * the fact, so without this job a resource would stay stuck at BOOKED
  * forever past its cooldown. Runs hourly (registered separately from the
  * existing daily 60-day-inactivity sweep, /api/jobs/sweep-fleet-availability

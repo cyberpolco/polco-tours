@@ -279,11 +279,16 @@ export const bookingRepository = {
    * only DRAFT, an awaiting-quotation/deposit status, or DEPOSIT_PAID/
    * FULLY_PAID hasn't reached a real commitment yet; COMPLETED/CANCELLED/
    * REFUNDED are no longer "current"). A departure can have several
-   * bookings sharing one Assignment -- true if ANY of them is active. */
+   * bookings sharing one Assignment -- true if ANY of them is active.
+   * DR-149: also excludes a soft-deleted booking (deletedAt set) -- softDelete
+   * never touches `status`, so a CONFIRMED/IN_PROGRESS booking that gets
+   * deleted (bookingService.deleteBooking, DR-058) would otherwise still
+   * read as "active" here forever, keeping its vehicle/driver/guide stuck at
+   * BOOKED even after the sync hook re-runs. */
   async hasActiveBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
     return withOrg(organizationId, async (tx) => {
       const match = await tx.booking.findFirst({
-        where: { departureId, status: { in: ['CONFIRMED', 'IN_PROGRESS'] } },
+        where: { departureId, status: { in: ['CONFIRMED', 'IN_PROGRESS'] }, deletedAt: null },
         select: { id: true },
       });
       return match !== null;
