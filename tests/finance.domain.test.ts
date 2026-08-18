@@ -183,5 +183,18 @@ describe('finance domain', () => {
       // 1 night at 15% + 2 nights at 16% -> 15.666...% -> rounds to 1567
       expect(blendedTaxRateBp([{ nights: 1, rateBp: 1500 }, { nights: 2, rateBp: 1600 }])).toBe(1567);
     });
+
+    it('handles 3+ countries -- not just a pairwise blend', () => {
+      // Namibia/DRC/Zambia/Zimbabwe combo: 4 nights at 15% + 3 nights at
+      // 16% + 2 nights at 20% + 1 night at 18% -> weighted sum 16600/10 -> 16.6%
+      expect(
+        blendedTaxRateBp([
+          { nights: 4, rateBp: 1500 },
+          { nights: 3, rateBp: 1600 },
+          { nights: 2, rateBp: 2000 },
+          { nights: 1, rateBp: 1800 },
+        ]),
+      ).toBe(1660);
+    });
   });
 });
