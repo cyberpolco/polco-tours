@@ -18,7 +18,7 @@ import { SidebarShell } from '../../sidebar-shell';
 
 const PER_PAGE = 10;
 type SortKey = 'name' | 'email' | 'lastLogin';
-type StatusFilter = 'active' | 'inactive' | 'deactivated' | 'deleted';
+type StatusFilter = 'active' | 'inactive' | 'deactivated';
 
 interface Props {
   searchParams: Promise<{
@@ -33,7 +33,6 @@ interface Props {
 }
 
 function userStatus(u: PublicUser): StatusFilter {
-  if (u.deletedPermanently) return 'deleted';
   if (u.deletedAt) return 'deactivated';
   if (u.inactiveAt) return 'inactive';
   return 'active';
@@ -66,9 +65,7 @@ export default async function UsersPage({ searchParams }: Props) {
   const domain = params.domain ?? '';
   const dial = params.dial ?? '';
   const status =
-    params.status === 'active' || params.status === 'inactive' || params.status === 'deactivated' || params.status === 'deleted'
-      ? params.status
-      : '';
+    params.status === 'active' || params.status === 'inactive' || params.status === 'deactivated' ? params.status : '';
   const sort: SortKey = params.sort === 'name' || params.sort === 'lastLogin' ? params.sort : 'email';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
@@ -151,7 +148,6 @@ export default async function UsersPage({ searchParams }: Props) {
               <option value="active">{t('active')}</option>
               <option value="inactive">{t('inactive')}</option>
               <option value="deactivated">{t('deactivated')}</option>
-              <option value="deleted">{t('deleted')}</option>
             </Select>
           </FormField>
           <div className="col-span-2 flex items-end gap-3 sm:col-span-4">
@@ -206,20 +202,20 @@ export default async function UsersPage({ searchParams }: Props) {
                   </div>
                 </Td>
                 <Td>
-                  {/* DR-084/DR-141: four states -- Inactive (dormant, 30+
-                      days no sign-in, auto-flagged) and Deactivated (manual,
-                      reversible) can both be undone via Reactivate;
-                      Deleted (manual, SUPERADMIN-only) never can. Deleted
-                      wins over Deactivated wins over Inactive, since each
-                      implies the last. */}
-                  <Badge tone={u.deletedPermanently ? 'danger' : u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
-                    {u.deletedPermanently ? t('deleted') : u.deletedAt ? t('deactivated') : u.inactiveAt ? t('inactive') : t('active')}
+                  {/* DR-084: two states shown here -- a permanently Deleted
+                      account (DR-141) is excluded from this list entirely
+                      (authRepository.listStaff), so every row reaching this
+                      point is at most Deactivated (manual, reversible) or
+                      Inactive (dormant, 30+ days no sign-in, auto-flagged) --
+                      Deactivated wins over Inactive since it implies it. */}
+                  <Badge tone={u.deletedAt ? 'danger' : u.inactiveAt ? 'warning' : 'success'}>
+                    {u.deletedAt ? t('deactivated') : u.inactiveAt ? t('inactive') : t('active')}
                   </Badge>
                 </Td>
                 <Td>{u.lastLoginAt ? u.lastLoginAt.toLocaleString() : t('never')}</Td>
                 <Td>
                   <div className="flex items-center gap-3">
-                    {u.id !== ctx.userId && !u.deletedPermanently && (
+                    {u.id !== ctx.userId && (
                       <Link href={`/staff/admin/users/${u.id}`} className="text-forest hover:underline">
                         {t('edit')}
                       </Link>
@@ -235,10 +231,7 @@ export default async function UsersPage({ searchParams }: Props) {
                         </SubmitButton>
                       </form>
                     )}
-                    {/* DR-141: Reactivate now also undoes a plain Deactivate,
-                        not just dormancy -- never shown once deletedPermanently
-                        is true (that's the one state Reactivate can't undo). */}
-                    {!u.deletedPermanently && (u.deletedAt || u.inactiveAt) && (
+                    {(u.deletedAt || u.inactiveAt) && (
                       <form action={reactivateUserAction.bind(null, u.id, currentQuery)}>
                         <SubmitButton variant="success" size="compact">
                           {t('reactivate')}
@@ -247,9 +240,11 @@ export default async function UsersPage({ searchParams }: Props) {
                     )}
                     {/* DR-141: permanent, SUPERADMIN-only -- available
                         regardless of the account's current status (active,
-                        dormant, or deactivated), as long as it isn't already
-                        deleted. */}
-                    {u.id !== ctx.userId && !u.deletedPermanently && isSuperAdmin(ctx.roles) && (
+                        dormant, or deactivated). Once used, the account
+                        disappears from this list entirely (see the Badge
+                        comment above), so there's no "already deleted" state
+                        to guard against here. */}
+                    {u.id !== ctx.userId && isSuperAdmin(ctx.roles) && (
                       <form action={deleteUserAction.bind(null, u.id, currentQuery)}>
                         <SubmitButton
                           variant="secondary"

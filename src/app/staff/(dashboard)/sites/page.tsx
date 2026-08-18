@@ -14,10 +14,10 @@ import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
 
-const PER_PAGE = 10;
+const PER_PAGE = 15;
 
 interface Props {
-  searchParams: Promise<{ q?: string; country?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; country?: string; province?: string; page?: string }>;
 }
 
 function matchesQuery(s: SiteView, activityNames: string[], query: string): boolean {
@@ -33,6 +33,10 @@ function matchesQuery(s: SiteView, activityNames: string[], query: string): bool
 
 function listCountries(sites: SiteView[]): string[] {
   return [...new Set(sites.map((s) => s.country))].sort();
+}
+
+function listProvinces(sites: SiteView[]): string[] {
+  return [...new Set(sites.map((s) => s.province))].sort();
 }
 
 function groupActivitiesBySite(activities: ActivityView[]): Map<string, ActivityView[]> {
@@ -64,13 +68,16 @@ export default async function SitesPage({ searchParams }: Props) {
   const tCountries = await getTranslations('Countries');
   const q = params.q ?? '';
   const country = params.country ?? '';
+  const province = params.province ?? '';
 
   const [allSites, allActivities] = await Promise.all([itineraryService.listSites(ctx), itineraryService.listActivities(ctx)]);
   const activitiesBySite = groupActivitiesBySite(allActivities);
   const countryOptions = listCountries(allSites);
+  const provinceOptions = listProvinces(allSites);
 
   const filtered = allSites.filter((s) => {
     if (country && s.country !== country) return false;
+    if (province && s.province !== province) return false;
     const activityNames = (activitiesBySite.get(s.id) ?? []).map((a) => a.name);
     if (!matchesQuery(s, activityNames, q)) return false;
     return true;
@@ -80,6 +87,7 @@ export default async function SitesPage({ searchParams }: Props) {
   const baseParams: Record<string, string> = {};
   if (q) baseParams.q = q;
   if (country) baseParams.country = country;
+  if (province) baseParams.province = province;
 
   function hrefWith(overrides: Record<string, string | undefined>): string {
     const merged = { ...baseParams, ...overrides };
@@ -99,7 +107,7 @@ export default async function SitesPage({ searchParams }: Props) {
           <LinkButton href="/staff/sites/new">{t('addSite')}</LinkButton>
         </div>
 
-        <form method="get" action="/staff/sites" className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <form method="get" action="/staff/sites" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <FormField label={tFields('search')} htmlFor="q" optional>
             <SearchField name="q" defaultValue={q} placeholder={t('searchPlaceholder')} />
           </FormField>
@@ -113,9 +121,19 @@ export default async function SitesPage({ searchParams }: Props) {
               ))}
             </Select>
           </FormField>
+          <FormField label={t('province')} htmlFor="province" optional>
+            <Select name="province" defaultValue={province}>
+              <option value="">{tFields('all')}</option>
+              {provinceOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          </FormField>
           <div className="col-span-2 flex items-end gap-3 sm:col-span-1">
             <SubmitButton size="compact">{tFields('filter')}</SubmitButton>
-            {(q || country) && (
+            {(q || country || province) && (
               <Link href="/staff/sites" className="text-sm text-mist hover:underline">
                 {tFields('clearFilters')}
               </Link>

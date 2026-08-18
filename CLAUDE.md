@@ -19,8 +19,19 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-141 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-141** (explicit user request) adds a genuinely permanent,
+> Current through DR-142 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-142** (explicit user request, follow-up to DR-141; batches
+> in one unrelated small UI change, same precedent as DR-086) stops a
+> permanently Deleted staff account from appearing on `/staff/admin/users`
+> at all — `authRepository.listStaff` now excludes `deletedPermanently:
+> true` at the query level, rather than returning it for the page to badge
+> as "Deleted" (that fourth status/filter/badge state, and the
+> `deletedPermanently` guards on the row actions, were removed as dead code
+> once such a row can never appear here). A Deactivated account is
+> unaffected, still listed and manageable. Also: `/staff/sites`'s page size
+> raised 10 → 15, and a Province filter added alongside the existing
+> Search + Country filter. No schema/permission/module-dependency change.
+> **DR-141** (explicit user request) adds a genuinely permanent,
 > SUPERADMIN-only "Delete" for a staff account, distinct from the existing
 > reversible "Deactivate" (DR-026) — new `User.deletedPermanently` (additive,
 > default `false`) distinguishes the two on the same `deletedAt` column both

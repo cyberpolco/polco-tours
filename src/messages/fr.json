@@ -1640,7 +1640,6 @@
     "active": "Actif",
     "inactive": "Inactif",
     "deactivated": "Désactivé",
-    "deleted": "Supprimé",
     "filter": "Filtrer",
     "clearFilters": "Effacer les filtres",
     "userCount": "{count, plural, one {# utilisateur} other {# utilisateurs}}",

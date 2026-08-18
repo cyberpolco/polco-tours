@@ -106,10 +106,15 @@ export const authRepository = {
    * Deliberately does NOT filter deletedAt (DR-091: the page's own Status
    * filter needs to be able to show Deactivated accounts too) -- the page
    * hides them by default in-memory instead, replicating what used to be a
-   * hard DB-level exclusion. */
+   * hard DB-level exclusion. DR-141: a permanently Deleted account IS
+   * excluded here at the DB level, unlike a plain Deactivate -- explicit
+   * user request ("a deleted user shouldn't be listed"), and unlike
+   * Deactivated there's no reactivate-from-this-page path that would ever
+   * need one to still be visible/actionable here. Its audit trail
+   * (`auth.user_deleted`) still exists in `audit_logs` regardless. */
   async listStaff(organizationId: string): Promise<PublicUser[]> {
     const users = await withOrg(organizationId, (tx) =>
-      tx.user.findMany({ where: { organizationId, role: { not: 'TOURIST' } }, orderBy: { email: 'asc' } }),
+      tx.user.findMany({ where: { organizationId, role: { not: 'TOURIST' }, deletedPermanently: false }, orderBy: { email: 'asc' } }),
     );
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
