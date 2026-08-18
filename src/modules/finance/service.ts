@@ -14,8 +14,10 @@ import { Errors } from '@lib/errors';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
 import { applyTaxAndPlatformFee, impliedSubtotalMinor } from '@lib/pricing';
 import { assertCan } from '@lib/rbac';
+import { slugify } from '@lib/slug';
 import { getEffectiveTaxRate } from '@lib/tax';
 import {
+  renderClientPackageSummaryPdf,
   renderPackageSummaryPdf,
   type PackageSummaryPdfAccommodationRow,
   type PackageSummaryPdfDay,
@@ -55,6 +57,18 @@ import { financeRepository } from './repository';
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   return ctx.organizationId;
+}
+
+/** DR-152: first dynamic Content-Disposition filename in this app (every
+ * PDF route before this shipped a fixed literal, e.g. "package-summary.pdf")
+ * -- explicit user request that the download carry the package's own name
+ * and identifier. Built from `slugify(title)` (already ASCII-only/URL-safe,
+ * DR-118's own helper) + `packageReference` (the human "PKG-00034" id shown
+ * everywhere else in the staff UI, not the raw UUID) so the whole filename
+ * stays plain ASCII with no need for the RFC 5987 filename*= fallback form. */
+function buildPackageSummaryPdfFilename(title: string, packageReference: string, locale: PdfLocale, kind: 'staff' | 'client'): string {
+  const slug = slugify(title) || 'package';
+  return `${slug}-${packageReference}-${kind}-summary-${locale}.pdf`;
 }
 
 /** Spec: "The Super Admin can configure" operational rates -- a direct
@@ -649,7 +663,11 @@ export const financeService = {
    * always come from the persisted breakdown snapshot (never this fresh
    * resolution) and TourPackage.priceMinor for the grand total, so the
    * printed document can never disagree with what was actually priced. */
-  async generatePackageSummaryPdf(ctx: AuthContext, tourPackageId: string, locale: PdfLocale): Promise<{ body: Buffer; contentType: string }> {
+  async generatePackageSummaryPdf(
+    ctx: AuthContext,
+    tourPackageId: string,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
     assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     const pkg = await catalogService.getPackage(ctx, tourPackageId); // 404s if not found/visible
@@ -725,7 +743,87 @@ export const financeService = {
       organizationId,
     });
 
-    return { body, contentType: 'application/pdf' };
+    return {
+      body,
+      contentType: 'application/pdf',
+      filename: buildPackageSummaryPdfFilename(pkg.title, pkg.packageReference, locale, 'staff'),
+    };
+  },
+
+  /** DR-152 (explicit user request): the client-facing counterpart to
+   * generatePackageSummaryPdf above -- same itinerary content, but no
+   * internal cost breakdown at all, only the participant count and the one
+   * total a guest is actually charged. Deliberately more permissive than
+   * the staff version's precondition: it only needs pkg.priceMinor and the
+   * breakdown's referenceGroupSize, not every computed*Minor bucket, so a
+   * package whose breakdown predates the current pricing model (and would
+   * 409 on the staff PDF) can still produce a client-facing document as
+   * long as it has an actual price. Still staff-triggered (catalog.write,
+   * not a new permission) -- there's no guest-facing download route; this
+   * produces a document meant to be forwarded to a guest, not fetched by
+   * one. The per-day hotel-rate resolution the staff PDF needs is skipped
+   * entirely here, since the client document never shows a rate. */
+  async generateClientPackageSummaryPdf(
+    ctx: AuthContext,
+    tourPackageId: string,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogService.getPackage(ctx, tourPackageId); // 404s if not found/visible
+    if (pkg.priceMinor == null) throw Errors.conflict('This package has no price yet -- save a cost breakdown before downloading a summary');
+
+    const breakdown = await financeRepository.findBreakdownForPackage(organizationId, tourPackageId);
+    if (!breakdown) throw Errors.conflict('This package has no cost breakdown yet -- save one before downloading a summary');
+
+    const templateDays = await catalogService.listTemplateDays(ctx, tourPackageId);
+    const hotelIds = [...new Set(templateDays.map((d) => d.hotelId).filter((id): id is string => id != null))];
+    const restaurantIds = [...new Set(templateDays.map((d) => d.restaurantId).filter((id): id is string => id != null))];
+    const activityIds = [...new Set(templateDays.flatMap((d) => d.activityIds))];
+
+    const [hotels, restaurants, activities] = await Promise.all([
+      hotelIds.length > 0 ? itineraryService.listHotelsByIds(ctx, hotelIds) : Promise.resolve([]),
+      restaurantIds.length > 0 ? itineraryService.listRestaurantsByIds(ctx, restaurantIds) : Promise.resolve([]),
+      activityIds.length > 0 ? itineraryService.listActivitiesByIds(ctx, activityIds) : Promise.resolve([]),
+    ]);
+    const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
+    const restaurantNameById = new Map(restaurants.map((r) => [r.id, r.name]));
+    const activityNameById = new Map(activities.map((a) => [a.id, a.name]));
+
+    const days: PackageSummaryPdfDay[] = templateDays.map((d) => {
+      const activityNames = d.activityIds.map((id) => activityNameById.get(id)).filter((n): n is string => n != null);
+      return {
+        dayNumber: d.dayNumber,
+        hotelName: d.hotelId ? (hotelNameById.get(d.hotelId) ?? null) : null,
+        restaurantName: d.restaurantId ? (restaurantNameById.get(d.restaurantId) ?? null) : null,
+        activitiesLabel: activityNames.length > 0 ? activityNames.join(', ') : (d.activities ?? null),
+      };
+    });
+
+    const body = await renderClientPackageSummaryPdf({
+      locale,
+      currency: pkg.currency,
+      title: pkg.title,
+      packageReference: pkg.packageReference,
+      referenceGroupSize: breakdown.referenceGroupSize,
+      priceMinor: pkg.priceMinor,
+      days,
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'finance.package_client_summary_pdf_downloaded',
+      resourceType: 'TourPackage',
+      resourceId: tourPackageId,
+      organizationId,
+    });
+
+    return {
+      body,
+      contentType: 'application/pdf',
+      filename: buildPackageSummaryPdfFilename(pkg.title, pkg.packageReference, locale, 'client'),
+    };
   },
 
   /** Public (no ctx -- same "rate tables are platform-wide reference data,

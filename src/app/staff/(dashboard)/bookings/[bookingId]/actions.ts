@@ -12,6 +12,7 @@ import { financeService } from '@modules/finance';
 import { invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
+import { visaService } from '@modules/visa';
 import type { CouponActionState } from '@/components/CouponForm';
 
 export async function confirmBookingAction(bookingId: string) {
@@ -183,10 +184,19 @@ export async function issueRatingCodeAction(bookingId: string) {
 // its only active booking is gone. departureId/organizationId are read
 // BEFORE deleteBooking, since the booking is gone (soft-deleted, invisible
 // to every read path in this module) immediately after.
+//
+// DR-151 follow-up: also removes any visa application(s) belonging to the
+// booking's travelers, same "orchestrated here, not inside
+// bookingService.deleteBooking" reasoning as the itinerary cleanup above --
+// visa also already depends on booking. Runs before bookingService
+// .deleteBooking for the same reason itinerary's does: visaService
+// .deleteForBooking needs bookingService.listTravelers, which needs the
+// booking to still be visible.
 export async function deleteBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.delete');
   const booking = await bookingService.getById(ctx, bookingId);
   await itineraryService.deleteForBooking(ctx, bookingId);
+  await visaService.deleteForBooking(ctx, bookingId);
   await bookingService.deleteBooking(ctx, bookingId);
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   redirect('/staff/bookings');

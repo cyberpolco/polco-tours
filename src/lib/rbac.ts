@@ -45,6 +45,12 @@ export type Permission =
   | 'documents.read'
   | 'documents.write'
   | 'visa.process'
+  // DR-151: deletes an individual VisaApplication -- never seeded to any
+  // role in DEFAULT_PERMISSIONS, same layering as booking.delete/
+  // fleet.delete/rating.delete: visaService's isVisaDeleter check
+  // (roles.includes('SUPERADMIN')) is the real gate, this permission alone
+  // unlocks nothing for anyone but SUPERADMIN's hardcoded wildcard.
+  | 'visa.delete'
   | 'fleet.read'
   | 'fleet.write'
   | 'fleet.delete'
@@ -150,6 +156,7 @@ export const ALL_PERMISSIONS = [
   'documents.read',
   'documents.write',
   'visa.process',
+  'visa.delete', // DR-151: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isVisaDeleter in visa/domain.ts, same layering as booking.delete/fleet.delete/rating.delete
   'fleet.read',
   'fleet.write',
   'fleet.delete', // DR-059: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isFleetDeleter in fleet/service.ts, same layering as booking.delete/country_regulation.write

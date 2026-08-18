@@ -134,4 +134,33 @@ export const visaRepository = {
       return new Set(rows.map((r) => r.travelerId));
     });
   },
+
+  /** DR-151: genuine hard delete (no soft-delete column exists on this
+   * table) -- returns the raw pre-delete row (not toView(), which strips
+   * the traveler-name/status snapshot fields) so the service can log a
+   * full audit snapshot after the row is gone, same convention as
+   * ratingsRepository.deleteReview. */
+  async deleteById(organizationId: string, id: string): Promise<VisaApplication | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.visaApplication.findUnique({ where: { id } });
+      if (!existing) return null;
+      await tx.visaApplication.delete({ where: { id } });
+      return existing;
+    });
+  },
+
+  /** DR-151: cascade cleanup when a Booking is deleted -- travelerId isn't
+   * something the visa module can look up itself (it doesn't own Traveler),
+   * so the caller (visaService.deleteForBooking) resolves the booking's
+   * travelerIds first via bookingService and passes them in here. No-op,
+   * not an error, when none of them have a VisaApplication -- most don't. */
+  async deleteManyByTravelerIds(organizationId: string, travelerIds: string[]): Promise<VisaApplication[]> {
+    if (travelerIds.length === 0) return [];
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.visaApplication.findMany({ where: { travelerId: { in: travelerIds } } });
+      if (existing.length === 0) return [];
+      await tx.visaApplication.deleteMany({ where: { travelerId: { in: travelerIds } } });
+      return existing;
+    });
+  },
 };

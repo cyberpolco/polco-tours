@@ -1256,7 +1256,10 @@
     "messagePlaceholder": "Message…",
     "sending": "Sending…",
     "contact": "Contact",
-    "requestDocuments": "Request documents"
+    "requestDocuments": "Request documents",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "deleteConfirm": "Permanently delete this visa application? This cannot be undone."
   },
   "StaffCountryRegulations": {
     "eyebrow": "Immigration",
@@ -1476,7 +1479,8 @@
     "notYetPriced": "Not yet priced",
     "priceComputedNotice": "Computed by the finance module's cost breakdown (DR-039) — no longer typed directly here.",
     "manageCostBreakdown": "Manage cost breakdown",
-    "downloadSummaryPdf": "Download summary PDF:",
+    "downloadSummaryPdf": "Download staff summary PDF (with costs):",
+    "downloadClientSummaryPdf": "Download client summary PDF (itinerary only, no costs):",
     "downloadSummaryEn": "English",
     "downloadSummaryFr": "French",
     "title": "Title",

@@ -160,16 +160,30 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
           {t('manageCostBreakdown')}
         </LinkButton>
         {pkg.priceMinor != null && (
-          <p className="mt-3 text-xs text-mist">
-            {t('downloadSummaryPdf')}{' '}
-            <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=en`} className="font-semibold text-amber underline">
-              {t('downloadSummaryEn')}
-            </a>{' '}
-            ·{' '}
-            <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=fr`} className="font-semibold text-amber underline">
-              {t('downloadSummaryFr')}
-            </a>
-          </p>
+          <>
+            <p className="mt-3 text-xs text-mist">
+              {t('downloadSummaryPdf')}{' '}
+              <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=en`} className="font-semibold text-amber underline">
+                {t('downloadSummaryEn')}
+              </a>{' '}
+              ·{' '}
+              <a href={`/api/v1/catalog/packages/${packageId}/summary-pdf?locale=fr`} className="font-semibold text-amber underline">
+                {t('downloadSummaryFr')}
+              </a>
+            </p>
+            {/* DR-152: same itinerary content, no internal cost breakdown --
+                meant to be forwarded to the client as-is. */}
+            <p className="mt-1 text-xs text-mist">
+              {t('downloadClientSummaryPdf')}{' '}
+              <a href={`/api/v1/catalog/packages/${packageId}/client-summary-pdf?locale=en`} className="font-semibold text-amber underline">
+                {t('downloadSummaryEn')}
+              </a>{' '}
+              ·{' '}
+              <a href={`/api/v1/catalog/packages/${packageId}/client-summary-pdf?locale=fr`} className="font-semibold text-amber underline">
+                {t('downloadSummaryFr')}
+              </a>
+            </p>
+          </>
         )}
       </div>
 

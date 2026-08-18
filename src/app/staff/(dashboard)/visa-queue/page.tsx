@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { VISA_STATUS_TONE } from '@lib/status-tones';
-import { contactTravelerAction, requestMissingDocumentsAction, startApplicationAction } from './actions';
+import { contactTravelerAction, deleteApplicationAction, requestMissingDocumentsAction, startApplicationAction } from './actions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -33,6 +33,7 @@ interface Props {
 // /staff/immigration page were removed entirely in DR-032.)
 export default async function VisaQueuePage({ searchParams }: Props) {
   const ctx = await requireStaffContext('visa.process');
+  const canDelete = ctx.roles.includes('SUPERADMIN');
   const { origin } = await searchParams;
   const t = await getTranslations('StaffVisaQueue');
   const tVisaStatus = await getTranslations('VisaStatusLabel');
@@ -180,6 +181,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                 <Th>{t('passport')}</Th>
                 <Th>{t('rejectionReason')}</Th>
                 <Th>{t('actions')}</Th>
+                {canDelete && <Th />}
               </TableHeaderRow>
             </thead>
             <tbody>
@@ -271,6 +273,15 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                       </div>
                     )}
                   </Td>
+                  {canDelete && (
+                    <Td>
+                      <form action={deleteApplicationAction.bind(null, a.id)}>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('deleting')} confirmMessage={t('deleteConfirm')}>
+                          {t('delete')}
+                        </SubmitButton>
+                      </form>
+                    </Td>
+                  )}
                 </Tr>
                 );
               })}

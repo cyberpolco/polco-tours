@@ -13,14 +13,12 @@ function parseLocale(value: string | null): PdfLocale {
   return value === 'fr' ? 'fr' : 'en';
 }
 
-// Thin pass-through, same shape as the itinerary map-pdf route -- all
-// business logic (resolving the breakdown/day-template/rate data and
-// rendering the PDF) lives in financeService.generatePackageSummaryPdf.
-// DR-152: filename (package name + reference) is now computed by the
-// service, not a fixed literal.
+// DR-152 (explicit user request): the client-facing counterpart to
+// summary-pdf/route.ts's staff download -- same thin pass-through shape,
+// all business logic lives in financeService.generateClientPackageSummaryPdf.
 export const GET = withAuth<Params>('catalog.write', async (ctx, req, { packageId }) => {
   const locale = parseLocale(req.nextUrl.searchParams.get('locale'));
-  const pdf = await financeService.generatePackageSummaryPdf(ctx, packageId, locale);
+  const pdf = await financeService.generateClientPackageSummaryPdf(ctx, packageId, locale);
   return new NextResponse(pdf.body, {
     headers: {
       'Content-Type': pdf.contentType,

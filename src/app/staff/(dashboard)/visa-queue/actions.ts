@@ -25,3 +25,13 @@ export async function startApplicationAction(bookingId: string, travelerId: stri
   await visaService.submitApplication(ctx, bookingId, travelerId);
   revalidatePath('/staff/visa-queue');
 }
+
+// DR-151 (explicit user request): SUPERADMIN-only genuine delete of an
+// individual visa application. requireStaffContext('visa.delete') redirects
+// to /staff/forbidden for anyone else -- visa.delete is never seeded to any
+// role, so only SUPERADMIN's hardcoded wildcard ever passes this gate.
+export async function deleteApplicationAction(applicationId: string): Promise<void> {
+  const ctx = await requireStaffContext('visa.delete');
+  await visaService.deleteApplication(ctx, applicationId);
+  revalidatePath('/staff/visa-queue');
+}

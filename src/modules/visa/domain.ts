@@ -1,5 +1,5 @@
 // visa module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingOrigin, VisaStatus } from '@prisma/client';
+import type { BookingOrigin, Role, VisaStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VisaApplicationView {
@@ -121,4 +121,13 @@ export function canDecide(status: VisaStatus): boolean {
  * append-only audit_logs table, not in a parallel schema history. */
 export function canResubmit(status: VisaStatus): boolean {
   return status === 'REJECTED';
+}
+
+/** DR-151: genuinely destructive (VisaApplication has no soft-delete
+ * column, and deleting one is meant to actually remove it) -- SUPERADMIN-
+ * only, same "route passes via the DB-editable permission matrix, service
+ * still rejects" layering as isBookingDeleter/isFleetDeleter/
+ * isRatingDeleter. */
+export function isVisaDeleter(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN');
 }

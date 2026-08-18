@@ -1256,7 +1256,10 @@
     "messagePlaceholder": "Message…",
     "sending": "Envoi…",
     "contact": "Contacter",
-    "requestDocuments": "Demander des documents"
+    "requestDocuments": "Demander des documents",
+    "delete": "Supprimer",
+    "deleting": "Suppression…",
+    "deleteConfirm": "Supprimer définitivement cette demande de visa ? Cette action est irréversible."
   },
   "StaffCountryRegulations": {
     "eyebrow": "Immigration",
@@ -1476,7 +1479,8 @@
     "notYetPriced": "Pas encore tarifé",
     "priceComputedNotice": "Calculé par la répartition des coûts du module finance (DR-039) — ne se saisit plus directement ici.",
     "manageCostBreakdown": "Gérer la répartition des coûts",
-    "downloadSummaryPdf": "Télécharger le résumé PDF :",
+    "downloadSummaryPdf": "Télécharger le résumé PDF interne (avec les coûts) :",
+    "downloadClientSummaryPdf": "Télécharger le résumé PDF client (itinéraire seul, sans les coûts) :",
     "downloadSummaryEn": "Anglais",
     "downloadSummaryFr": "Français",
     "title": "Titre",

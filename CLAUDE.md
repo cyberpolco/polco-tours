@@ -19,8 +19,60 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-150 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-150** (explicit user request) replaces the staff Map tab's
+> Current through DR-152 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-152** (explicit user request) splits the staff package-detail
+> "download summary PDF" (DR-135) into two documents: the existing staff
+> version (full cost breakdown, per-day accommodation rates) is unchanged,
+> and a new client-facing version drops every internal cost bucket, showing
+> only the day-by-day itinerary and the one total a guest is actually
+> charged (participant count + `TourPackage.priceMinor` per person).
+> `finance/package-summary-pdf.tsx`'s header/itinerary-table/footer chrome is
+> now three shared components (`DocumentHeader`/`ItineraryTable`/
+> `DocumentFooter`) so the two documents can't visually drift apart outside
+> the pricing section, the one place they differ; a new
+> `ClientPackageSummaryPdfInput`/`renderClientPackageSummaryPdf` backs a new
+> `financeService.generateClientPackageSummaryPdf` (same `catalog.write`
+> gate, still staff-triggered — there's no guest-facing download route, this
+> produces a document meant to be forwarded to a guest) and a new route `GET
+> /api/v1/catalog/packages/[packageId]/client-summary-pdf`. Deliberately more
+> permissive than the staff version's precondition (only needs
+> `pkg.priceMinor` + the breakdown's `referenceGroupSize`, not every
+> `computed*Minor` bucket, and skips the per-day hotel-rate resolution
+> entirely) so a package whose breakdown predates the current pricing model
+> can still produce a client document as long as it has a real price. Both
+> downloads now also carry a dynamic filename (this app's first — every PDF
+> route before this shipped a fixed literal) built from `slugify(title)`
+> (DR-118's existing helper, already ASCII-safe) + `packageReference` (the
+> human "PKG-00034" id, not the raw UUID) + a `staff`/`client` tag + locale,
+> e.g. `sossusvlei-explorer-PKG-00034-staff-summary-en.pdf`. No schema/
+> permission/module-dependency change. **DR-151** (explicit user request)
+> lets SUPERADMIN hard-delete an individual `VisaApplication` from
+> `/staff/visa-queue`, and makes deleting a booking automatically delete any
+> visa application(s) belonging to its travelers — the same regression class
+> DR-059 already closed for Itinerary (a dangling reference the deleted-
+> booking read paths would otherwise keep surfacing as if nothing had
+> happened). `VisaApplication` has no soft-delete column, so this is a
+> genuine `tx.visaApplication.delete`, same "no column exists, the audit log
+> is the record" precedent as DR-148's `Review` delete. New `visa.delete`
+> permission (never seeded to any role) plus a new `isVisaDeleter` boolean
+> helper (`visa/domain.ts`) gate `visaService.deleteApplication` beneath
+> `assertCan`, same two-layer convention as `isBookingDeleter`/
+> `isFleetDeleter`/`isRatingDeleter`. The cascade (`visaService
+> .deleteForBooking`) is deliberately NOT called from
+> `bookingService.deleteBooking` itself — visa already depends on booking,
+> so the reverse would be circular — instead it's orchestrated by the caller
+> exactly like `itineraryService.deleteForBooking` (DR-059), added to both
+> the staff `deleteBookingAction` Server Action and the `DELETE
+> /api/v1/bookings/[bookingId]` route (the pre-existing itinerary cleanup
+> only lives in the former; the new visa cleanup was added to both, so a
+> stale visa application can't survive either deletion path). New `DELETE
+> /api/v1/visa/[applicationId]` route + a matching `deleteApplicationAction`
+> power a per-row Delete button, visible only when
+> `ctx.roles.includes('SUPERADMIN')`, using the standard `SubmitButton`/
+> `confirmMessage` destructive-action pattern (DR-086/109). No blob-deletion
+> attempted for a deleted application's referenced decision `Document` —
+> same accepted "orphaned blob" tradeoff every delete path in this app
+> already carries. No schema/module-dependency change. **DR-150** (explicit user request) replaces the staff Map tab's
 > (DR-089) one-day-at-a-time map + per-day PDF with a single whole-circuit
 > view: every day's stops plotted on one map, each day its own color, and
 > one PDF download for the entire itinerary. New shared, framework-free
@@ -1225,7 +1277,10 @@ src/
                    #   DR-082 adds availability/lastActiveAt (usage-recency,
                    #   independent of each entity's own operational status)
     assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule
-    visa/          # VisaApplication lifecycle, facilitator queue
+    visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
+                   #   SUPERADMIN can hard-delete an application
+                   #   (isVisaDeleter), and deleteForBooking cascades that
+                   #   delete when the traveler's booking is deleted
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -1266,7 +1321,13 @@ src/
                    #   sharing one resolveRatesForCost helper +
                    #   package-summary-pdf.tsx (DR-135: staff "download
                    #   summary PDF" on the package detail page, EN/FR,
-                   #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx) —
+                   #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx;
+                   #   DR-152: split into a staff version (full cost
+                   #   breakdown) and a client-facing version (itinerary
+                   #   only, total price per person, no internal cost
+                   #   buckets) sharing header/table/footer chrome, each
+                   #   downloaded with a dynamic filename built from the
+                   #   package's own name + reference) —
                    #   DR-136: every rate table (Add-on Rate included) can
                    #   now be updated in place, not just deleted; updating
                    #   any of the 8 cost-plus rates triggers
@@ -1393,13 +1454,13 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   role — the code-level union alone grants nothing.
   Several permissions (`booking.delete`, `fleet.delete`,
   `country_regulation.write`, `finance_config.write`,
-  `platform_settings.write`, `rating.delete`) are **never seeded to any
-  role**, gated instead by a hardcoded `SUPERADMIN`-only check one layer
-  below the route/service permission gate (`isBookingDeleter`,
+  `platform_settings.write`, `rating.delete`, `visa.delete`) are **never
+  seeded to any role**, gated instead by a hardcoded `SUPERADMIN`-only check
+  one layer below the route/service permission gate (`isBookingDeleter`,
   `isFleetDeleter`, `isCountryRegulationWriter`, `isFinanceConfigWriter`,
-  `requireSettingsWriter`, `isRatingDeleter`) — granting the bare permission
-  via the runtime matrix editor would still not unlock the action for
-  anyone but SUPERADMIN.
+  `requireSettingsWriter`, `isRatingDeleter`, `isVisaDeleter`) — granting the
+  bare permission via the runtime matrix editor would still not unlock the
+  action for anyone but SUPERADMIN.
 - **Launch tenancy (DR-005):** single operator **Lam** (Namibia + DRC), seeded
   as `lam@polcotours.com` with role `SUPERADMIN` (PLATFORM_ADMIN + own-org
   TOUR_OPERATOR). Multi-tenant isolation stays on so more operators can onboard
@@ -1589,8 +1650,13 @@ visually coherent with the design package.
   DR-148 — so is an individual `Review` (no soft-delete column exists or was
   added; its `ReviewSubjectRating` rows cascade away with it, and every
   driver/guide/org rating aggregate it had contributed to is recomputed).
-  All gated by a `SUPERADMIN`-only service-layer check beneath the route
-  permission, never by the bare permission alone.
+  Since DR-151, a `VisaApplication` is a genuine hard delete too (same "no
+  soft-delete column exists" reasoning as `Review`), reachable either
+  manually from `/staff/visa-queue` or automatically when its traveler's
+  booking is deleted (`visaService.deleteForBooking`, orchestrated by the
+  same callers that already clean up an Itinerary, DR-059). All gated by a
+  `SUPERADMIN`-only service-layer check beneath the route permission, never
+  by the bare permission alone.
 - **No generic job runner** — every scheduled job is its own QStash-
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by

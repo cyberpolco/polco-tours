@@ -12,6 +12,7 @@ import { assertCan } from '@lib/rbac';
 import {
   canDecide,
   canResubmit,
+  isVisaDeleter,
   type ContactTravelerInput,
   type DecideVisaInput,
   type FacilitatorVisaView,
@@ -402,5 +403,80 @@ export const visaService = {
       organizationId,
       metadata: { trigger: 'passport_upload' },
     });
+  },
+
+  /** DR-151 (explicit user request): SUPERADMIN-only genuine delete of an
+   * individual visa application from /staff/visa-queue. `assertCan` alone
+   * isn't enough, since `visa.delete` could in principle be granted to
+   * another role via the runtime-editable permission matrix --
+   * `isVisaDeleter` is the real gate, same layering as
+   * ratingsService.deleteReview/bookingService.deleteBooking. No FK
+   * cleanup needed beyond the row itself: the referenced Document (a
+   * granted visa decision doc, if any) is left in place, same accepted
+   * "orphaned blob" tradeoff as every other delete path in this app (no
+   * blob-deletion capability exists anywhere yet). */
+  async deleteApplication(ctx: AuthContext, applicationId: string): Promise<void> {
+    assertCan(ctx, 'visa.delete');
+    if (!isVisaDeleter(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may delete a visa application');
+    const organizationId = requireOrg(ctx);
+
+    const deleted = await visaRepository.deleteById(organizationId, applicationId);
+    if (!deleted) throw Errors.notFound('Visa application not found');
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.application_deleted',
+      resourceType: 'VisaApplication',
+      resourceId: applicationId,
+      organizationId,
+      metadata: {
+        travelerId: deleted.travelerId,
+        travelerName: `${deleted.travelerFirstName} ${deleted.travelerLastName}`,
+        country: deleted.country,
+        statusAtDeletion: deleted.status,
+      },
+    });
+  },
+
+  /** DR-151 (explicit user request): closes the same regression class
+   * DR-059 already fixed for Itinerary -- a VisaApplication left pointing
+   * at a soft-deleted Booking's Traveler would keep showing up on
+   * /staff/visa-queue as if nothing had happened (the visa module has no
+   * concept of "booking deleted"). Deliberately NOT called from
+   * bookingService.deleteBooking itself -- this module already depends on
+   * booking (see findTraveler/contactTraveler above), so booking calling
+   * back into visa would create a circular module dependency; the caller
+   * (the staff deleteBookingAction Server Action and the DELETE
+   * /api/v1/bookings/[bookingId] route, same as the itinerary cleanup
+   * they already orchestrate) calls this instead, BEFORE the booking
+   * itself is deleted -- bookingService.listTravelers needs the booking to
+   * still be visible. Asserts visa.process, not visa.delete: by the time
+   * this runs the caller has already passed booking.delete's own
+   * SUPERADMIN-only gate, so this is an internal cleanup step riding along
+   * on an already-authorized actor, not a second independently-reachable
+   * delete surface. No-op, not an error, when none of the booking's
+   * travelers have a visa application at all -- most bookings don't. */
+  async deleteForBooking(ctx: AuthContext, bookingId: string): Promise<void> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    const travelers = await bookingService.listTravelers(ctx, bookingId);
+    if (travelers.length === 0) return;
+
+    const deleted = await visaRepository.deleteManyByTravelerIds(
+      organizationId,
+      travelers.map((t) => t.id),
+    );
+    for (const application of deleted) {
+      await audit({
+        actorUserId: ctx.userId,
+        actorRole: ctx.roles[0],
+        action: 'visa.application_deleted',
+        resourceType: 'VisaApplication',
+        resourceId: application.id,
+        organizationId,
+        metadata: { travelerId: application.travelerId, bookingId, trigger: 'booking_deleted' },
+      });
+    }
   },
 };

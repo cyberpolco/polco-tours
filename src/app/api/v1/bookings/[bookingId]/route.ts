@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAuth } from '@lib/route-guard';
 import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
 import { bookingService } from '@modules/booking';
+import { visaService } from '@modules/visa';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,12 @@ export const GET = withAuth<Params>('booking.read', async (ctx, _req, { bookingI
 // DR-149: reads departureId/organizationId BEFORE deleting (the booking is
 // invisible to every read path in this module immediately after), then
 // resyncs fleet availability, same as the staff deleteBookingAction.
+// DR-151: also cleans up any visa application(s) on the booking's
+// travelers, before the booking itself is gone -- same reasoning as the
+// staff deleteBookingAction Server Action.
 export const DELETE = withAuth<Params>('booking.delete', async (ctx, _req, { bookingId }) => {
   const booking = await bookingService.getById(ctx, bookingId);
+  await visaService.deleteForBooking(ctx, bookingId);
   await bookingService.deleteBooking(ctx, bookingId);
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
   return new NextResponse(null, { status: 204 });

@@ -79,6 +79,10 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     transportPerPerson: 'Transportation (per person)',
     platformFeePerPerson: 'Platform fee (per person)',
     grandTotalPerPerson: 'Grand total (per person)',
+    // DR-152: client-facing variant -- no internal cost buckets, just the
+    // participant count and the one price that's actually charged.
+    pricingHeading: 'Pricing',
+    totalPerPerson: 'Total price (per person)',
   },
   fr: {
     proposedItinerary: 'Itinéraire proposé',
@@ -99,6 +103,8 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     transportPerPerson: 'Transport (par personne)',
     platformFeePerPerson: 'Frais de plateforme (par personne)',
     grandTotalPerPerson: 'Total général (par personne)',
+    pricingHeading: 'Tarification',
+    totalPerPerson: 'Prix total (par personne)',
   },
 };
 
@@ -128,6 +134,22 @@ export interface PackageSummaryPdfInput {
   computedPlatformFeeMinor: number;
   days: PackageSummaryPdfDay[];
   accommodationRows: PackageSummaryPdfAccommodationRow[];
+}
+
+// DR-152 (explicit user request): the client-facing counterpart to
+// PackageSummaryPdfInput above -- same itinerary content, but deliberately
+// carries none of the internal cost-bucket fields (activities/admin/
+// transport/platform-fee totals, per-night accommodation rates). Only what
+// a guest is actually charged (priceMinor, the per-seat total) and the
+// headcount it's based on.
+export interface ClientPackageSummaryPdfInput {
+  locale: PdfLocale;
+  currency: Currency;
+  title: string;
+  packageReference: string;
+  referenceGroupSize: number;
+  priceMinor: number;
+  days: PackageSummaryPdfDay[];
 }
 
 const COLORS = { navy: '#3B1F3A', amber: '#D65B2E', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8', bone: '#F6EFE4' };
@@ -174,6 +196,72 @@ function BrandMarkPdf() {
   );
 }
 
+// DR-152: shared between the staff and client render functions, so the
+// company block/title/itinerary table/footer chrome can never drift
+// between the two documents -- only the pricing section differs.
+function DocumentHeader({ t, title, packageReference }: { t: Record<string, string>; title: string; packageReference: string }) {
+  return (
+    <View style={styles.headerRow}>
+      <View style={styles.companyBlock}>
+        <BrandMarkPdf />
+        <View>
+          <Text style={styles.companyName}>{COMPANY.name}</Text>
+          <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>
+          <Text style={styles.companyText}>{COMPANY.addressLine2}</Text>
+          <Text style={styles.companyText}>{COMPANY.email}</Text>
+          <Text style={styles.companyText}>{COMPANY.phone}</Text>
+          <Text style={styles.companyText}>
+            {t.companyRegistration}: {COMPANY.registrationId}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.titleBlock}>
+        <Text style={styles.heading}>{t.proposedItinerary}</Text>
+        <Text style={styles.packageTitle}>{title}</Text>
+        <Text style={styles.packageRef}>
+          {t.packageReference}: {packageReference}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function ItineraryTable({ t, days }: { t: Record<string, string>; days: PackageSummaryPdfDay[] }) {
+  return (
+    <>
+      <Text style={styles.sectionHeading}>{t.itinerarySummary}</Text>
+      <View style={styles.tableHeaderRow}>
+        <Text style={[styles.headerCell, styles.colDay]}>{t.day}</Text>
+        <Text style={[styles.headerCell, styles.colHotel]}>{t.hotel}</Text>
+        <Text style={[styles.headerCell, styles.colRestaurant]}>{t.restaurant}</Text>
+        <Text style={[styles.headerCell, styles.colActivities]}>{t.activities}</Text>
+      </View>
+      {days.map((d) => (
+        <View key={d.dayNumber} style={styles.tableRow}>
+          <Text style={styles.colDay}>{d.dayNumber}</Text>
+          <Text style={styles.colHotel}>{d.hotelName ?? t.none}</Text>
+          <Text style={styles.colRestaurant}>{d.restaurantName ?? t.none}</Text>
+          <Text style={styles.colActivities}>{d.activitiesLabel ?? t.none}</Text>
+        </View>
+      ))}
+    </>
+  );
+}
+
+function DocumentFooter({ locale }: { locale: PdfLocale }) {
+  return (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerText}>{FOOTER.ntb}</Text>
+      <Text style={styles.footerText}>{FOOTER.emails}</Text>
+      <Text style={styles.footerText}>{OPERATING_COUNTRIES[locale]}</Text>
+      <Text style={styles.footerText}>{FOOTER.poweredBy}</Text>
+    </View>
+  );
+}
+
+/** Staff-only: full cost breakdown, including per-day accommodation rates
+ * and every internal cost bucket. Never handed to a guest -- see
+ * renderClientPackageSummaryPdf below for the version that is. */
 export async function renderPackageSummaryPdf(input: PackageSummaryPdfInput): Promise<Buffer> {
   const t = LABELS[input.locale];
   const fmt = (minor: number) => formatMoneyForPdf(minor, input.currency);
@@ -183,44 +271,8 @@ export async function renderPackageSummaryPdf(input: PackageSummaryPdfInput): Pr
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.headerRow}>
-          <View style={styles.companyBlock}>
-            <BrandMarkPdf />
-            <View>
-              <Text style={styles.companyName}>{COMPANY.name}</Text>
-              <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>
-              <Text style={styles.companyText}>{COMPANY.addressLine2}</Text>
-              <Text style={styles.companyText}>{COMPANY.email}</Text>
-              <Text style={styles.companyText}>{COMPANY.phone}</Text>
-              <Text style={styles.companyText}>
-                {t.companyRegistration}: {COMPANY.registrationId}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.titleBlock}>
-            <Text style={styles.heading}>{t.proposedItinerary}</Text>
-            <Text style={styles.packageTitle}>{input.title}</Text>
-            <Text style={styles.packageRef}>
-              {t.packageReference}: {input.packageReference}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionHeading}>{t.itinerarySummary}</Text>
-        <View style={styles.tableHeaderRow}>
-          <Text style={[styles.headerCell, styles.colDay]}>{t.day}</Text>
-          <Text style={[styles.headerCell, styles.colHotel]}>{t.hotel}</Text>
-          <Text style={[styles.headerCell, styles.colRestaurant]}>{t.restaurant}</Text>
-          <Text style={[styles.headerCell, styles.colActivities]}>{t.activities}</Text>
-        </View>
-        {input.days.map((d) => (
-          <View key={d.dayNumber} style={styles.tableRow}>
-            <Text style={styles.colDay}>{d.dayNumber}</Text>
-            <Text style={styles.colHotel}>{d.hotelName ?? t.none}</Text>
-            <Text style={styles.colRestaurant}>{d.restaurantName ?? t.none}</Text>
-            <Text style={styles.colActivities}>{d.activitiesLabel ?? t.none}</Text>
-          </View>
-        ))}
+        <DocumentHeader t={t} title={input.title} packageReference={input.packageReference} />
+        <ItineraryTable t={t} days={input.days} />
 
         <Text style={styles.sectionHeading}>{t.costSummary}</Text>
         <View style={styles.costRow}>
@@ -265,12 +317,38 @@ export async function renderPackageSummaryPdf(input: PackageSummaryPdfInput): Pr
           </View>
         </View>
 
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{FOOTER.ntb}</Text>
-          <Text style={styles.footerText}>{FOOTER.emails}</Text>
-          <Text style={styles.footerText}>{OPERATING_COUNTRIES[input.locale]}</Text>
-          <Text style={styles.footerText}>{FOOTER.poweredBy}</Text>
+        <DocumentFooter locale={input.locale} />
+      </Page>
+    </Document>,
+  );
+}
+
+/** DR-152 (explicit user request): client-facing counterpart -- same
+ * itinerary content, but no internal cost buckets/per-night rates at all,
+ * only the participant count and the one total a guest is actually
+ * charged (TourPackage.priceMinor, already tax + platform-fee inclusive
+ * per DR-134). Meant to be forwarded to a guest as-is. */
+export async function renderClientPackageSummaryPdf(input: ClientPackageSummaryPdfInput): Promise<Buffer> {
+  const t = LABELS[input.locale];
+  const fmt = (minor: number) => formatMoneyForPdf(minor, input.currency);
+
+  return renderToBuffer(
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <DocumentHeader t={t} title={input.title} packageReference={input.packageReference} />
+        <ItineraryTable t={t} days={input.days} />
+
+        <Text style={styles.sectionHeading}>{t.pricingHeading}</Text>
+        <View style={styles.costRow}>
+          <Text style={styles.costLabel}>{t.participants}</Text>
+          <Text style={styles.costValue}>{input.referenceGroupSize}</Text>
         </View>
+        <View style={[styles.grandTotalRow, { marginTop: 8 }]}>
+          <Text style={styles.grandTotalLabel}>{t.totalPerPerson}</Text>
+          <Text style={styles.grandTotalValue}>{fmt(input.priceMinor)}</Text>
+        </View>
+
+        <DocumentFooter locale={input.locale} />
       </Page>
     </Document>,
   );
