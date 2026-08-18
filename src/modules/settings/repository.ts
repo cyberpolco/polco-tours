@@ -20,7 +20,6 @@ function toCouponView(c: Coupon, redemptionCount: number): CouponView {
     discountBp: c.discountBp,
     maxRedemptions: c.maxRedemptions,
     expiresAt: c.expiresAt,
-    deactivatedAt: c.deactivatedAt,
     redemptionCount,
     createdAt: c.createdAt,
   };
@@ -99,10 +98,28 @@ export const settingsRepository = {
     );
     return toCouponView(c, 0);
   },
-  async deactivateCoupon(id: string): Promise<CouponView | null> {
+  /** DR-144: full replace of discountBp/maxRedemptions/expiresAt (code and
+   * id are immutable) -- same "reuse the create schema, blank means clear"
+   * convention as financeService's updateXRate family. */
+  async updateCoupon(id: string, input: CreateCouponInput): Promise<CouponView | null> {
     const existing = await prisma.coupon.findUnique({ where: { id }, include: { _count: { select: { redemptions: true } } } });
     if (!existing) return null;
-    const updated = await prisma.coupon.update({ where: { id }, data: { deactivatedAt: new Date() } });
+    const updated = await prisma.coupon.update({
+      where: { id },
+      data: { discountBp: input.discountBp, maxRedemptions: input.maxRedemptions ?? null, expiresAt: input.expiresAt ?? null },
+    });
     return toCouponView(updated, existing._count.redemptions);
+  },
+  /** DR-144 (explicit user request, reverses DR-104's soft-deactivate-only
+   * design): a genuine hard delete -- CouponRedemption.coupon now cascades
+   * (schema.prisma), so this also removes that coupon's redemption/usage
+   * history. The pre-delete row is fetched first purely to return a
+   * CouponView reflecting what was just removed, same "read before delete"
+   * shape as deleteTaxRate/deletePlatformRate above. */
+  async deleteCoupon(id: string): Promise<CouponView | null> {
+    const existing = await prisma.coupon.findUnique({ where: { id }, include: { _count: { select: { redemptions: true } } } });
+    if (!existing) return null;
+    await prisma.coupon.delete({ where: { id } });
+    return toCouponView(existing, existing._count.redemptions);
   },
 };

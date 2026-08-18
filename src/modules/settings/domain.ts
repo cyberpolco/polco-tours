@@ -52,7 +52,6 @@ export interface CouponView {
   discountBp: number;
   maxRedemptions: number | null;
   expiresAt: Date | null;
-  deactivatedAt: Date | null;
   redemptionCount: number;
   createdAt: Date;
 }
@@ -63,6 +62,15 @@ export const CreateCouponInput = z.object({
   expiresAt: z.coerce.date().optional(),
 });
 export type CreateCouponInput = z.infer<typeof CreateCouponInput>;
+
+// DR-144: reused for updates too (full replace of every field except
+// identity via the URL id, same precedent as finance/domain.ts's
+// updateXRate schemas) -- an omitted maxRedemptions/expiresAt on an update
+// clears that field back to unlimited/never-expires rather than leaving
+// the previous value untouched, so the edit form's blank state means
+// exactly what it looks like.
+export const UpdateCouponInput = CreateCouponInput;
+export type UpdateCouponInput = CreateCouponInput;
 
 // Exact format specified by the business: CPC-{YY}-{NNNNNN}-{LL}, e.g.
 // CPC-26-019654-HK. CPC is a fixed literal; YY is the current year mod 100

@@ -19,8 +19,28 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-143 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-143** (explicit user request) removes the "Valid to" column
+> Current through DR-144 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-144** (explicit user request, reverses DR-104's original
+> design) replaces Coupon's soft-deactivate-only lifecycle with a genuine
+> Delete plus a new Update — confirmed via two clarifying questions since
+> DR-104 deliberately avoided a hard delete (`CouponRedemption` has a real
+> FK to `Coupon`, needed for the redemption cap count). Per explicit
+> instruction: Delete always works, cascading away that coupon's redemption
+> history too (`CouponRedemption.coupon` now `onDelete: Cascade` — a
+> confirmed trade-off, the audit trail is the `settings.coupon_deleted`
+> log entry instead), and Deactivate is gone entirely, not kept alongside
+> Delete. `Coupon.deactivatedAt` is dropped (0 of 10 existing coupons had it
+> set); `CouponUnavailableReason` loses its `INACTIVE` member — a deleted
+> coupon's row is just gone, so the pre-existing `NOT_FOUND` reason already
+> covers it. New `settingsService.updateCoupon` (full replace of
+> discountBp/maxRedemptions/expiresAt, code/id immutable, reusing
+> `CreateCouponInput` as `UpdateCouponInput` per DR-136's own precedent) and
+> `deleteCoupon` back a new `PATCH`/`DELETE /api/v1/settings/coupons/[id]`
+> route (replacing the old `POST .../deactivate`) and an Edit disclosure +
+> Delete button on `/staff/settings/coupons`. **Schema change (drops
+> `Coupon.deactivatedAt`, changes the `CouponRedemption` FK to cascade)
+> applied by hand to the shared Neon DB** — verified via `psql`. No
+> permission/module-dependency change. **DR-143** (explicit user request) removes the "Valid to" column
 > from `/staff/settings/platform-rate`'s rate table — purely cosmetic:
 > `PlatformRate.validTo` has never been settable by any create/edit path (every
 > row is `null`, so the column only ever rendered "—"). The schema field
@@ -1043,7 +1063,11 @@ src/
                    #   bookingReference is the sole guest-facing lookup key
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
-                   #   applied via a shared computeInvoiceAmounts helper)
+                   #   applied via a shared computeInvoiceAmounts helper);
+                   #   DR-144: a TAILOR_MADE booking's tax rate is blended
+                   #   across its linked customized package's Day Template
+                   #   countries via financeService.resolveEffectiveTaxRateBp
+                   #   (new invoicing -> finance dependency)
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
@@ -1095,7 +1119,12 @@ src/
                    #   reapplyRatesToAllCostBreakdowns, which replays every
                    #   existing package/tailor-made-booking cost breakdown
                    #   through saveCostBreakdown/saveBookingCostBreakdown so
-                   #   TourPackage.priceMinor tracks the new price
+                   #   TourPackage.priceMinor tracks the new price — DR-144:
+                   #   a combo package/booking (Day Template hotels spanning
+                   #   2+ countries) has its tax rate blended by night count
+                   #   per country (computeBlendedTaxRate/blendedTaxRateBp),
+                   #   not taxed at a single flat country rate; exposed
+                   #   cross-module as financeService.resolveEffectiveTaxRateBp
     tracking/      # Fleet location + trip-progress composition, no repository.ts
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
                    #   generated discount codes, SUPERADMIN-only writes)
@@ -1145,6 +1174,10 @@ real Hotel/Activity a rate is priced for) — confirmed acyclic the same way
 `invoicing`/`visa`/`itinerary` already depend on `booking`: `booking` itself
 only imports `{auth, catalog, notifications}`, and `itinerary` only imports
 `{auth, assignment, booking, catalog}`, neither reaching back into `finance`.
+Since DR-144, `invoicing` also depends on `finance` (to blend a TAILOR_MADE
+booking's tax rate the same way a package's own cost breakdown does) —
+confirmed acyclic the same way: `finance` itself only imports
+`{auth, catalog, booking, itinerary}`, never reaching back into `invoicing`.
 
 ---
 

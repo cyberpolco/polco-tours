@@ -29,7 +29,6 @@ interface CouponRow {
   discountBp: number;
   maxRedemptions: number | null;
   expiresAt: Date | null;
-  deactivatedAt: Date | null;
 }
 
 export interface CreatePaymentParams {

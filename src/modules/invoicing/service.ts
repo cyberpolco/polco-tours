@@ -379,8 +379,6 @@ function couponErrorToApiError(reason: CouponUnavailableReason) {
   switch (reason) {
     case 'NOT_FOUND':
       return Errors.notFound('Coupon code not found');
-    case 'INACTIVE':
-      return Errors.conflict('This coupon has been deactivated');
     case 'EXPIRED':
       return Errors.conflict('This coupon has expired');
     case 'EXHAUSTED':

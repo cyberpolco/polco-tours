@@ -8,7 +8,11 @@ import { prisma } from './db';
  * direction rule) -- it's the read-only window invoicing looks through
  * instead.
  */
-export type CouponUnavailableReason = 'NOT_FOUND' | 'INACTIVE' | 'EXPIRED' | 'EXHAUSTED';
+// DR-144: INACTIVE was retired along with Coupon.deactivatedAt -- a coupon
+// that's been turned off is now deleted outright (settingsService
+// .deleteCoupon), so NOT_FOUND already covers "this code no longer works"
+// with no separate reason needed.
+export type CouponUnavailableReason = 'NOT_FOUND' | 'EXPIRED' | 'EXHAUSTED';
 
 export interface CouponLookup {
   id: string;
@@ -16,7 +20,6 @@ export interface CouponLookup {
   discountBp: number;
   maxRedemptions: number | null;
   expiresAt: Date | null;
-  deactivatedAt: Date | null;
 }
 
 /**
@@ -27,11 +30,10 @@ export interface CouponLookup {
  * not the caller's withOrg transaction handle the lock must run inside).
  */
 export function couponUnavailableReason(
-  coupon: Pick<CouponLookup, 'maxRedemptions' | 'expiresAt' | 'deactivatedAt'>,
+  coupon: Pick<CouponLookup, 'maxRedemptions' | 'expiresAt'>,
   redemptionCount: number,
   at: Date,
 ): CouponUnavailableReason | null {
-  if (coupon.deactivatedAt) return 'INACTIVE';
   if (coupon.expiresAt && coupon.expiresAt <= at) return 'EXPIRED';
   if (coupon.maxRedemptions !== null && redemptionCount >= coupon.maxRedemptions) return 'EXHAUSTED';
   return null;

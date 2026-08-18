@@ -1507,13 +1507,8 @@ model Coupon {
   id             String    @id @default(uuid()) @db.Uuid
   code           String    @unique
   discountBp     Int // basis points off the pre-tax subtotal, e.g. 1500 = 15%; capped at 5000 (50%) app-side
-  maxRedemptions Int? // null = unlimited (until deactivated/expired); N = capped; 1 = single-use
+  maxRedemptions Int? // null = unlimited (until expired); N = capped; 1 = single-use
   expiresAt      DateTime?
-  // Soft off-switch -- deliberately NOT a hard delete like TaxRate/
-  // PlatformRate, since CouponRedemption has a real FK to this row (needed
-  // for the cap count) that a hard delete would either be blocked by or
-  // wrongly cascade-destroy the redemption history of.
-  deactivatedAt  DateTime?
   createdAt      DateTime  @default(now())
 
   redemptions CouponRedemption[]
@@ -1523,7 +1518,8 @@ model Coupon {
 
 // The "usage" record for a Coupon -- created when it's applied to an
 // Invoice (counted at apply-time, not payment-time -- see DR-104), deleted
-// outright when removed (releases the slot). One row per (coupon, invoice).
+// outright when removed (releases the slot) or when its parent Coupon is
+// (DR-144). One row per (coupon, invoice).
 model CouponRedemption {
   id            String   @id @default(uuid()) @db.Uuid
   couponId      String   @db.Uuid
@@ -1531,7 +1527,14 @@ model CouponRedemption {
   discountMinor Int // snapshot of the discount amount actually applied
   redeemedAt    DateTime @default(now())
 
-  coupon  Coupon  @relation(fields: [couponId], references: [id])
+  // DR-144 (explicit user request, reverses DR-104's original "never hard-
+  // delete a Coupon, only deactivate it" choice): onDelete: Cascade means
+  // deleting a Coupon now also deletes its redemption history -- a
+  // deliberate, confirmed trade-off (loses the per-invoice usage audit
+  // trail for that coupon; settingsService.deleteCoupon's own
+  // settings.coupon_deleted audit entry is what's left as the record that
+  // it existed and was removed).
+  coupon  Coupon  @relation(fields: [couponId], references: [id], onDelete: Cascade)
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@unique([couponId, invoiceId])

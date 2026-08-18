@@ -21,7 +21,6 @@ const admin = new PrismaClient();
 const suffix = Math.floor(Math.random() * 1e12).toString(36).toUpperCase();
 const activeCode = `TEST-ACTIVE-${suffix}`;
 const expiredCode = `TEST-EXPIRED-${suffix}`;
-const deactivatedCode = `TEST-DEACTIVATED-${suffix}`;
 const exhaustedCode = `TEST-EXHAUSTED-${suffix}`;
 let orgId: string;
 let exhaustedCouponId: string;
@@ -30,7 +29,6 @@ let fixtureInvoiceId: string;
 beforeAll(async () => {
   await admin.coupon.create({ data: { code: activeCode, discountBp: 1000 } });
   await admin.coupon.create({ data: { code: expiredCode, discountBp: 1000, expiresAt: new Date('2020-01-01') } });
-  await admin.coupon.create({ data: { code: deactivatedCode, discountBp: 1000, deactivatedAt: new Date() } });
   const exhausted = await admin.coupon.create({ data: { code: exhaustedCode, discountBp: 1000, maxRedemptions: 1 } });
   exhaustedCouponId = exhausted.id;
 
@@ -71,7 +69,7 @@ afterAll(async () => {
     return;
   }
   await admin.couponRedemption.deleteMany({ where: { couponId: exhaustedCouponId } });
-  await admin.coupon.deleteMany({ where: { code: { in: [activeCode, expiredCode, deactivatedCode, exhaustedCode] } } });
+  await admin.coupon.deleteMany({ where: { code: { in: [activeCode, expiredCode, exhaustedCode] } } });
   await withOrg(orgId, (tx) => tx.invoice.deleteMany({ where: { organizationId: orgId } }));
   await withOrg(orgId, (tx) => tx.booking.deleteMany({ where: { organizationId: orgId } }));
   await admin.user.deleteMany({ where: { organizationId: orgId } });
@@ -84,28 +82,22 @@ describe('couponUnavailableReason', () => {
   const at = new Date('2026-06-01');
 
   it('returns null for an active, unexpired, under-cap coupon', () => {
-    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: null, deactivatedAt: null }, 0, at)).toBeNull();
-  });
-
-  it('returns INACTIVE for a deactivated coupon regardless of other fields', () => {
-    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: null, deactivatedAt: new Date() }, 0, at)).toBe('INACTIVE');
+    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: null }, 0, at)).toBeNull();
   });
 
   it('returns EXPIRED once expiresAt is at or before "at"', () => {
-    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: new Date('2026-01-01'), deactivatedAt: null }, 0, at)).toBe(
-      'EXPIRED',
-    );
+    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: new Date('2026-01-01') }, 0, at)).toBe('EXPIRED');
     // Not yet expired at the exact boundary moment before expiresAt.
-    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: new Date('2026-12-31'), deactivatedAt: null }, 0, at)).toBeNull();
+    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: new Date('2026-12-31') }, 0, at)).toBeNull();
   });
 
   it('returns EXHAUSTED once redemptionCount reaches maxRedemptions', () => {
-    expect(couponUnavailableReason({ maxRedemptions: 3, expiresAt: null, deactivatedAt: null }, 3, at)).toBe('EXHAUSTED');
-    expect(couponUnavailableReason({ maxRedemptions: 3, expiresAt: null, deactivatedAt: null }, 2, at)).toBeNull();
+    expect(couponUnavailableReason({ maxRedemptions: 3, expiresAt: null }, 3, at)).toBe('EXHAUSTED');
+    expect(couponUnavailableReason({ maxRedemptions: 3, expiresAt: null }, 2, at)).toBeNull();
   });
 
   it('maxRedemptions: null never returns EXHAUSTED, no matter how high the count', () => {
-    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: null, deactivatedAt: null }, 1_000_000, at)).toBeNull();
+    expect(couponUnavailableReason({ maxRedemptions: null, expiresAt: null }, 1_000_000, at)).toBeNull();
   });
 });
 
@@ -131,14 +123,28 @@ describe('validateCoupon', () => {
     expect(await validateCoupon(expiredCode)).toEqual({ error: 'EXPIRED' });
   });
 
-  it('returns INACTIVE for a deactivated code', async () => {
-    expect(await validateCoupon(deactivatedCode)).toEqual({ error: 'INACTIVE' });
-  });
-
   it('returns EXHAUSTED once redemptions reach the cap', async () => {
     await admin.couponRedemption.create({
       data: { couponId: exhaustedCouponId, invoiceId: fixtureInvoiceId, discountMinor: 100 },
     });
     expect(await validateCoupon(exhaustedCode)).toEqual({ error: 'EXHAUSTED' });
+  });
+});
+
+// DR-144 (explicit user request, reverses DR-104's soft-deactivate-only
+// design): deleting a Coupon now cascades to its CouponRedemption rows
+// (schema.prisma's onDelete: Cascade), a confirmed trade-off -- this test
+// exercises the real DB constraint directly, using the redemption the test
+// above just created, rather than mocking Prisma's cascade behavior.
+describe('deleting a Coupon cascades to its CouponRedemption rows (DR-144)', () => {
+  it('removes redemption history and makes the code NOT_FOUND, not a separate soft-off reason', async () => {
+    const before = await admin.couponRedemption.count({ where: { couponId: exhaustedCouponId } });
+    expect(before).toBeGreaterThan(0);
+
+    await admin.coupon.delete({ where: { id: exhaustedCouponId } });
+
+    const after = await admin.couponRedemption.count({ where: { couponId: exhaustedCouponId } });
+    expect(after).toBe(0);
+    expect(await validateCoupon(exhaustedCode)).toEqual({ error: 'NOT_FOUND' });
   });
 });

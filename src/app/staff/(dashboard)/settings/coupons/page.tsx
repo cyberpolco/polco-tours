@@ -8,11 +8,10 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { createCouponAction, deactivateCouponAction } from './actions';
+import { createCouponAction, deleteCouponAction, updateCouponAction } from './actions';
 
 const STATUS_TONE: Record<'ACTIVE' | CouponUnavailableReason, BadgeTone> = {
   ACTIVE: 'success',
-  INACTIVE: 'neutral',
   EXPIRED: 'neutral',
   EXHAUSTED: 'neutral',
   NOT_FOUND: 'neutral', // never actually reached here -- couponUnavailableReason never returns this for a real row
@@ -38,11 +37,27 @@ function DeleteButton({
   );
 }
 
+// A dependency-free, JS-free inline edit toggle -- same <details>/<summary>
+// convention as finance/rates/page.tsx's own local EditDisclosure (can't be
+// imported from there directly, a page.tsx file may only export `default`
+// plus Next's own well-known names).
+function EditDisclosure({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-xs font-medium text-navy underline">{label}</summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  );
+}
+
 // Settings module (DR-104) -- percentage-discount codes, same platform-wide/
 // "route passes, service rejects" SUPERADMIN-write shape as TaxRate/
 // PlatformRate above it in the sidebar. code is system-generated
 // (settingsService.createCoupon) -- there is deliberately no code field on
-// the create form.
+// the create OR edit form. DR-144 (explicit user request): Delete replaces
+// the original DR-104 Deactivate action -- a real removal, cascading away
+// that coupon's redemption history too (see schema.prisma) -- and an Edit
+// disclosure lets discountBp/maxRedemptions/expiresAt be changed in place.
 export default async function CouponsPage() {
   const ctx = await requireStaffContext('platform_settings.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
@@ -52,8 +67,6 @@ export default async function CouponsPage() {
   function statusLabel(c: CouponView): string {
     const reason = couponUnavailableReason(c, c.redemptionCount, new Date());
     switch (reason) {
-      case 'INACTIVE':
-        return t('statusDeactivated');
       case 'EXPIRED':
         return t('statusExpired');
       case 'EXHAUSTED':
@@ -97,13 +110,47 @@ export default async function CouponsPage() {
                     <Badge tone={STATUS_TONE[reason ?? 'ACTIVE']}>{statusLabel(c)}</Badge>
                   </Td>
                   <Td>
-                    {canWrite && !c.deactivatedAt && (
-                      <DeleteButton
-                        action={deactivateCouponAction.bind(null, c.id)}
-                        removingLabel={t('deactivating')}
-                        removeConfirm={t('deactivateConfirm')}
-                        removeLabel={t('deactivate')}
-                      />
+                    {canWrite && (
+                      <>
+                        <DeleteButton
+                          action={deleteCouponAction.bind(null, c.id)}
+                          removingLabel={t('deleting')}
+                          removeConfirm={t('deleteConfirm')}
+                          removeLabel={t('delete')}
+                        />
+                        <EditDisclosure label={t('edit')}>
+                          <form action={updateCouponAction.bind(null, c.id)} className="flex flex-wrap items-end gap-2">
+                            <input
+                              name="discountPercent"
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              max="50"
+                              defaultValue={(c.discountBp / 100).toFixed(2)}
+                              required
+                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="maxRedemptions"
+                              type="number"
+                              min="1"
+                              step="1"
+                              defaultValue={c.maxRedemptions ?? ''}
+                              placeholder={t('maxRedemptionsPlaceholder')}
+                              className="w-28 rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <input
+                              name="expiresAt"
+                              type="date"
+                              defaultValue={c.expiresAt ? c.expiresAt.toISOString().slice(0, 10) : ''}
+                              className="rounded-survey border border-rule px-2 py-2 text-sm"
+                            />
+                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                              {t('saveChanges')}
+                            </SubmitButton>
+                          </form>
+                        </EditDisclosure>
+                      </>
                     )}
                   </Td>
                 </Tr>

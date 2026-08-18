@@ -4,7 +4,7 @@ import type { AuthContext } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import type { CouponView, CreateCouponInput, CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView } from './domain';
+import type { CouponView, CreateCouponInput, CreatePlatformRateInput, CreateTaxRateInput, PlatformRateView, TaxRateView, UpdateCouponInput } from './domain';
 import { settingsRepository } from './repository';
 
 /** Same layering as financeService's requireRateWriter/immigration's
@@ -74,10 +74,36 @@ export const settingsService = {
     });
     return coupon;
   },
-  async deactivateCoupon(ctx: AuthContext, id: string): Promise<void> {
+  async updateCoupon(ctx: AuthContext, id: string, input: UpdateCouponInput): Promise<CouponView> {
     requireSettingsWriter(ctx);
-    const deactivated = await settingsRepository.deactivateCoupon(id);
-    if (!deactivated) throw Errors.notFound('Coupon not found');
-    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.coupon_deactivated', resourceType: 'Coupon', resourceId: id });
+    const updated = await settingsRepository.updateCoupon(id, input);
+    if (!updated) throw Errors.notFound('Coupon not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'settings.coupon_updated',
+      resourceType: 'Coupon',
+      resourceId: id,
+      metadata: { discountBp: input.discountBp, maxRedemptions: input.maxRedemptions ?? null },
+    });
+    return updated;
+  },
+  /** DR-144 (explicit user request): a genuine delete, replacing the
+   * original DR-104 deactivate-only design -- also removes that coupon's
+   * CouponRedemption history (schema-level cascade), a confirmed trade-off
+   * (see schema.prisma's comment). The settings.coupon_deleted audit entry
+   * is what's left as the record that this coupon existed. */
+  async deleteCoupon(ctx: AuthContext, id: string): Promise<void> {
+    requireSettingsWriter(ctx);
+    const deleted = await settingsRepository.deleteCoupon(id);
+    if (!deleted) throw Errors.notFound('Coupon not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'settings.coupon_deleted',
+      resourceType: 'Coupon',
+      resourceId: id,
+      metadata: { code: deleted.code, redemptionCount: deleted.redemptionCount },
+    });
   },
 };

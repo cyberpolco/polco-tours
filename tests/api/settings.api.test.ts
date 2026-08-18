@@ -8,7 +8,7 @@ import { DELETE as deleteTaxRate } from '../../src/app/api/v1/settings/tax-rates
 import { GET as listPlatformRates, POST as createPlatformRate } from '../../src/app/api/v1/settings/platform-rates/route';
 import { DELETE as deletePlatformRate } from '../../src/app/api/v1/settings/platform-rates/[id]/route';
 import { GET as listCoupons, POST as createCoupon } from '../../src/app/api/v1/settings/coupons/route';
-import { POST as deactivateCoupon } from '../../src/app/api/v1/settings/coupons/[id]/deactivate/route';
+import { PATCH as updateCoupon, DELETE as deleteCoupon } from '../../src/app/api/v1/settings/coupons/[id]/route';
 
 /**
  * Settings Module (DR-042) -- TaxRate + PlatformRate CRUD. Both tables are
@@ -133,7 +133,7 @@ describe('POST/GET/DELETE /api/v1/settings/platform-rates', () => {
 
 // DR-104: code is system-generated -- these tests confirm the request body
 // never influences it, even if a caller tries to smuggle one in.
-describe('POST/GET/{id}/deactivate /api/v1/settings/coupons', () => {
+describe('POST/GET/PATCH/DELETE /api/v1/settings/coupons', () => {
   it('a SUPERADMIN creates a coupon (201) -- code is generated, never client-supplied', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest('http://localhost/api/v1/settings/coupons', headers, 'POST', {
@@ -169,19 +169,54 @@ describe('POST/GET/{id}/deactivate /api/v1/settings/coupons', () => {
     expect(fixture.redemptionCount).toBe(0);
   });
 
-  it('deactivates the coupon (204)', async () => {
+  // DR-144 (explicit user request): update replaces the old deactivate --
+  // full replace of discountBp/maxRedemptions/expiresAt (code is immutable).
+  it('a SUPERADMIN updates the coupon in place (200)', async () => {
     const headers = await loginAs(superadminId);
-    const req = jsonRequest(`http://localhost/api/v1/settings/coupons/${createdCouponId}/deactivate`, headers, 'POST');
-    const res = await deactivateCoupon(req, { params: Promise.resolve({ id: createdCouponId }) });
+    const req = jsonRequest(`http://localhost/api/v1/settings/coupons/${createdCouponId}`, headers, 'PATCH', {
+      discountBp: 2000,
+      maxRedemptions: 5,
+    });
+    const res = await updateCoupon(req, { params: Promise.resolve({ id: createdCouponId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.coupon.discountBp).toBe(2000);
+    expect(body.coupon.maxRedemptions).toBe(5);
+    expect(body.coupon.code).toBe(createdCouponCode); // code is immutable
+    expect(body.coupon.expiresAt).toBeNull(); // omitted on this update -- cleared, not left untouched
+  });
+
+  it('updating an unknown coupon 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
+      discountBp: 1000,
+    });
+    const res = await updateCoupon(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
+  });
+
+  it('a SUPERADMIN deletes the coupon (204)', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest(`http://localhost/api/v1/settings/coupons/${createdCouponId}`, headers, 'DELETE');
+    const res = await deleteCoupon(req, { params: Promise.resolve({ id: createdCouponId }) });
     expect(res.status).toBe(204);
   });
 
   // Cross-checks against @lib/coupons directly (the exact read path
   // invoicingService.applyCoupon uses) rather than spinning up a whole
   // booking/invoice just to prove this -- validateCoupon rejects before
-  // ever touching an invoice.
-  it('the deactivated coupon is immediately unusable via validateCoupon', async () => {
+  // ever touching an invoice. DR-144: a deleted coupon is NOT_FOUND, not a
+  // separate INACTIVE reason (that reason no longer exists at all).
+  it('the deleted coupon is immediately unusable via validateCoupon (NOT_FOUND, not a soft-off state)', async () => {
     const { validateCoupon } = await import('../../src/lib/coupons');
-    expect(await validateCoupon(createdCouponCode)).toEqual({ error: 'INACTIVE' });
+    expect(await validateCoupon(createdCouponCode)).toEqual({ error: 'NOT_FOUND' });
+    createdCouponId = ''; // already deleted -- afterAll shouldn't try again
+  });
+
+  it('deleting an unknown coupon 404s', async () => {
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/settings/coupons/00000000-0000-0000-0000-000000000000', headers, 'DELETE');
+    const res = await deleteCoupon(req, { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) });
+    expect(res.status).toBe(404);
   });
 });
