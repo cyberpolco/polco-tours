@@ -12,7 +12,18 @@ import './globals.css';
 // pattern and booking/rating codes -- a rugged, expedition-manifest register
 // replacing the old warm-editorial one. All three via next/font/google
 // (already part of the Next.js dependency, no new package).
-const bigShouldersStencil = Big_Shoulders_Stencil({ subsets: ['latin'], weight: ['700', '900'], variable: '--font-display' });
+// axes: ['opsz'] is required for the actual die-cut look -- without it, the
+// served file's optical size axis is pinned at Google's default (a small/
+// "Text"-leaning instance), so a big hero headline never reaches the
+// dramatic Display cut the font is chosen for. With it, the browser's
+// default `font-optical-sizing: auto` picks a larger opsz automatically as
+// rendered font-size grows -- no extra CSS needed at any call site.
+const bigShouldersStencil = Big_Shoulders_Stencil({
+  subsets: ['latin'],
+  weight: ['700', '900'],
+  axes: ['opsz'],
+  variable: '--font-display',
+});
 const archivo = Archivo({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-sans' });
 const specialElite = Special_Elite({ subsets: ['latin'], weight: '400', variable: '--font-mono' });
 
