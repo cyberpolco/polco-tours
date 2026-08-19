@@ -135,18 +135,17 @@ describe('insights route -- cross-tenant isolation', () => {
   );
 });
 
-// DR-155: isInsightsViewer is a HARDCODED restriction beneath insights.read
-// (same layering as isBookingDeleter/isFleetDeleter/isVisaDeleter) -- a role
-// that holds insights.read via the runtime-editable permission matrix but
-// isn't SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN must still be denied. This
-// simulates exactly that ("what if an admin granted it anyway") by writing
-// directly to the global RolePermission table (no RLS, not org-scoped --
-// see prisma/schema.prisma), the same table the matrix editor itself
-// writes to.
+// DR-159 (reverses DR-035): permissions are a hardcoded, in-code map now --
+// there is no runtime permission-matrix editor left that could grant
+// insights.read to a role outside ROLE_PERMISSIONS, so the old "what if an
+// admin granted it anyway" scenario (simulated by writing directly to the
+// now-removed RolePermission table) is no longer reachable. isInsightsViewer
+// (insights/domain.ts) remains as defense-in-depth beneath insights.read --
+// this test just confirms VISA_FACILITATOR, which never holds insights.read
+// under the hardcoded map, is denied (403).
 describe('insights route -- isInsightsViewer hardcoded gate', () => {
   let visaFacilitatorOrgId: string;
   let visaFacilitatorUserId: string;
-  let grantedRolePermission = false;
 
   beforeAll(async () => {
     const org = await admin.organization.create({ data: { name: `INSIGHTS-GATE-${suffix}`, countries: ['NA'], status: 'VERIFIED' } });
@@ -155,25 +154,16 @@ describe('insights route -- isInsightsViewer hardcoded gate', () => {
       data: { email: `visa-facilitator-insights-gate-${suffix}@example.test`, role: 'VISA_FACILITATOR', organizationId: org.id },
     });
     visaFacilitatorUserId = user.id;
-    await admin.rolePermission.upsert({
-      where: { role_permission: { role: 'VISA_FACILITATOR', permission: 'insights.read' } },
-      create: { role: 'VISA_FACILITATOR', permission: 'insights.read' },
-      update: {},
-    });
-    grantedRolePermission = true;
   });
 
   afterAll(async () => {
-    if (grantedRolePermission) {
-      await admin.rolePermission.deleteMany({ where: { role: 'VISA_FACILITATOR', permission: 'insights.read' } });
-    }
     if (visaFacilitatorOrgId) {
       await admin.user.deleteMany({ where: { organizationId: visaFacilitatorOrgId } });
       await admin.organization.delete({ where: { id: visaFacilitatorOrgId } });
     }
   });
 
-  it('VISA_FACILITATOR is still denied (403) even when granted insights.read directly', async () => {
+  it('VISA_FACILITATOR is denied (403) -- it never holds insights.read', async () => {
     const headers = await loginAs(visaFacilitatorUserId);
     const req = new NextRequest('http://localhost/api/v1/insights', { headers });
     const res = await getInsights(req, { params: Promise.resolve({}) });

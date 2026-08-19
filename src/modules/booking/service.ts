@@ -14,6 +14,7 @@ import { assertCan, can } from '@lib/rbac';
 import {
   canAddTraveler,
   computeAvailability,
+  isBookingConfirmer,
   isBookingDeleter,
   isBookingLocked,
   isTravelerManifestComplete,
@@ -354,8 +355,15 @@ export const bookingService = {
     return updated;
   },
 
+  // DR-159: booking.confirm alone isn't narrow enough here -- PLATFORM_ADMIN
+  // still holds it (needed for refund/quotation/convert-to-itinerary/cost
+  // breakdown), but the Confirm action itself is TOUR_OPERATOR-only. See
+  // isBookingConfirmer's own comment.
   async confirm(ctx: AuthContext, bookingId: string): Promise<BookingView> {
     assertCan(ctx, 'booking.confirm');
+    if (!isBookingConfirmer(ctx.roles)) {
+      throw Errors.forbidden('Only SUPERADMIN or TOUR_OPERATOR may confirm a booking');
+    }
     const organizationId = requireOrg(ctx);
     const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'CONFIRMED'));
     if (!updated) throw Errors.notFound('Booking not found');
@@ -428,12 +436,11 @@ export const bookingService = {
    * status-transition table entry, no way back once the retention window
    * (BOOKING_DELETION_RETENTION_DAYS) passes and sweepLifecycle's purge
    * runs. SUPERADMIN-only: `assertCan` alone isn't enough, since
-   * `booking.delete` could in principle be granted to another role via the
-   * runtime-editable permission matrix (/staff/admin/permissions) -- the
-   * `isBookingDeleter` check below is the real gate, same "route passes,
-   * service still rejects" layering as isCountryRegulationWriter/
-   * isFinanceConfigWriter. Any booking, any status -- explicit user choice,
-   * not limited to CANCELLED. */
+   * `booking.delete` is never granted to any role in rbac.ts's
+   * ROLE_PERMISSIONS -- the `isBookingDeleter` check below is the real
+   * gate, same "hardcoded role check beneath the permission gate" layering
+   * as isCountryRegulationWriter/isFinanceConfigWriter. Any booking, any
+   * status -- explicit user choice, not limited to CANCELLED. */
   async deleteBooking(ctx: AuthContext, bookingId: string): Promise<void> {
     assertCan(ctx, 'booking.delete');
     if (!isBookingDeleter(ctx.roles)) {

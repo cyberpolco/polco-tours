@@ -19,8 +19,57 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-155 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-155** (explicit user request, discussed in depth first —
+> Current through DR-159 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-159** (explicit user request, walked through the
+> permission review tab-by-tab with the user before any code, per their
+> own "ask questions, don't assume" instruction) reverses DR-035's
+> runtime, DB-backed permission-matrix editor: what each role grants is a
+> hardcoded, in-code map again (`src/lib/rbac.ts`'s `ROLE_PERMISSIONS`) —
+> `/staff/admin/permissions` (page, route, and every `RolePermission`-
+> backed method in `authService`/`authRepository`) is deleted outright,
+> and `RolePermission` itself is dropped from the schema (code-side only
+> so far — **not yet applied to the shared Neon DB**, same "explicit
+> confirmation before a destructive change" convention as every other
+> one). SUPERADMIN is unchanged: still the one hardcoded, unconditional
+> wildcard. Per the user's own per-item decisions: PLATFORM_ADMIN is
+> narrowed off `catalog.write`, `itinerary.approve`, `visa.process`,
+> `documents.read`/`.write`, `invoice.read`, `payment.initiate`/
+> `.resolve`, and `booking.cancel` (TOUR_OPERATOR is the operational role
+> for all of these now); both PLATFORM_ADMIN and TOUR_OPERATOR lose
+> `finance_config.*`/`platform_settings.*` entirely (Finance Settings is
+> now SUPERADMIN-only end to end); TOUR_GUIDE loses `documents.read`; the
+> Clients directory gains PLATFORM_ADMIN alongside SUPERADMIN/
+> TOUR_OPERATOR (`isClientDirectoryViewer`, `auth/domain.ts`). A new
+> mechanism, `STAFF_PAGE_ACCESS` (`rbac.ts`) plus `requireStaffRole`/
+> `withRole` (siblings of `requireStaffContext`/`withAuth`), gates a menu
+> item by a plain hardcoded role list wherever its old gating `Permission`
+> is also load-bearing for an unrelated internal composition that can't
+> itself be narrowed: the general **Bookings** tab/list/detail pages
+> (`booking.read` stays broadly granted for VISA_FACILITATOR's
+> `findTraveler` and TOUR_GUIDE/DRIVER's own-assignment-scoped My Schedule
+> view — the general pages narrow to PLATFORM_ADMIN/TOUR_OPERATOR, plus
+> VISA_FACILITATOR on the detail page specifically since `/staff/
+> visa-queue` links directly into it) and the **Packages** tab/list/
+> detail-view pages (`catalog.read` stays broadly granted; the tab itself
+> narrows to PLATFORM_ADMIN/TOUR_OPERATOR). Narrower still: the "Confirm"
+> booking action is TOUR_OPERATOR-only even though PLATFORM_ADMIN keeps
+> the broader `booking.confirm` permission (also gates Refund/Send
+> Quotation/Convert-to-Itinerary/link Customized Package/the cost-
+> breakdown editor, all kept for PLATFORM_ADMIN) — a new
+> `isBookingConfirmer` (`booking/domain.ts`), same "hardcoded role check
+> beneath the permission gate" layering as `isBookingDeleter`. Every new
+> denial redirects to `/staff/forbidden` or returns a structured
+> `problem+json` 403, never a raw 404 or crash — confirmed as an explicit
+> requirement; the Confirm action also gets a same-page
+> `?error=notAuthorized` Alert since its button is additionally hidden
+> from anyone but SUPERADMIN/TOUR_OPERATOR. **DR-158/157/156** (directly
+> below, all 2026-08-19, committed by concurrent sessions) are a guest
+> package-card layout fix, an Insights revenue-after-delete bug fix, and a
+> site-wide typography swap — unrelated to this permission work; DR-159
+> was assigned to avoid colliding with those already-taken numbers, the
+> same class of collision DR-154/155 hit before.
+>
+> **DR-155** (explicit user request, discussed in depth first —
 > several rounds of clarifying questions before any code, given the
 > request's scope: "totally review Insights, live-updating dashboard
 > covering finance/guest/staff/visa stats") rebuilds `/staff/insights` in
@@ -34,13 +83,13 @@ explicit decision to do so.
 > `rate-limit.ts` — always recomputes fresh when Redis isn't configured) so
 > N staff members with the dashboard open concurrently cost at most one
 > recompute per 30s window, not N. **Access restricted** beyond the
-> existing DB-editable `insights.read` permission to SUPERADMIN/
-> TOUR_OPERATOR/PLATFORM_ADMIN only via a new hardcoded `isInsightsViewer`
-> check (`insights/domain.ts`), same "hardcoded role check beneath the
+> existing `insights.read` permission to SUPERADMIN/TOUR_OPERATOR/
+> PLATFORM_ADMIN only via a new hardcoded `isInsightsViewer` check
+> (`insights/domain.ts`), same "hardcoded role check beneath the
 > permission gate" convention as `isBookingDeleter`/`isFleetDeleter`/
-> `isVisaDeleter` — the page itself redirects to `/staff/forbidden` on
-> failure (same convention as `admin/permissions/page.tsx`), while
-> `/api/v1/insights` 403s via the same check inside the service. **New
+> `isVisaDeleter` — the page itself redirects to `/staff/forbidden` on its
+> own hardcoded check, while `/api/v1/insights` 403s via the same check
+> inside the service. **New
 > Staff-stats section**: headcount by role + active/deactivated/dormant
 > breakdown, via a new `authService.getStaffRosterSummary` gated by a
 > brand-new `staff_roster.read` permission (seeded to PLATFORM_ADMIN +
@@ -321,7 +370,7 @@ explicit decision to do so.
 > (`rating.review_deleted`) is the record. New `rating.delete` permission
 > (never seeded to any role) plus a new `isRatingDeleter` boolean helper
 > (`ratings/domain.ts`) gate `ratingsService.deleteReview` beneath
-> `assertCan`, same two-layer "route passes the DB-editable matrix, the
+> `assertCan`, same two-layer "route passes the base permission, the
 > service's hardcoded SUPERADMIN check is the real gate" convention as
 > `isBookingDeleter`/`isFleetDeleter`/`isCountryRegulationWriter`/
 > `isFinanceConfigWriter`. `ratingsRepository.deleteReview` (a genuine
@@ -1423,7 +1472,7 @@ src/
         finance/, insights/, tracking/, ratings/, packages/, profile/,
         map/ (DR-089: booking-reference lookup -> whole-circuit map + PDF, DR-150),
         settings/ (finance hub -> tax-rates, platform-rate, coupons; DR-123),
-        admin/ (users, clients, permissions)
+        admin/ (users, clients)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
       booking/[bookingId]/, plan-my-trip/, find-booking/, rate/, gallery/,
@@ -1661,26 +1710,33 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 - **RBAC** (`src/lib/rbac.ts`) is the app-layer source of truth; RLS is
   defense in depth. Every API route declares a required permission; unmapped
   routes fail closed. Re-check object ownership in services (anti-BOLA).
-  What a role grants is **DB-backed** (`RolePermission` table, global, no
-  RLS — same precedent as `TaxRate`) and editable at runtime by SUPERADMIN
-  via `/staff/admin/permissions`. `SUPERADMIN` is the one hardcoded,
-  permanently-uneditable wildcard (`can`/`assertCan` short-circuit true for
-  it, never consulting the DB) — every other role, including
-  `PLATFORM_ADMIN`, is fully DB-editable. `can`/`assertCan` take a
-  `PermissionSource` (`{ roles, permissions }`), resolved once per request in
-  `authService.resolveSession`. `rbac.ts`'s `DEFAULT_PERMISSIONS` is the
-  one-time seed source (`prisma/seed.ts`), not consulted live. **Adding a
-  new permission requires a `db:seed` re-run** to actually grant it to any
-  role — the code-level union alone grants nothing.
-  Several permissions (`booking.delete`, `fleet.delete`,
-  `country_regulation.write`, `finance_config.write`,
+  What a role grants is a **hardcoded, in-code map** (`ROLE_PERMISSIONS`,
+  DR-159 — reverses DR-035's runtime, DB-backed `RolePermission` table and
+  its `/staff/admin/permissions` editor, both removed entirely). `SUPERADMIN`
+  is the one hardcoded, unconditional wildcard (`can`/`assertCan`
+  short-circuit true for it, never consulting the map) — every other role,
+  including `PLATFORM_ADMIN`, only has what `ROLE_PERMISSIONS` lists for it,
+  and nothing can change that at runtime anymore. `can`/`assertCan` take a
+  `PermissionSource` (`{ roles, permissions }`); `permissions` is resolved
+  once per request in `authService.resolveSession` via `rbac.ts`'s
+  `resolvePermissionsForRoles` (a pure in-memory lookup against
+  `ROLE_PERMISSIONS`, no DB query). Several permissions (`booking.delete`,
+  `fleet.delete`, `country_regulation.write`, `finance_config.write`,
   `platform_settings.write`, `rating.delete`, `visa.delete`) are **never
-  seeded to any role**, gated instead by a hardcoded `SUPERADMIN`-only check
-  one layer below the route/service permission gate (`isBookingDeleter`,
-  `isFleetDeleter`, `isCountryRegulationWriter`, `isFinanceConfigWriter`,
-  `requireSettingsWriter`, `isRatingDeleter`, `isVisaDeleter`) — granting the
-  bare permission via the runtime matrix editor would still not unlock the
-  action for anyone but SUPERADMIN.
+  granted to any role** in `ROLE_PERMISSIONS`, gated instead by a hardcoded
+  `SUPERADMIN`-only check one layer below the route/service permission gate
+  (`isBookingDeleter`, `isFleetDeleter`, `isCountryRegulationWriter`,
+  `isFinanceConfigWriter`, `requireSettingsWriter`, `isRatingDeleter`,
+  `isVisaDeleter`) — this two-layer shape is now belt-and-suspenders rather
+  than the real gate (nothing can grant the bare permission to a
+  non-SUPERADMIN role at all anymore), kept for defense-in-depth and
+  because it was already the convention.
+  A handful of staff menu items are gated by a plain hardcoded role list
+  instead of a `Permission` at all (`STAFF_PAGE_ACCESS` in `rbac.ts`, backed
+  by `requireStaffRole`/`withRole` — siblings of `requireStaffContext`/
+  `withAuth`) — used wherever the item's old gating permission is also
+  load-bearing for an unrelated internal composition elsewhere, so it can't
+  itself be narrowed (e.g. the general Bookings/Packages list pages, DR-159).
 - **Launch tenancy (DR-005):** single operator **Lam** (Namibia + DRC), seeded
   as `lam@polcotours.com` with role `SUPERADMIN` (PLATFORM_ADMIN + own-org
   TOUR_OPERATOR). Multi-tenant isolation stays on so more operators can onboard
@@ -1855,12 +1911,17 @@ prior Fraunces/IBM Plex Sans/IBM Plex Mono trio, which read as generic
   on `/staff/bookings`, filterable by status/origin — there is no separate
   "pending inquiry" or "quote request" queue.
 - **Staff dashboard** (`staff/(dashboard)/`) is one shell with a Settings
-  sidebar grouping the admin-facing pages (country regulations, operational
-  rates, insights, users, permissions, clients, tax/platform rates,
-  profile). There is no generic browser-history back button (removed
-  DR-153) — every page's own back-navigation is either a page-specific
-  "back to X" `BackLink`, or (for pages inside the Settings sidebar) the
-  sidebar itself.
+  sidebar grouping the admin-facing pages (country regulations, sites,
+  insights, users, clients, the Finance hub — SUPERADMIN-only since
+  DR-159 — profile). There is no runtime permission-matrix editor anymore
+  (removed DR-159, reverses DR-035) and no generic browser-history back
+  button (removed DR-153) — every page's own back-navigation is either a
+  page-specific "back to X" `BackLink`, or (for pages inside the Settings
+  sidebar) the sidebar itself. The general Bookings and Packages tabs are
+  themselves PLATFORM_ADMIN/TOUR_OPERATOR-only since DR-159 (`STAFF_PAGE_
+  ACCESS` in `rbac.ts`) — TOUR_GUIDE/DRIVER/VISA_FACILITATOR keep their
+  own narrower, ownership-scoped views (My Schedule, the visa-queue-linked
+  booking detail) unaffected.
 - **Itinerary vs. Assignment**: `Itinerary`/`ItineraryDay` (the day-by-day
   operational plan, 1:1 with a Booking) is a distinct concept from
   `Assignment` (which vehicle/driver/guide serves a `Departure` — shared
@@ -2098,9 +2159,10 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   There is no separate staging environment (DR-005, single-tenant launch) —
   changes go straight to the one shared dev/production database with
   explicit user confirmation first.
-- **A brand-new permission needs a `db:seed` re-run to actually grant it
-  live** — since permissions are DB-backed (`RolePermission`), adding one to
-  `rbac.ts` alone changes nothing until the seed's upsert runs.
+- **DR-159 reversed this**: a new/changed permission grant is just a code
+  edit to `rbac.ts`'s `ROLE_PERMISSIONS` now, live the moment it deploys —
+  no `db:seed` re-run, no DB write of any kind. (True until DR-035; DR-159
+  reverses DR-035 back to this simpler shape.)
 - **A destructive schema change (dropping/renaming a column or table) breaks
   the currently-*deployed* code the moment it's pushed to the shared Neon
   DB, if that deploy hasn't gone out yet** — real incident, 2026-08-08: DR-088

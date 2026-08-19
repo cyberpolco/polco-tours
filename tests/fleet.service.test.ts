@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../src/lib/db';
 import { fleetService } from '../src/modules/fleet';
 import type { AuthContext } from '../src/modules/auth';
-import { DEFAULT_PERMISSIONS } from '../src/lib/rbac';
+import { ROLE_PERMISSIONS } from '../src/lib/rbac';
 
 /**
  * listVehiclesByIds/listDriverProfilesByIds (DR-021) deliberately skip the
@@ -66,7 +66,7 @@ beforeAll(async () => {
   ctxOrgA = {
     userId: driverA.id,
     roles: ['DRIVER'],
-    permissions: new Set(DEFAULT_PERMISSIONS.DRIVER),
+    permissions: new Set(ROLE_PERMISSIONS.DRIVER),
     organizationId: orgAId,
     sessionId: 's1',
     mustChangePassword: false,

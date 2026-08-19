@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
-import type { Permission } from '@lib/rbac';
+import { STAFF_PAGE_ACCESS, type Permission } from '@lib/rbac';
 import { MenuGlyph } from '@/components/ui/MenuGlyph';
 
 interface NavLink {
@@ -18,12 +18,12 @@ interface NavLink {
   permission?: Permission;
   anyOfPermissions?: Permission[];
   superadminOnly?: boolean;
-  // New Booking (manual staff-entered bookings): narrower than
-  // `booking.create` itself, which TOURIST/PLATFORM_ADMIN also hold for
-  // unrelated reasons (guest checkout; general staff grants) -- per
-  // explicit user direction, only SUPERADMIN and TOUR_OPERATOR should see
-  // or use this page at all.
-  requiresAnyRole?: Role[];
+  // A plain role-only link -- either a narrow role gate unrelated to any
+  // Permission (New Booking: narrower than `booking.create` itself, which
+  // TOURIST/PLATFORM_ADMIN also hold for unrelated reasons), or one of
+  // rbac.ts's STAFF_PAGE_ACCESS lists (DR-159) for a menu item whose old
+  // gating Permission is also load-bearing elsewhere and can't be narrowed.
+  requiresAnyRole?: readonly Role[];
   // For an aggregate link: which pathname prefixes count as "active" here,
   // since its own href is just the first sub-page (its own href wouldn't
   // otherwise match while viewing e.g. /staff/insights).
@@ -31,9 +31,14 @@ interface NavLink {
 }
 
 const LINKS: NavLink[] = [
-  { href: '/staff/bookings', labelKey: 'bookings', permission: 'booking.read' },
+  // DR-159: the general Bookings/Packages tabs are gated by a plain role
+  // list (rbac.ts's STAFF_PAGE_ACCESS), not booking.read/catalog.read --
+  // those permissions stay broadly granted for other roles' unrelated
+  // internal needs (visa processing, My Schedule, guest checkout, etc.)
+  // and can't be narrowed just to hide these tabs without breaking that.
+  { href: '/staff/bookings', labelKey: 'bookings', requiresAnyRole: STAFF_PAGE_ACCESS.bookingsBrowse },
   { href: '/staff/bookings/new', labelKey: 'newBooking', requiresAnyRole: ['TOUR_OPERATOR'] },
-  { href: '/staff/packages', labelKey: 'packages', permission: 'catalog.read' },
+  { href: '/staff/packages', labelKey: 'packages', requiresAnyRole: STAFF_PAGE_ACCESS.packagesBrowse },
   { href: '/staff/fleet', labelKey: 'fleet', permission: 'fleet.read' },
   { href: '/staff/itineraries', labelKey: 'itineraries', permission: 'itinerary.write' },
   // DR-083: also visible to TOUR_GUIDE/DRIVER (hotel_restaurant_rating.write,
@@ -81,7 +86,6 @@ const LINKS: NavLink[] = [
       '/staff/finance/rates',
       '/staff/insights',
       '/staff/admin/users',
-      '/staff/admin/permissions',
       '/staff/change-password',
       '/staff/profile',
     ],

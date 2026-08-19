@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { notFound } from 'next/navigation';
 import type { Currency } from '@prisma/client';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
@@ -23,7 +23,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
 import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
-import { can } from '@lib/rbac';
+import { can, STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { CouponForm } from '@/components/CouponForm';
 import {
   acceptQuotationAction,
@@ -66,7 +66,11 @@ const CANCELLABLE_STATUSES = ['AWAITING_QUOTATION', 'QUOTATION_SENT', 'AWAITING_
 export default async function BookingDetailPage({ params, searchParams }: Props) {
   const { bookingId } = await params;
   const { error } = await searchParams;
-  const ctx = await requireStaffContext('booking.read');
+  // DR-159: role-only gate, not booking.read (which stays broadly granted
+  // for other roles' unrelated needs -- see STAFF_PAGE_ACCESS's own
+  // comment). VISA_FACILITATOR is included: /staff/visa-queue links
+  // directly into this page for the application they're processing.
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.bookingDetail);
   const t = await getTranslations('StaffBookingDetail');
   const tCommon = await getTranslations('Common');
   const tBookingStatus = await getTranslations('BookingStatusLabel');
@@ -380,15 +384,25 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
           <p className="mt-2 text-xs text-amber">{t('releasedSeatHoldWarning')}</p>
         )}
 
+        {error === 'notAuthorized' && (
+          <div className="mt-4 max-w-sm">
+            <Alert tone="error">{t('notAuthorized')}</Alert>
+          </div>
+        )}
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex gap-3">
-            {(booking.status === 'DEPOSIT_PAID' || booking.status === 'FULLY_PAID') && (
-              <form action={confirmBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="success" pendingLabel={t('confirming')}>
-                  {t('confirm')}
-                </SubmitButton>
-              </form>
-            )}
+            {/* DR-159: booking.confirm alone isn't narrow enough to hide this
+                from PLATFORM_ADMIN (it also gates refund/quotation/etc.,
+                which they keep) -- isBookingConfirmer's role set is
+                hardcoded here to match the service-layer gate exactly. */}
+            {(booking.status === 'DEPOSIT_PAID' || booking.status === 'FULLY_PAID') &&
+              (ctx.roles.includes('SUPERADMIN') || ctx.roles.includes('TOUR_OPERATOR')) && (
+                <form action={confirmBookingAction.bind(null, booking.id)}>
+                  <SubmitButton variant="success" pendingLabel={t('confirming')}>
+                    {t('confirm')}
+                  </SubmitButton>
+                </form>
+              )}
             {CANCELLABLE_STATUSES.includes(booking.status) && (
               <form action={cancelBookingAction.bind(null, booking.id)}>
                 <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>

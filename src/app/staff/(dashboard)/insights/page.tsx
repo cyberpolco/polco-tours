@@ -24,10 +24,9 @@ function parseDate(value: string | undefined): Date | null {
 // assignment/domain.ts's DR-029 recommendation scorer) -- utilization is a
 // plain ratio, not a scheduling-optimization metric.
 //
-// DR-155 restricts this page beyond the DB-editable insights.read
-// permission to SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN only
-// (isInsightsViewer) -- same "page redirects to /staff/forbidden on its own
-// hardcoded check" convention as admin/permissions/page.tsx, since the
+// DR-155 restricts this page beyond the insights.read permission to
+// SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN only (isInsightsViewer) -- the
+// page redirects to /staff/forbidden on its own hardcoded check, since the
 // service-level throw (used by the /api/v1/insights polling route) isn't
 // the right UX for a full page render.
 export default async function InsightsPage({ searchParams }: Props) {

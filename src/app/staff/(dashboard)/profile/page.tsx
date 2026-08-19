@@ -18,10 +18,11 @@ import { PasswordSection } from './password-section';
 // Settings sidebar (settings-items.ts). Explicit user correction: this was
 // originally "any staff role" (DR-059); every other staff role's name/phone
 // is instead edited by an admin via /staff/admin/users/{userId}. Same
-// "route passes a broad gate, service/page still narrows to SUPERADMIN"
-// pattern as /staff/admin/permissions -- profile.write itself is still held
-// by every role (authService.updateProfile's own check), so the narrowing
-// happens here, not in rbac.ts. Distinct from /staff/admin/users/{userId}
+// "route passes a broad gate, page still narrows to SUPERADMIN" pattern as
+// the hardcoded role checks elsewhere (isBookingDeleter etc.) --
+// profile.write itself is still held by every role (authService
+// .updateProfile's own check), so the narrowing happens here, not in
+// rbac.ts. Distinct from /staff/admin/users/{userId}
 // (SUPERADMIN editing SOMEONE ELSE'S row) -- this is always the signed-in
 // user's own row, and that page now redirects here for a SUPERADMIN's own.
 export default async function MyProfilePage() {

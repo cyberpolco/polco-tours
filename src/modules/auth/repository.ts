@@ -1,6 +1,5 @@
 // auth module — repository. The only place that touches the DB for this module.
 import type { Role } from '@prisma/client';
-import type { Permission } from '@lib/rbac';
 import { prisma, withOrg } from '@lib/db';
 import { DORMANCY_THRESHOLD_DAYS } from './domain';
 import type { PublicUser, UpdateProfileInput } from './domain';
@@ -261,41 +260,4 @@ export const authRepository = {
     await prisma.user.update({ where: { id: userId }, data: { mustChangePassword: false } });
   },
 
-  /** DR-035: the union of every DB-backed grant across the given roles --
-   * called once per request by resolveSession. RolePermission is
-   * platform-wide reference data (no organizationId/RLS, same as TaxRate/
-   * CountryRegulation), so this queries the bare `prisma` client directly,
-   * never `withOrg`. SUPERADMIN is never passed in here in practice (its
-   * wildcard is checked before this in rbac.ts's can()), but querying for
-   * it would just harmlessly return nothing, since it never holds rows.
-   */
-  async listPermissionsForRoles(roles: Role[]): Promise<Permission[]> {
-    const rows = await prisma.rolePermission.findMany({
-      where: { role: { in: roles } },
-      select: { permission: true },
-    });
-    return [...new Set(rows.map((r) => r.permission))] as Permission[];
-  },
-
-  /** DR-035: every row in the platform-wide RolePermission table -- powers
-   * the permission-matrix editor's full grid (grouped by role in the
-   * service layer). Same bare-`prisma`-client convention as
-   * listPermissionsForRoles (no organizationId/RLS on this table). */
-  async listAllRolePermissions(): Promise<{ role: Role; permission: string }[]> {
-    return prisma.rolePermission.findMany({ select: { role: true, permission: true } });
-  },
-
-  /** DR-035: idempotent grant -- the matrix editor toggles a checkbox on,
-   * not "create if not exists then error if it does". */
-  async grantRolePermission(role: Role, permission: Permission): Promise<void> {
-    await prisma.rolePermission.upsert({
-      where: { role_permission: { role, permission } },
-      update: {},
-      create: { role, permission },
-    });
-  },
-
-  async revokeRolePermission(role: Role, permission: Permission): Promise<void> {
-    await prisma.rolePermission.deleteMany({ where: { role, permission } });
-  },
 };

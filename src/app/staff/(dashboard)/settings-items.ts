@@ -14,7 +14,10 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // for the first 3 cards, finance_config.read for Operational Rates) --
   // in practice every role that holds one holds both, but anyPermission
   // expresses that honestly rather than picking one arbitrarily.
-  { href: '/staff/settings/finance', labelKey: 'finance', anyPermission: ['platform_settings.read', 'finance_config.read'] },
+  // DR-159: narrowed to SUPERADMIN-only (both platform_settings.read and
+  // finance_config.read are now granted to nobody else) -- superadminOnly
+  // is belt-and-suspenders with that, same convention as Site Content.
+  { href: '/staff/settings/finance', labelKey: 'finance', anyPermission: ['platform_settings.read', 'finance_config.read'], superadminOnly: true },
   // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
   // any role (explicit user choice) -- superadminOnly here is belt-and-
   // suspenders with that, matching Permissions/My Profile below.
@@ -33,11 +36,8 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // with these via /staff/bookings/new. Deliberately not gated on
   // admin.all like Users above -- these aren't staff accounts at all, and
   // TOUR_OPERATOR (who creates most of them) doesn't hold admin.all.
-  { href: '/staff/admin/clients', labelKey: 'clients', requiresAnyRole: ['TOUR_OPERATOR'] },
-  // DR-035: SUPERADMIN-only regardless of who else holds admin.all --
-  // PLATFORM_ADMIN is seeded with admin.all by default but must NOT see
-  // this link, matching the page's own explicit SUPERADMIN-only gate.
-  { href: '/staff/admin/permissions', labelKey: 'permissions', permission: 'admin.all', superadminOnly: true },
+  // DR-159: PLATFORM_ADMIN added alongside TOUR_OPERATOR.
+  { href: '/staff/admin/clients', labelKey: 'clients', requiresAnyRole: ['TOUR_OPERATOR', 'PLATFORM_ADMIN'] },
   // SUPERADMIN-only (explicit user correction to DR-059's original "any
   // staff role" design) -- every other role's name/phone is instead edited
   // by an admin via /staff/admin/users/{userId}. `permission` is left unset

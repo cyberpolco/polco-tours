@@ -39,7 +39,9 @@ interface Props {
 // as it always was; this directory never shows one at all).
 export default async function ClientsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('booking.create');
-  if (!ctx.roles.includes('SUPERADMIN') && !ctx.roles.includes('TOUR_OPERATOR')) redirect('/staff/forbidden');
+  // DR-159: PLATFORM_ADMIN added alongside SUPERADMIN/TOUR_OPERATOR.
+  if (!ctx.roles.includes('SUPERADMIN') && !ctx.roles.includes('TOUR_OPERATOR') && !ctx.roles.includes('PLATFORM_ADMIN'))
+    redirect('/staff/forbidden');
   const params = await searchParams;
   const { detail } = params;
   const q = params.q ?? '';

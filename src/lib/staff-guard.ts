@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { authService, type AuthContext } from '@modules/auth';
-import { assertCan, isStaffRole, type Permission } from './rbac';
+import { assertAnyRole, assertCan, isStaffRole, type Permission, type RoleName } from './rbac';
 
 /**
  * For Server Components/Actions under src/app/staff/(dashboard)/... -- the
@@ -69,6 +69,27 @@ export async function requireStaffContext(permission?: Permission): Promise<Auth
       redirect('/staff/forbidden');
     }
   } else if (!isStaffRole(ctx.roles)) {
+    redirect('/staff/forbidden');
+  }
+  return ctx;
+}
+
+/**
+ * DR-159: sibling to `requireStaffContext`, for a page gated by a plain
+ * role list (rbac.ts's `STAFF_PAGE_ACCESS`, or any other hardcoded role
+ * set) rather than a `Permission` -- used wherever the old gating
+ * `Permission` is also load-bearing for an unrelated internal composition,
+ * so it can't itself be narrowed just to restrict this page (see rbac.ts's
+ * own comment on `STAFF_PAGE_ACCESS`). Same redirect-to-`/staff/forbidden`
+ * behavior as `requireStaffContext`, so a denied visit always lands on a
+ * real page with a message, never a raw crash or a bare 404.
+ */
+export async function requireStaffRole(anyRole: readonly RoleName[]): Promise<AuthContext> {
+  const ctx = await requireAnyStaffSession();
+  if (ctx.mustChangePassword) redirect('/staff/change-password');
+  try {
+    assertAnyRole(ctx, anyRole);
+  } catch {
     redirect('/staff/forbidden');
   }
   return ctx;

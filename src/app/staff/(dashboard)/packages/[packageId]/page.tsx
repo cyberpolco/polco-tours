@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
-import { can } from '@lib/rbac';
+import { can, STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { catalogService, isPublishedStatus } from '@modules/catalog';
 import { itineraryService } from '@modules/itinerary';
@@ -43,7 +43,8 @@ interface Props {
 export default async function PackageDetailPage({ params, searchParams }: Props) {
   const { packageId } = await params;
   const { error, detail } = await searchParams;
-  const ctx = await requireStaffContext('catalog.read');
+  // DR-159: role-only gate (see STAFF_PAGE_ACCESS's own comment in rbac.ts).
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.packagesBrowse);
 
   let pkg;
   try {

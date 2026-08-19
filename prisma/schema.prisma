@@ -424,28 +424,14 @@ model CountryRegulation {
   @@map("country_regulations")
 }
 
-// Platform-wide, DB-backed permission grants (User Management, DR-035) --
-// one row per (role, permission) currently granted. Global, no
-// organizationId/RLS, same precedent as TaxRate/CountryRegulation: role
-// definitions are a platform concept, not per-tenant data.
-//
-// SUPERADMIN deliberately has NO rows here and never will -- it stays a
-// hardcoded, unconditional wildcard in src/lib/rbac.ts, a permanent
-// "master key" that can never be edited or locked out via this table.
-// Every other role (including PLATFORM_ADMIN, per explicit user choice --
-// the first role since DR-034 to lose its permanent wildcard) is fully
-// editable through this table; `authService.resolveSession` reads it once
-// per request to build AuthContext.permissions. Seeded from the static
-// matrix that existed before this table (see prisma/seed.ts).
-model RolePermission {
-  id         String   @id @default(uuid()) @db.Uuid
-  role       Role
-  permission String
-  createdAt  DateTime @default(now())
-
-  @@unique([role, permission])
-  @@map("role_permissions")
-}
+// DR-159 (reverses DR-035): the RolePermission model (platform-wide,
+// DB-backed (role, permission) grants, editable at runtime via
+// /staff/admin/permissions) is removed -- what each role grants is a
+// hardcoded, in-code map again (src/lib/rbac.ts's ROLE_PERMISSIONS).
+// NOTE: this is a destructive schema change against the shared Neon DB
+// (drops the role_permissions table) -- not yet applied live; needs
+// explicit confirmation before `db push`, same convention as every other
+// destructive change in this project's history.
 
 // ---------------------------------------------------------------- system
 // Append-only. INSERT/UPDATE/DELETE grants are locked down in rls.sql.

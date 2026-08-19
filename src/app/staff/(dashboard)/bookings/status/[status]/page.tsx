@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { BookingStatus } from '@prisma/client';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
+import { STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { bookingService, type BookingView } from '@modules/booking';
 import { paginate } from '@lib/directory-filters';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
@@ -38,7 +39,8 @@ export default async function BookingsByStatusPage({ params, searchParams }: Pro
   if (!(FILTERABLE_BOOKING_STATUSES as string[]).includes(statusParam)) notFound();
   const status = statusParam as BookingStatus;
 
-  const ctx = await requireStaffContext('booking.read');
+  // DR-159: role-only gate (see STAFF_PAGE_ACCESS's own comment in rbac.ts).
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.bookingsBrowse);
   const sp = await searchParams;
   const t = await getTranslations('StaffBookings');
   const tStatus = await getTranslations('BookingStatusLabel');

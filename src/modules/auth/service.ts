@@ -1,7 +1,7 @@
 // auth module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import { generateRandomString, hashPassword } from 'better-auth/crypto';
-import { assertCan, can, EDITABLE_ROLES, type Permission, type RoleName } from '@lib/rbac';
+import { assertCan, can, resolvePermissionsForRoles, type Permission } from '@lib/rbac';
 import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
@@ -55,10 +55,9 @@ export const authService = {
    * payload) so roles/organizationId/deletedAt/mustChangePassword are always
    * current, not whatever was true when the session cookie was issued.
    *
-   * DR-035: also resolves the DB-backed effective permission set here, once
-   * per request -- SUPERADMIN sessions skip the query entirely (its
-   * wildcard in rbac.ts's can() never consults `permissions`, so there's
-   * nothing to look up).
+   * DR-159: also resolves the effective permission set here, once per
+   * request, via rbac.ts's resolvePermissionsForRoles -- a pure in-memory
+   * lookup against the hardcoded ROLE_PERMISSIONS map, no DB query.
    */
   async resolveSession(headers: Headers): Promise<AuthContext> {
     const session = await auth.api.getSession({ headers });
@@ -67,9 +66,7 @@ export const authService = {
     const user = await authRepository.findUserById(session.user.id);
     if (!user) throw Errors.unauthorized('Account no longer active');
 
-    const permissions = user.roles.includes('SUPERADMIN')
-      ? new Set<Permission>()
-      : new Set(await authRepository.listPermissionsForRoles(user.roles));
+    const permissions = resolvePermissionsForRoles(user.roles);
 
     return {
       userId: user.id,
@@ -353,48 +350,6 @@ export const authService = {
     return { temporaryPassword };
   },
 
-  /** SUPERADMIN-only (DR-035): the full permission-matrix grid, one array
-   * per editable role (every role except SUPERADMIN, which is fixed --
-   * see rbac.ts's EDITABLE_ROLES). Powers /staff/admin/permissions. */
-  async getPermissionMatrix(ctx: AuthContext): Promise<Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]>> {
-    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may view the permission matrix');
-
-    const rows = await authRepository.listAllRolePermissions();
-    const matrix = Object.fromEntries(EDITABLE_ROLES.map((role) => [role, [] as Permission[]])) as Record<
-      Exclude<RoleName, 'SUPERADMIN'>,
-      Permission[]
-    >;
-    for (const row of rows) {
-      const role = row.role as Exclude<RoleName, 'SUPERADMIN'>;
-      if (role in matrix) matrix[role].push(row.permission as Permission);
-    }
-    return matrix;
-  },
-
-  /** SUPERADMIN-only (DR-035): toggles a single (role, permission) grant.
-   * SUPERADMIN itself can never be targeted -- it's a hardcoded,
-   * unconditional wildcard in rbac.ts, not a DB row, so there is nothing
-   * here to toggle for it. */
-  async setRolePermission(ctx: AuthContext, role: RoleName, permission: Permission, granted: boolean): Promise<void> {
-    if (!isSuperAdmin(ctx.roles)) throw Errors.forbidden('Only SUPERADMIN may edit the permission matrix');
-    if (role === 'SUPERADMIN') throw Errors.conflict('SUPERADMIN is a fixed role and cannot be edited');
-
-    if (granted) {
-      await authRepository.grantRolePermission(role, permission);
-    } else {
-      await authRepository.revokeRolePermission(role, permission);
-    }
-
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: granted ? 'auth.permission_granted' : 'auth.permission_revoked',
-      resourceType: 'RolePermission',
-      resourceId: `${role}:${permission}`,
-      organizationId: ctx.organizationId ?? undefined,
-      metadata: { role, permission, granted },
-    });
-  },
 };
 
 export type { AuthContext };

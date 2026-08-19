@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { BookingStatus } from '@prisma/client';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
+import { STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { bookingService, type BookingView } from '@modules/booking';
 import { paginate } from '@lib/directory-filters';
 import { BOOKING_STATUS_TONE } from '@lib/status-tones';
@@ -32,7 +33,8 @@ function matchesQuery(b: BookingView, query: string, originLabel: Record<string,
 }
 
 export default async function AllBookingsPage({ searchParams }: Props) {
-  const ctx = await requireStaffContext('booking.read');
+  // DR-159: role-only gate (see STAFF_PAGE_ACCESS's own comment in rbac.ts).
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.bookingsBrowse);
   const params = await searchParams;
   const t = await getTranslations('StaffBookings');
   const tStatus = await getTranslations('BookingStatusLabel');

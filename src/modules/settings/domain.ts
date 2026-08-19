@@ -3,7 +3,7 @@
 // settings" item. Owns TaxRate (existed since Phase 0, no CRUD/UI until now)
 // and PlatformRate (new: the platform's own commission on every online
 // payment). Both are platform-wide, effective-dated reference data, no
-// organizationId/RLS -- same precedent as CountryRegulation/RolePermission.
+// organizationId/RLS -- same precedent as CountryRegulation.
 import { z } from 'zod';
 
 const EFFECTIVE_DATING = {

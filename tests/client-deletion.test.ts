@@ -4,7 +4,7 @@ import { formatPackageReference } from '@modules/catalog';
 import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../src/lib/db';
 import { assertClientDeletable } from '../src/lib/client-deletion';
-import { DEFAULT_PERMISSIONS } from '../src/lib/rbac';
+import { ROLE_PERMISSIONS } from '../src/lib/rbac';
 import type { AuthContext } from '../src/modules/auth';
 
 /**
@@ -97,7 +97,7 @@ beforeAll(async () => {
   ctx = {
     userId: operatorId,
     roles: ['TOUR_OPERATOR'],
-    permissions: new Set(DEFAULT_PERMISSIONS.TOUR_OPERATOR),
+    permissions: new Set(ROLE_PERMISSIONS.TOUR_OPERATOR),
     organizationId: orgId,
     sessionId: 's1',
     mustChangePassword: false,

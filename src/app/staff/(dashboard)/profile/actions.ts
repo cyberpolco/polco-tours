@@ -7,9 +7,11 @@ import { toE164 } from '@lib/country-codes';
 
 // Any staff role can edit their own name/phone -- authService.updateProfile
 // already re-checks profile.write itself (held by every staff role, see
-// rbac.ts's DEFAULT_PERMISSIONS), so this action doesn't gate on any
+// rbac.ts's ROLE_PERMISSIONS), so this action doesn't gate on any
 // narrower permission, same "voluntary self-service, no extra gate"
-// precedent as /staff/change-password.
+// precedent as /staff/change-password. (The /staff/profile page itself is
+// SUPERADMIN-only, DR-159 -- every other role's own name/phone is edited by
+// an admin via /staff/admin/users instead.)
 export async function updateMyProfileAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('profile.write');
 

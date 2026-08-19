@@ -1,8 +1,18 @@
 openapi: 3.0.3
 info:
   title: POLCO TOURS API
-  version: 0.15.0
+  version: 0.16.0
   description: >
+    DR-159 reverses DR-035: what each role grants is a hardcoded, in-code
+    map again (src/lib/rbac.ts's ROLE_PERMISSIONS), not the DB-backed
+    RolePermission table. GET/PATCH /permissions and SetRolePermissionInput
+    are removed entirely -- there is no runtime permission-matrix editor
+    left. Several menu items are also now gated by a plain, hardcoded role
+    list decoupled from their old permission (e.g. the general Bookings/
+    Packages list pages), since that permission is still needed elsewhere
+    for an unrelated internal composition and can't itself be narrowed.
+
+
     DR-038 adds Insights & Decision Making: a new, read-only `insights`
     module (no new Prisma tables) composing existing booking/invoicing/
     assignment/fleet/ratings/visa data into one executive dashboard
@@ -1101,42 +1111,6 @@ paths:
                   temporaryPassword: { type: string }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-
-  /permissions:
-    get:
-      summary: Get the full role-permission matrix (admin-only, DR-035)
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  matrix:
-                    type: object
-                    description: Editable role name -> array of granted permissions
-                    additionalProperties:
-                      type: array
-                      items: { type: string }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    patch:
-      summary: Grant or revoke a single role+permission pair (SUPERADMIN-only, DR-035)
-      description: >-
-        The route itself only requires admin.all (so PLATFORM_ADMIN reaches
-        the handler); authService.setRolePermission additionally rejects
-        any non-SUPERADMIN caller, and PLATFORM_ADMIN can never appear as
-        the `role` in the request body either -- SUPERADMIN itself has no
-        RolePermission rows and is never editable.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SetRolePermissionInput' }
-      responses:
-        '204': { description: No Content }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /bookings/{bookingId}/addons:
     parameters:
@@ -3220,17 +3194,6 @@ components:
           items:
             type: string
             enum: [SUPERADMIN, PLATFORM_ADMIN, TOUR_OPERATOR, TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR]
-
-    SetRolePermissionInput:
-      type: object
-      required: [role, permission, granted]
-      description: SUPERADMIN-only (DR-035); role excludes SUPERADMIN itself (never a DB row, always the wildcard)
-      properties:
-        role:
-          type: string
-          enum: [PLATFORM_ADMIN, TOUR_OPERATOR, TOUR_GUIDE, DRIVER, VEHICLE_OWNER, VISA_FACILITATOR, TOURIST]
-        permission: { type: string, description: 'A Permission literal, e.g. catalog.write' }
-        granted: { type: boolean }
 
     Vehicle:
       type: object

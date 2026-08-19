@@ -20,8 +20,8 @@ interface Props {
 // Explicit user direction: only SUPERADMIN and TOUR_OPERATOR may create a
 // booking manually on a client's behalf here -- narrower than booking.create
 // itself (also held by TOURIST for guest checkout, and PLATFORM_ADMIN for
-// unrelated reasons), same "route/page narrows beyond the base permission"
-// pattern as /staff/admin/permissions.
+// unrelated reasons), same "route/page narrows beyond the base permission
+// with a hardcoded role check" pattern as isBookingDeleter/isFleetDeleter.
 function requireNewBookingAccess(roles: string[]): void {
   if (!roles.includes('SUPERADMIN') && !roles.includes('TOUR_OPERATOR')) redirect('/staff/forbidden');
 }

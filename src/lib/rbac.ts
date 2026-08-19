@@ -8,24 +8,29 @@ import type { Role } from '@prisma/client';
  * Permissions are `resource.action`. Scope (own/org) is enforced separately by
  * object-level ownership checks in services (anti-BOLA, Vol. 8 API1).
  *
- * DR-035 (User Management / permission-matrix editor): what a role grants is
- * now DB-backed (`RolePermission`, one row per role+permission), not a
- * static in-memory map -- a SUPERADMIN can edit it at runtime via
- * `/staff/admin/permissions`. SUPERADMIN itself is the one exception: it
- * stays a hardcoded, unconditional wildcard below, never stored in the DB
- * and never editable, so there is always at least one role that can never
- * be locked out of the system ("Super Admin: full system access", per the
- * spec). Every other role -- including PLATFORM_ADMIN, which lost its own
- * hardcoded wildcard this increment -- is fully editable.
+ * DR-159 (reverses DR-035): what a role grants is a hardcoded, in-code map
+ * again (`ROLE_PERMISSIONS` below), not DB-backed. The runtime permission-
+ * matrix editor (`/staff/admin/permissions`, the `RolePermission` table) is
+ * removed entirely — every grant here is a deliberate, reviewed decision,
+ * not something any SUPERADMIN could silently reconfigure at runtime.
+ * SUPERADMIN itself is unchanged from DR-035: a hardcoded, unconditional
+ * wildcard, never listed in `ROLE_PERMISSIONS`, so there is always at least
+ * one role that can never be locked out of the system.
  *
- * `can`/`assertCan` stay synchronous: the effective permission set is
- * resolved ONCE per request inside `authService.resolveSession` (already
- * async, already hitting the DB for the session/user) and attached to
- * `AuthContext.permissions` -- not re-derived from the DB on every check.
- * This avoids making `can`/`assertCan` themselves async, which would have
- * broken `StaffNav` (a client component that can't `await`) and turned
- * `tests/rbac.test.ts`'s pure, DB-free unit tests into DB-backed ones for
- * no benefit the already-async session resolution doesn't already give.
+ * `can`/`assertCan` stay synchronous, same as under DR-035 — the effective
+ * permission set is resolved ONCE per request inside
+ * `authService.resolveSession` (via `resolvePermissionsForRoles` below, a
+ * pure in-memory lookup now, not a DB query) and attached to
+ * `AuthContext.permissions`.
+ *
+ * Several menu items/pages are gated by a plain role check instead of a
+ * `Permission` at all (`requiresAnyRole` in `nav.tsx`/`settings-items.ts`,
+ * and the analogous `requireStaffRole`/`withRole` guards) — this is
+ * deliberate wherever a `Permission` is also load-bearing for an unrelated
+ * internal composition (e.g. `booking.read` is still needed by
+ * `visaService.findTraveler` and the guide/driver "My Schedule" self-service
+ * view, so it can't be narrowed just to gate the general staff Bookings
+ * list/detail pages without breaking those). See `STAFF_PAGE_ACCESS` below.
  */
 export type Permission =
   | 'catalog.read'
@@ -45,9 +50,9 @@ export type Permission =
   | 'documents.read'
   | 'documents.write'
   | 'visa.process'
-  // DR-151: deletes an individual VisaApplication -- never seeded to any
-  // role in DEFAULT_PERMISSIONS, same layering as booking.delete/
-  // fleet.delete/rating.delete: visaService's isVisaDeleter check
+  // DR-151: deletes an individual VisaApplication -- never granted to any
+  // role in ROLE_PERMISSIONS, same layering as booking.delete/fleet.delete/
+  // rating.delete: visaService's isVisaDeleter check
   // (roles.includes('SUPERADMIN')) is the real gate, this permission alone
   // unlocks nothing for anyone but SUPERADMIN's hardcoded wildcard.
   | 'visa.delete'
@@ -58,14 +63,10 @@ export type Permission =
   | 'itinerary.write'
   | 'itinerary.approve'
   | 'country_regulation.read'
-  // Deliberately NOT included in PLATFORM_ADMIN's DR-035 "full access" seed
-  // grants (see prisma/seed.ts) -- immigration/service.ts's
-  // isCountryRegulationWriter check (`roles.includes('SUPERADMIN')`) blocks
-  // every non-SUPERADMIN role unconditionally regardless of what this table
-  // says, so granting it to PLATFORM_ADMIN would just be a checkbox that
-  // silently lies in the matrix editor. This was the first genuine
-  // behavioral gap between the two admin roles in this app (DR-034), before
-  // PLATFORM_ADMIN lost its own hardcoded wildcard entirely (DR-035).
+  // Never granted to any role but SUPERADMIN's wildcard --
+  // immigration/service.ts's isCountryRegulationWriter check
+  // (`roles.includes('SUPERADMIN')`) blocks every other role unconditionally
+  // regardless of this map.
   | 'country_regulation.write'
   | 'admin.all'
   // Customer Ratings & Feedback (DR-037). Separate from `booking.confirm`
@@ -75,11 +76,8 @@ export type Permission =
   | 'rating.issue'
   | 'rating.read'
   // DR-148: deletes an individual Review (and its ReviewSubjectRating rows,
-  // via schema cascade) -- never seeded to any role in DEFAULT_PERMISSIONS,
-  // same layering as booking.delete/fleet.delete/country_regulation.write:
-  // ratingsService's isRatingDeleter check (roles.includes('SUPERADMIN'))
-  // is the real gate, this permission alone unlocks nothing for anyone but
-  // SUPERADMIN's hardcoded wildcard.
+  // via schema cascade) -- never granted to any role, SUPERADMIN-only via
+  // ratingsService's isRatingDeleter check.
   | 'rating.delete'
   // Insights & Decision Making (DR-038). Gates the executive-dashboard
   // page/route itself; every metric it composes still re-checks its own
@@ -91,11 +89,10 @@ export type Permission =
   // Finance Module (DR-039), the operational-rates/cost-breakdown config
   // side -- deliberately NOT the pre-existing `finance.read` (that's about
   // invoice/payment financial data, held by VEHICLE_OWNER too, unrelated to
-  // rate configuration a vehicle owner has no business seeing).
-  // finance_config.write is never seeded to PLATFORM_ADMIN in
-  // DEFAULT_PERMISSIONS -- financeService's isFinanceConfigWriter check
-  // (`roles.includes('SUPERADMIN')`) blocks every non-SUPERADMIN role
-  // unconditionally, same layering as isCountryRegulationWriter (DR-034).
+  // rate configuration a vehicle owner has no business seeing). DR-159:
+  // narrowed to SUPERADMIN-only (both read and write) -- Finance Settings
+  // (Tax Rates/Platform Rate/Coupons/Operational Rates) is now a
+  // SUPERADMIN-only area end to end.
   | 'finance_config.read'
   | 'finance_config.write'
   // Tracking (DR-041): gates the "what's happening right now" fleet-
@@ -104,12 +101,9 @@ export type Permission =
   // assignment.write, catalog.read) inside the module it calls through,
   // same additional-gate-not-a-bypass posture as insights.read.
   | 'tracking.read'
-  // Settings (DR-042): TaxRate + PlatformRate CRUD, closing DR-035's
-  // parked "Configure system settings" item. platform_settings.write is
-  // never seeded to any role including PLATFORM_ADMIN -- settingsService's
-  // requireSettingsWriter check (roles.includes('SUPERADMIN')) blocks
-  // every non-SUPERADMIN role unconditionally, same layering as
-  // isFinanceConfigWriter/isCountryRegulationWriter.
+  // Settings (DR-042): TaxRate + PlatformRate + Coupon CRUD. DR-159:
+  // narrowed to SUPERADMIN-only (both read and write), same reasoning as
+  // finance_config.*.
   | 'platform_settings.read'
   | 'platform_settings.write'
   // Staff-only 5-star hotel/restaurant rating -- distinct from `rating.issue`/
@@ -119,75 +113,17 @@ export type Permission =
   // itineraries) and by TOUR_OPERATOR/PLATFORM_ADMIN (unscoped, matching
   // their existing org-wide itinerary.write access).
   | 'hotel_restaurant_rating.write'
-  // Content (DR-071): SiteContent (About page)/FaqEntry CRUD, replacing the
-  // hardcoded guest About/FAQ pages. Both content.read and content.write are
-  // SUPERADMIN-only for v1 (explicit user choice) -- neither is seeded to
-  // any role including PLATFORM_ADMIN; contentService's requireContentWriter
-  // additionally hardcodes a SUPERADMIN role check on every write, same
-  // layering as isFinanceConfigWriter/isCountryRegulationWriter/
-  // requireSettingsWriter. The public /about and /faq guest pages don't go
-  // through this gate at all -- they call contentService's separate
-  // no-ctx public methods (getPublicSiteContent/listPublicFaqEntries),
-  // mirroring catalogService.listPublicPackages.
+  // Content (DR-071): SiteContent (About page)/FaqEntry CRUD -- SUPERADMIN-
+  // only for both read and write (explicit user choice, unchanged by
+  // DR-159); contentService's requireContentWriter additionally hardcodes a
+  // SUPERADMIN role check on every write. The public /about and /faq guest
+  // pages don't go through this gate at all.
   | 'content.read'
   | 'content.write'
-  // Insights & Decision Making (DR-155): gates ONLY the new staff-headcount/
+  // Insights & Decision Making (DR-155): gates ONLY the staff-headcount/
   // roster-summary aggregate (authService.getStaffRosterSummary) --
-  // deliberately NOT `admin.all`, which also unlocks full user CRUD and the
-  // permissions-matrix editor. Lets TOUR_OPERATOR (who holds insights.read
-  // but not admin.all) see aggregate counts by role/status with no
-  // individual email/phone/PII exposed, without widening what they can do
-  // platform-wide.
+  // deliberately NOT `admin.all`, which also unlocks full user CRUD.
   | 'staff_roster.read';
-
-/** Runtime enumeration of every Permission literal -- powers the
- * permission-matrix editor's columns (DR-035). Keep in sync with the
- * `Permission` union above by hand; there's no existing automatic
- * completeness check in this file for role/permission lists (same as
- * ASSIGNABLE_ROLES not being checked against the Role enum), so add new
- * permissions here when adding them to the union. */
-export const ALL_PERMISSIONS = [
-  'catalog.read',
-  'catalog.write',
-  'booking.create',
-  'booking.read',
-  'booking.confirm',
-  'booking.cancel',
-  'booking.delete', // DR-058: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isBookingDeleter in booking/service.ts, same layering as country_regulation.write/platform_settings.write
-  'assignment.read',
-  'assignment.write',
-  'finance.read',
-  'invoice.read',
-  'payment.initiate',
-  'payment.resolve',
-  'profile.write',
-  'documents.read',
-  'documents.write',
-  'visa.process',
-  'visa.delete', // DR-151: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isVisaDeleter in visa/domain.ts, same layering as booking.delete/fleet.delete/rating.delete
-  'fleet.read',
-  'fleet.write',
-  'fleet.delete', // DR-059: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isFleetDeleter in fleet/service.ts, same layering as booking.delete/country_regulation.write
-  'itinerary.read',
-  'itinerary.write',
-  'itinerary.approve',
-  'country_regulation.read',
-  'country_regulation.write',
-  'admin.all',
-  'rating.issue',
-  'rating.read',
-  'rating.delete', // DR-148: never seeded to any role (see DEFAULT_PERMISSIONS) -- SUPERADMIN-only via isRatingDeleter in ratings/domain.ts, same layering as booking.delete/fleet.delete
-  'insights.read',
-  'finance_config.read',
-  'finance_config.write',
-  'tracking.read',
-  'platform_settings.read',
-  'platform_settings.write',
-  'hotel_restaurant_rating.write',
-  'content.read', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts (write) and the same hardcoded-role convention for read (explicit user choice)
-  'content.write', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts, same layering as booking.delete/fleet.delete/country_regulation.write/finance_config.write/platform_settings.write
-  'staff_roster.read', // DR-155: seeded to PLATFORM_ADMIN + TOUR_OPERATOR below (SUPERADMIN implicit)
-] as const satisfies readonly Permission[];
 
 export type RoleName =
   | 'SUPERADMIN'
@@ -199,32 +135,52 @@ export type RoleName =
   | 'VISA_FACILITATOR'
   | 'TOURIST';
 
-/** Every role whose grants live in the DB-backed RolePermission table
- * (DR-035) -- every role except SUPERADMIN, which is hardcoded and never
- * gets rows. Used by the permission-matrix editor to enumerate rows and by
- * prisma/seed.ts to know what to seed. */
-export const EDITABLE_ROLES = [
-  'PLATFORM_ADMIN',
-  'TOUR_OPERATOR',
-  'TOUR_GUIDE',
-  'DRIVER',
-  'VEHICLE_OWNER',
-  'VISA_FACILITATOR',
-  'TOURIST',
-] as const satisfies readonly Exclude<RoleName, 'SUPERADMIN'>[];
-
 /**
- * DR-035: the historical default permission set, one-time-seeded into
- * `RolePermission` (see prisma/seed.ts) and never consulted directly by
- * `can()`/`assertCan()` after that -- kept here purely as a readable record
- * of what used to be hardcoded, and as the seed script's data source.
- * SUPERADMIN is deliberately absent (see the Permission union's top-of-file
- * comment): it never gets DB rows, and PLATFORM_ADMIN's list below is the
- * former SUPERADMIN-equivalent "full access" set MINUS
- * `country_regulation.write` (see that permission's own comment for why).
+ * DR-159: the hardcoded, in-code source of truth for what each role grants
+ * (replaces DR-035's DB-backed `RolePermission` table). SUPERADMIN is
+ * deliberately absent -- it never consults this map, see `can()` below.
+ *
+ * PLATFORM_ADMIN was deliberately narrowed in this reversal, in a
+ * per-menu-item review with the user (not restored to its old DR-035
+ * "almost-SUPERADMIN" shape): it keeps org-wide read visibility and a few
+ * write actions (fleet, itinerary edit, assignment, ratings), but lost
+ * write/process actions on Bookings (confirm handled separately, see
+ * `isBookingConfirmer` in booking/domain.ts; cancel, documents, invoice,
+ * payment), Packages (catalog.write), Itinerary approval, Visa processing,
+ * and all of Finance Settings (finance_config.*/platform_settings.*, now
+ * SUPERADMIN-only) -- TOUR_OPERATOR is the operational role for all of
+ * those now.
  */
-export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]> = {
+export const ROLE_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]> = {
   PLATFORM_ADMIN: [
+    'catalog.read',
+    'booking.create',
+    'booking.read',
+    // booking.confirm stays granted (it also gates Refund/Send Quotation/
+    // Convert-to-Itinerary/link Customized Package/the TAILOR_MADE cost
+    // breakdown editor, all kept for PLATFORM_ADMIN) -- the Confirm action
+    // itself is separately hardcoded to TOUR_OPERATOR-only via
+    // isBookingConfirmer (booking/domain.ts), same "route passes, service
+    // still narrows" layering as isBookingDeleter.
+    'booking.confirm',
+    'assignment.read',
+    'assignment.write',
+    'finance.read',
+    'profile.write',
+    'fleet.read',
+    'fleet.write',
+    'itinerary.read',
+    'itinerary.write',
+    'country_regulation.read',
+    'admin.all',
+    'rating.issue',
+    'rating.read',
+    'insights.read',
+    'staff_roster.read',
+    'tracking.read',
+    'hotel_restaurant_rating.write',
+  ],
+  TOUR_OPERATOR: [
     'catalog.read',
     'catalog.write',
     'booking.create',
@@ -234,117 +190,40 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'assignment.read',
     'assignment.write',
     'finance.read',
+    'documents.read',
+    'documents.write',
     'invoice.read',
     'payment.initiate',
     'payment.resolve',
     'profile.write',
-    'documents.read',
-    'documents.write',
-    'visa.process',
     'fleet.read',
     'fleet.write',
     'itinerary.read',
     'itinerary.write',
     'itinerary.approve',
-    'country_regulation.read',
-    'admin.all',
-    'rating.issue',
-    'rating.read',
-    'insights.read',
-    // DR-155: also covered by admin.all above, but seeded explicitly for
-    // clarity -- see TOUR_OPERATOR's own comment on this permission below.
-    'staff_roster.read',
-    // Finance Module (DR-039): read-only here even for PLATFORM_ADMIN --
-    // finance_config.write is deliberately never seeded to any role (see
-    // the Permission union's comment); only SUPERADMIN's hardcoded wildcard
-    // reaches it, mirroring country_regulation.write's precedent.
-    'finance_config.read',
-    // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
-    'tracking.read',
-    // Settings (DR-042): read-only here even for PLATFORM_ADMIN --
-    // platform_settings.write is deliberately never seeded to any role,
-    // same layering as finance_config.write.
-    'platform_settings.read',
-    // Staff-only hotel/restaurant rating -- unscoped, matching itinerary.write above.
-    'hotel_restaurant_rating.write',
-  ],
-  TOUR_OPERATOR: [
-    'catalog.read',
-    'catalog.write',
-    'booking.create', // phone/walk-in bookings entered on a tourist's behalf
-    'booking.read',
-    'booking.confirm',
-    'booking.cancel',
-    'assignment.read',
-    'assignment.write',
-    'finance.read',
-    'documents.read',
-    'documents.write', // staff upload a tour lead's passport on their behalf (DR-015)
-    'invoice.read',
-    'payment.initiate',
-    'payment.resolve',
-    'profile.write',
-    'fleet.read', // manages the whole org's fleet (DR-017)
-    'fleet.write',
-    // Itinerary Management (DR-033): the spec's literal "Super Admin"/
-    // "Platform Admin" split is deliberately NOT introduced here (explicit
-    // user choice) -- same "Tour operator = platform admin" precedent as
-    // DR-027/028, so TOUR_OPERATOR gets full create/edit/review/approve.
-    'itinerary.read',
-    'itinerary.write',
-    'itinerary.approve',
-    // Immigration Module (DR-034): "The Tour Operator is by default also a
-    // Visa Facilitator role" -- explicit user instruction. Grants the same
-    // visa-processing capability VISA_FACILITATOR holds (documents.read/
-    // write are already above). Does NOT get country_regulation.write --
-    // that stays SUPERADMIN-only (see PLATFORM_ADMIN note below).
     'visa.process',
     'country_regulation.read',
-    // Customer Ratings & Feedback (DR-037): issues Rating Codes once a
-    // booking is fully paid, and views the aggregate/individual reviews.
     'rating.issue',
     'rating.read',
-    // Insights & Decision Making (DR-038): the executive dashboard.
     'insights.read',
-    // DR-155: TOUR_OPERATOR doesn't hold admin.all (that would also unlock
-    // full user CRUD + the permissions-matrix editor -- far broader than
-    // "see a headcount stat"), so the new Staff-stats section on the
-    // Insights dashboard needs its own narrow permission instead.
     'staff_roster.read',
-    // Finance Module (DR-039): needs to view rates to build a package's
-    // cost breakdown (financeService.saveCostBreakdown is gated
-    // catalog.write, already held above) -- not finance_config.write,
-    // which stays SUPERADMIN-only.
-    'finance_config.read',
-    // Tracking (DR-041): the fleet-location + active-trip-progress dashboard.
     'tracking.read',
-    // Settings (DR-042): read-only visibility into tax/platform rates that
-    // affect their own invoicing -- not platform_settings.write.
-    'platform_settings.read',
-    // Staff-only hotel/restaurant rating -- unscoped, matching itinerary.write above.
     'hotel_restaurant_rating.write',
   ],
   // assignment.read scoped to only their own assignments in
   // assignment/service.ts's listMyAssignments (DR-018). fleet.read scoped to
-  // only their own GuideProfile in fleet/service.ts, same convention as
-  // DRIVER/VEHICLE_OWNER below (DR-030 -- this role previously had no
-  // fleet.read at all, a deliberate DR-021 choice that's now superseded by
-  // the Guides Module needing a real self-view of languages/certifications/
-  // specialties).
-  // itinerary.read scoped to only itineraries for their own assigned
-  // departures in itinerary/service.ts (DR-033: "Drivers and Tour Guides
-  // have read-only access to their assigned itineraries").
+  // only their own GuideProfile in fleet/service.ts. itinerary.read scoped
+  // to only itineraries for their own assigned departures in
+  // itinerary/service.ts. DR-159: documents.read removed -- staff-side
+  // passport/visa-document viewing is now TOUR_OPERATOR/VISA_FACILITATOR
+  // only.
   TOUR_GUIDE: [
     'catalog.read',
     'booking.read',
-    'documents.read',
     'profile.write',
     'assignment.read',
     'fleet.read',
     'itinerary.read',
-    // Staff-only hotel/restaurant rating -- anti-BOLA-scoped in
-    // itinerary/service.ts to only a hotel/restaurant assigned to one of
-    // their own toured itineraries.
     'hotel_restaurant_rating.write',
   ],
   // fleet.read scoped to only their own DriverProfile in fleet/service.ts (DR-017)
@@ -360,13 +239,9 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
   // fleet.read scoped to only vehicles they own in fleet/service.ts (DR-017)
   VEHICLE_OWNER: ['catalog.read', 'finance.read', 'profile.write', 'fleet.read', 'assignment.read'],
   // booking.read is needed to resolve a traveler by bookingId+travelerId
-  // (visa/service.ts's findTraveler, same pattern the passport route uses)
-  // -- without it every visa route 500s, since bookingService.listTravelers
-  // itself asserts booking.read. catalog.read is needed because
-  // submitApplication also calls catalogService.getDepartureDetail (to
-  // snapshot the destination country) -- both caught by real CI failures,
-  // not locally (this sandbox has no DB to run tests/api/visa.api.test.ts
-  // against), fixed here (DR-019).
+  // (visa/service.ts's findTraveler) -- without it every visa route 500s.
+  // catalog.read is needed because submitApplication also calls
+  // catalogService.getDepartureDetail.
   VISA_FACILITATOR: [
     'catalog.read',
     'booking.read',
@@ -374,7 +249,7 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'documents.write',
     'visa.process',
     'profile.write',
-    'country_regulation.read', // needs to see a country's requirements to process its applications (DR-034)
+    'country_regulation.read',
   ],
   TOURIST: [
     'catalog.read',
@@ -384,22 +259,46 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'documents.write',
     'invoice.read', // own invoice only -- enforced in invoicing/service.ts, not here
     'payment.initiate', // own invoice only -- enforced in invoicing/service.ts, not here
-    // Deliberately no payment.resolve: only staff resolve a payment
-    // (mirrors the future DPO webhook actor) -- a tourist self-marking
-    // their own payment succeeded would be a fraud vector (DR-012).
+    // Deliberately no payment.resolve: only staff resolve a payment.
     'profile.write', // set own phone/preferredLocale for notifications (DR-013)
   ],
 };
 
 /**
+ * DR-159: plain role gates for menu items/pages whose old gating
+ * `Permission` is also load-bearing for an unrelated internal composition,
+ * so it can't itself be narrowed without breaking that other use. Consumed
+ * by `nav.tsx`/`settings-items.ts` (`requiresAnyRole`) for visibility and by
+ * `requireStaffRole`/`withRole` for actual enforcement -- always the real
+ * gate, nav/sidebar visibility is UX only.
+ *
+ * - bookingsBrowse: the general Bookings tab + /staff/bookings* list pages.
+ *   booking.read itself stays granted more broadly (TOUR_GUIDE/DRIVER's own-
+ *   assignment-scoped "My Schedule" view, VISA_FACILITATOR's
+ *   findTraveler) -- this is a narrower, separate gate just for browsing the
+ *   full org-wide list.
+ * - bookingDetail: a single booking's detail page + its GET routes.
+ *   VISA_FACILITATOR is included (not bookingsBrowse) because
+ *   /staff/visa-queue links directly into a booking's detail page for the
+ *   application they're processing -- TOUR_GUIDE/DRIVER are not included,
+ *   they never link into this page (their own scoped view is My Schedule).
+ * - packagesBrowse: the Packages tab + /staff/packages* pages. catalog.read
+ *   itself stays broadly granted for other roles' internal needs (guest
+ *   checkout, visa/booking destination-country lookups).
+ */
+export const STAFF_PAGE_ACCESS = {
+  bookingsBrowse: ['PLATFORM_ADMIN', 'TOUR_OPERATOR'],
+  bookingDetail: ['PLATFORM_ADMIN', 'TOUR_OPERATOR', 'VISA_FACILITATOR'],
+  packagesBrowse: ['PLATFORM_ADMIN', 'TOUR_OPERATOR'],
+} as const satisfies Record<string, readonly Exclude<RoleName, 'SUPERADMIN'>[]>;
+
+/**
  * Structural, not nominal -- `AuthContext` (src/modules/auth/domain.ts)
- * satisfies this without importing it, keeping rbac.ts dependency-free
- * (same reasoning the old code gave for lazily importing Error). `roles` is
- * always non-empty (resolveSession falls back to [User.role] when a user
- * has no Membership rows, e.g. every tourist/guest). `permissions` is the
- * union of every DB-backed grant across all held roles, resolved once per
- * request by `authService.resolveSession` (DR-035) -- never re-queried
- * here.
+ * satisfies this without importing it. `roles` is always non-empty
+ * (resolveSession falls back to [User.role] when a user has no Membership
+ * rows). `permissions` is the union of every ROLE_PERMISSIONS grant across
+ * all held roles, resolved once per request by `authService.resolveSession`
+ * via `resolvePermissionsForRoles` below -- never recomputed here.
  */
 export interface PermissionSource {
   roles: Role[];
@@ -407,13 +306,28 @@ export interface PermissionSource {
 }
 
 /**
+ * DR-159: pure, in-memory replacement for the old DB query
+ * (`authRepository.listPermissionsForRoles`) -- called once per request by
+ * `authService.resolveSession`. SUPERADMIN sessions get an empty set (its
+ * wildcard in `can()` never consults `permissions`, so there's nothing to
+ * compute).
+ */
+export function resolvePermissionsForRoles(roles: Role[]): Set<Permission> {
+  if (roles.includes('SUPERADMIN')) return new Set();
+  const permissions = new Set<Permission>();
+  for (const role of roles) {
+    const granted = ROLE_PERMISSIONS[role as Exclude<RoleName, 'SUPERADMIN'>];
+    granted?.forEach((permission) => permissions.add(permission));
+  }
+  return permissions;
+}
+
+/**
  * DR-026: a user may hold several simultaneous roles (Membership rows) --
  * `can` grants a permission if ANY held role grants it, which is why the
  * union is precomputed as a flat set rather than checked per-role here.
- * DR-035: SUPERADMIN is the one hardcoded exception -- an unconditional
- * wildcard that bypasses `permissions` entirely, so this platform always
- * has at least one role that can never be locked out by a permission-matrix
- * edit gone wrong.
+ * SUPERADMIN is the one hardcoded exception -- an unconditional wildcard
+ * that bypasses `permissions` entirely.
  */
 export function can(ctx: PermissionSource, permission: Permission): boolean {
   if (ctx.roles.includes('SUPERADMIN')) return true;
@@ -424,10 +338,8 @@ export function can(ctx: PermissionSource, permission: Permission): boolean {
  * Every operational role except TOURIST belongs on the staff dashboard --
  * tourists never get one (guest checkout is a separate, account-less site,
  * DR-016). Used as the `(dashboard)` layout's baseline "are you staff at
- * all" gate (staff-guard.ts), which previously hardcoded `booking.confirm`
- * and so silently locked out any role that isn't TOUR_OPERATOR/admin
- * (DR-020). Individual pages still gate on their own specific permission;
- * this only decides who reaches the shell.
+ * all" gate (staff-guard.ts). Individual pages still gate on their own
+ * specific permission/role; this only decides who reaches the shell.
  */
 export function isStaffRole(roles: Role[]): boolean {
   return roles.some((role) => (role as RoleName) !== 'TOURIST');
@@ -438,5 +350,22 @@ export function assertCan(ctx: PermissionSource, permission: Permission): void {
   if (!can(ctx, permission)) {
     // Imported lazily to keep this module free of framework deps for unit tests.
     throw new Error(`FORBIDDEN: ${ctx.roles.join('+')} lacks ${permission}`);
+  }
+}
+
+/**
+ * DR-159: plain role-only check, for a menu item/page gated by
+ * `STAFF_PAGE_ACCESS` (or any other hardcoded role list) rather than a
+ * `Permission`. SUPERADMIN always passes, same wildcard as `can()`.
+ */
+export function hasAnyRole(ctx: PermissionSource, roles: readonly RoleName[]): boolean {
+  if (ctx.roles.includes('SUPERADMIN')) return true;
+  return ctx.roles.some((role) => roles.includes(role as RoleName));
+}
+
+/** Throwable role-only guard, mirroring `assertCan` for `hasAnyRole`. */
+export function assertAnyRole(ctx: PermissionSource, roles: readonly RoleName[]): void {
+  if (!hasAnyRole(ctx, roles)) {
+    throw new Error(`FORBIDDEN: ${ctx.roles.join('+')} lacks required role`);
   }
 }

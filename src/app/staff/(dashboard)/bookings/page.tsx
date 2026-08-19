@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
+import { STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { FILTERABLE_BOOKING_STATUSES } from '@lib/booking-statuses';
 import { Card } from '@/components/ui/Card';
@@ -10,7 +11,8 @@ import { RevealGroup } from '@/components/ui/Reveal';
 // DR-098: same card-hub-plus-list-pages shape as DR-095 (fleet) and DR-097
 // (packages).
 export default async function BookingsPage() {
-  const ctx = await requireStaffContext('booking.read');
+  // DR-159: role-only gate (see STAFF_PAGE_ACCESS's own comment in rbac.ts).
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.bookingsBrowse);
   const allBookings = await bookingService.list(ctx);
   const t = await getTranslations('StaffBookings');
   const tStatus = await getTranslations('BookingStatusLabel');

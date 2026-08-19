@@ -24,6 +24,17 @@ export function isBookingDeleter(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN');
 }
 
+/** DR-159: the "Confirm" action itself is narrower than the `booking.confirm`
+ * permission it's still gated behind -- that permission also covers
+ * Refund/Send Quotation/Convert-to-Itinerary/link Customized Package/the
+ * TAILOR_MADE cost-breakdown editor, all of which PLATFORM_ADMIN keeps, so
+ * it can't itself be narrowed to exclude PLATFORM_ADMIN from just Confirm.
+ * Same "route/service passes the broader permission, this hardcoded check
+ * is the real gate" layering as isBookingDeleter. */
+export function isBookingConfirmer(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
+}
+
 // DR-060: a whole-org candidate list for the visa module's "needs
 // application" reconciliation view -- travelers with an uploaded passport on
 // a booking that requires one, regardless of whether a VisaApplication has

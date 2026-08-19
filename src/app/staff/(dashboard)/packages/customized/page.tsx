@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { requireStaffContext } from '@lib/staff-guard';
+import { requireStaffRole } from '@lib/staff-guard';
+import { STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { catalogService, isPublishedStatus, type TourPackageView } from '@modules/catalog';
 import { paginate } from '@lib/directory-filters';
 import { PACKAGE_STATUS_TONE } from '@lib/status-tones';
@@ -39,7 +40,8 @@ function matchesQuery(p: TourPackageView, query: string): boolean {
 // isPackageVisible only ever shows a published sub-status (DR-117); DRAFT
 // and ARCHIVED both land here, distinguishable via the Status filter below.
 export default async function CustomizedPackagesPage({ searchParams }: Props) {
-  const ctx = await requireStaffContext('catalog.read');
+  // DR-159: role-only gate (see STAFF_PAGE_ACCESS's own comment in rbac.ts).
+  const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.packagesBrowse);
   const params = await searchParams;
   const t = await getTranslations('StaffPackages');
   const tCountries = await getTranslations('Countries');

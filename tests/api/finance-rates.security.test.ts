@@ -7,15 +7,13 @@ import { POST as createStaffRate } from '../../src/app/api/v1/finance/rates/staf
 import { PATCH as patchStaffRate } from '../../src/app/api/v1/finance/rates/staff/[id]/route';
 
 /**
- * Finance Module (DR-039) role-gate coverage. `finance_config.write` is
- * never seeded to PLATFORM_ADMIN by default -- so it 403s at the route
- * itself in the common case. This also proves the service-layer
- * requireRateWriter backstop independently: even if a SUPERADMIN later
- * edits the live permission matrix (/staff/admin/permissions) to grant
- * PLATFORM_ADMIN finance_config.write, financeService's own SUPERADMIN-only
- * role check (mirroring isCountryRegulationWriter, DR-034) still rejects
- * it -- simulated here by inserting that RolePermission row directly,
- * bypassing the normal seed defaults.
+ * Finance Module (DR-039) role-gate coverage. DR-159 (reverses DR-035):
+ * `finance_config.write`/`.read` are hardcoded and granted to nobody but
+ * SUPERADMIN's wildcard -- there is no runtime permission-matrix editor left
+ * that could grant PLATFORM_ADMIN either one, so it 403s at the route gate
+ * itself now, not just financeService's own SUPERADMIN-only
+ * requireRateWriter backstop (which still exists as defense-in-depth,
+ * mirroring isCountryRegulationWriter, DR-034).
  */
 const admin = new PrismaClient();
 const suffix = `${Date.now()}`;
@@ -23,7 +21,7 @@ const TEST_COUNTRY = 'ZZ';
 
 let orgId: string;
 let operatorId: string;
-let platformAdminWithGrantId: string;
+let platformAdminId: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -42,16 +40,7 @@ beforeAll(async () => {
     admin.user.create({ data: { email: `pa-finance-sec-${suffix}@example.test`, role: 'PLATFORM_ADMIN', organizationId: orgId } }),
   ]);
   operatorId = operator.id;
-  platformAdminWithGrantId = platformAdmin.id;
-
-  // Simulates a SUPERADMIN having manually granted this via the live
-  // permission-matrix editor -- upsert so a pre-existing seeded row (there
-  // shouldn't be one, but defensively) doesn't cause a unique-constraint error.
-  await admin.rolePermission.upsert({
-    where: { role_permission: { role: 'PLATFORM_ADMIN', permission: 'finance_config.write' } },
-    update: {},
-    create: { role: 'PLATFORM_ADMIN', permission: 'finance_config.write' },
-  });
+  platformAdminId = platformAdmin.id;
 });
 
 afterAll(async () => {
@@ -65,7 +54,6 @@ afterAll(async () => {
     return;
   }
   await admin.staffRate.deleteMany({ where: { country: TEST_COUNTRY } });
-  await admin.rolePermission.deleteMany({ where: { role: 'PLATFORM_ADMIN', permission: 'finance_config.write' } });
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
   await admin.$disconnect();
@@ -85,8 +73,8 @@ describe('finance rates -- role gate', () => {
     expect(res.status).toBe(403);
   });
 
-  it('PLATFORM_ADMIN passes the route gate (has finance_config.write granted) but is rejected by the service-layer SUPERADMIN-only check (403)', async () => {
-    const headers = await loginAs(platformAdminWithGrantId);
+  it('PLATFORM_ADMIN cannot create a rate (403) -- finance_config.write is SUPERADMIN-only under DR-159', async () => {
+    const headers = await loginAs(platformAdminId);
     const req = jsonRequest('http://localhost/api/v1/finance/rates/staff', headers, 'POST', {
       country: TEST_COUNTRY,
       role: 'DRIVER',
@@ -109,8 +97,8 @@ describe('finance rates -- role gate', () => {
     expect(res.status).toBe(403);
   });
 
-  it('PLATFORM_ADMIN passes the route gate but is rejected updating a rate by the same service-layer SUPERADMIN-only check (403)', async () => {
-    const headers = await loginAs(platformAdminWithGrantId);
+  it('PLATFORM_ADMIN cannot update a rate either (403)', async () => {
+    const headers = await loginAs(platformAdminId);
     const req = jsonRequest('http://localhost/api/v1/finance/rates/staff/00000000-0000-0000-0000-000000000000', headers, 'PATCH', {
       country: TEST_COUNTRY,
       role: 'DRIVER',

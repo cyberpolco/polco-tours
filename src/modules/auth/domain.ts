@@ -3,7 +3,7 @@
 //   domain (types/rules) · service (logic) · repository (Prisma) · index (public API)
 import type { Locale, Role } from '@prisma/client';
 import { z } from 'zod';
-import { EDITABLE_ROLES, type Permission } from '@lib/rbac';
+import type { Permission } from '@lib/rbac';
 
 export interface AuthContext {
   userId: string;
@@ -11,12 +11,12 @@ export interface AuthContext {
   // User.role, deduped -- always non-empty. A plain tourist/guest with no
   // Membership rows still gets a valid one-element array from User.role.
   roles: Role[];
-  // DR-035: the union of every DB-backed RolePermission grant across all
-  // held roles, resolved once by resolveSession -- satisfies rbac.ts's
-  // PermissionSource structurally (roles + permissions), so `can(ctx, ...)`/
-  // `assertCan(ctx, ...)` work directly on this context. SUPERADMIN never
-  // needs an entry here (see rbac.ts) -- its wildcard bypasses this set
-  // entirely.
+  // DR-159: the union of every ROLE_PERMISSIONS grant (rbac.ts, a hardcoded
+  // in-code map) across all held roles, resolved once by resolveSession --
+  // satisfies rbac.ts's PermissionSource structurally (roles + permissions),
+  // so `can(ctx, ...)`/`assertCan(ctx, ...)` work directly on this context.
+  // SUPERADMIN never needs an entry here (see rbac.ts) -- its wildcard
+  // bypasses this set entirely.
   permissions: ReadonlySet<Permission>;
   organizationId: string | null;
   sessionId: string;
@@ -135,25 +135,21 @@ export function isOrgMember(ctx: AuthContext, organizationId: string): boolean {
   return ctx.organizationId === organizationId;
 }
 
-/** User Management / permission-matrix editor (DR-035): only SUPERADMIN may
- * view or edit the RolePermission table -- the spec's literal "Super Admin
- * can: ... Manage permissions" (not Platform Admin, not Tour Operator).
- * Direct role-identity check, not a Permission literal gate, mirroring
- * immigration/domain.ts's isCountryRegulationWriter -- there is no scenario
- * where a non-SUPERADMIN role should even see this page, unlike country
- * regulations' broader read audience. */
+/** SUPERADMIN-only actions (e.g. the removed permission-matrix editor,
+ * DR-159, and every other SUPERADMIN-only gate across this app) -- direct
+ * role-identity check, not a Permission literal gate, mirroring
+ * immigration/domain.ts's isCountryRegulationWriter. */
 export function isSuperAdmin(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN');
 }
 
 /** The "Clients" directory (bare-tourist contact records, DR-036) is
- * SUPERADMIN/TOUR_OPERATOR-only, same access boundary as manual staff
- * booking creation (/staff/bookings/new) -- explicit user choice, since
- * those are exactly the roles that create/interact with these records.
- * Direct role-identity check, not a Permission literal, same layering as
- * isSuperAdmin above. */
+ * SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN-only (PLATFORM_ADMIN added
+ * DR-159) -- explicit user choice, since those are exactly the roles that
+ * create/interact with these records. Direct role-identity check, not a
+ * Permission literal, same layering as isSuperAdmin above. */
 export function isClientDirectoryViewer(roles: Role[]): boolean {
-  return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
+  return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR') || roles.includes('PLATFORM_ADMIN');
 }
 
 // DR-084: user dormancy after 30 days without signing in (staff roles
@@ -169,16 +165,3 @@ export function isDormant(referenceDate: Date, now: Date): boolean {
   const daysSinceActive = (now.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24);
   return daysSinceActive > DORMANCY_THRESHOLD_DAYS;
 }
-
-// Permission-matrix editor (DR-035). `role` reuses rbac.ts's EDITABLE_ROLES
-// (SUPERADMIN excluded -- it's a fixed wildcard, never a DB row) instead of
-// duplicating the role list. `permission` isn't validated against the full
-// Permission union here (would mean listing every literal a third time) --
-// an unrecognized string just creates a harmless, never-checked row; this
-// is a SUPERADMIN-only internal tool, not user-facing at scale.
-export const SetRolePermissionInput = z.object({
-  role: z.enum(EDITABLE_ROLES),
-  permission: z.string().min(1),
-  granted: z.boolean(),
-});
-export type SetRolePermissionInput = z.infer<typeof SetRolePermissionInput>;

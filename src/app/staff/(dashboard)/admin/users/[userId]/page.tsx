@@ -14,9 +14,9 @@ interface Props {
 }
 
 // Admin-only (admin.all, DR-035) -- edit an existing user's profile/role
-// set and reset their password. Distinct from /staff/admin/permissions
-// (SUPERADMIN-only), which edits what a ROLE can do, not which roles a
-// specific user holds.
+// set and reset their password. Distinct from what a ROLE can do (rbac.ts's
+// hardcoded ROLE_PERMISSIONS map, DR-159, code-only) -- this edits which
+// roles a specific user holds.
 export default async function EditUserPage({ params }: Props) {
   const { userId } = await params;
   const ctx = await requireStaffContext('admin.all');

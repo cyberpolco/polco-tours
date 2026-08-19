@@ -17,7 +17,18 @@ import type { CouponActionState } from '@/components/CouponForm';
 
 export async function confirmBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.confirm');
-  const booking = await bookingService.confirm(ctx, bookingId);
+  // DR-159: bookingService.confirm's own isBookingConfirmer check narrows
+  // this beyond booking.confirm itself (which PLATFORM_ADMIN still holds
+  // for other actions) -- caught here so a bypass attempt (the button is
+  // already hidden for non-TOUR_OPERATOR/SUPERADMIN) lands back on the
+  // booking page with a clear message, never a raw crash.
+  let booking;
+  try {
+    booking = await bookingService.confirm(ctx, bookingId);
+  } catch (err) {
+    if (err instanceof ApiError) redirect(`/staff/bookings/${bookingId}?error=notAuthorized`);
+    throw err;
+  }
   // DR-082: a CONFIRMED booking marks its assigned vehicle/driver/guide
   // BOOKED -- orchestrated here (not inside bookingService.confirm), same
   // "cross-module side effect stays at the caller layer" convention as
