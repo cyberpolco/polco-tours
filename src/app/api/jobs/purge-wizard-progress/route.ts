@@ -14,10 +14,8 @@ export const dynamic = 'force-dynamic';
  * /api/jobs/sweep-user-dormancy: QStash-signature-gated, no AuthContext,
  * sits outside /api/v1.
  *
- * Coded but NOT YET registered against the live deployment -- run
- * `npm run qstash:register-schedule` to activate it (see that script's
- * SCHEDULES list), same "coded but not yet registered" caveat as DR-107's
- * fleet-cooldown sweep carried before it was activated.
+ * Registered against the live deployment via `npm run
+ * qstash:register-schedule` (see that script's SCHEDULES list).
  */
 export const POST = async (req: NextRequest): Promise<NextResponse> => {
   const traceId = req.headers.get('x-trace-id') ?? newTraceId();

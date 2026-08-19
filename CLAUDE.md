@@ -92,10 +92,11 @@ explicit decision to do so.
 > plain per-call-volume throttle instead, since a tracking write has no
 > pass/fail concept to gate on) and wrapped so any failure is silently
 > swallowed — this must never affect the wizard. Rows auto-purge after 30
-> days via a new QStash job, `/api/jobs/purge-wizard-progress` — **coded and
-> added to `scripts/register-qstash-schedule.ts`'s schedule list but not yet
-> registered against the live deployment**, same "not yet registered"
-> caveat as DR-107's fleet-cooldown sweep. New **`insights -> analytics`
+> days via a new QStash job, `/api/jobs/purge-wizard-progress` — **coded,
+> added to `scripts/register-qstash-schedule.ts`'s schedule list, and
+> registered against the live deployment** (`npm run
+> qstash:register-schedule`, confirmed via its own console output). New
+> **`insights -> analytics`
 > module dependency** (confirmed acyclic: `analytics` imports nothing from
 > `insights`). **Trend charts** (revenue per-currency, bookings,
 > visa-application volume, new-guest signups) bucket already-fetched
@@ -112,15 +113,33 @@ explicit decision to do so.
 > line/area trend charts with a hover crosshair+tooltip — all hand-rolled
 > inline SVG/CSS rather than a new charting dependency (this app's own
 > `@visx` family is still used only for the homepage map; no new package
-> was added). The categorical palette has **not yet been run through the
-> skill's `scripts/validate_palette.js` CVD/contrast validator** — flagged
-> as a follow-up, not silently skipped. This app has no dark theme anywhere,
-> so the charts don't attempt one either. New EN/FR message keys throughout
-> `StaffInsights`. No destructive schema change (the one new table,
-> `wizard_progress_events`, is purely additive) — **not yet applied to the
-> shared Neon DB as of this writing, needs explicit user confirmation
-> first**, same as the RLS policy and the `db:seed` re-run required to
-> actually grant `staff_roster.read` live. **Follow-up, same DR-155**:
+> was added). The categorical palette was run through the skill's
+> `scripts/validate_palette.js` (`--mode light --surface "#F6EFE4"`, this
+> app's own "bone" background) together with the user — the raw named
+> Horizon tokens (amber/forest/gold/navy.line, plus mist as a 5th slot)
+> **FAILED**: gold was too light and too low-contrast, and forest/navy.line/
+> mist all read as gray (chroma below the floor — mist especially, since
+> it's a text/neutral token, never meant to carry hue identity). Fixed by
+> stepping three of the four hue families to a chroma/lightness that
+> actually clears the checks (amber unchanged, forest → `#1B8F5A`, gold →
+> `#B8860B`, navy/dusk-plum → `#8B3F82`) and dropping mist from the
+> categorical set entirely — `CHART_CATEGORICAL` in `chart-colors.ts` is now
+> exactly these 4 validated hues, `ALL CHECKS PASS` (two WARNs — gold/forest
+> CVD separation in the 6-8 floor band, gold's contrast at 2.85:1 — both
+> legal only because every chart here already ships direct labels + a
+> legend, never color alone). Fixing this surfaced a real bug: dropping from
+> 5 hues to 4 left `DonutChart`'s fold-into-"Other" threshold hardcoded at
+> 6, meaning a 5th/6th real category (e.g. staff headcount by role) would
+> have silently repeated an already-assigned color instead of folding —
+> fixed by deriving that default from `CHART_CATEGORICAL.length` directly so
+> it can't drift out of sync again. This app has no dark theme anywhere, so
+> the charts don't attempt one either. New EN/FR message keys throughout
+> `StaffInsights`. **Schema change (one new table, `wizard_progress_events`,
+> purely additive, plus its RLS policy) applied by hand to the shared Neon
+> DB** — verified via `psql` (`relrowsecurity`/`relforcerowsecurity` both
+> `t`, the `tenant_isolation` policy present); `db:seed` re-run afterward,
+> confirmed via `psql` that `role_permissions` now has `staff_roster.read`
+> for both `PLATFORM_ADMIN` and `TOUR_OPERATOR`. **Follow-up, same DR-155**:
 > explicit user request — "stats should start fresh with only current
 > figures" — added a fixed floor, `DASHBOARD_EPOCH` (`insights/domain.ts`,
 > the day this rebuild shipped), that every booking/invoice/visa
@@ -1164,9 +1183,9 @@ explicit decision to do so.
 > reads AVAILABLE again (previously immediate) — `fleet/domain.ts`'s
 > `isWithinPostTourCooldown`, factored into `syncFleetAvailabilityForDeparture`
 > (`src/lib/fleet-availability.ts`), plus a new hourly QStash job
-> (`/api/jobs/sweep-fleet-cooldowns`, **not yet registered against the live
-> deployment**) since nothing else re-evaluates a resource once the window
-> naturally elapses. Vehicle/DriverProfile/GuideProfile only — `StarlinkKit`
+> (`/api/jobs/sweep-fleet-cooldowns`, registered and live as of DR-155's
+> `npm run qstash:register-schedule` run) since nothing else re-evaluates a
+> resource once the window naturally elapses. Vehicle/DriverProfile/GuideProfile only — `StarlinkKit`
 > has no parallel `availability` field, left out of scope. DR-108 lets staff
 > turn an `AWAITING_QUOTATION` `TAILOR_MADE` request into a real DRAFT
 > `TourPackage` prefilled from the guest's plan-my-trip answers — new
@@ -1366,7 +1385,7 @@ gaps a fresh Postgres would hit).
 | Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): About/FAQ images (DR-071) and package images (DR-114), passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`) by `src/lib/public-image-blob.ts` rather than relying on the ambient default. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — three schedules registered and live in production (`sweep-bookings` every 15 min, `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10); a fourth, `sweep-fleet-cooldowns`/DR-107 (hourly), is coded and added to `scripts/register-qstash-schedule.ts` but **not yet registered against the live deployment** — run `npm run qstash:register-schedule` to activate it |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19) |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -1865,13 +1884,12 @@ visually coherent with the design package.
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
   re-running that script (idempotent — fixed `scheduleId`s update in place,
-  never duplicate). Five exist today: `/api/jobs/sweep-bookings` (every 15
-  minutes), `/api/jobs/sweep-fleet-availability` (DR-082, daily), and
-  `/api/jobs/sweep-user-dormancy` (DR-084, daily) are registered and live;
-  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly) and
-  `/api/jobs/purge-wizard-progress` (DR-155, daily) are coded and in the
-  script's schedule list but **not yet registered against the live
-  deployment** — run `npm run qstash:register-schedule` to activate them.
+  never duplicate). Five exist today, all registered and live (confirmed via
+  `npm run qstash:register-schedule`'s own console output):
+  `/api/jobs/sweep-bookings` (every 15 minutes), `/api/jobs/sweep-fleet-availability`
+  (DR-082, daily), `/api/jobs/sweep-user-dormancy` (DR-084, daily),
+  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly), and
+  `/api/jobs/purge-wizard-progress` (DR-155, daily).
 
 ## Roadmap (not yet built)
 
