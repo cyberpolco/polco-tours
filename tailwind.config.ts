@@ -37,8 +37,10 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
-        serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        mono: ['var(--font-mono)', 'Courier New', 'monospace'],
+        // Headline/hero-figure face -- a display stencil sans, not a serif
+        // (DR-156), so this key is named for its role, not its classification.
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
       },
       letterSpacing: { survey: '0.28em' },
       // `survey` (3px) kept for any surface not yet migrated off the old

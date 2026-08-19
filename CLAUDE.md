@@ -1801,6 +1801,20 @@ gold, gradients/badges/stars), bone `#F6EFE4` (warm sand), mist `#8C7D78`
 (warm taupe-gray), ink `#211A1D`, rule `#E3D6C8`. Keep product surfaces
 visually coherent with the design package.
 
+**Typography (DR-156)** is a rugged/expedition register, not warm-editorial —
+three `next/font/google` faces, each its own Tailwind `fontFamily` key/CSS
+variable in `src/app/layout.tsx`/`tailwind.config.ts`: **Big Shoulders
+Stencil** (`--font-display`, `font-display`) for `h1`/`h2`/`h3` and hero
+figures — a die-cut crate/signage stencil, used at weight 700/900 only
+(legibility degrades below ~28px, so it's a headline face, not a body one);
+**Archivo** (`--font-sans`, `font-sans`, the page default) for body copy and
+UI chrome — an institutional grotesque built for wayfinding signage, holding
+up in dense staff tables; **Special Elite** (`--font-mono`, `font-mono`) for
+the `.eyebrow` label pattern and booking/rating reference codes — a
+distressed field-dispatch typewriter face, one weight only. Replaces the
+prior Fraunces/IBM Plex Sans/IBM Plex Mono trio, which read as generic
+"boutique DTC"/"dev-tool" defaults.
+
 ---
 
 ## Current architecture summary

@@ -149,7 +149,7 @@ export default async function HomePage() {
         <ul className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {STEPS.map((step) => (
             <Card as="li" key={step.mark}>
-              <p className="font-serif text-3xl text-amber">{step.mark}</p>
+              <p className="font-display text-3xl text-amber">{step.mark}</p>
               <h3 className="mt-2 font-semibold text-navy">{step.title}</h3>
               <p className="mt-2 text-sm text-mist">{step.body}</p>
             </Card>

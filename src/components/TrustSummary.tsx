@@ -20,7 +20,7 @@ export async function TrustSummary() {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-rule py-5">
       <div className="flex items-baseline gap-2">
-        <span className="font-serif text-3xl font-semibold text-navy">{summary.averageRating.toFixed(1)}</span>
+        <span className="font-display text-3xl font-semibold text-navy">{summary.averageRating.toFixed(1)}</span>
         <RatingStars rating={summary.averageRating} />
       </div>
       <p className="text-sm text-mist">{t('reviews', { count: summary.ratingCount })}</p>

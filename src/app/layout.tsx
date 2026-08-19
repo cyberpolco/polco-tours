@@ -1,17 +1,20 @@
 import type { Metadata } from 'next';
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
+import { Archivo, Big_Shoulders_Stencil, Special_Elite } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale } from 'next-intl/server';
 import './globals.css';
 
-// "Meridian Cartography" typography: Fraunces (warm editorial serif) for
-// headlines, IBM Plex Sans for body/UI, IBM Plex Mono for the existing
-// tracking-survey eyebrow/label pattern and confirmation codes -- a
-// technical/drafting face reinforcing the "survey" identity. All three via
-// next/font/google (already part of the Next.js dependency, no new package).
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-serif' });
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-sans' });
-const ibmPlexMono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-mono' });
+// "Horizon" typography (DR-156, replacing the prior Fraunces/IBM Plex trio,
+// which read as generic "boutique DTC"/"dev tool" defaults): Big Shoulders
+// Stencil (die-cut crate/signage stencil) for headlines and hero figures,
+// Archivo (institutional-grotesque, built for wayfinding) for body/UI, and
+// Special Elite (distressed field-dispatch typewriter) for the eyebrow/label
+// pattern and booking/rating codes -- a rugged, expedition-manifest register
+// replacing the old warm-editorial one. All three via next/font/google
+// (already part of the Next.js dependency, no new package).
+const bigShouldersStencil = Big_Shoulders_Stencil({ subsets: ['latin'], weight: ['700', '900'], variable: '--font-display' });
+const archivo = Archivo({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-sans' });
+const specialElite = Special_Elite({ subsets: ['latin'], weight: '400', variable: '--font-mono' });
 
 export const metadata: Metadata = {
   title: 'POLCO TOURS',
@@ -27,7 +30,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   return (
-    <html lang={locale} className={`${fraunces.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
+    <html lang={locale} className={`${bigShouldersStencil.variable} ${archivo.variable} ${specialElite.variable}`}>
       <body>
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>

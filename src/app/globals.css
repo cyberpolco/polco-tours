@@ -5,6 +5,7 @@
 :root {
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 @layer base {
@@ -28,7 +29,7 @@
   h1,
   h2,
   h3 {
-    @apply font-serif;
+    @apply font-display;
   }
   ::selection {
     @apply bg-amber/25;
