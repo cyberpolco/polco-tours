@@ -61,7 +61,12 @@ describe('analyticsRepository.purgeOlderThan', () => {
     const purged = await analyticsRepository.purgeOlderThan(orgId, new Date('2025-01-01'));
     expect(purged).toBe(1);
 
-    const remaining = await withOrg(orgId, (tx) => tx.wizardProgressEvent.findMany({ where: { organizationId: orgId } }));
+    // Scoped to this test's own two tokens, not the whole org -- the earlier
+    // `upsertProgress` describe block's rows share this same org fixture and
+    // are never cleaned up between describe blocks within one file.
+    const remaining = await withOrg(orgId, (tx) =>
+      tx.wizardProgressEvent.findMany({ where: { organizationId: orgId, sessionToken: { in: [oldToken, freshToken] } } }),
+    );
     expect(remaining.map((r) => r.sessionToken)).toEqual([freshToken]);
   });
 });
