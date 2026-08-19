@@ -106,8 +106,21 @@ async function computeDashboardSummary(ctx: AuthContext, range: DateRange): Prom
   // trends) treats pre-epoch data as if it simply doesn't exist for this
   // dashboard. This never touches the underlying rows anywhere else in the
   // app -- only what this one composition reads.
-  const bookings = (await bookingService.list(ctx)).filter((b) => b.createdAt >= DASHBOARD_EPOCH);
-  const invoiceRows = (await invoicingService.listAllForOrg(ctx)).filter(({ invoice }) => invoice.createdAt >= DASHBOARD_EPOCH);
+  // bookingService.list already excludes a soft-deleted booking (deletedAt:
+  // null enforced in the repository) -- kept unfiltered-by-epoch here so
+  // `activeBookingIds`/`bookingById` below can tell "deleted" apart from
+  // "predates DASHBOARD_EPOCH." invoicingService.listAllForOrg has no
+  // equivalent join back to Booking (Invoice carries no deletedAt of its
+  // own), so without this an invoice's revenue/tax/deposit/discount figures
+  // kept counting toward every finance stat forever, even after its booking
+  // was deleted -- the same dangling-reference-after-delete class of bug as
+  // DR-133/DR-149.
+  const allBookings = await bookingService.list(ctx);
+  const bookings = allBookings.filter((b) => b.createdAt >= DASHBOARD_EPOCH);
+  const activeBookingIds = new Set(allBookings.map((b) => b.id));
+  const invoiceRows = (await invoicingService.listAllForOrg(ctx)).filter(
+    ({ invoice, bookingId }) => invoice.createdAt >= DASHBOARD_EPOCH && activeBookingIds.has(bookingId),
+  );
   const assignments = await assignmentService.listAllAssignments(ctx);
   const vehicles = await fleetService.listVehicles(ctx);
   const driverProfiles = await fleetService.listDriverProfiles(ctx);
@@ -154,7 +167,7 @@ async function computeDashboardSummary(ctx: AuthContext, range: DateRange): Prom
   const outstanding: MoneyByCurrency = {};
   const revenueByCountry: Record<string, MoneyByCurrency> = {};
   const revenueByPackage: Record<string, MoneyByCurrency> = {};
-  const bookingById = new Map(bookings.map((b) => [b.id, b]));
+  const bookingById = new Map(allBookings.map((b) => [b.id, b]));
 
   for (const { invoice, bookingId, payments } of invoiceRows) {
     if (!isWithinRange(invoice.createdAt, range)) continue;

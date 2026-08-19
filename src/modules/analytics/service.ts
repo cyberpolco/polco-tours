@@ -1,6 +1,7 @@
 // analytics module — service. Business logic.
 import type { AuthContext } from '@modules/auth';
 import { assertCan } from '@lib/rbac';
+import { Errors } from '@lib/errors';
 import { assertWriteNotRateLimited } from '@lib/rate-limit';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { computeWizardFunnel, WIZARD_STEP_COUNT, type WizardFunnelStage } from './domain';
@@ -9,6 +10,14 @@ import { analyticsRepository } from './repository';
 const WIZARD_STEP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const WIZARD_STEP_RATE_LIMIT_MAX_ATTEMPTS = 60; // generous -- legitimate back/forth across 9 steps is expected
 const WIZARD_PROGRESS_RETENTION_DAYS = 30;
+
+// Same "route passes a possibly-null organizationId, the service is the one
+// place that must actually assert it" convention as invoicing/service.ts's
+// own requireOrg.
+function requireOrg(ctx: AuthContext): string {
+  if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+  return ctx.organizationId;
+}
 
 export const analyticsService = {
   /** Public, no-ctx -- mirrors ratingsService.submitRating's shape exactly
@@ -41,7 +50,7 @@ export const analyticsService = {
 
   async getWizardFunnel(ctx: AuthContext): Promise<WizardFunnelStage[]> {
     assertCan(ctx, 'insights.read');
-    const highestSteps = await analyticsRepository.listHighestSteps(ctx.organizationId);
+    const highestSteps = await analyticsRepository.listHighestSteps(requireOrg(ctx));
     return computeWizardFunnel(highestSteps);
   },
 

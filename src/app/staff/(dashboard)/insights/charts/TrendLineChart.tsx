@@ -51,7 +51,9 @@ export function TrendLineChart({
   }
 
   const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
-  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${height - padding} L ${coords[0].x} ${height - padding} Z`;
+  // Safe non-null assertions -- the points.length === 0 early return above
+  // guarantees coords is non-empty here.
+  const areaPath = `${linePath} L ${coords[coords.length - 1]!.x} ${height - padding} L ${coords[0]!.x} ${height - padding} Z`;
   const active = hoverIndex !== null ? coords[hoverIndex] : null;
   const tooltipLeft = active ? Math.min(Math.max(active.x - 40, 0), width - 90) : 0;
 

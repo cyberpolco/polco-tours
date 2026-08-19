@@ -236,7 +236,8 @@
   "PackageCard": {
     "durationDays": "{days, plural, one {# day} other {# days}}",
     "durationVaries": "duration varies",
-    "perSeat": "/seat"
+    "perSeat": "/seat",
+    "readMore": "Read more"
   },
   "BookingStatusLabel": {
     "DRAFT": "Draft",
@@ -653,6 +654,7 @@
     "quotationOverrideReason": "Reason for changing the suggested amount",
     "quotationOverrideNotice": "A cost breakdown exists for this request. Changing the amount above requires a reason and is recorded in the audit log.",
     "quotationReasonRequired": "This amount differs from the cost breakdown's suggested total — enter a reason before sending.",
+    "notAuthorized": "You don't have permission to perform this action.",
     "accepting": "Accepting…",
     "acceptQuotationOnBehalf": "Accept quotation on client's behalf",
     "releasedSeatHoldWarning": "This came from a released seat hold — seat availability hasn't been re-checked automatically if the client later accepts and proceeds to pay.",

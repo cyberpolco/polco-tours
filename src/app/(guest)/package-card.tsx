@@ -21,15 +21,27 @@ export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
   const tCountries = await getTranslations('Countries');
   const tTags = await getTranslations('TripTags');
   return (
-    <Card as={as} interactive className="overflow-hidden p-0">
+    <Card as={as} interactive className="flex h-full flex-col overflow-hidden p-0">
       {/* DR-118: prefer the personalized slug for a nicer, stable public URL
           -- falls back to the raw id only for a pre-DR-118 package still
           awaiting its backfilled slug. */}
-      <Link href={`/packages/${pkg.slug ?? pkg.id}`} className="block">
-        <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} rounded={false} />
-        <div className="p-4">
-          <h2 className="font-semibold text-navy transition-colors group-hover:text-amber">{pkg.title}</h2>
-          <p className="mt-1 text-sm text-mist">{pkg.description}</p>
+      <Link href={`/packages/${pkg.slug ?? pkg.id}`} className="flex h-full flex-col">
+        <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} rounded={false} className="shrink-0" />
+        {/* Every package card in a grid renders the same size regardless of
+            how long its title/description happen to be: line-clamp bounds
+            both from above, min-h reserves their space from below (a
+            line-clamp alone only caps a long text's height -- it doesn't
+            keep a short one from collapsing smaller), and "Read more" (true
+            for every package, since the detail page always has more than
+            this card) replaces relying on the reader noticing a truncated
+            sentence. mt-auto pins price/CTA to the same bottom edge on every
+            card whether or not this package has tags. */}
+        <div className="flex min-h-[19rem] flex-1 flex-col p-4">
+          <h2 className="line-clamp-2 min-h-[3rem] font-semibold text-navy transition-colors group-hover:text-amber">
+            {pkg.title}
+          </h2>
+          <p className="mt-1 line-clamp-3 min-h-[3.75rem] text-sm text-mist">{pkg.description}</p>
+          <span className="text-xs font-semibold text-amber">{t('readMore')}</span>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {/* DR-114: a combo package shows every country it touches, not
                 just the primary/billing one. */}
@@ -40,10 +52,6 @@ export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
               {pkg.durationDays ? t('durationDays', { days: pkg.durationDays }) : t('durationVaries')}
             </span>
           </div>
-          <p className="mt-3 text-lg font-bold text-navy">
-            {formatOrPending(pkg.priceMinor, pkg.currency)}
-            <span className="text-xs font-medium text-mist">{t('perSeat')}</span>
-          </p>
           {pkg.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {pkg.tags.map((tag) => (
@@ -53,6 +61,10 @@ export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
               ))}
             </div>
           )}
+          <p className="mt-auto pt-3 text-lg font-bold text-navy">
+            {formatOrPending(pkg.priceMinor, pkg.currency)}
+            <span className="text-xs font-medium text-mist">{t('perSeat')}</span>
+          </p>
         </div>
       </Link>
     </Card>

@@ -236,7 +236,8 @@
   "PackageCard": {
     "durationDays": "{days, plural, one {# jour} other {# jours}}",
     "durationVaries": "durée variable",
-    "perSeat": "/place"
+    "perSeat": "/place",
+    "readMore": "En savoir plus"
   },
   "BookingStatusLabel": {
     "DRAFT": "Brouillon",
@@ -653,6 +654,7 @@
     "quotationOverrideReason": "Motif du changement du montant suggéré",
     "quotationOverrideNotice": "Une répartition des coûts existe pour cette demande. Modifier le montant ci-dessus nécessite un motif et est enregistré dans le journal d'audit.",
     "quotationReasonRequired": "Ce montant diffère du total suggéré par la répartition des coûts — indiquez un motif avant d'envoyer.",
+    "notAuthorized": "Vous n'avez pas la permission d'effectuer cette action.",
     "accepting": "Acceptation…",
     "acceptQuotationOnBehalf": "Accepter le devis au nom du client",
     "releasedSeatHoldWarning": "Ceci provient d'une réservation de place relâchée — la disponibilité des places n'a pas été revérifiée automatiquement si le client accepte plus tard et procède au paiement.",

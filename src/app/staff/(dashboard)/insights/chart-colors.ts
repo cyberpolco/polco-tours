@@ -32,5 +32,7 @@ export const CHART_TRACK = '#E3D6C8'; // rule -- meter/donut "remaining" track
 export const CHART_MUTED_TEXT = '#8C7D78'; // mist
 
 export function categoricalColor(index: number): string {
-  return CHART_CATEGORICAL[index % CHART_CATEGORICAL.length];
+  // The modulo always lands in-bounds -- safe non-null assertion, same
+  // convention as itinerary/service.ts's dayStops[i]!.
+  return CHART_CATEGORICAL[index % CHART_CATEGORICAL.length]!;
 }
