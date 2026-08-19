@@ -17,10 +17,14 @@ import './globals.css';
 // "Text"-leaning instance), so a big hero headline never reaches the
 // dramatic Display cut the font is chosen for. With it, the browser's
 // default `font-optical-sizing: auto` picks a larger opsz automatically as
-// rendered font-size grows -- no extra CSS needed at any call site.
+// rendered font-size grows -- no extra CSS needed at any call site. next/font
+// only allows axes on a variable-weight font (weight: 'variable', not a
+// pinned list) -- same "weight controlled by each call site's own Tailwind
+// class, not pinned at load time" situation Fraunces was already in before
+// this font swap, so heading boldness is unaffected.
 const bigShouldersStencil = Big_Shoulders_Stencil({
   subsets: ['latin'],
-  weight: ['700', '900'],
+  weight: 'variable',
   axes: ['opsz'],
   variable: '--font-display',
 });
