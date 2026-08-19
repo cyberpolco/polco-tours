@@ -428,10 +428,9 @@ model CountryRegulation {
 // DB-backed (role, permission) grants, editable at runtime via
 // /staff/admin/permissions) is removed -- what each role grants is a
 // hardcoded, in-code map again (src/lib/rbac.ts's ROLE_PERMISSIONS).
-// NOTE: this is a destructive schema change against the shared Neon DB
-// (drops the role_permissions table) -- not yet applied live; needs
-// explicit confirmation before `db push`, same convention as every other
-// destructive change in this project's history.
+// Destructive schema change (dropped the role_permissions table, 108
+// pre-existing rows) applied by hand to the shared Neon DB with explicit
+// user confirmation, verified via `psql`.
 
 // ---------------------------------------------------------------- system
 // Append-only. INSERT/UPDATE/DELETE grants are locked down in rls.sql.

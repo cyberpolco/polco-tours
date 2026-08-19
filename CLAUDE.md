@@ -27,10 +27,11 @@ explicit decision to do so.
 > hardcoded, in-code map again (`src/lib/rbac.ts`'s `ROLE_PERMISSIONS`) —
 > `/staff/admin/permissions` (page, route, and every `RolePermission`-
 > backed method in `authService`/`authRepository`) is deleted outright,
-> and `RolePermission` itself is dropped from the schema (code-side only
-> so far — **not yet applied to the shared Neon DB**, same "explicit
-> confirmation before a destructive change" convention as every other
-> one). SUPERADMIN is unchanged: still the one hardcoded, unconditional
+> and `RolePermission` itself is dropped from the schema — **applied to
+> the shared Neon DB, verified via `psql`** (the `role_permissions` table,
+> 108 pre-existing rows, is gone; `to_regclass('public.role_permissions')`
+> now returns null), same "explicit confirmation before a destructive
+> change" convention as every other one. SUPERADMIN is unchanged: still the one hardcoded, unconditional
 > wildcard. Per the user's own per-item decisions: PLATFORM_ADMIN is
 > narrowed off `catalog.write`, `itinerary.approve`, `visa.process`,
 > `documents.read`/`.write`, `invoice.read`, `payment.initiate`/
