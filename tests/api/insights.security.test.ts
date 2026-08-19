@@ -134,3 +134,49 @@ describe('insights route -- cross-tenant isolation', () => {
     60_000,
   );
 });
+
+// DR-155: isInsightsViewer is a HARDCODED restriction beneath insights.read
+// (same layering as isBookingDeleter/isFleetDeleter/isVisaDeleter) -- a role
+// that holds insights.read via the runtime-editable permission matrix but
+// isn't SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN must still be denied. This
+// simulates exactly that ("what if an admin granted it anyway") by writing
+// directly to the global RolePermission table (no RLS, not org-scoped --
+// see prisma/schema.prisma), the same table the matrix editor itself
+// writes to.
+describe('insights route -- isInsightsViewer hardcoded gate', () => {
+  let visaFacilitatorOrgId: string;
+  let visaFacilitatorUserId: string;
+  let grantedRolePermission = false;
+
+  beforeAll(async () => {
+    const org = await admin.organization.create({ data: { name: `INSIGHTS-GATE-${suffix}`, countries: ['NA'], status: 'VERIFIED' } });
+    visaFacilitatorOrgId = org.id;
+    const user = await admin.user.create({
+      data: { email: `visa-facilitator-insights-gate-${suffix}@example.test`, role: 'VISA_FACILITATOR', organizationId: org.id },
+    });
+    visaFacilitatorUserId = user.id;
+    await admin.rolePermission.upsert({
+      where: { role_permission: { role: 'VISA_FACILITATOR', permission: 'insights.read' } },
+      create: { role: 'VISA_FACILITATOR', permission: 'insights.read' },
+      update: {},
+    });
+    grantedRolePermission = true;
+  });
+
+  afterAll(async () => {
+    if (grantedRolePermission) {
+      await admin.rolePermission.deleteMany({ where: { role: 'VISA_FACILITATOR', permission: 'insights.read' } });
+    }
+    if (visaFacilitatorOrgId) {
+      await admin.user.deleteMany({ where: { organizationId: visaFacilitatorOrgId } });
+      await admin.organization.delete({ where: { id: visaFacilitatorOrgId } });
+    }
+  });
+
+  it('VISA_FACILITATOR is still denied (403) even when granted insights.read directly', async () => {
+    const headers = await loginAs(visaFacilitatorUserId);
+    const req = new NextRequest('http://localhost/api/v1/insights', { headers });
+    const res = await getInsights(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+});

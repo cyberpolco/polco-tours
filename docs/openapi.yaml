@@ -2463,14 +2463,28 @@ paths:
 
   /insights:
     get:
-      summary: Read-only executive dashboard (insights.read)
+      summary: Live-polling executive dashboard (insights.read; DR-155 restricts further to SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN)
       description: >-
         Whole-org, no caller-supplied id -- same safe shape as /visa/queue
-        and /ratings. Composed entirely from existing booking/invoicing/
-        assignment/fleet/ratings/visa data; no new tables. Deliberately not
-        a real BI/analytics engine -- utilization figures are a simple
-        ratio, revenue is reported per currency (USD/EUR/NAD/CDF) and never
-        summed across currencies (no FX conversion anywhere in this app).
+        and /ratings. Composed from existing booking/invoicing/assignment/
+        fleet/ratings/visa/auth data plus the new analytics module (wizard-
+        step funnel); no query-time DB load beyond the existing composition
+        -- results are cached in Upstash Redis for 30s (DR-155), matching
+        the staff dashboard's own 30s poll interval. Deliberately not a
+        real BI/analytics engine -- utilization figures are a simple ratio,
+        revenue is reported per currency (USD/EUR/NAD/CDF) and never summed
+        across currencies (no FX conversion anywhere in this app).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: ISO datetime lower bound (inclusive). Omit for an unbounded/all-time start.
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: ISO datetime upper bound (inclusive). Omit for an unbounded/all-time end.
       responses:
         '200':
           description: OK
@@ -2788,7 +2802,7 @@ components:
       example: { USD: 150000, EUR: 20000 }
 
     DashboardSummary:
-      description: Insights & Decision Making (DR-038) executive dashboard.
+      description: Insights & Decision Making (DR-038; rebuilt DR-155) executive dashboard.
       type: object
       properties:
         bookings:
@@ -2809,6 +2823,86 @@ components:
               type: object
               additionalProperties: { $ref: '#/components/schemas/MoneyByCurrency' }
             outstanding: { $ref: '#/components/schemas/MoneyByCurrency' }
+            averageBookingValue: { $ref: '#/components/schemas/MoneyByCurrency' }
+            taxCollected: { $ref: '#/components/schemas/MoneyByCurrency' }
+            platformFeeCollected: { $ref: '#/components/schemas/MoneyByCurrency' }
+            totalDiscountGiven: { $ref: '#/components/schemas/MoneyByCurrency' }
+            couponRedemptionCount: { type: integer }
+            depositVsFullPaid:
+              type: object
+              properties:
+                depositPathCount: { type: integer }
+                fullPathCount: { type: integer }
+        guest:
+          type: object
+          description: DR-155.
+          properties:
+            newGuestCount: { type: integer }
+            returningGuestCount: { type: integer }
+            originSplit:
+              type: object
+              properties:
+                predefinedPackage: { type: integer }
+                tailorMade: { type: integer }
+            geography:
+              type: object
+              additionalProperties: { type: integer }
+              description: ISO-3166 alpha-2 -> booking count; PREDEFINED_PACKAGE bookings bucket under "NOT_COLLECTED" (Booking.countryOfResidence is TAILOR_MADE-only).
+            bookingStageFunnel:
+              type: array
+              items:
+                type: object
+                properties:
+                  stage: { type: string, enum: [AWAITING_QUOTATION, QUOTATION_SENT, CONFIRMED_OR_LATER] }
+                  count: { type: integer }
+            cancellationRate: { type: number, minimum: 0, maximum: 1 }
+        staff:
+          type: object
+          description: DR-155. Gated by the new staff_roster.read permission internally; degrades to zeros rather than failing the whole dashboard.
+          properties:
+            byRole:
+              type: object
+              additionalProperties: { type: integer }
+            activeCount: { type: integer }
+            deactivatedCount: { type: integer }
+            inactiveCount: { type: integer }
+            fleetAvailability:
+              type: object
+              properties:
+                vehicles: { type: object, additionalProperties: { type: integer } }
+                drivers: { type: object, additionalProperties: { type: integer } }
+                guides: { type: object, additionalProperties: { type: integer } }
+        wizardFunnel:
+          type: array
+          description: DR-155. Cumulative funnel over plan-my-trip's 9 wizard steps (analytics module).
+          items:
+            type: object
+            properties:
+              step: { type: integer }
+              label: { type: string }
+              reachedCount: { type: integer }
+        trends:
+          type: object
+          description: DR-155. Bucketed by day/week/month depending on the selected range's span.
+          properties:
+            granularity: { type: string, enum: [day, week, month] }
+            revenue:
+              type: array
+              items:
+                type: object
+                properties:
+                  currency: { type: string }
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        periodStart: { type: string, format: date }
+                        amountMinor: { type: integer }
+            bookings: { $ref: '#/components/schemas/TrendPointArray' }
+            visaApplications: { $ref: '#/components/schemas/TrendPointArray' }
+            newGuests: { $ref: '#/components/schemas/TrendPointArray' }
+        generatedAt: { type: string, format: date-time, description: DR-155. Powers the dashboard's "last updated" display. }
         operations:
           type: object
           properties:
@@ -2848,6 +2942,15 @@ components:
         name: { type: string }
         averageRating: { type: number, minimum: 1, maximum: 5 }
         ratingCount: { type: integer }
+
+    TrendPointArray:
+      type: array
+      description: DR-155.
+      items:
+        type: object
+        properties:
+          periodStart: { type: string, format: date }
+          value: { type: integer }
 
     Traveler:
       type: object

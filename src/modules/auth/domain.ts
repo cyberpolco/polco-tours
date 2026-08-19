@@ -47,6 +47,40 @@ export interface PublicUser {
   inactiveAt: Date | null; // DR-084: null = active, set = dormant (sign-in blocked until reactivated)
 }
 
+/** DR-155: an aggregate-only projection for the Insights dashboard's Staff
+ * stats section -- deliberately no individual email/phone/name, unlike
+ * PublicUser, since staff_roster.read is a narrower permission than
+ * admin.all (see rbac.ts's own comment on why). */
+export interface StaffRosterSummary {
+  byRole: Partial<Record<Role, number>>;
+  activeCount: number;
+  deactivatedCount: number; // deletedAt set, deletedPermanently false
+  inactiveCount: number; // DR-084 dormancy: inactiveAt set, deletedAt null
+}
+
+/** Pure aggregation -- takes just the roster (not raw Prisma rows) so this
+ * stays testable with plain fixture objects. A multi-role user is counted
+ * once per role they hold in byRole (so "5 DRIVER" + "3 TOUR_GUIDE" can
+ * overlap the same people), but exactly once in the active/deactivated/
+ * inactive headcount. */
+export function computeStaffRosterSummary(
+  users: Array<Pick<PublicUser, 'roles' | 'deletedAt' | 'inactiveAt'>>,
+): StaffRosterSummary {
+  const byRole: Partial<Record<Role, number>> = {};
+  let activeCount = 0;
+  let deactivatedCount = 0;
+  let inactiveCount = 0;
+  for (const u of users) {
+    for (const role of u.roles) {
+      byRole[role] = (byRole[role] ?? 0) + 1;
+    }
+    if (u.deletedAt) deactivatedCount++;
+    else if (u.inactiveAt) inactiveCount++;
+    else activeCount++;
+  }
+  return { byRole, activeCount, deactivatedCount, inactiveCount };
+}
+
 // E.164: optional leading +, 1-15 digits, first digit non-zero.
 const E164 = /^\+?[1-9]\d{6,14}$/;
 

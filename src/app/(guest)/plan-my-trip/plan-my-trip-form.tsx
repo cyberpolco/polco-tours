@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
@@ -13,7 +13,7 @@ import { StepIndicator } from '@/components/ui/StepIndicator';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { DESTINATION_SITES } from '@lib/destination-sites';
-import { createPlanMyTripRequestAction } from './actions';
+import { createPlanMyTripRequestAction, recordWizardStepAction } from './actions';
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
@@ -65,6 +65,12 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Best-effort wizard-step-abandonment tracking (DR-155) -- fire-and-forget,
+  // never awaited/surfaced, so a tracking hiccup can never affect the wizard.
+  useEffect(() => {
+    void recordWizardStepAction(step);
+  }, [step]);
 
   const [countries, setCountries] = useState<string[]>(initialDestination ? [initialDestination] : []);
   const [customTravelStart, setCustomTravelStart] = useState('');

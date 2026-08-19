@@ -40,6 +40,11 @@ const SCHEDULES = [
     path: '/api/jobs/sweep-fleet-cooldowns',
     cron: '0 * * * *', // hourly -- DR-107's 24h post-tour cooldown needs much tighter polling than the daily 60-day-inactivity sweep above
   },
+  {
+    scheduleId: 'polco-purge-wizard-progress',
+    path: '/api/jobs/purge-wizard-progress',
+    cron: '0 5 * * *', // once daily -- DR-155's 30-day wizard-progress-tracking retention window
+  },
 ];
 
 async function main() {

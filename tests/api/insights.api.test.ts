@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { testPackageReference } from '../helpers/package-reference';
 import { generateBookingReference } from '@modules/booking';
+import { GUEST_GEOGRAPHY_NOT_COLLECTED } from '@modules/insights';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getInsights } from '../../src/app/api/v1/insights/route';
@@ -247,6 +248,45 @@ describe('GET /api/v1/insights', () => {
 
       expect(summary.immigration.pendingVisas).toBe(0);
       expect(summary.immigration.approvedVisas).toBe(0);
+
+      // ---- DR-155 additions ----
+      // Invoice A (FULL, 100000) + Invoice B (DEPOSIT, 50000) both have a
+      // SUCCEEDED payment -- average totalMinor = (100000+50000)/2.
+      expect(summary.revenue.averageBookingValue.USD).toBe(75000);
+      expect(summary.revenue.depositVsFullPaid).toEqual({ depositPathCount: 1, fullPathCount: 1 });
+      expect(summary.revenue.taxCollected.USD).toBe(0); // both invoices have taxRateBp 0
+      expect(Object.keys(summary.revenue.platformFeeCollected)).toHaveLength(0); // platformFeeMinor unset on both
+      expect(summary.revenue.couponRedemptionCount).toBe(0);
+
+      // Bookings A+B are PREDEFINED_PACKAGE, C is TAILOR_MADE.
+      expect(summary.guest.originSplit).toEqual({ predefinedPackage: 2, tailorMade: 1 });
+      // None of the 3 fixture bookings set countryOfResidence (TAILOR_MADE-only field).
+      expect(summary.guest.geography[GUEST_GEOGRAPHY_NOT_COLLECTED]).toBe(3);
+      // tourist1 (A, B) and tourist2 (C) both have their earliest-ever
+      // booking inside this all-time range -- both read as "new."
+      expect(summary.guest.newGuestCount).toBe(2);
+      expect(summary.guest.returningGuestCount).toBe(0);
+      const funnelByStage = Object.fromEntries(summary.guest.bookingStageFunnel.map((s: { stage: string; count: number }) => [s.stage, s.count]));
+      expect(funnelByStage.AWAITING_QUOTATION).toBe(1); // booking C
+      expect(summary.guest.cancellationRate).toBe(0);
+
+      // No WizardProgressEvent rows exist for this fixture org.
+      expect(summary.wizardFunnel.every((s: { reachedCount: number }) => s.reachedCount === 0)).toBe(true);
+
+      // staff_roster.read is a brand-new permission (DR-155) -- its exact
+      // seed state in whichever DB this suite runs against isn't asserted
+      // here (see insightsService's own catch-and-zero fallback); just
+      // confirm the shape exists.
+      expect(typeof summary.staff.activeCount).toBe('number');
+
+      // Trends: all 3 bookings + both paid invoices were created together in
+      // this same beforeAll run, so an all-time (month-granularity) bucket
+      // collapses them into one point each.
+      expect(summary.trends.bookings.reduce((sum: number, p: { value: number }) => sum + p.value, 0)).toBe(3);
+      expect(summary.trends.visaApplications).toEqual([]);
+      const usdRevenueTrend = summary.trends.revenue.find((s: { currency: string }) => s.currency === 'USD');
+      expect(usdRevenueTrend?.points.reduce((sum: number, p: { amountMinor: number }) => sum + p.amountMinor, 0)).toBe(150000);
+      expect(summary.trends.newGuests.reduce((sum: number, p: { value: number }) => sum + p.value, 0)).toBe(2);
     },
     // insightsService deliberately serializes its composition (many small
     // sequential round trips rather than bursting concurrent `withOrg`

@@ -86,6 +86,13 @@ describe('DEFAULT_PERMISSIONS seed data', () => {
     expect(hasDefault('TOUR_OPERATOR', 'admin.all')).toBe(false);
   });
 
+  it('DR-155: TOUR_OPERATOR and PLATFORM_ADMIN get staff_roster.read (the Insights Staff-stats section) without needing admin.all', () => {
+    expect(hasDefault('TOUR_OPERATOR', 'staff_roster.read')).toBe(true);
+    expect(hasDefault('TOUR_OPERATOR', 'admin.all')).toBe(false);
+    expect(hasDefault('PLATFORM_ADMIN', 'staff_roster.read')).toBe(true);
+    expect(hasDefault('TOUR_GUIDE', 'staff_roster.read')).toBe(false);
+  });
+
   it('TOURIST cannot write catalog', () => {
     expect(hasDefault('TOURIST', 'catalog.write')).toBe(false);
     expect(hasDefault('TOURIST', 'booking.create')).toBe(true);

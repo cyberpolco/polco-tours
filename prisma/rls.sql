@@ -381,3 +381,12 @@ DROP POLICY IF EXISTS tenant_isolation ON booking_cost_line_items;
 CREATE POLICY tenant_isolation ON booking_cost_line_items
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
+-- ------------------------------------------------------ wizard_progress_events (DR-155)
+ALTER TABLE wizard_progress_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wizard_progress_events FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON wizard_progress_events;
+CREATE POLICY tenant_isolation ON wizard_progress_events
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);

@@ -130,7 +130,15 @@ export type Permission =
   // no-ctx public methods (getPublicSiteContent/listPublicFaqEntries),
   // mirroring catalogService.listPublicPackages.
   | 'content.read'
-  | 'content.write';
+  | 'content.write'
+  // Insights & Decision Making (DR-155): gates ONLY the new staff-headcount/
+  // roster-summary aggregate (authService.getStaffRosterSummary) --
+  // deliberately NOT `admin.all`, which also unlocks full user CRUD and the
+  // permissions-matrix editor. Lets TOUR_OPERATOR (who holds insights.read
+  // but not admin.all) see aggregate counts by role/status with no
+  // individual email/phone/PII exposed, without widening what they can do
+  // platform-wide.
+  | 'staff_roster.read';
 
 /** Runtime enumeration of every Permission literal -- powers the
  * permission-matrix editor's columns (DR-035). Keep in sync with the
@@ -178,6 +186,7 @@ export const ALL_PERMISSIONS = [
   'hotel_restaurant_rating.write',
   'content.read', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts (write) and the same hardcoded-role convention for read (explicit user choice)
   'content.write', // DR-071: never seeded to any role -- SUPERADMIN-only via requireContentWriter in content/service.ts, same layering as booking.delete/fleet.delete/country_regulation.write/finance_config.write/platform_settings.write
+  'staff_roster.read', // DR-155: seeded to PLATFORM_ADMIN + TOUR_OPERATOR below (SUPERADMIN implicit)
 ] as const satisfies readonly Permission[];
 
 export type RoleName =
@@ -242,6 +251,9 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'rating.issue',
     'rating.read',
     'insights.read',
+    // DR-155: also covered by admin.all above, but seeded explicitly for
+    // clarity -- see TOUR_OPERATOR's own comment on this permission below.
+    'staff_roster.read',
     // Finance Module (DR-039): read-only here even for PLATFORM_ADMIN --
     // finance_config.write is deliberately never seeded to any role (see
     // the Permission union's comment); only SUPERADMIN's hardcoded wildcard
@@ -294,6 +306,11 @@ export const DEFAULT_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permis
     'rating.read',
     // Insights & Decision Making (DR-038): the executive dashboard.
     'insights.read',
+    // DR-155: TOUR_OPERATOR doesn't hold admin.all (that would also unlock
+    // full user CRUD + the permissions-matrix editor -- far broader than
+    // "see a headcount stat"), so the new Staff-stats section on the
+    // Insights dashboard needs its own narrow permission instead.
+    'staff_roster.read',
     // Finance Module (DR-039): needs to view rates to build a package's
     // cost breakdown (financeService.saveCostBreakdown is gated
     // catalog.write, already held above) -- not finance_config.write,

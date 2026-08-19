@@ -216,6 +216,7 @@ model Organization {
   hotelRatings          HotelRating[]
   restaurantRatings     RestaurantRating[]
   packageItineraryDays  PackageItineraryDay[]
+  wizardProgressEvents  WizardProgressEvent[]
 
   @@map("organizations")
 }
@@ -2084,4 +2085,26 @@ model Verification {
 
   @@index([identifier])
   @@map("verifications")
+}
+
+// ---------------------------------------------------------- analytics (DR-155)
+// One row per anonymous plan-my-trip wizard session, tracking only the
+// highest step reached (0-8, see analytics/domain.ts's WIZARD_STEP_LABELS) --
+// no field values, no better-auth User/Session row. sessionToken is an opaque
+// id set in a cookie the moment the wizard loads (no account exists until the
+// final submit); rows older than 30 days are purged by a daily QStash job
+// (see api/jobs/purge-wizard-progress).
+model WizardProgressEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  sessionToken   String   @unique
+  highestStep    Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("wizard_progress_events")
 }

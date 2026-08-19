@@ -19,8 +19,122 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-154 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-154** (explicit user request, walked through several rounds
+> Current through DR-155 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-155** (explicit user request, discussed in depth first —
+> several rounds of clarifying questions before any code, given the
+> request's scope: "totally review Insights, live-updating dashboard
+> covering finance/guest/staff/visa stats") rebuilds `/staff/insights` in
+> place as a live-polling, richly-visualized executive dashboard.
+> **Live mechanism**: the client polls the existing `GET /api/v1/insights`
+> route every 30s; the route now also accepts an optional `?from=&to=`
+> date-range filter (`DateRange`, `null` on either side meaning unbounded/
+> all-time, matching the original snapshot when neither is given), and the
+> whole computed summary is cached in Upstash Redis for 30s
+> (`src/lib/cache.ts`, same env-gated graceful-degradation shape as
+> `rate-limit.ts` — always recomputes fresh when Redis isn't configured) so
+> N staff members with the dashboard open concurrently cost at most one
+> recompute per 30s window, not N. **Access restricted** beyond the
+> existing DB-editable `insights.read` permission to SUPERADMIN/
+> TOUR_OPERATOR/PLATFORM_ADMIN only via a new hardcoded `isInsightsViewer`
+> check (`insights/domain.ts`), same "hardcoded role check beneath the
+> permission gate" convention as `isBookingDeleter`/`isFleetDeleter`/
+> `isVisaDeleter` — the page itself redirects to `/staff/forbidden` on
+> failure (same convention as `admin/permissions/page.tsx`), while
+> `/api/v1/insights` 403s via the same check inside the service. **New
+> Staff-stats section**: headcount by role + active/deactivated/dormant
+> breakdown, via a new `authService.getStaffRosterSummary` gated by a
+> brand-new `staff_roster.read` permission (seeded to PLATFORM_ADMIN +
+> TOUR_OPERATOR) — deliberately NOT `admin.all` (confirmed with the user
+> first): TOUR_OPERATOR doesn't hold `admin.all`, and granting it just to
+> see a headcount stat would also unlock full user CRUD + the permissions
+> matrix, far beyond what this needed; `insightsService` degrades this one
+> section to zeros (never fails the whole dashboard) if the permission
+> isn't yet seeded live. Fleet availability (AVAILABLE/BOOKED/INACTIVE)
+> breakdown reuses data insights already fetches, no new query. **New
+> Guest-stats section**: new-vs-returning guests (by each tourist's
+> earliest-ever booking, not just ones inside the selected range),
+> PREDEFINED_PACKAGE-vs-TAILOR_MADE origin split, a TAILOR_MADE-only
+> booking-stage funnel (Awaiting Quotation → Quotation Sent →
+> Confirmed-or-later — an honest *current pipeline distribution*, not a
+> true historical funnel, since this app has no booking-status-transition-
+> history table) + cancellation/refund rate, and a guest geography
+> breakdown that surfaces a real, deliberately-not-papered-over data gap:
+> `Booking.countryOfResidence` only exists for a TAILOR_MADE booking, so a
+> PREDEFINED_PACKAGE booking's geography buckets under a new
+> `GUEST_GEOGRAPHY_NOT_COLLECTED` constant instead of being guessed at.
+> **New Finance-stats additions** (extending the existing Revenue section):
+> average booking value, tax/platform-fee collected, deposit-vs-full-paid
+> split (derived from each invoice's own `payments[]` `PaymentKind`, since
+> `Invoice` itself has no such flag), and total-discount-given +
+> coupon-redemption count — all derived from `InvoiceView`/`PaymentView`
+> fields insights already fetches (`invoicingService.listAllForOrg`),
+> needing **no new `insights -> settings` module dependency**.
+> **Genuinely new infrastructure — wizard-step-abandonment tracking**:
+> previously nothing was written to the DB until a guest's final "Request
+> quotation" submit on the 9-step `plan-my-trip` wizard; steps 0-7 were
+> pure client React state. Confirmed via explicit clarifying questions
+> before building (session-identification mechanism, what to record,
+> granularity, retention): a new `analytics` module (no `insights`-owned
+> table, following the `auth`-shape convention) owns a new tenant table,
+> `WizardProgressEvent` (RLS'd like every other tenant table), tracking
+> only the *highest step reached* per session (never actual field values,
+> and never lowered by a "Back" click — a raw parameterized `INSERT ... ON
+> CONFLICT ... DO UPDATE SET "highestStep" = GREATEST(...)` keeps this
+> race-free) — identified by a lightweight opaque cookie (`wizard_session`,
+> set client-side the moment the wizard loads) rather than establishing a
+> real better-auth anonymous session/User row (a materially heavier privacy
+> footprint the user explicitly rejected). `analyticsService
+> .recordWizardStep` is a public, no-`AuthContext` write (mirrors
+> `ratingsService.submitRating`'s shape exactly: resolves
+> `getPrimaryOrgId()`, never a caller-supplied org), rate-limited via a new,
+> more general `assertWriteNotRateLimited` (`src/lib/rate-limit.ts`,
+> extending the existing failure-gated `assertLookupNotRateLimited` with a
+> plain per-call-volume throttle instead, since a tracking write has no
+> pass/fail concept to gate on) and wrapped so any failure is silently
+> swallowed — this must never affect the wizard. Rows auto-purge after 30
+> days via a new QStash job, `/api/jobs/purge-wizard-progress` — **coded and
+> added to `scripts/register-qstash-schedule.ts`'s schedule list but not yet
+> registered against the live deployment**, same "not yet registered"
+> caveat as DR-107's fleet-cooldown sweep. New **`insights -> analytics`
+> module dependency** (confirmed acyclic: `analytics` imports nothing from
+> `insights`). **Trend charts** (revenue per-currency, bookings,
+> visa-application volume, new-guest signups) bucket already-fetched
+> timestamped rows by day/week/month, the bucket size chosen from the
+> selected date range's span (`chooseGranularity`) — no new queries, no
+> stored time-series table. **Visual design**: built per the `dataviz`
+> skill's form-then-color procedure using this app's own "Horizon"
+> design-system tokens (not a generic palette) — circular ring meters for
+> the three utilization percentages + conversion rate, donut charts for
+> part-to-whole breakdowns with enough categories to earn one (revenue by
+> country/package, staff headcount by role, guest geography), split-meter
+> bars (not 2-slice pies, per the skill's own guidance) for new-vs-
+> returning/origin splits, horizontal funnel bars for the two funnels, and
+> line/area trend charts with a hover crosshair+tooltip — all hand-rolled
+> inline SVG/CSS rather than a new charting dependency (this app's own
+> `@visx` family is still used only for the homepage map; no new package
+> was added). The categorical palette has **not yet been run through the
+> skill's `scripts/validate_palette.js` CVD/contrast validator** — flagged
+> as a follow-up, not silently skipped. This app has no dark theme anywhere,
+> so the charts don't attempt one either. New EN/FR message keys throughout
+> `StaffInsights`. No destructive schema change (the one new table,
+> `wizard_progress_events`, is purely additive) — **not yet applied to the
+> shared Neon DB as of this writing, needs explicit user confirmation
+> first**, same as the RLS policy and the `db:seed` re-run required to
+> actually grant `staff_roster.read` live. **Follow-up, same DR-155**:
+> explicit user request — "stats should start fresh with only current
+> figures" — added a fixed floor, `DASHBOARD_EPOCH` (`insights/domain.ts`,
+> the day this rebuild shipped), that every booking/invoice/visa
+> application must be created on or after to count in ANY computation this
+> dashboard does, even under "All time" (`clampRangeToEpoch` clamps the
+> resolved range's `from` up to the epoch before anything else runs, and
+> the three fetched arrays are filtered to epoch-onward once, immediately
+> after fetching, in `insightsService`). This is a display floor for this
+> one composition only — it never touches, hides, or deletes the
+> underlying rows anywhere else in the app (booking/invoice/visa-queue
+> pages are completely unaffected). The custom date-range inputs get a
+> matching `min` attribute so a user can't even try to pick an earlier
+> date, and the page shows an explicit "figures start from {date}" note.
+> **DR-154** (explicit user request, walked through several rounds
 > of clarifying questions before implementing) makes the visa workflow fully
 > operational end-to-end from the guest side, and retires a duplicate/
 > disconnected internal cost bucket for visa handling. `ImmigrationCostRate`
@@ -1279,6 +1393,7 @@ src/
     api/jobs/sweep-fleet-availability/ # DR-082: daily inactivity-sweep endpoint, same shape
     api/jobs/sweep-user-dormancy/ # DR-084: daily 30-day-no-login sweep endpoint, same shape
     api/jobs/sweep-fleet-cooldowns/ # DR-107: hourly post-tour-cooldown resync endpoint, same shape
+    api/jobs/purge-wizard-progress/ # DR-155: daily 30-day wizard-progress-tracking purge, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -1368,7 +1483,12 @@ src/
                    #   can hard-delete an individual Review (isRatingDeleter),
                    #   cascading its subject ratings and recomputing every
                    #   affected aggregate
-    insights/      # Read-only executive dashboard, no repository.ts (owns no table)
+    insights/      # Live-polling (30s), Redis-cached executive dashboard
+                   #   (DR-155), no repository.ts (owns no table) — composes
+                   #   booking/invoicing/assignment/fleet/ratings/visa/auth
+                   #   AND analytics (new dependency, confirmed acyclic).
+                   #   Restricted beyond insights.read to SUPERADMIN/
+                   #   TOUR_OPERATOR/PLATFORM_ADMIN via isInsightsViewer
     finance/       # Cost-plus pricing engine — 7 rate tables feed the cost
                    #   breakdown itself (StaffRate; HotelRate/ActivityFee
                    #   reference itinerary's Hotel/Activity by id, DR-116;
@@ -1430,6 +1550,13 @@ src/
                    #   no-ctx read path (mirrors content's public methods)
                    #   that degrades to null current/forecast on any
                    #   gateway failure rather than throwing
+    analytics/     # Plan-my-trip wizard-step-abandonment tracking (DR-155)
+                   #   — owns WizardProgressEvent (RLS'd tenant table,
+                   #   highest-step-reached only, no field values).
+                   #   recordWizardStep is a public, no-ctx write (mirrors
+                   #   ratings' submitRating shape) identified by a
+                   #   lightweight cookie, not a real better-auth session;
+                   #   purgeOldEvents backs the new daily QStash purge job
   middleware.ts    # trace id + locale
 prisma/
   schema.prisma        # data model
@@ -1472,7 +1599,11 @@ confirmed acyclic the same way: `finance` itself only imports
 Since DR-146, `settings` also depends on `finance` (so updating a TaxRate/
 PlatformRate can reapply every existing package/booking cost breakdown, same
 sweep DR-136 introduced for finance's own rate tables) — confirmed acyclic
-the same way: `finance` never imports `settings`.
+the same way: `finance` never imports `settings`. Since DR-155, `insights`
+also depends on `analytics` (to read the plan-my-trip wizard-step funnel) —
+confirmed acyclic: `analytics` imports nothing from `insights` (it has no
+module dependencies at all — its one public write, `recordWizardStep`, is
+called directly from a Server Action, not through another module's service).
 
 ---
 
@@ -1734,12 +1865,13 @@ visually coherent with the design package.
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
   re-running that script (idempotent — fixed `scheduleId`s update in place,
-  never duplicate). Four exist today: `/api/jobs/sweep-bookings` (every 15
+  never duplicate). Five exist today: `/api/jobs/sweep-bookings` (every 15
   minutes), `/api/jobs/sweep-fleet-availability` (DR-082, daily), and
   `/api/jobs/sweep-user-dormancy` (DR-084, daily) are registered and live;
-  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly) is coded and in the
+  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly) and
+  `/api/jobs/purge-wizard-progress` (DR-155, daily) are coded and in the
   script's schedule list but **not yet registered against the live
-  deployment** — run `npm run qstash:register-schedule` to activate it.
+  deployment** — run `npm run qstash:register-schedule` to activate them.
 
 ## Roadmap (not yet built)
 

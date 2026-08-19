@@ -1,12 +1,42 @@
 'use server';
 
+import { randomUUID } from 'crypto';
 import { cookies, headers } from 'next/headers';
+import { analyticsService } from '@modules/analytics';
 import { authService } from '@modules/auth';
 import { CreateTailorMadeInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { ApiError } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
 import { isStaffRole } from '@lib/rbac';
+
+const WIZARD_SESSION_COOKIE = 'wizard_session';
+
+/**
+ * Best-effort wizard-step-abandonment tracking (DR-155) -- fired on every
+ * step the guest lands on, fire-and-forget from the client. Deliberately
+ * never throws: this must never block or visibly affect the wizard. No
+ * account/session is created here -- just an opaque cookie id, distinct
+ * from better-auth's own session cookie.
+ */
+export async function recordWizardStepAction(step: number): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+    let sessionToken = cookieStore.get(WIZARD_SESSION_COOKIE)?.value;
+    if (!sessionToken) {
+      sessionToken = randomUUID();
+      cookieStore.set(WIZARD_SESSION_COOKIE, sessionToken, {
+        httpOnly: true,
+        maxAge: 60 * 60 * 24, // 1 day -- long enough to cover a single sitting through the wizard
+        path: '/',
+      });
+    }
+    const ip = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim();
+    await analyticsService.recordWizardStep({ sessionToken, step, ip });
+  } catch {
+    // Never surface a tracking failure to the guest.
+  }
+}
 
 export type CreatePlanMyTripResult = { bookingId: string } | { error: string };
 

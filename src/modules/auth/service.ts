@@ -6,8 +6,8 @@ import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
-import { isClientDirectoryViewer, isSuperAdmin } from './domain';
-import type { AuthContext, CreateUserInput, PublicUser, UpdateProfileInput, UpdateUserInput } from './domain';
+import { computeStaffRosterSummary, isClientDirectoryViewer, isSuperAdmin } from './domain';
+import type { AuthContext, CreateUserInput, PublicUser, StaffRosterSummary, UpdateProfileInput, UpdateUserInput } from './domain';
 
 export const authService = {
   async getUser(id: string): Promise<PublicUser | null> {
@@ -88,6 +88,18 @@ export const authService = {
     assertCan(ctx, 'admin.all');
     if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
     return authRepository.listStaff(ctx.organizationId);
+  },
+
+  /** DR-155: the Insights dashboard's Staff-stats section -- an aggregate-
+   * only projection (headcount by role, active/deactivated/dormant), gated
+   * by staff_roster.read rather than admin.all so TOUR_OPERATOR (which
+   * holds insights.read but not the much broader admin.all) can see it
+   * without also unlocking user CRUD/the permissions matrix. */
+  async getStaffRosterSummary(ctx: AuthContext): Promise<StaffRosterSummary> {
+    assertCan(ctx, 'staff_roster.read');
+    if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+    const staff = await authRepository.listStaff(ctx.organizationId);
+    return computeStaffRosterSummary(staff);
   },
 
   /** The "Clients" directory -- every bare/anonymous TOURIST contact record

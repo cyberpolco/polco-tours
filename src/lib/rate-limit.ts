@@ -15,7 +15,7 @@ import { Errors } from './errors';
  * pool, unlike ioredis), so there's no cost to this, and it lets tests
  * stub the env vars per case the same way the notification gateways do.
  */
-function getRedisClient(): Redis | null {
+export function getRedisClient(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   return url && token ? new Redis({ url, token }) : null;
@@ -79,6 +79,28 @@ export async function assertLookupNotRateLimited(params: LookupRateLimitParams):
     : await countRecentAuditEvents({ organizationId, action, ip, sinceMinutes: windowMinutes });
 
   if (recentFailures >= maxAttempts) {
+    throw Errors.rateLimited('Too many attempts -- try again later');
+  }
+}
+
+/**
+ * Throttles a public, no-session WRITE with no pass/fail concept of its own
+ * (e.g. wizard-step-progress tracking) -- unlike assertLookupNotRateLimited
+ * above, this increments on every call, not just failures, since there's no
+ * "wrong answer" to penalize. No-op (never blocks) when Upstash isn't
+ * configured -- this guards call volume, not a security-sensitive guessing
+ * surface like find-booking/rating-code, so degrading to "no limit" rather
+ * than falling back to an audit-log count is an acceptable trade-off.
+ */
+export async function assertWriteNotRateLimited(params: RecordLookupFailureParams & { maxAttempts: number }): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  const key = failureKey(params.organizationId, params.action, params.ip);
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, params.windowMinutes * 60);
+  }
+  if (count > params.maxAttempts) {
     throw Errors.rateLimited('Too many attempts -- try again later');
   }
 }
