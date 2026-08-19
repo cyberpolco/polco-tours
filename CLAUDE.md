@@ -33,9 +33,18 @@ explicit decision to do so.
 > already closed for Photographer/Videographer; `computeCostBuckets`/
 > `computeBaseCostMinor` now sum seven buckets, not eight. **Schema change
 > (drops the `immigration_cost_rates` table + two columns on both
-> cost-breakdown tables) — needs explicit user confirmation + a `psql`
-> zero-rows check before `db push`; not yet applied to the shared Neon DB as
-> of this writing.** Three new guest-safe `visaService` methods
+> cost-breakdown tables) applied by hand to the shared Neon DB** — verified
+> via `psql` first that zero `PackageCostBreakdown`/`BookingCostBreakdown`
+> rows had `requiresVisa = true` (the two `immigration_cost_rates` rows
+> themselves were unused config, safe to lose), then dropped via scoped raw
+> SQL rather than a blanket `db push` — a second, uncommitted, unrelated
+> feature (also self-labeled "DR-154": a `WizardProgressEvent`/analytics
+> table + `staff_roster.read` permission) was mid-flight in the same working
+> tree at the time, so `db push`'s file-on-disk diff would have picked up
+> its schema changes too. **DR number collision, not yet resolved**: that
+> other feature needs to renumber to DR-155 (or later) once it's committed,
+> since this DR-154 was committed and pushed to `main` first. Three new
+> guest-safe `visaService` methods
 > (`getApplicationForGuest`/`resubmitApplicationForGuest`/
 > `streamDocumentForGuest`) let the booking's tour lead (the only session
 > that can ever reach a booking's travelers at all) see a rejection reason,
@@ -209,13 +218,11 @@ explicit decision to do so.
 > `CreateStaffRateInput`'s `role` enum narrows to `DRIVER`/`GUIDE`; both cost
 > breakdown forms (package and booking) drop the two input fields, and their
 > now-orphaned EN/FR message keys are removed. **Schema change (drops two
-> `StaffRateRole` enum values + two `Int` columns) not yet applied to the
-> shared Neon DB as of this writing** — two real `StaffRate` rows (Namibia
-> `PHOTOGRAPHER`/`VIDEOGRAPHER`, $1,000/day NAD each, added 2026-08-15) exist
-> and must be deleted before the enum values can be dropped; zero
-> `PackageCostBreakdown`/`BookingCostBreakdown` rows have a nonzero value in
-> either column, so the column drop itself is lossless. Needs explicit user
-> confirmation before running `db push` (destructive, shared DB). Separately
+> `StaffRateRole` enum values + two `Int` columns) applied to the shared Neon
+> DB** — verified via `psql` (2026-08-19) that the live `StaffRateRole` enum
+> now has only `DRIVER`/`GUIDE` and neither cost-breakdown table has a
+> `photographerDays`/`videographerDays` column; the two blocking `StaffRate`
+> rows are gone. Separately
 > noted, not part of this change's scope: no `AddonRate` row exists yet for
 > `PHOTOGRAPHY`/`VIDEOGRAPHY` in any country, so per DR-128's "hide an add-on
 > with no rate configured for the booking's country" rule, both add-ons are
@@ -716,10 +723,10 @@ explicit decision to do so.
 > (`/api/v1/finance/rates/admin-cost` + `[id]`). No permission or
 > module-dependency change. **Schema change (new `AdminCostRate` table +
 > `adminDays`/`adminCostBasis` on `PackageCostBreakdown`/
-> `BookingCostBreakdown`) — not yet applied to the shared Neon DB as of this
-> writing; needs a `db push` (all-additive, no destructive step) before the
-> Operational Rates card or either cost-breakdown form's new section will
-> actually work end-to-end.** **DR-125** is two UX improvements, no schema/
+> `BookingCostBreakdown`) applied to the shared Neon DB** — verified via
+> `psql` (2026-08-19) that `admin_cost_rates` exists and both cost-breakdown
+> tables have the two columns; the Operational Rates card and both
+> cost-breakdown forms' Admin Costs sections work end-to-end. **DR-125** is two UX improvements, no schema/
 > permission change: the Sites list (`/staff/settings/sites`) gains an
 > Activities column (grouped from `itineraryService.listActivities` by
 > `siteId`, not a new `SiteView` field) plus the same search/filter/
