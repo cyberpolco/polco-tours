@@ -43,7 +43,7 @@ describe('analyticsRepository.upsertProgress', () => {
     await analyticsRepository.upsertProgress(orgId, sessionToken, 6);
     const steps = await withOrg(orgId, (tx) => tx.wizardProgressEvent.findMany({ where: { sessionToken } }));
     expect(steps).toHaveLength(1);
-    expect(steps[0].highestStep).toBe(6);
+    expect(steps[0]!.highestStep).toBe(6);
   });
 });
 
