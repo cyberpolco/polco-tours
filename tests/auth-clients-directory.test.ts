@@ -6,8 +6,9 @@ import { prisma } from '../src/lib/db';
 /**
  * Follow-up to DR-036: staff-created client contact records (bare TOURIST
  * users, never login-capable) get their own "Clients" directory
- * (SUPERADMIN/TOUR_OPERATOR-only), separate from the "Users" staff
- * management page -- neither should show the other's rows.
+ * (SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN, DR-159 added the last one),
+ * separate from the "Users" staff management page -- neither should show
+ * the other's rows.
  */
 const admin = new PrismaClient();
 
@@ -64,7 +65,16 @@ describe('authService.listClients / listUsers split', () => {
     expect(ids).not.toContain(touristId);
   });
 
-  it('listClients rejects a role that is neither SUPERADMIN nor TOUR_OPERATOR (PLATFORM_ADMIN included)', async () => {
-    await expect(authService.listClients(ctxFor(['PLATFORM_ADMIN']))).rejects.toThrow();
+  // DR-159: PLATFORM_ADMIN was added to isClientDirectoryViewer alongside
+  // SUPERADMIN/TOUR_OPERATOR -- explicit user request during the
+  // permission-system review.
+  it('listClients allows PLATFORM_ADMIN (DR-159)', async () => {
+    const clients = await authService.listClients(ctxFor(['PLATFORM_ADMIN']));
+    const ids = clients.map((c) => c.id);
+    expect(ids).toContain(touristId);
+  });
+
+  it('listClients rejects a role that is neither SUPERADMIN, TOUR_OPERATOR, nor PLATFORM_ADMIN', async () => {
+    await expect(authService.listClients(ctxFor(['TOUR_GUIDE']))).rejects.toThrow();
   });
 });
