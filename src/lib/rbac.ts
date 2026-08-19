@@ -147,9 +147,9 @@ export type RoleName =
  * write/process actions on Bookings (confirm handled separately, see
  * `isBookingConfirmer` in booking/domain.ts; cancel, documents, invoice,
  * payment), Packages (catalog.write), Itinerary approval, Visa processing,
- * and all of Finance Settings (finance_config.*/platform_settings.*, now
- * SUPERADMIN-only) -- TOUR_OPERATOR is the operational role for all of
- * those now.
+ * and all of Finance Settings (finance_config.* and platform_settings.*,
+ * now SUPERADMIN-only) -- TOUR_OPERATOR is the operational role for all
+ * of those now.
  */
 export const ROLE_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permission[]> = {
   PLATFORM_ADMIN: [
