@@ -139,6 +139,41 @@ export const documentsService = {
     return { body: downloaded.body, contentType: record.contentType, sizeBytes: record.sizeBytes };
   },
 
+  /** DR-154: same body as streamDocument, deliberately without the
+   * `documents.read` assertion -- for a guest ctx streaming their own
+   * traveler's granted visa document (TOURIST doesn't hold `documents.read`).
+   * Same "no assertCan, caller already gates it" convention as
+   * bookingService.getBookingForTraveler: the caller
+   * (visaService.streamDocumentForGuest) has already verified via its own
+   * ownership-checked findTraveler lookup that this ctx is allowed to see
+   * this exact document before calling here -- this method adds no new
+   * exposure, it's org-scoped the same as streamDocument. */
+  async streamDocumentForOwner(ctx: AuthContext, documentId: string): Promise<DocumentStream> {
+    const organizationId = requireOrg(ctx);
+
+    const record = await documentsRepository.findById(organizationId, documentId);
+    if (!record) throw Errors.notFound('Document not found');
+
+    let downloaded;
+    try {
+      downloaded = await blobGateway.download(record.blobPathname);
+    } catch (err) {
+      if (err instanceof BlobGatewayError) throw Errors.internal();
+      throw err;
+    }
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'document.accessed',
+      resourceType: 'Document',
+      resourceId: record.id,
+      organizationId,
+    });
+
+    return { body: downloaded.body, contentType: record.contentType, sizeBytes: record.sizeBytes };
+  },
+
   /** Lists compliance-document summaries for a vehicle/driver profile -- called by
    * the fleet module through this module's public interface (module boundary rule). */
   async listVehicleDocuments(ctx: AuthContext, vehicleId: string): Promise<DocumentSummary[]> {

@@ -12,12 +12,11 @@ import { GET as listRestaurantRates, POST as createRestaurantRate } from '../../
 import { GET as listTransportRates, POST as createTransportRate } from '../../src/app/api/v1/finance/rates/transport/route';
 import { GET as listFoodBeverageRates, POST as createFoodBeverageRate } from '../../src/app/api/v1/finance/rates/food-beverage/route';
 import { GET as listActivityFees, POST as createActivityFee } from '../../src/app/api/v1/finance/rates/activity/route';
-import { GET as listImmigrationCostRates, POST as createImmigrationCostRate } from '../../src/app/api/v1/finance/rates/immigration-cost/route';
 import { GET as listAdminCostRates, POST as createAdminCostRate } from '../../src/app/api/v1/finance/rates/admin-cost/route';
 import { GET as listAddonRates, POST as createAddonRate } from '../../src/app/api/v1/finance/rates/addon/route';
 
 /**
- * Finance Module (DR-039) -- Operational Rates CRUD. These eight tables are
+ * Finance Module (DR-039) -- Operational Rates CRUD. These seven tables are
  * platform-wide (no organizationId, no RLS, same precedent as TaxRate), so
  * fixtures only need a SUPERADMIN user, not an org -- but one is still
  * created for realism/consistency with the rest of this test suite.
@@ -84,7 +83,6 @@ afterAll(async () => {
   await admin.transportRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.foodBeverageRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
-  await admin.immigrationCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.adminCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.addonRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await withOrg(orgId, (tx) => tx.activity.deleteMany({ where: { organizationId: orgId } }));
@@ -245,22 +243,6 @@ describe('the other eight rate categories (smoke test)', () => {
     const listReq = new NextRequest('http://localhost/api/v1/finance/rates/activity', { headers });
     const listRes = await listActivityFees(listReq, { params: Promise.resolve({}) });
     expect((await listRes.json()).fees.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
-  });
-
-  it('creates and lists an immigration cost rate', async () => {
-    const headers = await loginAs(superadminId);
-    const createReq = jsonRequest('http://localhost/api/v1/finance/rates/immigration-cost', headers, 'POST', {
-      country: TEST_COUNTRY,
-      visaFeeMinor: 5000,
-      processingFeeMinor: 1000,
-      invitationLetterFeeMinor: 500,
-      borderPermitFeeMinor: 200,
-      currency: 'USD',
-    });
-    expect((await createImmigrationCostRate(createReq, { params: Promise.resolve({}) })).status).toBe(201);
-    const listReq = new NextRequest('http://localhost/api/v1/finance/rates/immigration-cost', { headers });
-    const listRes = await listImmigrationCostRates(listReq, { params: Promise.resolve({}) });
-    expect((await listRes.json()).rates.some((r: { country: string }) => r.country === TEST_COUNTRY)).toBe(true);
   });
 
   it('creates and lists an admin cost rate', async () => {

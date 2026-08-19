@@ -18,7 +18,6 @@ import {
   createAdminCostRateAction,
   createFoodBeverageRateAction,
   createHotelRateAction,
-  createImmigrationCostRateAction,
   createRestaurantRateAction,
   createStaffRateAction,
   createTransportRateAction,
@@ -27,7 +26,6 @@ import {
   deleteAdminCostRateAction,
   deleteFoodBeverageRateAction,
   deleteHotelRateAction,
-  deleteImmigrationCostRateAction,
   deleteRestaurantRateAction,
   deleteStaffRateAction,
   deleteTransportRateAction,
@@ -36,7 +34,6 @@ import {
   updateAdminCostRateAction,
   updateFoodBeverageRateAction,
   updateHotelRateAction,
-  updateImmigrationCostRateAction,
   updateRestaurantRateAction,
   updateStaffRateAction,
   updateTransportRateAction,
@@ -121,7 +118,7 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
   const tAddons = await getTranslations('TripAddons');
   const params = await searchParams;
 
-  const [staffRates, hotelRates, restaurantRates, transportRates, foodBeverageRates, activityFees, immigrationCostRates, adminCostRates, addonRates, hotels, restaurants, activities, sites] =
+  const [staffRates, hotelRates, restaurantRates, transportRates, foodBeverageRates, activityFees, adminCostRates, addonRates, hotels, restaurants, activities, sites] =
     await Promise.all([
       financeService.listStaffRates(ctx),
       financeService.listHotelRates(ctx),
@@ -129,7 +126,6 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
       financeService.listTransportRates(ctx),
       financeService.listFoodBeverageRates(ctx),
       financeService.listActivityFees(ctx),
-      financeService.listImmigrationCostRates(ctx),
       financeService.listAdminCostRates(ctx),
       financeService.listAddonRates(ctx),
       itineraryService.listHotels(ctx),
@@ -803,127 +799,6 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
           </form>
         )}
         {canWrite && activityOptions.length === 0 && <p className="mt-2 text-xs text-mist">{t('noActivitiesAvailable')}</p>}
-      </Card>
-
-      <Card>
-        <p className="eyebrow text-mist">{t('immigrationCosts')}</p>
-        {immigrationCostRates.length === 0 ? (
-          <p className="mt-2 text-sm text-mist">{t('noImmigrationCostRates')}</p>
-        ) : (
-          <Table className="mt-2">
-            <thead>
-              <TableHeaderRow>
-                <Th>{t('country')}</Th>
-                <Th>{t('visaFee')}</Th>
-                <Th>{t('processingFee')}</Th>
-                <Th>{t('invitationLetter')}</Th>
-                <Th>{t('borderPermit')}</Th>
-                <Th />
-              </TableHeaderRow>
-            </thead>
-            <tbody>
-              {immigrationCostRates.map((r) => (
-                <Tr key={r.id}>
-                  <Td>{tCountries(r.country)}</Td>
-                  <Td><span className="font-semibold text-navy">{format(money(r.visaFeeMinor, r.currency))}</span></Td>
-                  <Td><span className="font-semibold text-navy">{format(money(r.processingFeeMinor, r.currency))}</span></Td>
-                  <Td><span className="font-semibold text-navy">{format(money(r.invitationLetterFeeMinor, r.currency))}</span></Td>
-                  <Td><span className="font-semibold text-navy">{format(money(r.borderPermitFeeMinor, r.currency))}</span></Td>
-                  <Td>
-                    {canWrite && (
-                      <>
-                        <DeleteButton
-                          action={deleteImmigrationCostRateAction.bind(null, r.id)}
-                          removingLabel={t('removing')}
-                          removeConfirm={t('removeConfirm')}
-                          removeLabel={t('remove')}
-                        />
-                        <EditDisclosure label={t('edit')}>
-                          <form action={updateImmigrationCostRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
-                            <Select name="country" defaultValue={r.country} required className="text-sm">
-                              {countryOptions(tCountries)}
-                            </Select>
-                            <input
-                              name="visaFee"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              defaultValue={(r.visaFeeMinor / 100).toFixed(2)}
-                              required
-                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
-                            />
-                            <input
-                              name="processingFee"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              defaultValue={(r.processingFeeMinor / 100).toFixed(2)}
-                              required
-                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
-                            />
-                            <input
-                              name="invitationLetterFee"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              defaultValue={(r.invitationLetterFeeMinor / 100).toFixed(2)}
-                              required
-                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
-                            />
-                            <input
-                              name="borderPermitFee"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              defaultValue={(r.borderPermitFeeMinor / 100).toFixed(2)}
-                              required
-                              className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
-                            />
-                            <Select name="currency" defaultValue={r.currency} required className="text-sm">
-                              {CURRENCY_OPTIONS}
-                            </Select>
-                            <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
-                              {t('saveChanges')}
-                            </SubmitButton>
-                          </form>
-                        </EditDisclosure>
-                      </>
-                    )}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-        {canWrite && (
-          <form action={createImmigrationCostRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label={t('country')} htmlFor="country">
-              <Select name="country" required className="text-sm">
-                {countryOptions(tCountries)}
-              </Select>
-            </FormField>
-            <FormField label={t('visaFee')} htmlFor="visaFee">
-              <input name="visaFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('processingFee')} htmlFor="processingFee">
-              <input name="processingFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('invitationLetter')} htmlFor="invitationLetterFee">
-              <input name="invitationLetterFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('borderPermit')} htmlFor="borderPermitFee">
-              <input name="borderPermitFee" type="number" step="0.01" min="0" required className="w-24 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" defaultValue="NAD" required className="text-sm">
-                {CURRENCY_OPTIONS}
-              </Select>
-            </FormField>
-            <SubmitButton size="compact" pendingLabel={t('adding')}>
-              {t('add')}
-            </SubmitButton>
-          </form>
-        )}
       </Card>
 
       <Card>

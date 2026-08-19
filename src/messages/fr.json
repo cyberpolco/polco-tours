@@ -359,7 +359,11 @@
     "payDeposit": "Payer l'acompte",
     "payInFull": "Payer intégralement",
     "payBalance": "Payer le solde",
-    "starting": "Démarrage…"
+    "starting": "Démarrage…",
+    "visaApplication": "Demande de visa",
+    "visaInProgress": "Votre demande de visa est en cours.",
+    "visaNeedsAttention": "Une demande de visa nécessite votre attention.",
+    "viewVisaDetails": "Voir les détails"
   },
   "AddonsPage": {
     "backToBooking": "retour à votre réservation",
@@ -392,6 +396,17 @@
     "passportPdfLabel": "Passeport (PDF)",
     "uploading": "Téléchargement…",
     "uploadAndContinue": "Télécharger et continuer"
+  },
+  "BookingVisaPage": {
+    "backToBooking": "retour à votre réservation",
+    "eyebrow": "Demande de visa",
+    "title": "Vos demandes de visa",
+    "choosePdfFile": "Choisissez un fichier PDF à télécharger.",
+    "noApplicationsYet": "Aucune demande de visa pour l'instant -- revenez une fois votre passeport traité.",
+    "passportPdfLabel": "Nouveau passeport (PDF)",
+    "resubmitting": "Nouvelle soumission…",
+    "resubmit": "Téléverser et soumettre à nouveau",
+    "downloadVisa": "Télécharger votre visa"
   },
   "TravelersPage": {
     "backToAddons": "retour aux options",
@@ -776,10 +791,6 @@
     "perDay": "/jour",
     "transportDays": "Jours de transport",
     "activityFees": "Frais d'activités",
-    "immigrationVisaCosts": "Coûts d'immigration / visa",
-    "requiresVisaLabel": "Ce voyage nécessite un visa",
-    "immigrationCostRate": "Tarif de coût d'immigration",
-    "perPerson": "/personne",
     "adminCosts": "Frais administratifs",
     "adminDays": "Jours de frais administratifs",
     "adminCostBasisLabel": "Base de facturation",
@@ -1260,6 +1271,13 @@
     "sending": "Envoi…",
     "contact": "Contacter",
     "requestDocuments": "Demander des documents",
+    "approve": "Approuver",
+    "reject": "Rejeter",
+    "rejectionReasonPlaceholder": "Motif de rejet (si rejet)…",
+    "decide": "Décider",
+    "deciding": "Décision en cours…",
+    "uploadDocument": "Téléverser le document",
+    "uploading": "Téléversement…",
     "delete": "Supprimer",
     "deleting": "Suppression…",
     "deleteConfirm": "Supprimer définitivement cette demande de visa ? Cette action est irréversible."
@@ -1371,12 +1389,6 @@
     "fee": "Frais",
     "activityPlaceholder": "Rechercher une activité par nom…",
     "noActivitiesAvailable": "Aucune activité pour l'instant -- ajoutez-en une sous Paramètres > Sites d'abord.",
-    "immigrationCosts": "Coûts d'immigration",
-    "noImmigrationCostRates": "Aucun tarif de coût d'immigration pour l'instant.",
-    "visaFee": "Frais de visa",
-    "processingFee": "Frais de traitement",
-    "invitationLetter": "Lettre d'invitation",
-    "borderPermit": "Permis frontalier",
     "adminCosts": "Frais administratifs (par jour)",
     "adminCostsNotice": "Des frais administratifs forfaitaires par jour -- facturés une seule fois pour tout le groupe ou par voyageur, au choix lors de la configuration du calcul des coûts d'un circuit/réservation.",
     "noAdminCostRates": "Aucun frais administratif pour l'instant.",
@@ -1542,7 +1554,6 @@
     "backToPackage": "retour au circuit",
     "currentPricePerSeat": "Prix actuel par place",
     "referenceGroupSize": "Taille du groupe de référence",
-    "requiresVisaLabel": "Ce circuit nécessite un visa",
     "overrideNotice": "Laissez vide pour utiliser le prix calculé. Définir un remplacement nécessite un motif et est enregistré dans le journal d'audit.",
     "overridePricePerSeat": "Prix de remplacement par place"
   },

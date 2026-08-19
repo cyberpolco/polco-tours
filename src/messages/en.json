@@ -359,7 +359,11 @@
     "payDeposit": "Pay deposit",
     "payInFull": "Pay in full",
     "payBalance": "Pay balance",
-    "starting": "Starting…"
+    "starting": "Starting…",
+    "visaApplication": "Visa application",
+    "visaInProgress": "Your visa application is in progress.",
+    "visaNeedsAttention": "A visa application needs your attention.",
+    "viewVisaDetails": "View details"
   },
   "AddonsPage": {
     "backToBooking": "back to your booking",
@@ -392,6 +396,17 @@
     "passportPdfLabel": "Passport (PDF)",
     "uploading": "Uploading…",
     "uploadAndContinue": "Upload & continue"
+  },
+  "BookingVisaPage": {
+    "backToBooking": "back to your booking",
+    "eyebrow": "Visa application",
+    "title": "Your visa applications",
+    "choosePdfFile": "Choose a PDF file to upload.",
+    "noApplicationsYet": "No visa applications yet -- check back once your passport upload has been processed.",
+    "passportPdfLabel": "New passport (PDF)",
+    "resubmitting": "Resubmitting…",
+    "resubmit": "Upload & resubmit",
+    "downloadVisa": "Download your visa"
   },
   "TravelersPage": {
     "backToAddons": "back to add-ons",
@@ -776,10 +791,6 @@
     "perDay": "/day",
     "transportDays": "Transport days",
     "activityFees": "Activity Fees",
-    "immigrationVisaCosts": "Immigration / Visa Costs",
-    "requiresVisaLabel": "This trip requires a visa",
-    "immigrationCostRate": "Immigration cost rate",
-    "perPerson": "/person",
     "adminCosts": "Admin Costs",
     "adminDays": "Admin days",
     "adminCostBasisLabel": "Charge basis",
@@ -1260,6 +1271,13 @@
     "sending": "Sending…",
     "contact": "Contact",
     "requestDocuments": "Request documents",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectionReasonPlaceholder": "Rejection reason (if rejecting)…",
+    "decide": "Decide",
+    "deciding": "Deciding…",
+    "uploadDocument": "Upload document",
+    "uploading": "Uploading…",
     "delete": "Delete",
     "deleting": "Deleting…",
     "deleteConfirm": "Permanently delete this visa application? This cannot be undone."
@@ -1371,12 +1389,6 @@
     "fee": "Fee",
     "activityPlaceholder": "Search activities by name…",
     "noActivitiesAvailable": "No activities yet -- add one under Settings > Sites first.",
-    "immigrationCosts": "Immigration Costs",
-    "noImmigrationCostRates": "No immigration cost rates yet.",
-    "visaFee": "Visa fee",
-    "processingFee": "Processing fee",
-    "invitationLetter": "Invitation letter",
-    "borderPermit": "Border permit",
     "adminCosts": "Admin Costs (per-day overhead)",
     "adminCostsNotice": "A flat per-day administrative fee -- charged once for the whole group or per traveler, chosen per package/booking when its cost breakdown is set up.",
     "noAdminCostRates": "No admin cost rates yet.",
@@ -1542,7 +1554,6 @@
     "backToPackage": "back to package",
     "currentPricePerSeat": "Current price per seat",
     "referenceGroupSize": "Reference group size",
-    "requiresVisaLabel": "This package requires a visa",
     "overrideNotice": "Leave blank to use the computed price. Setting an override requires a reason and is recorded in the audit log.",
     "overridePricePerSeat": "Override price per seat"
   },

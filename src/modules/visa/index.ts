@@ -2,5 +2,5 @@
 export { visaService } from './service';
 export type { UploadVisaDocumentInput } from './service';
 export { ContactTravelerInput, DecideVisaInput } from './domain';
-export type { FacilitatorVisaView, PendingVisaApplicationView, VisaApplicationView } from './domain';
+export type { FacilitatorVisaView, GuestVisaApplicationView, PendingVisaApplicationView, VisaApplicationView } from './domain';
 export type { VisaStatus } from '@prisma/client';

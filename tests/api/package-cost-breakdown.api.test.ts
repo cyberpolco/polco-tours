@@ -182,7 +182,6 @@ describe('PUT /api/v1/catalog/packages/:packageId/cost-breakdown', () => {
         guideDays: 4,
         transportRateId,
         transportDays: 4,
-        requiresVisa: false,
         agencyMarginBp: 2000,
       });
       const res = await saveCostBreakdown(req, { params: Promise.resolve({ packageId: tourPackageId }) });
@@ -249,7 +248,6 @@ describe('PUT /api/v1/catalog/packages/:packageId/cost-breakdown', () => {
         guideDays: 4,
         transportRateId,
         transportDays: 4,
-        requiresVisa: false,
         agencyMarginBp: 2000,
         overridePriceMinor: 39999,
         overrideReason: 'Matching a competitor promotion',

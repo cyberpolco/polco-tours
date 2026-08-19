@@ -11,7 +11,14 @@ import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { VISA_STATUS_TONE } from '@lib/status-tones';
-import { contactTravelerAction, deleteApplicationAction, requestMissingDocumentsAction, startApplicationAction } from './actions';
+import {
+  contactTravelerAction,
+  decideApplicationAction,
+  deleteApplicationAction,
+  requestMissingDocumentsAction,
+  startApplicationAction,
+  uploadVisaDocumentAction,
+} from './actions';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -26,13 +33,13 @@ interface Props {
 // VISA_FACILITATOR's "My Schedule" (DR-031) -- whole-org queue, no country
 // scoping concept exists for this role. Now also reachable by TOUR_OPERATOR
 // (DR-034: "the Tour Operator is by default also a Visa Facilitator role").
-// Mostly read-only -- decide/resubmit/upload stay API-only (this page is the
-// discovery/overview surface the spec calls "immigration tasks / missing
-// documents / visa deadlines", not a new decision-making UI) -- except the
-// two DR-034 actions (contact traveller / request missing documents) and,
-// since DR-060, starting an application from the "Needs application"
-// section below. (IMMIGRATION_OFFICER and its own separate country-scoped
-// /staff/immigration page were removed entirely in DR-032.)
+// DR-060 added starting an application from the "Needs application" section
+// below; DR-154 closes the remaining "decide/resubmit/upload stay API-only"
+// gap -- a facilitator can now approve/reject an application and upload its
+// granted document directly from this table (resubmit is guest-initiated,
+// see the booking status page, not a staff action). (IMMIGRATION_OFFICER and
+// its own separate country-scoped /staff/immigration page were removed
+// entirely in DR-032.)
 export default async function VisaQueuePage({ searchParams }: Props) {
   const ctx = await requireStaffContext('visa.process');
   const canDelete = ctx.roles.includes('SUPERADMIN');
@@ -274,6 +281,28 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                             </SubmitButton>
                           </form>
                         )}
+                        {a.status === 'SUBMITTED' && (
+                          <form action={decideApplicationAction.bind(null, a.bookingId, a.travelerId)} className="flex flex-wrap items-center gap-2">
+                            <select name="outcome" required className="rounded-survey border border-rule px-2 py-1 text-xs">
+                              <option value="APPROVED">{t('approve')}</option>
+                              <option value="REJECTED">{t('reject')}</option>
+                            </select>
+                            <input
+                              name="reason"
+                              placeholder={t('rejectionReasonPlaceholder')}
+                              className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
+                            />
+                            <SubmitButton size="compact" pendingLabel={t('deciding')}>
+                              {t('decide')}
+                            </SubmitButton>
+                          </form>
+                        )}
+                        <form action={uploadVisaDocumentAction.bind(null, a.bookingId, a.travelerId)} className="flex items-center gap-2">
+                          <input type="file" name="document" required className="w-40 text-xs" />
+                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('uploading')}>
+                            {t('uploadDocument')}
+                          </SubmitButton>
+                        </form>
                       </div>
                     )}
                   </Td>

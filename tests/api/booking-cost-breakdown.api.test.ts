@@ -32,7 +32,7 @@ let predefinedBookingId: string; // origin PREDEFINED_PACKAGE
 let noCountryBookingId: string; // TAILOR_MADE but customCountry unset
 let unresolvedTemplateBookingId: string; // linked customized package's Day Template has a hotel with no effective HotelRate
 let transportRateId: string;
-let eurImmigrationRateId: string;
+let eurTransportRateId: string;
 
 function jsonRequest(url: string, headers: Headers, method: string, body?: unknown): NextRequest {
   const h = new Headers(headers);
@@ -61,18 +61,20 @@ beforeAll(async () => {
     admin.staffRate.create({ data: { country: TEST_COUNTRY, role: 'DRIVER', dailyRateMinor: 10000, currency: 'USD' } }),
     admin.staffRate.create({ data: { country: TEST_COUNTRY, role: 'GUIDE', dailyRateMinor: 8000, currency: 'USD' } }),
   ]);
-  const [transportRate, eurImmigrationRate] = await Promise.all([
+  const [transportRate, eurTransportRate] = await Promise.all([
     admin.transportRate.create({
       data: { country: TEST_COUNTRY, fuelEstimateMinor: 3000, tollFeesMinor: 500, parkingFeesMinor: 200, vehicleOperatingCostMinor: 1000, currency: 'USD' },
     }),
     // Deliberately a different currency than every other TEST_COUNTRY rate --
-    // fixture for the "resolved rates disagree in currency" 409 case.
-    admin.immigrationCostRate.create({
-      data: { country: TEST_COUNTRY, visaFeeMinor: 1000, processingFeeMinor: 0, invitationLetterFeeMinor: 0, borderPermitFeeMinor: 0, currency: 'EUR' },
+    // fixture for the "resolved rates disagree in currency" 409 case (DR-154:
+    // previously a differently-currencied ImmigrationCostRate, now retired --
+    // a second, EUR-priced TransportRate serves the same purpose).
+    admin.transportRate.create({
+      data: { country: TEST_COUNTRY, fuelEstimateMinor: 1000, tollFeesMinor: 0, parkingFeesMinor: 0, vehicleOperatingCostMinor: 0, currency: 'EUR' },
     }),
   ]);
   transportRateId = transportRate.id;
-  eurImmigrationRateId = eurImmigrationRate.id;
+  eurTransportRateId = eurTransportRate.id;
 
   // Entities are created in their own transaction, awaited to commit, before
   // any admin.*Rate.create() references them by id below -- admin is a
@@ -270,7 +272,6 @@ afterAll(async () => {
   await admin.restaurantRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.activityFee.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.transportRate.deleteMany({ where: { country: TEST_COUNTRY } });
-  await admin.immigrationCostRate.deleteMany({ where: { country: TEST_COUNTRY } });
   await admin.user.deleteMany({ where: { organizationId: orgId } });
   await admin.organization.delete({ where: { id: orgId } });
   await admin.$disconnect();
@@ -288,7 +289,6 @@ describe('PUT /api/v1/bookings/:bookingId/cost-breakdown', () => {
         guideDays: 4,
         transportRateId,
         transportDays: 4,
-        requiresVisa: false,
         agencyMarginBp: 2000,
       });
       const res = await saveCostBreakdown(req, { params: Promise.resolve({ bookingId }) });
@@ -342,7 +342,6 @@ describe('PUT /api/v1/bookings/:bookingId/cost-breakdown', () => {
         guideDays: 4,
         transportRateId,
         transportDays: 4,
-        requiresVisa: false,
         agencyMarginBp: 2000,
         overridePriceMinor: 199999,
         overrideReason: 'Matching a competitor promotion',
@@ -395,8 +394,8 @@ describe('PUT /api/v1/bookings/:bookingId/cost-breakdown', () => {
       nights: 1,
       driverDays: 1, // resolves the USD driver rate
       guideDays: 0,
-      requiresVisa: true,
-      immigrationCostRateId: eurImmigrationRateId, // EUR -- disagrees
+      transportRateId: eurTransportRateId, // EUR -- disagrees
+      transportDays: 1,
       agencyMarginBp: 0,
     });
     const res = await saveCostBreakdown(req, { params: Promise.resolve({ bookingId: noAddonsBookingId }) });

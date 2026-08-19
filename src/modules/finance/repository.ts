@@ -1,11 +1,10 @@
 // finance module — repository. The only place that touches
 // prisma.staffRate/hotelRate/transportRate/foodBeverageRate/activityFee/
-// immigrationCostRate/adminCostRate/addonRate/packageCostBreakdown/
-// packageCostLineItem for this module. The eight rate tables are
-// platform-wide (no organizationId, no RLS -- same precedent as TaxRate,
-// uses the plain global `prisma` client, no withOrg); the cost-breakdown
-// tables ARE org-scoped and go through withOrg like every other tenant
-// table.
+// adminCostRate/addonRate/packageCostBreakdown/packageCostLineItem for this
+// module. The seven rate tables are platform-wide (no organizationId, no
+// RLS -- same precedent as TaxRate, uses the plain global `prisma` client,
+// no withOrg); the cost-breakdown tables ARE org-scoped and go through
+// withOrg like every other tenant table.
 import type {
   ActivityFee,
   AddonRate,
@@ -15,7 +14,6 @@ import type {
   FoodBeverageCategory,
   FoodBeverageRate,
   HotelRate,
-  ImmigrationCostRate,
   PackageCostBreakdown,
   PackageCostLineItem,
   RestaurantRate,
@@ -35,13 +33,11 @@ import type {
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
-  CreateImmigrationCostRateInput,
   CreateRestaurantRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
   FoodBeverageRateView,
   HotelRateView,
-  ImmigrationCostRateView,
   PackageCostBreakdownView,
   PackageDrinkLineItemView,
   RestaurantRateView,
@@ -77,19 +73,6 @@ function toFoodBeverageRateView(r: FoodBeverageRate): FoodBeverageRateView {
 function toActivityFeeView(r: ActivityFee): ActivityFeeView {
   return { id: r.id, country: r.country, activityId: r.activityId, name: r.name, feeMinor: r.feeMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
-function toImmigrationCostRateView(r: ImmigrationCostRate): ImmigrationCostRateView {
-  return {
-    id: r.id,
-    country: r.country,
-    visaFeeMinor: r.visaFeeMinor,
-    processingFeeMinor: r.processingFeeMinor,
-    invitationLetterFeeMinor: r.invitationLetterFeeMinor,
-    borderPermitFeeMinor: r.borderPermitFeeMinor,
-    currency: r.currency,
-    validFrom: r.validFrom,
-    validTo: r.validTo,
-  };
-}
 function toAdminCostRateView(r: AdminCostRate): AdminCostRateView {
   return { id: r.id, country: r.country, dailyRateMinor: r.dailyRateMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
@@ -111,8 +94,6 @@ function toBreakdownView(b: PackageCostBreakdown & { lineItems: PackageCostLineI
     guideDays: b.guideDays,
     transportRateId: b.transportRateId,
     transportDays: b.transportDays,
-    requiresVisa: b.requiresVisa,
-    immigrationCostRateId: b.immigrationCostRateId,
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
@@ -149,8 +130,6 @@ function toBookingBreakdownView(b: BookingCostBreakdown & { lineItems: BookingCo
     guideDays: b.guideDays,
     transportRateId: b.transportRateId,
     transportDays: b.transportDays,
-    requiresVisa: b.requiresVisa,
-    immigrationCostRateId: b.immigrationCostRateId,
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
@@ -372,32 +351,6 @@ export const financeRepository = {
       orderBy: { validFrom: 'desc' },
     });
     return r ? toActivityFeeView(r) : null;
-  },
-
-  // -------------------------------------------------------- ImmigrationCostRate
-  async listImmigrationCostRates(): Promise<ImmigrationCostRateView[]> {
-    const rows = await prisma.immigrationCostRate.findMany({ orderBy: [{ country: 'asc' }, { validFrom: 'desc' }] });
-    return rows.map(toImmigrationCostRateView);
-  },
-  async createImmigrationCostRate(input: CreateImmigrationCostRateInput): Promise<ImmigrationCostRateView> {
-    const r = await prisma.immigrationCostRate.create({ data: input });
-    return toImmigrationCostRateView(r);
-  },
-  async updateImmigrationCostRate(id: string, input: CreateImmigrationCostRateInput): Promise<ImmigrationCostRateView | null> {
-    const existing = await prisma.immigrationCostRate.findUnique({ where: { id } });
-    if (!existing) return null;
-    const r = await prisma.immigrationCostRate.update({ where: { id }, data: input });
-    return toImmigrationCostRateView(r);
-  },
-  async deleteImmigrationCostRate(id: string): Promise<ImmigrationCostRateView | null> {
-    const existing = await prisma.immigrationCostRate.findUnique({ where: { id } });
-    if (!existing) return null;
-    await prisma.immigrationCostRate.delete({ where: { id } });
-    return toImmigrationCostRateView(existing);
-  },
-  async findImmigrationCostRateById(id: string): Promise<ImmigrationCostRateView | null> {
-    const r = await prisma.immigrationCostRate.findUnique({ where: { id } });
-    return r ? toImmigrationCostRateView(r) : null;
   },
 
   // -------------------------------------------------------------- AdminCostRate

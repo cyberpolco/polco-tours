@@ -9,7 +9,6 @@ import {
   CreateAdminCostRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
-  CreateImmigrationCostRateInput,
   CreateRestaurantRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
@@ -221,40 +220,6 @@ export async function updateActivityFeeAction(id: string, formData: FormData): P
 export async function deleteActivityFeeAction(id: string): Promise<void> {
   const ctx = await requireStaffContext('finance_config.write');
   await financeService.deleteActivityFee(ctx, id);
-  revalidatePath('/staff/finance/rates');
-}
-
-export async function createImmigrationCostRateAction(formData: FormData): Promise<void> {
-  const ctx = await requireStaffContext('finance_config.write');
-  const input = CreateImmigrationCostRateInput.parse({
-    country: String(formData.get('country') ?? ''),
-    visaFeeMinor: decimalToMinor(formData, 'visaFee'),
-    processingFeeMinor: decimalToMinor(formData, 'processingFee'),
-    invitationLetterFeeMinor: decimalToMinor(formData, 'invitationLetterFee'),
-    borderPermitFeeMinor: decimalToMinor(formData, 'borderPermitFee'),
-    currency: String(formData.get('currency') ?? ''),
-  });
-  await financeService.createImmigrationCostRate(ctx, input);
-  revalidatePath('/staff/finance/rates');
-}
-
-export async function updateImmigrationCostRateAction(id: string, formData: FormData): Promise<void> {
-  const ctx = await requireStaffContext('finance_config.write');
-  const input = CreateImmigrationCostRateInput.parse({
-    country: String(formData.get('country') ?? ''),
-    visaFeeMinor: decimalToMinor(formData, 'visaFee'),
-    processingFeeMinor: decimalToMinor(formData, 'processingFee'),
-    invitationLetterFeeMinor: decimalToMinor(formData, 'invitationLetterFee'),
-    borderPermitFeeMinor: decimalToMinor(formData, 'borderPermitFee'),
-    currency: String(formData.get('currency') ?? ''),
-  });
-  const { reapply } = await financeService.updateImmigrationCostRate(ctx, id, input);
-  redirect(reapplyRedirectUrl(reapply));
-}
-
-export async function deleteImmigrationCostRateAction(id: string): Promise<void> {
-  const ctx = await requireStaffContext('finance_config.write');
-  await financeService.deleteImmigrationCostRate(ctx, id);
   revalidatePath('/staff/finance/rates');
 }
 

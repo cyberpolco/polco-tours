@@ -38,13 +38,11 @@ import {
   type CreateAdminCostRateInput,
   type CreateFoodBeverageRateInput,
   type CreateHotelRateInput,
-  type CreateImmigrationCostRateInput,
   type CreateRestaurantRateInput,
   type CreateStaffRateInput,
   type CreateTransportRateInput,
   type FoodBeverageRateView,
   type HotelRateView,
-  type ImmigrationCostRateView,
   type PackageCostBreakdownView,
   type RestaurantRateView,
   type SaveBookingCostBreakdownInput,
@@ -95,7 +93,6 @@ interface ResolvedRates {
   driverRate: StaffRateView | null;
   guideRate: StaffRateView | null;
   transportRate: TransportRateView | null;
-  immigrationCostRate: ImmigrationCostRateView | null;
   adminCostRate: AdminCostRateView | null;
   drinkLineItems: ResolvedDrinkLineItem[];
   // DR-131: one resolved rate per Day Template day that has the
@@ -117,8 +114,6 @@ interface RateResolutionInput {
   driverDays: number;
   guideDays: number;
   transportRateId?: string;
-  requiresVisa: boolean;
-  immigrationCostRateId?: string;
   adminDays: number;
   drinkLineItems: Array<{ foodBeverageRateId: string; quantityPerPerson: number }>;
   // The package's (or, for a booking, its linked customized package's) own
@@ -139,8 +134,6 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
   ]);
 
   const transportRate = input.transportRateId ? await financeRepository.findTransportRateById(input.transportRateId) : null;
-  const immigrationCostRate =
-    input.requiresVisa && input.immigrationCostRateId ? await financeRepository.findImmigrationCostRateById(input.immigrationCostRateId) : null;
 
   const foodBeverageIds = input.drinkLineItems.map((li) => li.foodBeverageRateId);
   const foodBeverageRates = await financeRepository.findFoodBeverageRatesByIds(foodBeverageIds);
@@ -208,7 +201,6 @@ async function resolveRatesForCost(input: RateResolutionInput, now: Date): Promi
     driverRate,
     guideRate,
     transportRate,
-    immigrationCostRate,
     adminCostRate,
     drinkLineItems,
     accommodationDailyRatesMinor,
@@ -279,8 +271,6 @@ function toSaveCostBreakdownInput(b: PackageCostBreakdownView): SaveCostBreakdow
     guideDays: b.guideDays,
     transportRateId: b.transportRateId ?? undefined,
     transportDays: b.transportDays,
-    requiresVisa: b.requiresVisa,
-    immigrationCostRateId: b.immigrationCostRateId ?? undefined,
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
@@ -298,8 +288,6 @@ function toSaveBookingCostBreakdownInput(b: BookingCostBreakdownView): SaveBooki
     guideDays: b.guideDays,
     transportRateId: b.transportRateId ?? undefined,
     transportDays: b.transportDays,
-    requiresVisa: b.requiresVisa,
-    immigrationCostRateId: b.immigrationCostRateId ?? undefined,
     adminDays: b.adminDays,
     adminCostBasis: b.adminCostBasis,
     agencyMarginBp: b.agencyMarginBp,
@@ -489,32 +477,6 @@ export const financeService = {
     const deleted = await financeRepository.deleteActivityFee(id);
     if (!deleted) throw Errors.notFound('Activity fee not found');
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.activity_fee_deleted', resourceType: 'ActivityFee', resourceId: id });
-  },
-
-  // -------------------------------------------------------- ImmigrationCostRate
-  async listImmigrationCostRates(ctx: AuthContext): Promise<ImmigrationCostRateView[]> {
-    assertCan(ctx, 'finance_config.read');
-    return financeRepository.listImmigrationCostRates();
-  },
-  async createImmigrationCostRate(ctx: AuthContext, input: CreateImmigrationCostRateInput): Promise<ImmigrationCostRateView> {
-    requireRateWriter(ctx);
-    const rate = await financeRepository.createImmigrationCostRate(input);
-    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_created', resourceType: 'ImmigrationCostRate', resourceId: rate.id });
-    return rate;
-  },
-  async updateImmigrationCostRate(ctx: AuthContext, id: string, input: CreateImmigrationCostRateInput): Promise<{ rate: ImmigrationCostRateView; reapply: ReapplyRatesResult }> {
-    requireRateWriter(ctx);
-    const rate = await financeRepository.updateImmigrationCostRate(id, input);
-    if (!rate) throw Errors.notFound('Immigration cost rate not found');
-    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_updated', resourceType: 'ImmigrationCostRate', resourceId: id });
-    const reapply = await financeService.reapplyRatesToAllCostBreakdowns(ctx);
-    return { rate, reapply };
-  },
-  async deleteImmigrationCostRate(ctx: AuthContext, id: string): Promise<void> {
-    requireRateWriter(ctx);
-    const deleted = await financeRepository.deleteImmigrationCostRate(id);
-    if (!deleted) throw Errors.notFound('Immigration cost rate not found');
-    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.immigration_cost_rate_deleted', resourceType: 'ImmigrationCostRate', resourceId: id });
   },
 
   // -------------------------------------------------------------- AdminCostRate
@@ -866,7 +828,6 @@ export const financeService = {
       driverRate,
       guideRate,
       transportRate,
-      immigrationCostRate,
       adminCostRate,
       drinkLineItems: resolvedDrinkLineItems,
       accommodationDailyRatesMinor,
@@ -882,8 +843,6 @@ export const financeService = {
         driverDays: input.driverDays,
         guideDays: input.guideDays,
         transportRateId: input.transportRateId,
-        requiresVisa: input.requiresVisa,
-        immigrationCostRateId: input.immigrationCostRateId,
         adminDays: input.adminDays,
         drinkLineItems: input.drinkLineItems,
         templateDays,
@@ -894,7 +853,6 @@ export const financeService = {
     if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${pkg.country}`);
     if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${pkg.country}`);
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
-    if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
     if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${pkg.country}`);
     if (unresolvedHotelDayNumbers.length > 0) {
       throw Errors.conflict(`No effective hotel rate configured for the hotel assigned on day(s) ${unresolvedHotelDayNumbers.join(', ')}`);
@@ -932,15 +890,6 @@ export const financeService = {
             tollFeesMinor: transportRate.tollFeesMinor,
             parkingFeesMinor: transportRate.parkingFeesMinor,
             vehicleOperatingCostMinor: transportRate.vehicleOperatingCostMinor,
-          }
-        : null,
-      requiresVisa: input.requiresVisa,
-      immigrationCostRate: immigrationCostRate
-        ? {
-            visaFeeMinor: immigrationCostRate.visaFeeMinor,
-            processingFeeMinor: immigrationCostRate.processingFeeMinor,
-            invitationLetterFeeMinor: immigrationCostRate.invitationLetterFeeMinor,
-            borderPermitFeeMinor: immigrationCostRate.borderPermitFeeMinor,
           }
         : null,
       drinkLineItems,
@@ -993,8 +942,6 @@ export const financeService = {
         guideDays: input.guideDays,
         transportRateId: input.transportRateId ?? null,
         transportDays: input.transportDays,
-        requiresVisa: input.requiresVisa,
-        immigrationCostRateId: input.immigrationCostRateId ?? null,
         adminDays: input.adminDays,
         adminCostBasis: input.adminCostBasis,
         agencyMarginBp: input.agencyMarginBp,
@@ -1098,7 +1045,6 @@ export const financeService = {
       driverRate,
       guideRate,
       transportRate,
-      immigrationCostRate,
       adminCostRate,
       drinkLineItems: resolvedDrinkLineItems,
       accommodationDailyRatesMinor,
@@ -1114,8 +1060,6 @@ export const financeService = {
         driverDays: input.driverDays,
         guideDays: input.guideDays,
         transportRateId: input.transportRateId,
-        requiresVisa: input.requiresVisa,
-        immigrationCostRateId: input.immigrationCostRateId,
         adminDays: input.adminDays,
         drinkLineItems: input.drinkLineItems,
         templateDays,
@@ -1126,7 +1070,6 @@ export const financeService = {
     if (input.driverDays > 0 && !driverRate) throw Errors.conflict(`No effective driver rate configured for ${country}`);
     if (input.guideDays > 0 && !guideRate) throw Errors.conflict(`No effective guide rate configured for ${country}`);
     if (input.transportRateId && !transportRate) throw Errors.notFound('Transport rate not found');
-    if (input.requiresVisa && input.immigrationCostRateId && !immigrationCostRate) throw Errors.notFound('Immigration cost rate not found');
     if (input.adminDays > 0 && !adminCostRate) throw Errors.conflict(`No effective admin cost rate configured for ${country}`);
     if (unresolvedHotelDayNumbers.length > 0) {
       throw Errors.conflict(`No effective hotel rate configured for the hotel assigned on day(s) ${unresolvedHotelDayNumbers.join(', ')}`);
@@ -1151,7 +1094,6 @@ export const financeService = {
       driverRate?.currency,
       guideRate?.currency,
       transportRate?.currency,
-      immigrationCostRate?.currency,
       adminCostRate?.currency,
       ...resolvedDrinkLineItems.map((li) => li.currency ?? undefined),
       ...templateCurrencies,
@@ -1196,15 +1138,6 @@ export const financeService = {
             vehicleOperatingCostMinor: transportRate.vehicleOperatingCostMinor,
           }
         : null,
-      requiresVisa: input.requiresVisa,
-      immigrationCostRate: immigrationCostRate
-        ? {
-            visaFeeMinor: immigrationCostRate.visaFeeMinor,
-            processingFeeMinor: immigrationCostRate.processingFeeMinor,
-            invitationLetterFeeMinor: immigrationCostRate.invitationLetterFeeMinor,
-            borderPermitFeeMinor: immigrationCostRate.borderPermitFeeMinor,
-          }
-        : null,
       drinkLineItems,
       adminDays: input.adminDays,
       adminDailyRateMinor: adminCostRate?.dailyRateMinor ?? null,
@@ -1225,8 +1158,6 @@ export const financeService = {
         guideDays: input.guideDays,
         transportRateId: input.transportRateId ?? null,
         transportDays: input.transportDays,
-        requiresVisa: input.requiresVisa,
-        immigrationCostRateId: input.immigrationCostRateId ?? null,
         adminDays: input.adminDays,
         adminCostBasis: input.adminCostBasis,
         agencyMarginBp: input.agencyMarginBp,

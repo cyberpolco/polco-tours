@@ -19,8 +19,39 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-153 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-153** (explicit user request) removes the generic "Back"
+> Current through DR-154 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-154** (explicit user request, walked through several rounds
+> of clarifying questions before implementing) makes the visa workflow fully
+> operational end-to-end from the guest side, and retires a duplicate/
+> disconnected internal cost bucket for visa handling. `ImmigrationCostRate`
+> (the 4-fee staff-only cost-plus bucket, `requiresVisa`/
+> `immigrationCostRateId` on both `PackageCostBreakdown`/
+> `BookingCostBreakdown`) is removed entirely — it had nothing to do with
+> whether a guest actually bought the guest-facing "Visa Assistance"
+> `AddonService` (priced via `AddonRate`, DR-128, already additive to the
+> invoice total), the same base-inclusion/add-on-purchase duplication DR-147
+> already closed for Photographer/Videographer; `computeCostBuckets`/
+> `computeBaseCostMinor` now sum seven buckets, not eight. **Schema change
+> (drops the `immigration_cost_rates` table + two columns on both
+> cost-breakdown tables) — needs explicit user confirmation + a `psql`
+> zero-rows check before `db push`; not yet applied to the shared Neon DB as
+> of this writing.** Three new guest-safe `visaService` methods
+> (`getApplicationForGuest`/`resubmitApplicationForGuest`/
+> `streamDocumentForGuest`) let the booking's tour lead (the only session
+> that can ever reach a booking's travelers at all) see a rejection reason,
+> re-upload a passport and resubmit, or download an approved visa document
+> from a new `/booking/[bookingId]/visa` guest page and a new guest-only
+> download route — all deliberately without the staff `visa.process`/
+> `documents.read` permission assertions (TOURIST holds neither), relying
+> instead on the existing `findTraveler` → `bookingService.listTravelers`
+> ownership check for anti-BOLA, same "caller-context already gates it"
+> convention as `autoSubmitOnPassportUpload`. Two new notification events,
+> `VISA_APPROVED`/`VISA_REJECTED`, fire from `decideApplication`. Staff can
+> now approve/reject an application and upload its granted document directly
+> from `/staff/visa-queue` (new `decideApplicationAction`/
+> `uploadVisaDocumentAction`), closing that page's own former "decide/
+> resubmit/upload stay API-only" scope note. No new permission — every new
+> capability rides on an existing permission or ownership check. **DR-153** (explicit user request) removes the generic "Back"
 > browser-history button (`back-button.tsx`, rendered on every staff
 > dashboard page via `layout.tsx`) — redundant on any page that already had
 > its own page-specific "back to X" `BackLink`, and less predictable
@@ -1295,7 +1326,17 @@ src/
     visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
                    #   SUPERADMIN can hard-delete an application
                    #   (isVisaDeleter), and deleteForBooking cascades that
-                   #   delete when the traveler's booking is deleted
+                   #   delete when the traveler's booking is deleted. DR-154:
+                   #   staff can now approve/reject + upload the granted
+                   #   document from /staff/visa-queue (previously API-only),
+                   #   and three new guest-safe methods
+                   #   (getApplicationForGuest/resubmitApplicationForGuest/
+                   #   streamDocumentForGuest) back the guest's own
+                   #   /booking/[bookingId]/visa page (view status/rejection
+                   #   reason, re-upload + resubmit, download once approved)
+                   #   — no new permission, anti-BOLA via the existing
+                   #   findTraveler/bookingService.listTravelers ownership
+                   #   check, same convention as autoSubmitOnPassportUpload
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -1321,19 +1362,26 @@ src/
                    #   cascading its subject ratings and recomputing every
                    #   affected aggregate
     insights/      # Read-only executive dashboard, no repository.ts (owns no table)
-    finance/       # Cost-plus pricing engine — 9 rate tables feeding the
-                   #   cost breakdown itself (HotelRate/ActivityFee reference
-                   #   itinerary's Hotel/Activity by id, DR-116; AdminCostRate,
-                   #   DR-126, is the 7th; RestaurantRate, DR-132, referencing
-                   #   itinerary's Restaurant by id, is the 9th) + an 8th,
-                   #   AddonRate (DR-128, prices catalog's AddonService by
-                   #   country+code, resolved via src/lib/addon-rates.ts, not
-                   #   computeBaseCostMinor) + PackageCostBreakdown
-                   #   (TourPackage) / BookingCostBreakdown (TAILOR_MADE
-                   #   Booking, DR-092) — DR-132: Accommodation/Restaurant/
-                   #   Activity buckets on both are derived automatically
-                   #   from the package's own Day Template, not staff-picked,
-                   #   sharing one resolveRatesForCost helper +
+    finance/       # Cost-plus pricing engine — 7 rate tables feed the cost
+                   #   breakdown itself (StaffRate; HotelRate/ActivityFee
+                   #   reference itinerary's Hotel/Activity by id, DR-116;
+                   #   TransportRate; FoodBeverageRate; AdminCostRate, DR-126;
+                   #   RestaurantRate, DR-132, referencing itinerary's
+                   #   Restaurant by id) + AddonRate (DR-128, prices catalog's
+                   #   AddonService by country+code, resolved via
+                   #   src/lib/addon-rates.ts, not computeBaseCostMinor, so
+                   #   it's a separate concept, not an 8th bucket) +
+                   #   PackageCostBreakdown (TourPackage) / BookingCostBreakdown
+                   #   (TAILOR_MADE Booking, DR-092) — DR-132: Accommodation/
+                   #   Restaurant/Activity buckets on both are derived
+                   #   automatically from the package's own Day Template, not
+                   #   staff-picked, sharing one resolveRatesForCost helper.
+                   #   DR-154 removed the 8th rate table, ImmigrationCostRate
+                   #   (requiresVisa/immigrationCostRateId on both breakdown
+                   #   tables) — visa cost is priced as a guest-facing
+                   #   AddonService VISA_ASSISTANCE purchase (AddonRate)
+                   #   instead, not a cost-plus bucket, same fix DR-147
+                   #   already applied to Photographer/Videographer +
                    #   package-summary-pdf.tsx (DR-135: staff "download
                    #   summary PDF" on the package detail page, EN/FR,
                    #   @react-pdf/renderer mirroring itinerary/map-pdf.tsx;
@@ -1345,7 +1393,7 @@ src/
                    #   package's own name + reference) —
                    #   DR-136: every rate table (Add-on Rate included) can
                    #   now be updated in place, not just deleted; updating
-                   #   any of the 8 cost-plus rates triggers
+                   #   any of the 7 cost-plus rates triggers
                    #   reapplyRatesToAllCostBreakdowns, which replays every
                    #   existing package/tailor-made-booking cost breakdown
                    #   through saveCostBreakdown/saveBookingCostBreakdown so

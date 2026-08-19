@@ -2,13 +2,17 @@
 // Finance Module (DR-039) -- a cost-plus pricing engine replacing
 // TourPackage.priceMinor as a plain staff-typed number. Seven platform-wide,
 // effective-dated rate tables (mirrors TaxRate's precedent exactly; DR-126
-// added the seventh, AdminCostRate) feed the per-package/booking cost
-// breakdown itself; "seasonal pricing" is expressed as overlapping
-// date-ranged rows, no separate season concept. DR-128 adds an eighth,
-// AddonRate -- a separate concept (prices catalog's AddonService add-ons,
-// not a cost-breakdown bucket), managed on the same Operational Rates page
-// for consistency but resolved via src/lib/addon-rates.ts, not
-// computeBaseCostMinor.
+// added AdminCostRate) feed the per-package/booking cost breakdown itself
+// (StaffRate/HotelRate/RestaurantRate/TransportRate/FoodBeverageRate/
+// ActivityFee/AdminCostRate); "seasonal pricing" is expressed as overlapping
+// date-ranged rows, no separate season concept. DR-154 removed the eighth,
+// ImmigrationCostRate -- visa cost is priced as a guest-facing AddonService
+// VISA_ASSISTANCE purchase (AddonRate) instead, not a cost-plus bucket line
+// item (same fix DR-147 already applied to Photographer/Videographer).
+// DR-128 adds AddonRate itself -- a separate concept (prices catalog's
+// AddonService add-ons, not a cost-breakdown bucket), managed on the same
+// Operational Rates page for consistency but resolved via
+// src/lib/addon-rates.ts, not computeBaseCostMinor.
 import type { AddonCode, Currency, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
 import { z } from 'zod';
 
@@ -82,18 +86,6 @@ export interface ActivityFeeView {
   activityId: string | null;
   name: string;
   feeMinor: number;
-  currency: Currency;
-  validFrom: Date;
-  validTo: Date | null;
-}
-
-export interface ImmigrationCostRateView {
-  id: string;
-  country: string;
-  visaFeeMinor: number;
-  processingFeeMinor: number;
-  invitationLetterFeeMinor: number;
-  borderPermitFeeMinor: number;
   currency: Currency;
   validFrom: Date;
   validTo: Date | null;
@@ -199,17 +191,6 @@ export const CreateActivityFeeInput = z.object({
 });
 export type CreateActivityFeeInput = z.infer<typeof CreateActivityFeeInput>;
 
-export const CreateImmigrationCostRateInput = z.object({
-  country: z.string().length(2),
-  visaFeeMinor: z.number().int().nonnegative(),
-  processingFeeMinor: z.number().int().nonnegative(),
-  invitationLetterFeeMinor: z.number().int().nonnegative(),
-  borderPermitFeeMinor: z.number().int().nonnegative(),
-  currency: CURRENCY_ENUM,
-  ...EFFECTIVE_DATING,
-});
-export type CreateImmigrationCostRateInput = z.infer<typeof CreateImmigrationCostRateInput>;
-
 export const CreateAdminCostRateInput = z.object({
   country: z.string().length(2),
   dailyRateMinor: z.number().int().nonnegative(),
@@ -250,15 +231,13 @@ export interface PackageCostBreakdownView {
   guideDays: number;
   transportRateId: string | null;
   transportDays: number;
-  requiresVisa: boolean;
-  immigrationCostRateId: string | null;
   adminDays: number;
   adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
   // DR-131: read-only snapshots of the three Day-Template-derived buckets,
   // for display -- not independently settable; computedBaseCostMinor is
   // still the sum of record (accommodation + restaurant + activities +
-  // transport + staff + drinks + visa + admin).
+  // transport + staff + drinks + admin -- DR-154 removed the visa bucket).
   computedAccommodationMinor: number | null;
   computedRestaurantMinor: number | null;
   computedActivitiesMinor: number | null;
@@ -307,8 +286,6 @@ export const SaveCostBreakdownInput = z
     guideDays: z.number().int().nonnegative(),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
-    requiresVisa: z.boolean().default(false),
-    immigrationCostRateId: z.string().uuid().optional(),
     adminDays: z.number().int().nonnegative().default(0),
     adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),
@@ -346,13 +323,6 @@ export interface CostInputs {
     parkingFeesMinor: number;
     vehicleOperatingCostMinor: number;
   } | null;
-  requiresVisa: boolean;
-  immigrationCostRate: {
-    visaFeeMinor: number;
-    processingFeeMinor: number;
-    invitationLetterFeeMinor: number;
-    borderPermitFeeMinor: number;
-  } | null;
   // Drinks only now (beyond-base FoodBeverageRate categories) -- activities
   // moved to activityFeesMinor above. Already resolved to a flat
   // perUnitMinor by the caller.
@@ -370,7 +340,6 @@ export interface CostBuckets {
   restaurantMinor: number;
   activitiesMinor: number;
   drinksMinor: number;
-  visaMinor: number;
   adminMinor: number;
 }
 
@@ -380,12 +349,14 @@ export interface CostBuckets {
  * Staff/transport/accommodation/restaurant/activities are all "shared, not
  * per-seat" in the sense that they're computed once for the trip -- but
  * unlike staff/transport (genuinely whole-group: days*rate), accommodation/
- * restaurant/activities/drinks/visa are per-traveler and scaled by
- * referenceGroupSize (DR-131: previously only drinks/activities/restaurant/
- * visa were; accommodation used to be a whole-group roomsNeeded figure).
- * Admin cost is whichever of the two the caller chose (adminCostBasis):
- * PER_GROUP behaves like staff/transport (charged once), PER_PERSON behaves
- * like the per-traveler buckets (scaled by referenceGroupSize). */
+ * restaurant/activities/drinks are per-traveler and scaled by
+ * referenceGroupSize (DR-131: previously only drinks/activities/restaurant
+ * were; accommodation used to be a whole-group roomsNeeded figure). DR-154
+ * removed the visa bucket entirely -- see ImmigrationCostRate's removal note
+ * in schema.prisma. Admin cost is whichever of the two the caller chose
+ * (adminCostBasis): PER_GROUP behaves like staff/transport (charged once),
+ * PER_PERSON behaves like the per-traveler buckets (scaled by
+ * referenceGroupSize). */
 export function computeCostBuckets(inputs: CostInputs): CostBuckets {
   const accommodationMinor = inputs.accommodationDailyRatesMinor.reduce((s, x) => s + x, 0) * inputs.referenceGroupSize;
 
@@ -406,26 +377,17 @@ export function computeCostBuckets(inputs: CostInputs): CostBuckets {
   const drinksMinor =
     inputs.drinkLineItems.reduce((sum, li) => sum + li.perUnitMinor * li.quantityPerPerson, 0) * inputs.referenceGroupSize;
 
-  const visaMinor =
-    inputs.requiresVisa && inputs.immigrationCostRate
-      ? (inputs.immigrationCostRate.visaFeeMinor +
-          inputs.immigrationCostRate.processingFeeMinor +
-          inputs.immigrationCostRate.invitationLetterFeeMinor +
-          inputs.immigrationCostRate.borderPermitFeeMinor) *
-        inputs.referenceGroupSize
-      : 0;
-
   const adminMinor =
     (inputs.adminDailyRateMinor ?? 0) * inputs.adminDays * (inputs.adminCostBasis === 'PER_PERSON' ? inputs.referenceGroupSize : 1);
 
-  return { accommodationMinor, transportMinor, staffMinor, restaurantMinor, activitiesMinor, drinksMinor, visaMinor, adminMinor };
+  return { accommodationMinor, transportMinor, staffMinor, restaurantMinor, activitiesMinor, drinksMinor, adminMinor };
 }
 
-/** Sums all eight buckets for the departure's FULL reference group (not per
+/** Sums all seven buckets for the departure's FULL reference group (not per
  * seat) -- see computeCostBuckets for how each one is derived. */
 export function computeBaseCostMinor(inputs: CostInputs): number {
   const b = computeCostBuckets(inputs);
-  return Math.round(b.accommodationMinor + b.transportMinor + b.staffMinor + b.restaurantMinor + b.activitiesMinor + b.drinksMinor + b.visaMinor + b.adminMinor);
+  return Math.round(b.accommodationMinor + b.transportMinor + b.staffMinor + b.restaurantMinor + b.activitiesMinor + b.drinksMinor + b.adminMinor);
 }
 
 /** Base Cost + Agency Margin = Selling Price, for the full reference group. */
@@ -471,8 +433,6 @@ export interface BookingCostBreakdownView {
   guideDays: number;
   transportRateId: string | null;
   transportDays: number;
-  requiresVisa: boolean;
-  immigrationCostRateId: string | null;
   adminDays: number;
   adminCostBasis: AdminCostBasis;
   agencyMarginBp: number;
@@ -505,8 +465,6 @@ export const SaveBookingCostBreakdownInput = z
     guideDays: z.number().int().nonnegative(),
     transportRateId: z.string().uuid().optional(),
     transportDays: z.number().int().nonnegative().default(0),
-    requiresVisa: z.boolean().default(false),
-    immigrationCostRateId: z.string().uuid().optional(),
     adminDays: z.number().int().nonnegative().default(0),
     adminCostBasis: AdminCostBasis.default('PER_GROUP'),
     agencyMarginBp: z.number().int().min(0),

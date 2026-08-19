@@ -87,8 +87,6 @@ async function main() {
       guideDays: breakdown.guideDays,
       transportRateId: breakdown.transportRateId ?? undefined,
       transportDays: breakdown.transportDays,
-      requiresVisa: breakdown.requiresVisa,
-      immigrationCostRateId: breakdown.immigrationCostRateId ?? undefined,
       adminDays: breakdown.adminDays,
       adminCostBasis: breakdown.adminCostBasis,
       agencyMarginBp: breakdown.agencyMarginBp,

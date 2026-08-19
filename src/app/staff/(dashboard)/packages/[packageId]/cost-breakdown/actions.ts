@@ -45,8 +45,6 @@ export async function saveCostBreakdownAction(packageId: string, formData: FormD
     guideDays: Number(formData.get('guideDays') || 0),
     transportRateId: optionalId(formData, 'transportRateId'),
     transportDays: Number(formData.get('transportDays') || 0),
-    requiresVisa: formData.get('requiresVisa') === 'on',
-    immigrationCostRateId: optionalId(formData, 'immigrationCostRateId'),
     adminDays: Number(formData.get('adminDays') || 0),
     adminCostBasis: String(formData.get('adminCostBasis') || 'PER_GROUP'),
     agencyMarginBp: Math.round(Number(formData.get('agencyMarginPercent') || 0) * 100),

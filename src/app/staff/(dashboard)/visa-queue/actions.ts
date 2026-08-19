@@ -1,8 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { visaService } from '@modules/visa';
+import { DecideVisaInput, visaService } from '@modules/visa';
 
 export async function contactTravelerAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('visa.process');
@@ -23,6 +24,38 @@ export async function requestMissingDocumentsAction(bookingId: string, travelerI
 export async function startApplicationAction(bookingId: string, travelerId: string): Promise<void> {
   const ctx = await requireStaffContext('visa.process');
   await visaService.submitApplication(ctx, bookingId, travelerId);
+  revalidatePath('/staff/visa-queue');
+}
+
+// DR-154 (explicit user request): closes the "decide/resubmit/upload stay
+// API-only" gap this page's own header comment used to document -- staff can
+// now approve/reject an application directly from the table.
+export async function decideApplicationAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  const rawReason = String(formData.get('reason') ?? '').trim();
+  const input = DecideVisaInput.parse({
+    outcome: String(formData.get('outcome') ?? ''),
+    reason: rawReason ? rawReason : undefined,
+  });
+  await visaService.decideApplication(ctx, bookingId, travelerId, input);
+  revalidatePath('/staff/visa-queue');
+}
+
+// DR-154: uploads the granted visa document once an application is decided --
+// same file-upload shape as bookings/[bookingId]/passport/actions.ts.
+export async function uploadVisaDocumentAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  const file = formData.get('document');
+  if (!(file instanceof File) || file.size === 0) {
+    redirect('/staff/visa-queue?error=missing_file');
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  await visaService.uploadDocument(ctx, bookingId, travelerId, {
+    contentType: file.type,
+    sizeBytes: file.size,
+    bytes,
+  });
   revalidatePath('/staff/visa-queue');
 }
 

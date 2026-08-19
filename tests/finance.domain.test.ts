@@ -17,8 +17,6 @@ const BASE_INPUTS: CostInputs = {
   activityFeesMinor: [3000, 2000], // 2 activities assigned across the Day Template
   transportDays: 4,
   transportRate: { fuelEstimateMinor: 3000, tollFeesMinor: 500, parkingFeesMinor: 200, vehicleOperatingCostMinor: 1000 },
-  requiresVisa: false,
-  immigrationCostRate: null,
   drinkLineItems: [],
   adminDays: 0,
   adminDailyRateMinor: null,
@@ -51,19 +49,6 @@ describe('finance domain', () => {
         transportRate: null,
       };
       expect(computeBaseCostMinor(empty)).toBe(0);
-    });
-
-    it('adds visa costs only when requiresVisa is true and a rate is provided', () => {
-      const withVisa: CostInputs = {
-        ...BASE_INPUTS,
-        requiresVisa: true,
-        immigrationCostRate: { visaFeeMinor: 5000, processingFeeMinor: 1000, invitationLetterFeeMinor: 500, borderPermitFeeMinor: 200 },
-      };
-      // visa: (5000+1000+500+200) * 10 = 67000, added on top of the 380800 base
-      expect(computeBaseCostMinor(withVisa)).toBe(380800 + 67000);
-
-      const requiresVisaButNoRate: CostInputs = { ...BASE_INPUTS, requiresVisa: true, immigrationCostRate: null };
-      expect(computeBaseCostMinor(requiresVisaButNoRate)).toBe(380800); // unchanged -- no rate, no cost added
     });
 
     it('scales drink line items by referenceGroupSize', () => {
@@ -122,7 +107,6 @@ describe('finance domain', () => {
       expect(buckets.transportMinor).toBe(18800);
       expect(buckets.staffMinor).toBe(72000);
       expect(buckets.drinksMinor).toBe(0);
-      expect(buckets.visaMinor).toBe(0);
       expect(buckets.adminMinor).toBe(0);
       const sum =
         buckets.accommodationMinor +
@@ -131,7 +115,6 @@ describe('finance domain', () => {
         buckets.restaurantMinor +
         buckets.activitiesMinor +
         buckets.drinksMinor +
-        buckets.visaMinor +
         buckets.adminMinor;
       expect(sum).toBe(computeBaseCostMinor(BASE_INPUTS));
     });

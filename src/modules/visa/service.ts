@@ -16,6 +16,7 @@ import {
   type ContactTravelerInput,
   type DecideVisaInput,
   type FacilitatorVisaView,
+  type GuestVisaApplicationView,
   type PendingVisaApplicationView,
   type VisaApplicationView,
 } from './domain';
@@ -98,7 +99,7 @@ export const visaService = {
   ): Promise<VisaApplicationView> {
     assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
-    await findTraveler(ctx, bookingId, travelerId);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
 
     const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!existing) throw Errors.notFound('Visa application not found');
@@ -114,6 +115,20 @@ export const visaService = {
       organizationId,
       metadata: { outcome: input.outcome, reason: input.reason ?? null },
     });
+
+    // DR-154: let the guest know their application was decided -- same
+    // "notify the booking's tour lead, since a Traveler isn't its own User
+    // account" shape as contactTraveler/requestMissingDocuments above.
+    const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
+    if (booking) {
+      const travelerName = `${traveler.firstName} ${traveler.lastName}`;
+      await notificationsService.notify(
+        input.outcome === 'APPROVED' ? 'VISA_APPROVED' : 'VISA_REJECTED',
+        booking.touristUserId,
+        organizationId,
+        { travelerName, rejectionReason: input.outcome === 'REJECTED' ? (input.reason ?? undefined) : undefined },
+      );
+    }
     return decided;
   },
 
@@ -139,6 +154,41 @@ export const visaService = {
       // The previous rejection reason is captured here, in the append-only
       // audit trail, since repository.resubmit nulls it on the live row.
       metadata: { previousRejectionReason: existing.rejectionReason, resubmissionCount: resubmitted.resubmissionCount },
+    });
+    return resubmitted;
+  },
+
+  /** DR-154: guest self-service counterpart to resubmitApplication -- same
+   * canResubmit/visaRepository.resubmit logic, deliberately without the
+   * `visa.process` assertion. The caller here is the booking's own tour
+   * lead (the only session that can ever reach this booking's travelers at
+   * all -- findTraveler's ownership check, via bookingService.listTravelers,
+   * already throws 404 for anyone else), not a staff facilitator, so this
+   * doesn't expose any new data or capability -- it's the same "caller
+   * already gates it" convention as autoSubmitOnPassportUpload. The guest
+   * action calling this (resubmitVisaAction) uploads a fresh passport first,
+   * same precedent as the initial passport-upload wizard. */
+  async resubmitApplicationForGuest(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!existing) throw Errors.notFound('Visa application not found');
+    if (!canResubmit(existing.status)) throw Errors.conflict(`Cannot resubmit a ${existing.status} application`);
+
+    const resubmitted = await visaRepository.resubmit(organizationId, existing.id);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.resubmitted',
+      resourceType: 'VisaApplication',
+      resourceId: resubmitted.id,
+      organizationId,
+      metadata: {
+        previousRejectionReason: existing.rejectionReason,
+        resubmissionCount: resubmitted.resubmissionCount,
+        trigger: 'guest_self_service',
+      },
     });
     return resubmitted;
   },
@@ -223,6 +273,32 @@ export const visaService = {
     return application;
   },
 
+  /** DR-154: guest self-service counterpart to getApplication, for the
+   * authenticated booking status page -- deliberately without the
+   * `documents.read` assertion (TOURIST doesn't hold it), relying instead on
+   * findTraveler's existing ownership check for anti-BOLA (same convention as
+   * resubmitApplicationForGuest above). Returns the minimized
+   * GuestVisaApplicationView, not the full VisaApplicationView -- no
+   * organizationId/travelerNationality/idOrPassportNumber/documentId
+   * exposure, same minimization precedent as FacilitatorVisaView. Returns
+   * null (not a throw) when no application exists yet -- a booking can have
+   * requiresPassportUpload true with the passport step not yet completed. */
+  async getApplicationForGuest(ctx: AuthContext, bookingId: string, travelerId: string): Promise<GuestVisaApplicationView | null> {
+    const organizationId = requireOrg(ctx);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
+
+    const application = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!application) return null;
+    return {
+      travelerId,
+      travelerName: `${traveler.firstName} ${traveler.lastName}`,
+      status: application.status,
+      rejectionReason: application.rejectionReason,
+      resubmissionCount: application.resubmissionCount,
+      hasDocument: application.documentId !== null,
+    };
+  },
+
   /** Guest `/find-booking` lookup: just the bare status (never the full
    * VisaApplicationView -- no rejectionReason/documentId exposure to an
    * unauthenticated caller), no ctx -- same "caller already gates"
@@ -242,6 +318,23 @@ export const visaService = {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!application?.documentId) throw Errors.notFound('Visa document not found');
     return documentsService.streamDocument(ctx, application.documentId);
+  },
+
+  /** DR-154: guest self-service counterpart to streamDocument, for
+   * downloading a granted visa document from the authenticated booking
+   * status page -- deliberately without the `documents.read` assertion
+   * (TOURIST doesn't hold it), relying on findTraveler's ownership check for
+   * anti-BOLA. Only ever streams once APPROVED -- a REJECTED application's
+   * documentId is already nulled by repository.resubmit, but this also
+   * guards the (currently unreachable) case of a stale document lingering
+   * on a still-SUBMITTED application. */
+  async streamDocumentForGuest(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const application = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (application?.status !== 'APPROVED' || !application.documentId) throw Errors.notFound('Visa document not found');
+    return documentsService.streamDocumentForOwner(ctx, application.documentId);
   },
 
   /** VISA_FACILITATOR's own "My Schedule" dashboard (DR-031) -- unlike

@@ -15,6 +15,8 @@ export type NotificationEvent =
   | 'QUOTATION_SENT'
   | 'VISA_CONTACT_TRAVELER'
   | 'VISA_MISSING_DOCUMENTS'
+  | 'VISA_APPROVED'
+  | 'VISA_REJECTED'
   | 'RATING_CODE_ISSUED'
   | 'TAILOR_MADE_REQUEST_RECEIVED';
 
@@ -32,9 +34,10 @@ export interface NotificationData {
   bookingId?: string;
   amountMinor?: number;
   currency?: Currency;
-  travelerName?: string; // VISA_CONTACT_TRAVELER / VISA_MISSING_DOCUMENTS
+  travelerName?: string; // VISA_CONTACT_TRAVELER / VISA_MISSING_DOCUMENTS / VISA_APPROVED / VISA_REJECTED
   message?: string; // VISA_CONTACT_TRAVELER: staff-authored free text
   country?: string; // VISA_MISSING_DOCUMENTS
+  rejectionReason?: string; // VISA_REJECTED: staff-authored, optional
   ratingCode?: string; // RATING_CODE_ISSUED
   countries?: string[]; // TAILOR_MADE_REQUEST_RECEIVED -- Booking.preferredCountries
   seats?: number; // TAILOR_MADE_REQUEST_RECEIVED
@@ -119,6 +122,26 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
     FR: (d) => ({
       subject: 'Un document manque pour votre demande de visa',
       body: `Merci de téléverser le document de visa manquant pour le prochain voyage de ${d.travelerName ?? 'votre voyageur'} vers ${d.country ?? 'votre destination'}.`,
+    }),
+  },
+  VISA_APPROVED: {
+    EN: (d) => ({
+      subject: 'Visa application approved',
+      body: `Good news -- ${d.travelerName ?? "your traveler's"} visa application has been approved. Log in to your booking to download the visa document.`,
+    }),
+    FR: (d) => ({
+      subject: 'Demande de visa approuvée',
+      body: `Bonne nouvelle -- la demande de visa de ${d.travelerName ?? 'votre voyageur'} a été approuvée. Connectez-vous à votre réservation pour télécharger le document de visa.`,
+    }),
+  },
+  VISA_REJECTED: {
+    EN: (d) => ({
+      subject: 'Visa application needs attention',
+      body: `${d.travelerName ?? "Your traveler's"} visa application was rejected${d.rejectionReason ? `: ${d.rejectionReason}` : '.'} Log in to your booking to resubmit.`,
+    }),
+    FR: (d) => ({
+      subject: 'Votre demande de visa nécessite une action',
+      body: `La demande de visa de ${d.travelerName ?? 'votre voyageur'} a été rejetée${d.rejectionReason ? ` : ${d.rejectionReason}` : '.'} Connectez-vous à votre réservation pour la soumettre à nouveau.`,
     }),
   },
   RATING_CODE_ISSUED: {

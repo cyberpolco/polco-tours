@@ -1812,27 +1812,12 @@ model ActivityFee {
   @@map("activity_fees")
 }
 
-// Deliberately its own table, NOT extending CountryRegulation (immigration
-// module's own table, which already has an unrelated flat
-// immigrationFeeMinor used for guest-facing info display) -- keeps module
-// boundaries clean; finance owns its own pricing-specific fee data.
-model ImmigrationCostRate {
-  id                       String    @id @default(uuid()) @db.Uuid
-  country                  String
-  visaFeeMinor             Int
-  processingFeeMinor       Int
-  invitationLetterFeeMinor Int
-  borderPermitFeeMinor     Int
-  currency                 Currency
-  validFrom                DateTime  @default(now())
-  validTo                  DateTime?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-
-  @@index([country, validFrom])
-  @@map("immigration_cost_rates")
-}
-
+// DR-154: ImmigrationCostRate removed entirely -- visa cost is priced as a
+// guest-facing AddonService VISA_ASSISTANCE purchase (AddonRate), not a
+// Staff cost-plus bucket line item, same fix DR-147 already applied to
+// Photographer/Videographer. Keeping it would have double-counted a
+// guest's visa cost once here and again in the AddonRate the guest is
+// actually charged.
 enum AdminCostBasis {
   PER_PERSON
   PER_GROUP
@@ -1916,8 +1901,8 @@ model PackageCostBreakdown {
   // record.
   transportRateId            String?        @db.Uuid
   transportDays              Int            @default(0)
-  requiresVisa               Boolean        @default(false)
-  immigrationCostRateId      String?        @db.Uuid
+  // DR-154: requiresVisa/immigrationCostRateId removed -- see
+  // ImmigrationCostRate's own removal note above.
   // DR-126: admin cost, resolved via AdminCostRate by country + effective
   // date (same "no stored rate id" precedent as driverDays/guideDays above,
   // not a staff-picked dropdown like transportRateId). basis decides
@@ -2019,8 +2004,8 @@ model BookingCostBreakdown {
   // package's Day Template (Booking.customizedPackageId), 0 if unset.
   transportRateId            String?        @db.Uuid
   transportDays              Int            @default(0)
-  requiresVisa               Boolean        @default(false)
-  immigrationCostRateId      String?        @db.Uuid
+  // DR-154: requiresVisa/immigrationCostRateId removed -- see
+  // ImmigrationCostRate's own removal note above PackageCostBreakdown.
   adminDays                  Int            @default(0)
   adminCostBasis             AdminCostBasis @default(PER_GROUP)
   agencyMarginBp             Int

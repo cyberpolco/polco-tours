@@ -41,17 +41,15 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
   const t = await getTranslations('StaffCostBreakdown');
   const tCountries = await getTranslations('Countries');
 
-  const [breakdown, addons, transportRates, immigrationCostRates, foodBeverageRates, templateDays] = await Promise.all([
+  const [breakdown, addons, transportRates, foodBeverageRates, templateDays] = await Promise.all([
     financeService.getBookingCostBreakdown(ctx, bookingId),
     bookingService.listAddons(ctx, bookingId),
     financeService.listTransportRates(ctx),
-    financeService.listImmigrationCostRates(ctx),
     financeService.listFoodBeverageRates(ctx),
     booking.customizedPackageId ? catalogService.listTemplateDaysForItineraryCopy(booking.organizationId, booking.customizedPackageId) : Promise.resolve([]),
   ]);
 
   const countryTransportRates = transportRates.filter((r) => r.country === country);
-  const countryImmigrationRates = immigrationCostRates.filter((r) => r.country === country);
   const drinkRates = foodBeverageRates.filter(
     (r) => r.country === country && ['WATER', 'SOFT_DRINK', 'JUICE', 'LOCAL_BEVERAGE', 'ALCOHOLIC'].includes(r.category),
   );
@@ -223,32 +221,6 @@ export default async function BookingCostBreakdownPage({ params, searchParams }:
               <input name="transportDays" type="number" min={0} defaultValue={breakdown?.transportDays ?? defaultNights} className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
-        </div>
-
-        <div>
-          <p className="eyebrow text-mist">{t('immigrationVisaCosts')}</p>
-          <div className="mt-2 flex items-center gap-3">
-            <input type="checkbox" name="requiresVisa" id="requiresVisa" defaultChecked={breakdown?.requiresVisa ?? false} className="h-4 w-4" />
-            <label htmlFor="requiresVisa" className="text-sm">
-              {t('requiresVisaLabel')}
-            </label>
-          </div>
-          {countryImmigrationRates.length > 0 && (
-            <div className="mt-2">
-              <FormField label={t('immigrationCostRate')} htmlFor="immigrationCostRateId" optional>
-                <Select name="immigrationCostRateId" defaultValue={breakdown?.immigrationCostRateId ?? ''}>
-                  <option value="">{t('none')}</option>
-                  {countryImmigrationRates.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {tCountries(r.country)} —{' '}
-                      {format(money(r.visaFeeMinor + r.processingFeeMinor + r.invitationLetterFeeMinor + r.borderPermitFeeMinor, r.currency))}
-                      {t('perPerson')}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-            </div>
-          )}
         </div>
 
         <div>

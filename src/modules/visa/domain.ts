@@ -91,6 +91,22 @@ export interface PendingVisaApplicationView {
   travelerNationality: string | null;
 }
 
+// DR-154: the guest's own self-service view of their traveler's application,
+// from the authenticated booking status page -- minimized the same way
+// FacilitatorVisaView is relative to the full VisaApplicationView (no
+// organizationId/travelerNationality/idOrPassportNumber/documentId
+// exposure). travelerName is included since the tour lead may be resubmitting
+// on behalf of a traveler other than themselves (Traveler isn't its own User
+// account -- see visaService's own findTraveler/resubmitApplicationForGuest).
+export interface GuestVisaApplicationView {
+  travelerId: string;
+  travelerName: string;
+  status: VisaStatus;
+  rejectionReason: string | null;
+  resubmissionCount: number;
+  hasDocument: boolean;
+}
+
 // Immigration Module (DR-034): "contact travellers" -- a staff-authored
 // free-text message, sent to the booking's tour lead (the traveler itself
 // isn't a User account, see visa/service.ts's contactTraveler).

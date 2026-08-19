@@ -5,6 +5,7 @@ import { requireGuestContext } from '@lib/guest-guard';
 import { format, formatOrPending, money } from '@lib/money';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { invoicingService } from '@modules/invoicing';
+import { visaService, type GuestVisaApplicationView } from '@modules/visa';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
@@ -150,6 +151,19 @@ export default async function BookingHomePage({ params }: Props) {
 
   const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
   const payments = await invoicingService.listPayments(ctx, invoice.id);
+
+  // DR-154: visa applications only exist when Visa Assistance was selected
+  // at the add-ons step (booking.requiresPassportUpload) -- sequential
+  // awaits, not Promise.all, same connection-pool-exhaustion precedent as
+  // the rest of this codebase's cross-module composition (DR-038/041/060).
+  const visaApplications: GuestVisaApplicationView[] = [];
+  if (booking.requiresPassportUpload) {
+    for (const traveler of travelers) {
+      const application = await visaService.getApplicationForGuest(ctx, bookingId, traveler.id);
+      if (application) visaApplications.push(application);
+    }
+  }
+  const visaNeedsAttention = visaApplications.some((a) => a.status === 'REJECTED');
 
   const pendingPayment = payments.some((p) => p.status === 'PENDING');
   // DR-104: a coupon may only be applied/removed before the invoice is
@@ -303,6 +317,23 @@ export default async function BookingHomePage({ params }: Props) {
         </div>
       </div>
       </Reveal>
+
+      {visaApplications.length > 0 && (
+        <Reveal delay={0.25}>
+          <div>
+            <div className="survey-rule mb-6" />
+            <p className="eyebrow text-mist">{t('visaApplication')}</p>
+            <Card className="mt-2 flex items-center justify-between gap-4">
+              <p className="text-sm">
+                {visaNeedsAttention ? t('visaNeedsAttention') : t('visaInProgress')}
+              </p>
+              <Link href={`/booking/${bookingId}/visa`} className="text-forest hover:underline">
+                {t('viewVisaDetails')}
+              </Link>
+            </Card>
+          </div>
+        </Reveal>
+      )}
     </div>
   );
 }

@@ -916,6 +916,28 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /bookings/{bookingId}/travelers/{travelerId}/visa/document/guest:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    get:
+      summary: Guest download of their own granted visa document (DR-154)
+      description: >-
+        Guest-only counterpart to the staff-only GET above -- that route
+        requires documents.read, which TOURIST never holds. Resolves the
+        session directly (not withAuth) and requires the caller to be the
+        booking's own tour lead (the only session that can ever reach this
+        booking's travelers at all); 404s unless the application is APPROVED
+        with a document attached.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { description: No session }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /bookings/{bookingId}/travelers/{travelerId}/visa/contact:
     parameters:
       - $ref: '#/components/parameters/bookingId'

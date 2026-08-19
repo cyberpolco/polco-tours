@@ -141,7 +141,6 @@ beforeAll(async () => {
     guideDays: 0,
     transportRateId,
     transportDays: 2,
-    requiresVisa: false,
     agencyMarginBp: 0,
   });
   const plainRes = await savePackageCostBreakdown(plainReq, { params: Promise.resolve({ packageId: plainPackageId }) });
@@ -156,7 +155,6 @@ beforeAll(async () => {
     guideDays: 0,
     transportRateId,
     transportDays: 2,
-    requiresVisa: false,
     agencyMarginBp: 0,
     overridePriceMinor,
     overrideReason: 'Fixture override -- must survive a rate update untouched',
@@ -170,7 +168,6 @@ beforeAll(async () => {
     guideDays: 0,
     transportRateId,
     transportDays: 2,
-    requiresVisa: false,
     agencyMarginBp: 0,
   });
   const bookingRes = await saveBookingCostBreakdown(bookingReq, { params: Promise.resolve({ bookingId }) });
@@ -182,7 +179,6 @@ beforeAll(async () => {
     guideDays: 0,
     transportRateId,
     transportDays: 2,
-    requiresVisa: false,
     agencyMarginBp: 0,
   });
   const cancelledBookingRes = await saveBookingCostBreakdown(cancelledBookingReq, { params: Promise.resolve({ bookingId: cancelledBookingId }) });
