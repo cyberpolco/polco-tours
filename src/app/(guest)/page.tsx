@@ -1,7 +1,9 @@
 import { Suspense } from 'react';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { AfricaMapLazy as AfricaMap } from '@/components/AfricaMapLazy';
 import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
 import { PartnersMarquee, type Partner } from '@/components/PartnersMarquee';
@@ -26,32 +28,91 @@ export const dynamic = 'force-dynamic';
 // -- renders nothing until there's at least one real review), scroll-reveal
 // motion (Reveal) added section-by-section, and a mobile sticky CTA (the
 // hero's own CTAs scroll out of view fast on a small screen).
+// DR-163: the 3 original slides' hardcoded text/image/gradient, keyed by
+// the fixed slotKey each got seeded under (prisma/seed.ts) -- used as the
+// per-slot fallback whenever staff hasn't overridden that slide's text
+// (CmsTextBlock) yet. There is no fallback for any slide staff adds beyond
+// these 3 (there's nothing to fall back to); it simply needs its own text
+// before it renders meaningfully.
+const HERO_SLOT_FALLBACKS: Record<string, { image: string; gradient: string }> = {
+  sossusvlei: {
+    image: '/images/hero/sossusvlei.png',
+    gradient: 'linear-gradient(100deg, rgba(59,31,58,0.92) 0%, rgba(59,31,58,0.6) 32%, rgba(214,91,46,0.28) 56%, rgba(214,91,46,0) 80%)',
+  },
+  virunga: {
+    image: '/images/hero/virunga.png',
+    gradient: 'linear-gradient(100deg, rgba(15,25,20,0.94) 0%, rgba(15,25,20,0.75) 40%, rgba(18,43,44,0.4) 62%, rgba(47,110,79,0) 85%)',
+  },
+  'victoria-falls': {
+    image: '/images/hero/victoria-falls.png',
+    gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
+  },
+};
+
+// Same direct-cookie-read convention as (guest)/about/page.tsx and
+// (guest)/faq/page.tsx -- content isn't a next-intl namespace.
+async function resolveLocale(): Promise<CmsLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
 export default async function HomePage() {
   const t = await getTranslations('HomePage');
+  const locale = await resolveLocale();
 
-  const HERO_SLIDES: HeroSlide[] = [
-    {
-      eyebrow: t('heroSlide1Eyebrow'),
-      headline: t('heroSlide1Headline'),
-      lede: t('heroSlide1Lede'),
-      image: '/images/hero/sossusvlei.png',
-      gradient: 'linear-gradient(100deg, rgba(59,31,58,0.92) 0%, rgba(59,31,58,0.6) 32%, rgba(214,91,46,0.28) 56%, rgba(214,91,46,0) 80%)',
-    },
-    {
-      eyebrow: t('heroSlide2Eyebrow'),
-      headline: t('heroSlide2Headline'),
-      lede: t('heroSlide2Lede'),
-      image: '/images/hero/virunga.png',
-      gradient: 'linear-gradient(100deg, rgba(15,25,20,0.94) 0%, rgba(15,25,20,0.75) 40%, rgba(18,43,44,0.4) 62%, rgba(47,110,79,0) 85%)',
-    },
-    {
-      eyebrow: t('heroSlide3Eyebrow'),
-      headline: t('heroSlide3Headline'),
-      lede: t('heroSlide3Lede'),
-      image: '/images/hero/victoria-falls.png',
-      gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
-    },
-  ];
+  // Homepage-hero is a decorative section like `featured` below -- a CMS
+  // hiccup degrades to the 3 hardcoded defaults, never a 500 for every
+  // homepage visitor.
+  let heroItems: Awaited<ReturnType<typeof cmsService.listPublicMediaItems>> = [];
+  try {
+    heroItems = await cmsService.listPublicMediaItems('home-hero');
+  } catch (error) {
+    console.error('Failed to load hero media for homepage', error);
+  }
+
+  const heroSlots =
+    heroItems.length > 0
+      ? heroItems
+      : (['sossusvlei', 'virunga', 'victoria-falls'] as const).map((slotKey, i) => ({
+          id: slotKey,
+          page: 'home-hero',
+          slotKey,
+          mediaType: 'image' as const,
+          url: HERO_SLOT_FALLBACKS[slotKey]!.image,
+          caption: null,
+          overlayGradient: null,
+          sortOrder: i,
+          createdAt: new Date(0),
+          updatedAt: new Date(0),
+          updatedByUserId: null,
+        }));
+
+  const HARDCODED_TEXT: Record<string, { eyebrow: string; headline: string; lede: string }> = {
+    sossusvlei: { eyebrow: t('heroSlide1Eyebrow'), headline: t('heroSlide1Headline'), lede: t('heroSlide1Lede') },
+    virunga: { eyebrow: t('heroSlide2Eyebrow'), headline: t('heroSlide2Headline'), lede: t('heroSlide2Lede') },
+    'victoria-falls': { eyebrow: t('heroSlide3Eyebrow'), headline: t('heroSlide3Headline'), lede: t('heroSlide3Lede') },
+  };
+
+  const HERO_SLIDES: HeroSlide[] = await Promise.all(
+    heroSlots.map(async (item) => {
+      const fallback = HERO_SLOT_FALLBACKS[item.slotKey];
+      const hardcodedText = HARDCODED_TEXT[item.slotKey];
+      let text = null;
+      try {
+        text = await cmsService.getPublicTextBlock(`home-hero.${item.slotKey}`, locale);
+      } catch (error) {
+        console.error('Failed to load hero text for homepage', error);
+      }
+      return {
+        eyebrow: text?.eyebrow ?? hardcodedText?.eyebrow ?? '',
+        headline: text?.title ?? hardcodedText?.headline ?? '',
+        lede: text?.body ?? hardcodedText?.lede ?? '',
+        image: (item.mediaType === 'image' ? item.url : fallback?.image) ?? undefined,
+        video: (item.mediaType === 'video' ? item.url : undefined) ?? undefined,
+        gradient: item.overlayGradient ?? fallback?.gradient ?? 'linear-gradient(100deg, rgba(33,26,29,0.85) 0%, rgba(33,26,29,0) 80%)',
+      };
+    }),
+  );
 
   const STEPS = [
     { mark: '01', title: t('step1Title'), body: t('step1Body') },

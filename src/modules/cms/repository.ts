@@ -5,14 +5,18 @@
 // names are unchanged (`site_content`/`faq_entries`, via @@map) even though
 // the Prisma model names were renamed in DR-162 -- a pure TS-facing rename,
 // not a migration, so no data was at risk.
-import type { CmsFaqEntry, CmsTextBlock } from '@prisma/client';
+import type { CmsFaqEntry, CmsMediaItem, CmsTextBlock } from '@prisma/client';
 import { prisma } from '@lib/db';
 import type {
   CmsFaqEntryView,
   CmsLocale,
+  CmsMediaItemView,
+  CmsMediaType,
   CmsTextBlockView,
   CreateCmsFaqEntryInput,
+  CreateCmsMediaItemInput,
   UpdateCmsFaqEntryInput,
+  UpdateCmsMediaItemInput,
   UpdateCmsTextBlockInput,
 } from './domain';
 
@@ -23,6 +27,23 @@ function toCmsTextBlockView(r: CmsTextBlock): CmsTextBlockView {
     locale: r.locale as CmsLocale,
     title: r.title,
     body: r.body,
+    eyebrow: r.eyebrow,
+    updatedAt: r.updatedAt,
+    updatedByUserId: r.updatedByUserId,
+  };
+}
+
+function toCmsMediaItemView(r: CmsMediaItem): CmsMediaItemView {
+  return {
+    id: r.id,
+    page: r.page,
+    slotKey: r.slotKey,
+    mediaType: r.mediaType as CmsMediaType,
+    url: r.url,
+    caption: r.caption,
+    overlayGradient: r.overlayGradient,
+    sortOrder: r.sortOrder,
+    createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     updatedByUserId: r.updatedByUserId,
   };
@@ -47,12 +68,19 @@ export const cmsRepository = {
     return row ? toCmsTextBlockView(row) : null;
   },
   async upsertTextBlock(input: UpdateCmsTextBlockInput, updatedByUserId: string): Promise<CmsTextBlockView> {
+    const eyebrow = input.eyebrow ?? null;
     const row = await prisma.cmsTextBlock.upsert({
       where: { key_locale: { key: input.key, locale: input.locale } },
-      update: { title: input.title, body: input.body, updatedByUserId },
-      create: { key: input.key, locale: input.locale, title: input.title, body: input.body, updatedByUserId },
+      update: { title: input.title, body: input.body, eyebrow, updatedByUserId },
+      create: { key: input.key, locale: input.locale, title: input.title, body: input.body, eyebrow, updatedByUserId },
     });
     return toCmsTextBlockView(row);
+  },
+  /** Deletes every locale's row sharing one key -- used when a Home hero
+   * slide (or any future per-slot text) is removed, since each slot's text
+   * lives as one row per locale under the same key (DR-163). */
+  async deleteTextBlocksByKey(key: string): Promise<void> {
+    await prisma.cmsTextBlock.deleteMany({ where: { key } });
   },
 
   // --------------------------------------------------------- CmsFaqEntry
@@ -75,5 +103,48 @@ export const cmsRepository = {
     if (!existing) return null;
     await prisma.cmsFaqEntry.delete({ where: { id } });
     return toCmsFaqEntryView(existing);
+  },
+
+  // ------------------------------------------------------- CmsMediaItem
+  async listMediaItems(page: string): Promise<CmsMediaItemView[]> {
+    const rows = await prisma.cmsMediaItem.findMany({ where: { page }, orderBy: { sortOrder: 'asc' } });
+    return rows.map(toCmsMediaItemView);
+  },
+  /** A fresh, server-generated slotKey (add-a-slide); (page, slotKey) is
+   * unique so this can never collide with an existing slot. */
+  async createMediaItem(page: string, slotKey: string, input: CreateCmsMediaItemInput, updatedByUserId: string): Promise<CmsMediaItemView> {
+    const row = await prisma.cmsMediaItem.create({
+      data: {
+        page,
+        slotKey,
+        mediaType: input.mediaType,
+        url: input.url,
+        caption: input.caption ?? null,
+        overlayGradient: input.overlayGradient ?? null,
+        sortOrder: input.sortOrder,
+        updatedByUserId,
+      },
+    });
+    return toCmsMediaItemView(row);
+  },
+  async updateMediaItem(
+    page: string,
+    slotKey: string,
+    input: UpdateCmsMediaItemInput,
+    updatedByUserId: string,
+  ): Promise<CmsMediaItemView | null> {
+    const existing = await prisma.cmsMediaItem.findUnique({ where: { page_slotKey: { page, slotKey } } });
+    if (!existing) return null;
+    const row = await prisma.cmsMediaItem.update({
+      where: { page_slotKey: { page, slotKey } },
+      data: { ...input, updatedByUserId },
+    });
+    return toCmsMediaItemView(row);
+  },
+  async deleteMediaItem(page: string, slotKey: string): Promise<CmsMediaItemView | null> {
+    const existing = await prisma.cmsMediaItem.findUnique({ where: { page_slotKey: { page, slotKey } } });
+    if (!existing) return null;
+    await prisma.cmsMediaItem.delete({ where: { page_slotKey: { page, slotKey } } });
+    return toCmsMediaItemView(existing);
   },
 };

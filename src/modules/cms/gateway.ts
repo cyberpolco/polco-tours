@@ -7,6 +7,7 @@
 // structure/tests needs to change.
 export {
   PublicImageBlobGatewayError as CmsBlobGatewayError,
+  PublicImageCompressionError as CmsImageCompressionError,
   publicImageBlobGateway as cmsBlobGateway,
   type PublicImageBlobGateway as CmsBlobGateway,
   type PublicImageUploadResult as CmsImageUploadResult,

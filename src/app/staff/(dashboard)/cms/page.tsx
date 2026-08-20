@@ -9,7 +9,18 @@ import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
-import { createFaqEntryAction, deleteFaqEntryAction, updateFaqEntryAction, updateTextBlockAction, uploadCmsImageAction } from './actions';
+import {
+  createFaqEntryAction,
+  createHeroSlideAction,
+  deleteFaqEntryAction,
+  deleteHeroSlideAction,
+  updateFaqEntryAction,
+  updateHeroSlideMetaAction,
+  updateHeroSlideTextAction,
+  updateTextBlockAction,
+  uploadCmsImageAction,
+} from './actions';
+import { HeroSlideMediaPicker } from './hero-slide-media-picker';
 
 interface Props {
   searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string }>;
@@ -47,10 +58,12 @@ export default async function CmsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('cms.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
-  const [about, faqs] = await Promise.all([
+  const [about, faqs, heroItems] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
+    cmsService.listMediaItems(ctx, 'home-hero'),
   ]);
+  const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
   const t = await getTranslations('StaffCms');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
 
@@ -170,6 +183,114 @@ export default async function CmsPage({ searchParams }: Props) {
               </FormField>
               <SubmitButton size="compact" pendingLabel={t('adding')}>
                 {t('addFaqEntry')}
+              </SubmitButton>
+            </form>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('heroSectionTitle')}</h2>
+          <p className="text-xs text-mist">{t('heroIntro')}</p>
+          <RevealGroup as="div" itemAs="div" className="space-y-4">
+            {heroItems.map((item, i) => {
+              const text = heroTexts[i];
+              return (
+                <Card key={item.slotKey}>
+                  {canWrite ? (
+                    <div className="space-y-3">
+                      <form action={updateHeroSlideTextAction.bind(null, item.slotKey)} className="space-y-2">
+                        <input type="hidden" name="locale" value={locale} />
+                        <FormField label={t('eyebrowLabel')} htmlFor={`eyebrow-${item.slotKey}`}>
+                          <input
+                            name="eyebrow"
+                            defaultValue={text?.eyebrow ?? ''}
+                            className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                          />
+                        </FormField>
+                        <FormField label={t('headlineLabel')} htmlFor={`headline-${item.slotKey}`}>
+                          <input
+                            name="headline"
+                            required
+                            defaultValue={text?.title ?? ''}
+                            className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
+                          />
+                        </FormField>
+                        <FormField label={t('ledeLabel')} htmlFor={`lede-${item.slotKey}`}>
+                          <textarea
+                            name="lede"
+                            required
+                            rows={2}
+                            defaultValue={text?.body ?? ''}
+                            className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </form>
+
+                      <form action={updateHeroSlideMetaAction.bind(null, item.slotKey)} className="flex flex-wrap items-end gap-3">
+                        <FormField label={t('gradientLabel')} htmlFor={`gradient-${item.slotKey}`}>
+                          <input
+                            name="overlayGradient"
+                            defaultValue={item.overlayGradient ?? ''}
+                            className="w-72 rounded-survey border border-rule px-2 py-1.5 text-xs"
+                          />
+                        </FormField>
+                        <FormField label={t('order')} htmlFor={`sortOrder-${item.slotKey}`}>
+                          <input
+                            name="sortOrder"
+                            type="number"
+                            defaultValue={item.sortOrder}
+                            className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </form>
+
+                      <div className="flex flex-wrap items-start gap-4">
+                        <div className="space-y-1">
+                          <p className="text-xs text-mist">{t('mediaLabel')}</p>
+                          {item.mediaType === 'image' && item.url ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
+                            <img src={item.url} alt="" className="h-20 w-32 rounded-survey object-cover" />
+                          ) : item.mediaType === 'video' && item.url ? (
+                            <video src={item.url} muted className="h-20 w-32 rounded-survey object-cover" />
+                          ) : (
+                            <p className="text-xs text-mist">{t('noMediaYet')}</p>
+                          )}
+                        </div>
+                        <HeroSlideMediaPicker
+                          slotKey={item.slotKey}
+                          uploadingLabel={t('uploadingMedia')}
+                          chooseFileLabel={t('chooseMediaFile')}
+                          errorLabel={t('mediaUploadError')}
+                        />
+                      </div>
+
+                      <DeleteButton
+                        action={deleteHeroSlideAction.bind(null, item.slotKey)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeSlideConfirm')}
+                        removeLabel={t('removeSlide')}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-navy">{text?.title ?? ''}</p>
+                      <p className="mt-1 text-sm text-mist">{text?.body ?? ''}</p>
+                    </>
+                  )}
+                </Card>
+              );
+            })}
+          </RevealGroup>
+          {canWrite && (
+            <form action={createHeroSlideAction}>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('addSlide')}
               </SubmitButton>
             </form>
           )}

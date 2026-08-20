@@ -6,7 +6,13 @@ import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { money, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
-import { isValidPublicImageUpload, publicImageBlobGateway, publicImageExtension, PublicImageBlobGatewayError } from '@lib/public-image-blob';
+import {
+  isValidPublicImageUpload,
+  publicImageBlobGateway,
+  publicImageExtension,
+  PublicImageBlobGatewayError,
+  PublicImageCompressionError,
+} from '@lib/public-image-blob';
 import { assertCan } from '@lib/rbac';
 import {
   computeDepartureEndDate,
@@ -165,6 +171,7 @@ export const catalogService = {
       const uploaded = await publicImageBlobGateway.uploadPublicImage(pathname, input.bytes, input.contentType);
       return { url: uploaded.url };
     } catch (err) {
+      if (err instanceof PublicImageCompressionError) throw Errors.validation('Unable to process image');
       if (err instanceof PublicImageBlobGatewayError) throw Errors.internal();
       throw err;
     }

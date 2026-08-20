@@ -1779,7 +1779,21 @@
     "uploaded": "Téléchargé :",
     "chooseFileFirst": "Choisissez d'abord un fichier.",
     "uploading": "Téléchargement…",
-    "upload": "Télécharger"
+    "upload": "Télécharger",
+    "heroSectionTitle": "Bannière d'accueil",
+    "heroIntro": "Le carrousel rotatif de la page d'accueil — texte, image ou vidéo, et dégradé de couleur par diapositive. Ajoutez, supprimez et réordonnez les diapositives librement.",
+    "eyebrowLabel": "Sur-titre",
+    "headlineLabel": "Titre principal",
+    "ledeLabel": "Chapô",
+    "gradientLabel": "Dégradé de superposition (CSS)",
+    "mediaLabel": "Média",
+    "noMediaYet": "Aucune image ou vidéo choisie pour l'instant.",
+    "uploadingMedia": "Téléchargement…",
+    "chooseMediaFile": "Choisissez une image ou une vidéo pour remplacer le média actuel.",
+    "mediaUploadError": "Échec du téléchargement — vérifiez le type/la taille du fichier et réessayez.",
+    "addSlide": "Ajouter une diapositive",
+    "removeSlide": "Supprimer la diapositive",
+    "removeSlideConfirm": "Supprimer cette diapositive ? Cette action est irréversible."
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",

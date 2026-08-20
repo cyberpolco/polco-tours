@@ -29,7 +29,12 @@ export interface HeroSlide {
   eyebrow: string;
   headline: string;
   lede: string;
-  image: string;
+  // A slide has either a still image or a video (DR-163: CmsMediaItem
+  // stores one media url + type per slide, not both) -- both optional at
+  // the type level so a video-only slide (no separately-uploaded poster
+  // image) is representable; in practice every slide has one or the other.
+  image?: string;
+  video?: string;
   gradient: string;
 }
 
@@ -96,14 +101,30 @@ export function HeroCarousel({ slides, browseHref, browseLabel, planHref, planLa
               animate={{ scale: reduceMotion ? 1 : 1.06 }}
               transition={{ duration: SLIDE_DURATION_MS / 1000, ease: 'linear' }}
             >
-              <Image
-                src={slide.image}
-                alt=""
-                fill
-                priority={index === 0}
-                sizes="100vw"
-                className="object-cover"
-              />
+              {slide.video ? (
+                // Background video (DR-163) -- muted/looping/autoplaying
+                // unless prefers-reduced-motion, in which case it renders
+                // paused on its first frame instead (no separate poster
+                // asset needed, and no motion plays either way).
+                <video
+                  key={slide.video}
+                  src={slide.video}
+                  autoPlay={!reduceMotion}
+                  muted
+                  loop={!reduceMotion}
+                  playsInline
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : slide.image ? (
+                <Image
+                  src={slide.image}
+                  alt=""
+                  fill
+                  priority={index === 0}
+                  sizes="100vw"
+                  className="object-cover"
+                />
+              ) : null}
             </motion.div>
             <div className="absolute inset-0" style={{ backgroundImage: slide.gradient }} />
           </motion.div>

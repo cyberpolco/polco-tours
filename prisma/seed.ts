@@ -509,6 +509,92 @@ async function main() {
   // rbac.ts's ROLE_PERMISSIONS is a hardcoded in-code map now, consulted
   // directly, so there is no RolePermission table left to seed.
 
+  // --- Home hero slides (DR-163) -- one-time seed of the 3 original
+  // hardcoded slides under fixed slotKeys, so /staff/cms's Home Hero
+  // section has something real to show/edit from the moment this ships,
+  // matching exactly what the homepage already renders today (the
+  // fallback in (guest)/page.tsx if this is skipped/re-run is identical
+  // text/image/gradient, so nothing visually changes either way). ---
+  const heroSlides: Array<{
+    slotKey: string;
+    image: string;
+    gradient: string;
+    sortOrder: number;
+    en: { eyebrow: string; headline: string; lede: string };
+    fr: { eyebrow: string; headline: string; lede: string };
+  }> = [
+    {
+      slotKey: 'sossusvlei',
+      image: '/images/hero/sossusvlei.png',
+      gradient: 'linear-gradient(100deg, rgba(59,31,58,0.92) 0%, rgba(59,31,58,0.6) 32%, rgba(214,91,46,0.28) 56%, rgba(214,91,46,0) 80%)',
+      sortOrder: 0,
+      en: {
+        eyebrow: 'Namibia · Sossusvlei',
+        headline: 'Chase the tallest dunes on Earth at first light.',
+        lede: 'Book a real trip in minutes — no account, no hold music. A person on our end plans it with you.',
+      },
+      fr: {
+        eyebrow: 'Namibie · Sossusvlei',
+        headline: 'Défiez les dunes les plus hautes du monde au lever du jour.',
+        lede: "Réservez un vrai voyage en quelques minutes -- sans compte, sans attente au téléphone. Une vraie personne planifie votre voyage avec vous.",
+      },
+    },
+    {
+      slotKey: 'virunga',
+      image: '/images/hero/virunga.png',
+      gradient: 'linear-gradient(100deg, rgba(15,25,20,0.94) 0%, rgba(15,25,20,0.75) 40%, rgba(18,43,44,0.4) 62%, rgba(47,110,79,0) 85%)',
+      sortOrder: 1,
+      en: {
+        eyebrow: 'DR Congo · Virunga',
+        headline: "Sit with mountain gorillas in Africa's oldest park.",
+        lede: 'Licensed local guides, permits arranged for you, and a briefing on exactly what to expect.',
+      },
+      fr: {
+        eyebrow: 'RD Congo · Virunga',
+        headline: "Approchez les gorilles des montagnes dans le plus ancien parc d'Afrique.",
+        lede: 'Guides locaux agréés, permis obtenus pour vous, et un briefing complet avant le départ.',
+      },
+    },
+    {
+      slotKey: 'victoria-falls',
+      image: '/images/hero/victoria-falls.png',
+      gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
+      sortOrder: 2,
+      en: {
+        eyebrow: 'Zambia & Zimbabwe · Victoria Falls',
+        headline: 'Stand where the Zambezi turns to smoke and thunder.',
+        lede: 'Mosi-oa-Tunya up close — plus everything else the Falls region has on either bank.',
+      },
+      fr: {
+        eyebrow: 'Zambie et Zimbabwe · Chutes Victoria',
+        headline: 'Tenez-vous là où le Zambèze se change en fumée et en tonnerre.',
+        lede: 'Mosi-oa-Tunya de près -- et tout ce que la région des chutes offre sur les deux rives.',
+      },
+    },
+  ];
+  for (const slide of heroSlides) {
+    await prisma.cmsMediaItem.upsert({
+      where: { page_slotKey: { page: 'home-hero', slotKey: slide.slotKey } },
+      update: {},
+      create: {
+        page: 'home-hero',
+        slotKey: slide.slotKey,
+        mediaType: 'image',
+        url: slide.image,
+        overlayGradient: slide.gradient,
+        sortOrder: slide.sortOrder,
+      },
+    });
+    for (const locale of ['en', 'fr'] as const) {
+      const text = slide[locale];
+      await prisma.cmsTextBlock.upsert({
+        where: { key_locale: { key: `home-hero.${slide.slotKey}`, locale } },
+        update: {},
+        create: { key: `home-hero.${slide.slotKey}`, locale, title: text.headline, body: text.lede, eyebrow: text.eyebrow },
+      });
+    }
+  }
+
   console.log('Seeded:', {
     operator: lam.name,
     superadmin: admin.email,
@@ -525,6 +611,7 @@ async function main() {
     restaurants: restaurants.length,
     siteContent: siteContent.length,
     faqEntries: faqEntries.length,
+    heroSlides: heroSlides.length,
   });
 }
 

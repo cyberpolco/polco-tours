@@ -9,12 +9,15 @@ import {
   isValidCmsImageUpload,
   type CmsFaqEntryView,
   type CmsLocale,
+  type CmsMediaItemView,
   type CmsTextBlockView,
   type CreateCmsFaqEntryInput,
+  type CreateCmsMediaItemInput,
   type UpdateCmsFaqEntryInput,
+  type UpdateCmsMediaItemInput,
   type UpdateCmsTextBlockInput,
 } from './domain';
-import { CmsBlobGatewayError, cmsBlobGateway } from './gateway';
+import { CmsBlobGatewayError, CmsImageCompressionError, cmsBlobGateway } from './gateway';
 import { cmsRepository } from './repository';
 
 /** Same layering as settings/service.ts's requireSettingsWriter -- a direct
@@ -109,6 +112,7 @@ export const cmsService = {
     try {
       uploaded = await cmsBlobGateway.uploadPublicImage(pathname, input.bytes, input.contentType);
     } catch (err) {
+      if (err instanceof CmsImageCompressionError) throw Errors.validation('Unable to process image');
       if (err instanceof CmsBlobGatewayError) throw Errors.internal();
       throw err;
     }
@@ -122,11 +126,68 @@ export const cmsService = {
     return { url: uploaded.url };
   },
 
+  // ------------------------------------------------------- CmsMediaItem
+  // (DR-163, Home hero) -- a media item's paired per-locale text (if any)
+  // lives in CmsTextBlock under key `${page}.${slotKey}`; callers that want
+  // both fetch each separately (mirrors how the guest homepage composes
+  // catalog+itinerary data one level up, not inside either service).
+  async listMediaItems(ctx: AuthContext, page: string): Promise<CmsMediaItemView[]> {
+    assertCan(ctx, 'cms.read');
+    return cmsRepository.listMediaItems(page);
+  },
+  /** Generates a fresh slotKey server-side -- callers never choose their
+   * own, so (page, slotKey) can never collide with an existing slot. */
+  async createMediaItem(ctx: AuthContext, page: string, input: CreateCmsMediaItemInput): Promise<CmsMediaItemView> {
+    requireCmsWriter(ctx);
+    const slotKey = crypto.randomUUID();
+    const item = await cmsRepository.createMediaItem(page, slotKey, input, ctx.userId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.media_item_created',
+      resourceType: 'CmsMediaItem',
+      resourceId: item.id,
+      metadata: { page, slotKey },
+    });
+    return item;
+  },
+  async updateMediaItem(ctx: AuthContext, page: string, slotKey: string, input: UpdateCmsMediaItemInput): Promise<CmsMediaItemView> {
+    requireCmsWriter(ctx);
+    const item = await cmsRepository.updateMediaItem(page, slotKey, input, ctx.userId);
+    if (!item) throw Errors.notFound('Media item not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.media_item_updated',
+      resourceType: 'CmsMediaItem',
+      resourceId: item.id,
+      metadata: { page, slotKey },
+    });
+    return item;
+  },
+  /** Also removes the paired text block (every locale) under the same
+   * (page, slotKey) key -- a removed slide shouldn't leave orphaned text
+   * rows behind with no media to pair with. */
+  async deleteMediaItem(ctx: AuthContext, page: string, slotKey: string): Promise<void> {
+    requireCmsWriter(ctx);
+    const deleted = await cmsRepository.deleteMediaItem(page, slotKey);
+    if (!deleted) throw Errors.notFound('Media item not found');
+    await cmsRepository.deleteTextBlocksByKey(`${page}.${slotKey}`);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.media_item_deleted',
+      resourceType: 'CmsMediaItem',
+      resourceId: deleted.id,
+      metadata: { page, slotKey },
+    });
+  },
+
   // ---------------------------------------------------------- public (DR-071)
-  // No ctx/session exists for these callers -- the public /about and /faq
-  // guest pages. Mirrors catalogService's listPublicPackages/etc: no
-  // permission check at all, deliberately, since these ARE the public read
-  // path cms.read otherwise gates for staff.
+  // No ctx/session exists for these callers -- the public /about, /faq, and
+  // (DR-163) homepage hero. Mirrors catalogService's listPublicPackages/etc:
+  // no permission check at all, deliberately, since these ARE the public
+  // read path cms.read otherwise gates for staff.
 
   async getPublicTextBlock(key: string, locale: CmsLocale): Promise<CmsTextBlockView | null> {
     return cmsRepository.getTextBlockByKey(key, locale);
@@ -134,5 +195,9 @@ export const cmsService = {
 
   async listPublicFaqEntries(locale: CmsLocale): Promise<CmsFaqEntryView[]> {
     return cmsRepository.listFaqEntries(locale);
+  },
+
+  async listPublicMediaItems(page: string): Promise<CmsMediaItemView[]> {
+    return cmsRepository.listMediaItems(page);
   },
 };

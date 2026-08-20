@@ -365,12 +365,17 @@ model PlatformRate {
 // holds live production About/FAQ content. `key` is no longer only "about"
 // -- it's meant to take dotted/namespaced keys for other pages/sections
 // (e.g. "contact.intro") as those get built out in later phases.
+// DR-163 (Phase 2, Home hero) adds `eyebrow`, additive/nullable -- the
+// existing About-page row leaves it null; a hero slide's short label above
+// the headline is the first consumer that actually needs a 3rd text field
+// beyond title/body.
 model CmsTextBlock {
   id              String   @id @default(uuid()) @db.Uuid
-  key             String // e.g. "about", "contact.intro"
+  key             String // e.g. "about", "contact.intro", "home.hero.<slotKey>"
   locale          String   @default("en")
   title           String
   body            String   @db.Text
+  eyebrow         String?
   updatedAt       DateTime @updatedAt
   updatedByUserId String?  @db.Uuid
 
@@ -407,17 +412,28 @@ model CmsFaqEntry {
 // a code-only change. `(page, slotKey)` is unique so a specific slide/slot
 // (e.g. page="home-hero", slotKey="slide-1") can be upserted in place; a
 // free-form list (e.g. Gallery) uses a stable per-item id as its slotKey.
+// DR-163 (Phase 2, Home hero) adds `overlayGradient`, additive/nullable --
+// the per-slide CSS gradient overlay, staff-editable (explicit user
+// decision: flexible over design-review-guarded). Stored here rather than
+// on CmsTextBlock since it's a visual property of the slide, applying
+// whether that slide has an image or a video. Also makes `mediaType`/`url`
+// nullable (design correction made before this table was ever populated in
+// production -- no data at risk): dynamic add/remove (DR-163) means a
+// freshly-added slide can exist with its text filled in but no media
+// chosen yet, which the original non-nullable columns couldn't represent
+// without a placeholder-URL hack.
 model CmsMediaItem {
-  id              String   @id @default(uuid()) @db.Uuid
-  page            String // e.g. "home-hero", "gallery"
-  slotKey         String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
-  mediaType       String // 'image' | 'video'
-  url             String
-  caption         String?
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  updatedByUserId String?  @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  page             String // e.g. "home-hero", "gallery"
+  slotKey          String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
+  mediaType        String? // 'image' | 'video', null until media is chosen
+  url              String?
+  caption          String?
+  overlayGradient  String? // e.g. "linear-gradient(100deg, rgba(...) 0%, ...)"
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  updatedByUserId  String?  @db.Uuid
 
   @@unique([page, slotKey])
   @@index([page, sortOrder])

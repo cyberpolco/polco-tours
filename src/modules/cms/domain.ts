@@ -21,6 +21,7 @@ export interface CmsTextBlockView {
   locale: CmsLocale;
   title: string;
   body: string;
+  eyebrow: string | null;
   updatedAt: Date;
   updatedByUserId: string | null;
 }
@@ -30,6 +31,7 @@ export const UpdateCmsTextBlockInput = z.object({
   locale: z.enum(SUPPORTED_LOCALES),
   title: z.string().min(1).max(200),
   body: z.string().min(1),
+  eyebrow: z.string().max(100).nullable().optional(),
 });
 export type UpdateCmsTextBlockInput = z.infer<typeof UpdateCmsTextBlockInput>;
 
@@ -67,3 +69,57 @@ export {
   isValidPublicImageUpload as isValidCmsImageUpload,
   publicImageExtension as cmsImageExtension,
 } from '@lib/public-image-blob';
+
+// CmsMediaItem (DR-162 schema, DR-163 first real consumer: Home hero).
+// `mediaType` is a plain zod-validated string, not a Postgres enum -- a
+// third type later is a code-only change (schema.prisma's own comment).
+export const CMS_MEDIA_TYPES = ['image', 'video'] as const;
+export type CmsMediaType = (typeof CMS_MEDIA_TYPES)[number];
+
+// Video is a genuinely different upload path from images (direct
+// browser-to-Blob, no server-side compression, DR-163) -- these are the
+// Blob-side allowlist/cap the new media-upload route enforces, mirroring
+// isValidCmsImageUpload/MAX_CMS_IMAGE_SIZE_BYTES's shape for images above.
+export const MAX_CMS_VIDEO_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+export const CMS_VIDEO_CONTENT_TYPES = ['video/mp4', 'video/webm'] as const;
+
+export function isValidCmsVideoContentType(contentType: string): boolean {
+  return (CMS_VIDEO_CONTENT_TYPES as readonly string[]).includes(contentType);
+}
+
+// `mediaType`/`url` are nullable -- a freshly-added slide (dynamic
+// add/remove, DR-163) can have its text filled in with no media chosen
+// yet; `page`/`slotKey` are supplied as repository/service function
+// arguments, not part of this input, since callers never choose their own
+// slotKey (server-generated) and always operate within one known page.
+export interface CmsMediaItemView {
+  id: string;
+  page: string;
+  slotKey: string;
+  mediaType: CmsMediaType | null;
+  url: string | null;
+  caption: string | null;
+  overlayGradient: string | null;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedByUserId: string | null;
+}
+
+export const CreateCmsMediaItemInput = z.object({
+  mediaType: z.enum(CMS_MEDIA_TYPES).nullable().optional(),
+  url: z.string().url().nullable().optional(),
+  caption: z.string().max(300).nullable().optional(),
+  overlayGradient: z.string().max(500).nullable().optional(),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+export type CreateCmsMediaItemInput = z.infer<typeof CreateCmsMediaItemInput>;
+
+export const UpdateCmsMediaItemInput = z.object({
+  mediaType: z.enum(CMS_MEDIA_TYPES).nullable().optional(),
+  url: z.string().url().nullable().optional(),
+  caption: z.string().max(300).nullable().optional(),
+  overlayGradient: z.string().max(500).nullable().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+});
+export type UpdateCmsMediaItemInput = z.infer<typeof UpdateCmsMediaItemInput>;

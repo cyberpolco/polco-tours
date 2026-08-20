@@ -1779,7 +1779,21 @@
     "uploaded": "Uploaded:",
     "chooseFileFirst": "Choose a file first.",
     "uploading": "Uploading…",
-    "upload": "Upload"
+    "upload": "Upload",
+    "heroSectionTitle": "Home hero",
+    "heroIntro": "The homepage's rotating hero carousel — text, image or video, and color overlay per slide. Add, remove, and reorder slides freely.",
+    "eyebrowLabel": "Eyebrow",
+    "headlineLabel": "Headline",
+    "ledeLabel": "Lede",
+    "gradientLabel": "Overlay gradient (CSS)",
+    "mediaLabel": "Media",
+    "noMediaYet": "No image or video chosen yet.",
+    "uploadingMedia": "Uploading…",
+    "chooseMediaFile": "Choose an image or video to replace the current media.",
+    "mediaUploadError": "Upload failed — check the file type/size and try again.",
+    "addSlide": "Add slide",
+    "removeSlide": "Remove slide",
+    "removeSlideConfirm": "Remove this hero slide? This cannot be undone."
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",

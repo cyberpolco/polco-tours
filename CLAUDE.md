@@ -20,7 +20,7 @@ a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
 
-Current through **DR-162** (2026-08-20). This file used to carry a running
+Current through **DR-163** (2026-08-20). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -120,7 +120,8 @@ gaps a fresh Postgres would hit).
 | Database | Neon PostgreSQL (EU region, `eu-central-1`), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB). Multi-domain in production (DR-072) — `src/lib/auth-client.ts` has no hardcoded `baseURL` (falls back to `window.location.origin`); `src/lib/auth.ts`'s `trustedOrigins` allowlists every additional live custom domain beyond `BETTER_AUTH_URL`'s own origin, e.g. `mufasasafaris.com` |
 | Validation | zod `4.4.3` |
-| Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): About/FAQ images (DR-071) and package images (DR-114), passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`) by `src/lib/public-image-blob.ts` rather than relying on the ambient default. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
+| Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): About/FAQ images (DR-071), package images (DR-114), and Home hero images/videos (DR-163), passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`, exported from `src/lib/public-image-blob.ts`) rather than relying on the ambient default. Every image upload through this token is compressed to webp server-side first (DR-163, via `sharp`, see below); video (25MB cap, mp4/webm) uploads directly from the browser to this store instead, via `@vercel/blob/client`'s `upload()`/`handleUpload` (`api/v1/cms/media-upload/route.ts`) — necessary because that exceeds Vercel serverless functions' ~4.5MB request-body limit. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
+| Image processing | `sharp` `0.34.5` (DR-163) — was already an undeclared transitive dependency at this exact version; pinned explicitly per the version-pinning rule. Used only by `src/lib/public-image-blob.ts`'s `uploadPublicImage`, which now always recompresses every public image upload to webp (max edge 2560px, quality 80) before storing, regardless of caller/input format — the one shared primitive every public image upload (cms, catalog package images, Home hero) already goes through, so this applies uniformly rather than per-caller |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19) |
@@ -300,11 +301,13 @@ src/
                    #   SUPERADMIN-only; public no-ctx read path powers the
                    #   guest /about and /faq pages, mirroring catalog's
                    #   listPublicPackages convention. Renamed from `content`
-                   #   in DR-162, Phase 1 of a broader CMS expansion — also
-                   #   adds CmsMediaItem (image/video items; no repository/
-                   #   service method or UI yet, not wired to any page) as
-                   #   the building block later phases will use for Home
-                   #   hero/Gallery/etc.
+                   #   in DR-162. DR-163 (Phase 2) gives CmsMediaItem its
+                   #   first real repository/service methods and wires it +
+                   #   CmsTextBlock to the homepage hero carousel (dynamic,
+                   #   staff-managed slides — text, image or video, per-slide
+                   #   gradient overlay) — api/v1/cms/media-upload/route.ts
+                   #   (this module's first REST route) mints client tokens
+                   #   for direct browser-to-Blob video upload
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
