@@ -50,5 +50,23 @@ const nextConfig = {
       { source: '/staff/quote-requests', destination: '/staff/bookings', permanent: true },
     ];
   },
+  // DR-163: `sharp` (public-image-blob.ts) is server-only, but is
+  // structurally reachable from a client bundle -- catalogService/
+  // insightsService are each one big exported object literal, so
+  // webpack can't tree-shake out the one method (uploadPackageImage)
+  // that pulls it in, even though InsightsDashboardClient.tsx (a 'use
+  // client' file, via @modules/insights -> @modules/catalog) never
+  // actually calls it. `sharp`'s own dependencies (`detect-libc`,
+  // `libvips.js`) need Node builtins (`child_process`/`fs`) that have no
+  // browser polyfill, so the client webpack build fails outright without
+  // this. Aliasing to `false` for the client compiler pass only stubs it
+  // out to an empty module -- safe, since nothing in a client bundle ever
+  // actually calls sharp-dependent code.
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.alias.sharp = false;
+    }
+    return config;
+  },
 };
 export default withNextIntl(nextConfig);
