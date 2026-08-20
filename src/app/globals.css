@@ -2,11 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
-  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
+/* DR-156 follow-up, a real production bug: a hardcoded --font-sans/--font-
+   mono/--font-display fallback used to live in a :root block here, meant
+   as a pre-hydration safety net. It was never harmless -- next/font's own
+   generated CSS sets these same three custom properties via a plain class
+   on <html> (`.__variable_xxx{--font-sans:"Archivo",...}`), which ties
+   :root on specificity (both are single-class-level, 0-1-0); the tie broke
+   toward whichever rule landed later in the compiled stylesheet, which was
+   this file's :root block (globals.css is imported last in layout.tsx) --
+   so EVERY element using var(--font-sans)/var(--font-display)/var(--font-
+   mono) silently rendered the plain system fallback list instead of the
+   real font, on every page, regardless of which font was ever configured.
+   Confirmed directly with Playwright against production: getComputedStyle
+   on <html> returned the plain fallback string for all three properties,
+   and document.fonts showed the real font-faces present but "unloaded" --
+   nothing had ever actually asked the browser to use them. No fallback is
+   needed here at all: Next.js SSR means the real .__variable_xxx class is
+   already in the very first byte of HTML, never added late by client JS,
+   and Tailwind's own fontFamily config (tailwind.config.ts) already
+   appends system-ui/sans-serif or monospace after each var() reference as
+   the genuine "font file failed to load" fallback. */
 
 @layer base {
   html {
