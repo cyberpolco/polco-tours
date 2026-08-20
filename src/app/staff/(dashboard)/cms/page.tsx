@@ -90,105 +90,6 @@ export default async function CmsPage({ searchParams }: Props) {
         </div>
 
         <section className="space-y-3">
-          <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
-          {canWrite ? (
-            <form action={updateTextBlockAction} className="space-y-3">
-              <input type="hidden" name="locale" value={locale} />
-              <FormField label={t('aboutTitle')} htmlFor="title">
-                <input
-                  name="title"
-                  required
-                  defaultValue={about?.title ?? ''}
-                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-                />
-              </FormField>
-              <FormField label={t('aboutBody')} htmlFor="body">
-                <textarea
-                  name="body"
-                  required
-                  rows={8}
-                  defaultValue={about?.body ?? ''}
-                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-                />
-              </FormField>
-              <SubmitButton size="compact" pendingLabel={t('saving')}>
-                {t('saveAboutPage')}
-              </SubmitButton>
-            </form>
-          ) : (
-            <p className="text-mist">{about ? about.body : t('noAboutContent')}</p>
-          )}
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="font-semibold text-navy">{t('faqCount', { count: faqs.length })}</h2>
-          <RevealGroup as="div" itemAs="div" className="space-y-3">
-            {faqs.map((f) => (
-              <Card key={f.id}>
-                {canWrite ? (
-                  <form action={updateFaqEntryAction.bind(null, f.id)} className="space-y-2">
-                    <input
-                      name="question"
-                      required
-                      defaultValue={f.question}
-                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
-                    />
-                    <textarea
-                      name="answer"
-                      required
-                      rows={3}
-                      defaultValue={f.answer}
-                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
-                    />
-                    <div className="flex items-end gap-3">
-                      <FormField label={t('order')} htmlFor={`sortOrder-${f.id}`}>
-                        <input
-                          name="sortOrder"
-                          type="number"
-                          defaultValue={f.sortOrder}
-                          className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
-                        />
-                      </FormField>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
-                        {t('save')}
-                      </SubmitButton>
-                      <DeleteButton
-                        action={deleteFaqEntryAction.bind(null, f.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeFaqConfirm')}
-                        removeLabel={t('remove')}
-                      />
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <p className="font-semibold text-navy">{f.question}</p>
-                    <p className="mt-1 text-sm text-mist">{f.answer}</p>
-                  </>
-                )}
-              </Card>
-            ))}
-          </RevealGroup>
-          {canWrite && (
-            <form action={createFaqEntryAction} className="space-y-2 rounded-card border border-dashed border-rule p-4">
-              <input type="hidden" name="locale" value={locale} />
-              <FormField label={t('newQuestion')} htmlFor="question">
-                <input name="question" required className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm" />
-              </FormField>
-              <FormField label={t('answer')} htmlFor="answer">
-                <textarea name="answer" required rows={3} className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm" />
-              </FormField>
-              <FormField label={t('order')} htmlFor="sortOrder" optional>
-                <input name="sortOrder" type="number" defaultValue={faqs.length} className="w-20 rounded-survey border border-rule px-2 py-1 text-sm" />
-              </FormField>
-              <SubmitButton size="compact" pendingLabel={t('adding')}>
-                {t('addFaqEntry')}
-              </SubmitButton>
-            </form>
-          )}
-        </section>
-
-        <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('heroSectionTitle')}</h2>
           <p className="text-xs text-mist">{t('heroIntro')}</p>
           <RevealGroup as="div" itemAs="div" className="space-y-4">
@@ -291,6 +192,105 @@ export default async function CmsPage({ searchParams }: Props) {
             <form action={createHeroSlideAction}>
               <SubmitButton size="compact" pendingLabel={t('adding')}>
                 {t('addSlide')}
+              </SubmitButton>
+            </form>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
+          {canWrite ? (
+            <form action={updateTextBlockAction} className="space-y-3">
+              <input type="hidden" name="locale" value={locale} />
+              <FormField label={t('aboutTitle')} htmlFor="title">
+                <input
+                  name="title"
+                  required
+                  defaultValue={about?.title ?? ''}
+                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
+                />
+              </FormField>
+              <FormField label={t('aboutBody')} htmlFor="body">
+                <textarea
+                  name="body"
+                  required
+                  rows={8}
+                  defaultValue={about?.body ?? ''}
+                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
+                />
+              </FormField>
+              <SubmitButton size="compact" pendingLabel={t('saving')}>
+                {t('saveAboutPage')}
+              </SubmitButton>
+            </form>
+          ) : (
+            <p className="text-mist">{about ? about.body : t('noAboutContent')}</p>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('faqCount', { count: faqs.length })}</h2>
+          <RevealGroup as="div" itemAs="div" className="space-y-3">
+            {faqs.map((f) => (
+              <Card key={f.id}>
+                {canWrite ? (
+                  <form action={updateFaqEntryAction.bind(null, f.id)} className="space-y-2">
+                    <input
+                      name="question"
+                      required
+                      defaultValue={f.question}
+                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
+                    />
+                    <textarea
+                      name="answer"
+                      required
+                      rows={3}
+                      defaultValue={f.answer}
+                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                    />
+                    <div className="flex items-end gap-3">
+                      <FormField label={t('order')} htmlFor={`sortOrder-${f.id}`}>
+                        <input
+                          name="sortOrder"
+                          type="number"
+                          defaultValue={f.sortOrder}
+                          className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                        />
+                      </FormField>
+                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                        {t('save')}
+                      </SubmitButton>
+                      <DeleteButton
+                        action={deleteFaqEntryAction.bind(null, f.id)}
+                        removingLabel={t('removing')}
+                        removeConfirm={t('removeFaqConfirm')}
+                        removeLabel={t('remove')}
+                      />
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <p className="font-semibold text-navy">{f.question}</p>
+                    <p className="mt-1 text-sm text-mist">{f.answer}</p>
+                  </>
+                )}
+              </Card>
+            ))}
+          </RevealGroup>
+          {canWrite && (
+            <form action={createFaqEntryAction} className="space-y-2 rounded-card border border-dashed border-rule p-4">
+              <input type="hidden" name="locale" value={locale} />
+              <FormField label={t('newQuestion')} htmlFor="question">
+                <input name="question" required className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm" />
+              </FormField>
+              <FormField label={t('answer')} htmlFor="answer">
+                <textarea name="answer" required rows={3} className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm" />
+              </FormField>
+              <FormField label={t('order')} htmlFor="sortOrder" optional>
+                <input name="sortOrder" type="number" defaultValue={faqs.length} className="w-20 rounded-survey border border-rule px-2 py-1 text-sm" />
+              </FormField>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('addFaqEntry')}
               </SubmitButton>
             </form>
           )}
