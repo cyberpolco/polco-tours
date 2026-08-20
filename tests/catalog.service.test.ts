@@ -9,15 +9,22 @@ import { ApiError } from '../src/lib/errors';
  * same way tests/api/booking-setup.api.test.ts mocks @modules/documents/gateway
  * (deterministic, doesn't depend on a real Vercel Blob token).
  */
-const { uploadPublicImageMock, PublicImageBlobGatewayErrorForTest } = vi.hoisted(() => {
+const { uploadPublicImageMock, PublicImageBlobGatewayErrorForTest, PublicImageCompressionErrorForTest } = vi.hoisted(() => {
   class PublicImageBlobGatewayErrorForTest extends Error {}
+  class PublicImageCompressionErrorForTest extends Error {}
   return {
     uploadPublicImageMock: vi.fn(),
     PublicImageBlobGatewayErrorForTest,
+    PublicImageCompressionErrorForTest,
   };
 });
 vi.mock('@lib/public-image-blob', () => ({
   PublicImageBlobGatewayError: PublicImageBlobGatewayErrorForTest,
+  // DR-163: catalog/service.ts now also checks `instanceof
+  // PublicImageCompressionError` (a malformed image, mapped to a
+  // validation error rather than internal) -- must exist on this mock or
+  // that instanceof check throws.
+  PublicImageCompressionError: PublicImageCompressionErrorForTest,
   publicImageBlobGateway: { uploadPublicImage: uploadPublicImageMock },
   isValidPublicImageUpload: (contentType: string, sizeBytes: number) =>
     ['image/jpeg', 'image/png', 'image/webp'].includes(contentType) && sizeBytes > 0 && sizeBytes <= 5 * 1024 * 1024,
@@ -95,5 +102,14 @@ describe('catalogService.uploadPackageImage (DR-114)', () => {
     await expect(
       catalogService.uploadPackageImage(ctx, { contentType: 'image/jpeg', sizeBytes: 1024, bytes: Buffer.from('x') }),
     ).rejects.toMatchObject({ status: 500, slug: 'internal' });
+  });
+
+  it('maps a malformed-image compression failure to a validation error, not internal (DR-163)', async () => {
+    const ctx = ctxWith(['catalog.write']);
+    uploadPublicImageMock.mockRejectedValue(new PublicImageCompressionErrorForTest('Unable to process image'));
+
+    await expect(
+      catalogService.uploadPackageImage(ctx, { contentType: 'image/jpeg', sizeBytes: 1024, bytes: Buffer.from('x') }),
+    ).rejects.toMatchObject({ status: 422, slug: 'validation-failed' });
   });
 });
