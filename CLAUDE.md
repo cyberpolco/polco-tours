@@ -28,9 +28,11 @@ explicit decision to do so.
 > (`src/modules/weather/gateway.ts`) never set `pageSize`, so it silently
 > stopped at page 1. Fixed by passing `pageSize: String(days)` alongside
 > `days` (still one request, since `FORECAST_DAYS` stays well under
-> Google's 10-day/10-pageSize cap). Same DR also bumps `FORECAST_DAYS`
-> (`src/modules/weather/service.ts`) 7 → 9, explicit user request. No
-> schema/permission/module-dependency change. **DR-159** (explicit user request, walked through the
+> Google's 10-day/10-pageSize cap). `FORECAST_DAYS`
+> (`src/modules/weather/service.ts`) was briefly bumped 7 → 9, then reverted
+> back to 7 on explicit follow-up — the forecast window itself is
+> unchanged, only the pagination bug is fixed. No schema/permission/
+> module-dependency change. **DR-159** (explicit user request, walked through the
 > permission review tab-by-tab with the user before any code, per their
 > own "ask questions, don't assume" instruction) reverses DR-035's
 > runtime, DB-backed permission-matrix editor: what each role grants is a

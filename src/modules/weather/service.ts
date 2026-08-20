@@ -9,7 +9,7 @@ import { findWeatherTown, WEATHER_TOWNS, type WeatherTown } from '@lib/weather-t
 import type { CurrentConditionsView, ForecastDayView, TownSummaryView, TownWeatherView } from './domain';
 import { WeatherGatewayError, weatherGateway } from './gateway';
 
-const FORECAST_DAYS = 9; // Google's forecast.days.lookup max is 10 (1-10 inclusive)
+const FORECAST_DAYS = 7;
 const CURRENT_TTL_SECONDS = 30 * 60; // 30 min
 const FORECAST_TTL_SECONDS = 10 * 60 * 60; // 10 hr
 
