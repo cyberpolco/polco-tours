@@ -1,20 +1,21 @@
 import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
-import { contentService, type ContentLocale } from '@modules/content';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { Reveal } from '@/components/ui/Reveal';
 
-// DR-071: content is now DB-backed (SiteContent, key="about") instead of
-// hardcoded JSX -- edited at /staff/content. Reads the same `locale` cookie
-// src/i18n/request.ts does directly, rather than pulling in next-intl's
-// machinery for content that isn't a next-intl namespace.
-async function resolveLocale(): Promise<ContentLocale> {
+// DR-071: content is DB-backed (CmsTextBlock, key="about") instead of
+// hardcoded JSX -- edited at /staff/cms (renamed from /staff/content,
+// DR-162). Reads the same `locale` cookie src/i18n/request.ts does
+// directly, rather than pulling in next-intl's machinery for content that
+// isn't a next-intl namespace.
+async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
 export default async function AboutPage() {
   const locale = await resolveLocale();
-  const about = await contentService.getPublicSiteContent('about', locale);
+  const about = await cmsService.getPublicTextBlock('about', locale);
   const t = await getTranslations('AboutPage');
 
   return (

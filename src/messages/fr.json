@@ -40,7 +40,7 @@
   "StaffSettingsSidebar": {
     "sectionTitle": "Paramètres",
     "finance": "Finance",
-    "siteContent": "Contenu du site",
+    "cms": "CMS",
     "countryRegulations": "Réglementations par pays",
     "sites": "Sites",
     "insights": "Statistiques",
@@ -1752,7 +1752,7 @@
     "rolesLabel": "Rôles (sélectionnez-en un ou plusieurs)",
     "createUser": "Créer l'utilisateur"
   },
-  "StaffContent": {
+  "StaffCms": {
     "eyebrow": "Paramètres",
     "title": "Contenu du site",
     "intro": "Texte modifiable pour la page /about et la liste /faq du site public. L'anglais et le français sont des lignes indépendantes, pas un miroir traduit l'un de l'autre — modifiez chaque langue séparément.",

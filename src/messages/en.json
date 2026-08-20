@@ -40,7 +40,7 @@
   "StaffSettingsSidebar": {
     "sectionTitle": "Settings",
     "finance": "Finance",
-    "siteContent": "Site Content",
+    "cms": "CMS",
     "countryRegulations": "Country Regulations",
     "sites": "Sites",
     "insights": "Insights",
@@ -1752,7 +1752,7 @@
     "rolesLabel": "Roles (select one or more)",
     "createUser": "Create user"
   },
-  "StaffContent": {
+  "StaffCms": {
     "eyebrow": "Settings",
     "title": "Site Content",
     "intro": "Editable text for the guest /about page and /faq list. English and French are independent rows, not a translated mirror of each other — edit each locale on its own.",

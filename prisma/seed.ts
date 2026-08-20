@@ -435,12 +435,12 @@ async function main() {
     });
   }
 
-  // --- Content module (DR-071): About page + FAQ list, EN + FR, seeded so
-  // the guest /about and /faq pages have real content the moment the module
-  // ships instead of rendering empty until a SUPERADMIN fills them in by
-  // hand. French is a genuine, independently-worded translation (not a
-  // literal port of the English) -- same bar the pre-existing Nav/Footer/
-  // HomePage French already meets. ---
+  // --- CMS module (DR-071, renamed from `content` in DR-162): About page +
+  // FAQ list, EN + FR, seeded so the guest /about and /faq pages have real
+  // content the moment the module ships instead of rendering empty until a
+  // SUPERADMIN fills them in by hand. French is a genuine, independently-
+  // worded translation (not a literal port of the English) -- same bar the
+  // pre-existing Nav/Footer/HomePage French already meets. ---
   const siteContent: Array<{ key: string; locale: string; title: string; body: string }> = [
     {
       key: 'about',
@@ -464,7 +464,7 @@ async function main() {
     },
   ];
   for (const c of siteContent) {
-    await prisma.siteContent.upsert({
+    await prisma.cmsTextBlock.upsert({
       where: { key_locale: { key: c.key, locale: c.locale } },
       update: {},
       create: { key: c.key, locale: c.locale, title: c.title, body: c.body },
@@ -499,9 +499,9 @@ async function main() {
     { locale: 'fr', sortOrder: 9, question: 'Ai-je besoin d\'un visa pour la Zambie ou le Zimbabwe ?', answer: "La plupart des visiteurs peuvent obtenir un visa à l'arrivée ou demander un e-visa au préalable, et certaines nationalités sont exemptées pour les courts séjours. Là où il est proposé, le visa conjoint KAZA UniVisa couvre les deux pays ainsi que les excursions d'une journée vers le Botswana. Les conditions varient selon la nationalité ; confirmez directement auprès du service de l'Immigration zambien ou zimbabwéen, ou de l'ambassade la plus proche, avant de voyager." },
   ];
   for (const f of faqEntries) {
-    const existing = await prisma.faqEntry.findFirst({ where: { locale: f.locale, question: f.question } });
+    const existing = await prisma.cmsFaqEntry.findFirst({ where: { locale: f.locale, question: f.question } });
     if (!existing) {
-      await prisma.faqEntry.create({ data: f });
+      await prisma.cmsFaqEntry.create({ data: f });
     }
   }
 

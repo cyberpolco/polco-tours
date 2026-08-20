@@ -297,9 +297,9 @@ describe('ROLE_PERMISSIONS map (DR-159)', () => {
     expect(granted('TOURIST', 'hotel_restaurant_rating.write')).toBe(false);
   });
 
-  it('content.read/write are never granted to any role -- SUPERADMIN-only via its hardcoded wildcard (DR-071, unchanged by DR-159)', () => {
-    expect(granted('PLATFORM_ADMIN', 'content.read')).toBe(false);
-    expect(granted('PLATFORM_ADMIN', 'content.write')).toBe(false);
-    expect(granted('TOUR_OPERATOR', 'content.read')).toBe(false);
+  it('cms.read/write are never granted to any role -- SUPERADMIN-only via its hardcoded wildcard (DR-071, unchanged by DR-159/DR-162)', () => {
+    expect(granted('PLATFORM_ADMIN', 'cms.read')).toBe(false);
+    expect(granted('PLATFORM_ADMIN', 'cms.write')).toBe(false);
+    expect(granted('TOUR_OPERATOR', 'cms.read')).toBe(false);
   });
 });

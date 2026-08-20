@@ -90,8 +90,10 @@ CREATE POLICY tenant_isolation ON payments
 -- No policy for tax_rates: it is platform-wide reference data with no
 -- organizationId column (DR-006) -- not tenant-scoped, intentionally.
 
--- No policy for site_content/faq_entries either, same reasoning (DR-071):
--- platform-wide guest-site content with no organizationId column.
+-- No policy for site_content/faq_entries (Prisma models CmsTextBlock/
+-- CmsFaqEntry, renamed from SiteContent/FaqEntry in DR-162 -- table names
+-- unchanged) or cms_media_items (new in DR-162) either, same reasoning
+-- (DR-071): platform-wide guest-site content with no organizationId column.
 
 -- ------------------------------------------------------------------- travelers
 ALTER TABLE travelers ENABLE ROW LEVEL SECURITY;

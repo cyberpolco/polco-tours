@@ -151,8 +151,8 @@ export const catalogService = {
 
   /** DR-114: staff upload a real image file instead of pasting a URL.
    * Gated by catalog.write (same as create/update) -- deliberately NOT
-   * reusing contentService.uploadImage, which is gated SUPERADMIN-only
-   * (requireContentWriter); package creation/editing is open to
+   * reusing cmsService.uploadImage, which is gated SUPERADMIN-only
+   * (requireCmsWriter); package creation/editing is open to
    * PLATFORM_ADMIN/TOUR_OPERATOR too, so this calls the shared
    * publicImageBlobGateway directly under catalog's own permission instead. */
   async uploadPackageImage(ctx: AuthContext, input: UploadPackageImageInput): Promise<{ url: string }> {

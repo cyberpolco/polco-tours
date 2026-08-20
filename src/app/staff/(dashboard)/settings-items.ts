@@ -16,12 +16,13 @@ export const SETTINGS_ITEMS: SidebarItem[] = [
   // expresses that honestly rather than picking one arbitrarily.
   // DR-159: narrowed to SUPERADMIN-only (both platform_settings.read and
   // finance_config.read are now granted to nobody else) -- superadminOnly
-  // is belt-and-suspenders with that, same convention as Site Content.
+  // is belt-and-suspenders with that, same convention as the CMS item below.
   { href: '/staff/settings/finance', labelKey: 'finance', anyPermission: ['platform_settings.read', 'finance_config.read'], superadminOnly: true },
-  // Content (DR-071): About page + FAQ CRUD. content.read is never seeded to
-  // any role (explicit user choice) -- superadminOnly here is belt-and-
-  // suspenders with that, matching Permissions/My Profile below.
-  { href: '/staff/content', labelKey: 'siteContent', permission: 'content.read', superadminOnly: true },
+  // CMS (DR-071, renamed from `content`/"Site Content" in DR-162): About
+  // page + FAQ CRUD. cms.read is never seeded to any role (explicit user
+  // choice) -- superadminOnly here is belt-and-suspenders with that,
+  // matching Permissions/My Profile below.
+  { href: '/staff/cms', labelKey: 'cms', permission: 'cms.read', superadminOnly: true },
   { href: '/staff/country-regulations', labelKey: 'countryRegulations', permission: 'country_regulation.read' },
   // Sites (DR-083): staff-managed reference list powering the itinerary
   // day form's "planned sites" picker -- moved here from the top-level nav

@@ -1,6 +1,6 @@
 // weather module — service. Fully public read path: NO AuthContext at all,
-// same "no ctx exists for these callers" precedent as content/service.ts's
-// getPublicSiteContent/listPublicFaqEntries -- there is no staff-
+// same "no ctx exists for these callers" precedent as cms/service.ts's
+// getPublicTextBlock/listPublicFaqEntries -- there is no staff-
 // authenticated half to this module, since the town list is a static config
 // (src/lib/weather-towns.ts), not a DB table staff edit through a
 // permission-gated route.

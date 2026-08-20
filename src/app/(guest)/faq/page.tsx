@@ -1,21 +1,21 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { contentService, type ContentLocale } from '@modules/content';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
 
-// DR-071: FAQ list is now DB-backed (FaqEntry) instead of a hardcoded array
-// -- edited at /staff/content. Same direct-cookie-read convention as
-// about/page.tsx.
-async function resolveLocale(): Promise<ContentLocale> {
+// DR-071: FAQ list is DB-backed (CmsFaqEntry) instead of a hardcoded array
+// -- edited at /staff/cms (renamed from /staff/content, DR-162). Same
+// direct-cookie-read convention as about/page.tsx.
+async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
 export default async function FaqPage() {
   const locale = await resolveLocale();
-  const faqs = await contentService.listPublicFaqEntries(locale);
+  const faqs = await cmsService.listPublicFaqEntries(locale);
   const t = await getTranslations('FaqPage');
 
   return (

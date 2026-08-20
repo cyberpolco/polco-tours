@@ -344,7 +344,7 @@ model PlatformRate {
   @@map("platform_rates")
 }
 
-// Content module (DR-071): staff-editable guest-site content, replacing what
+// CMS module (DR-071): staff-editable guest-site content, replacing what
 // used to be hardcoded JSX/TS literals in src/app/(guest)/{about,faq}. Added
 // as an unused scaffold in DR-042 (the "(DR-043)" citation this comment used
 // to carry was a stale mislabel -- DR-042 is the actual origin, see its row
@@ -353,13 +353,21 @@ model PlatformRate {
 // consistent with the guest site's existing single-primary-org convention
 // (getPrimaryOrgId() already resolves one global org for every guest page,
 // so there's no per-tenant guest-content story to preserve). Write is
-// SUPERADMIN-only (content.write, enforced in content/service.ts).
+// SUPERADMIN-only (cms.write, enforced in cms/service.ts).
 // `locale` (DR-071) lets About/FAQ carry real, independently-written French
 // content rather than a literal translation bolted on later -- one row per
 // key+locale, mirroring next-intl's per-locale-file convention.
-model SiteContent {
+// DR-162 renamed the `content` module to `cms` (and this model from
+// SiteContent) as Phase 1 of a broader CMS expansion (staff-managed text +
+// media across the whole guest site, not just About/FAQ) -- `@@map` is
+// deliberately left pointing at the original table name: this is a
+// TS-facing/Prisma-Client rename only, not a migration, since the table
+// holds live production About/FAQ content. `key` is no longer only "about"
+// -- it's meant to take dotted/namespaced keys for other pages/sections
+// (e.g. "contact.intro") as those get built out in later phases.
+model CmsTextBlock {
   id              String   @id @default(uuid()) @db.Uuid
-  key             String // e.g. "about"
+  key             String // e.g. "about", "contact.intro"
   locale          String   @default("en")
   title           String
   body            String   @db.Text
@@ -370,11 +378,13 @@ model SiteContent {
   @@map("site_content")
 }
 
-// Same precedent as SiteContent, but repeated rows (one per Q&A) instead of
+// Same precedent as CmsTextBlock, but repeated rows (one per Q&A) instead of
 // a single-row-per-key blob. `locale` (DR-071): each FAQ entry is one
 // question+answer in one language -- EN and FR entries are independent rows
-// with their own sortOrder, not a shared row with two body columns.
-model FaqEntry {
+// with their own sortOrder, not a shared row with two body columns. Renamed
+// from FaqEntry in DR-162, same "TS-facing rename only, @@map unchanged"
+// reasoning as CmsTextBlock above.
+model CmsFaqEntry {
   id        String   @id @default(uuid()) @db.Uuid
   question  String
   answer    String   @db.Text
@@ -385,6 +395,33 @@ model FaqEntry {
 
   @@index([locale, sortOrder])
   @@map("faq_entries")
+}
+
+// New in DR-162 -- the generic image/video building block later CMS phases
+// will use for staff-managed media across the guest site (Home hero slides,
+// Gallery, etc.), so those phases don't each need their own table. Not yet
+// given a repository/service method or any UI -- nothing calls this table
+// until a specific page is actually wired to it. `mediaType` is a plain
+// String validated in cms/domain.ts (zod), the same convention as `locale`
+// above, rather than a Postgres enum, so adding a third media type later is
+// a code-only change. `(page, slotKey)` is unique so a specific slide/slot
+// (e.g. page="home-hero", slotKey="slide-1") can be upserted in place; a
+// free-form list (e.g. Gallery) uses a stable per-item id as its slotKey.
+model CmsMediaItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  page            String // e.g. "home-hero", "gallery"
+  slotKey         String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
+  mediaType       String // 'image' | 'video'
+  url             String
+  caption         String?
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
+
+  @@unique([page, slotKey])
+  @@index([page, sortOrder])
+  @@map("cms_media_items")
 }
 
 // Platform-wide reference data, one row per country (Immigration Module,

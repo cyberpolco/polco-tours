@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { contentService, type ContentLocale } from '@modules/content';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -9,7 +9,7 @@ import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
-import { createFaqEntryAction, deleteFaqEntryAction, updateFaqEntryAction, updateSiteContentAction, uploadContentImageAction } from './actions';
+import { createFaqEntryAction, deleteFaqEntryAction, updateFaqEntryAction, updateTextBlockAction, uploadCmsImageAction } from './actions';
 
 interface Props {
   searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string }>;
@@ -35,23 +35,23 @@ function DeleteButton({
   );
 }
 
-// Content module (DR-071) -- SUPERADMIN-only editor for the guest /about
-// page text and the /faq list, replacing what used to be hardcoded JSX/TS
-// literals. content.read/content.write are both never seeded to any role
-// (explicit user choice), so reaching this page at all already means
-// SUPERADMIN -- canWrite is computed anyway, matching the tax-rates page's
-// "route passes, service still rejects" layering convention.
-export default async function ContentPage({ searchParams }: Props) {
+// cms module (DR-071, renamed from `content` in DR-162) -- SUPERADMIN-only
+// editor for the guest /about page text and the /faq list, replacing what
+// used to be hardcoded JSX/TS literals. cms.read/cms.write are both never
+// seeded to any role (explicit user choice), so reaching this page at all
+// already means SUPERADMIN -- canWrite is computed anyway, matching the
+// tax-rates page's "route passes, service still rejects" layering convention.
+export default async function CmsPage({ searchParams }: Props) {
   const { locale: localeParam, uploadedUrl, error } = await searchParams;
-  const locale: ContentLocale = localeParam === 'fr' ? 'fr' : 'en';
-  const ctx = await requireStaffContext('content.read');
+  const locale: CmsLocale = localeParam === 'fr' ? 'fr' : 'en';
+  const ctx = await requireStaffContext('cms.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
   const [about, faqs] = await Promise.all([
-    contentService.getSiteContent(ctx, 'about', locale),
-    contentService.listFaqEntries(ctx, locale),
+    cmsService.getTextBlock(ctx, 'about', locale),
+    cmsService.listFaqEntries(ctx, locale),
   ]);
-  const t = await getTranslations('StaffContent');
+  const t = await getTranslations('StaffCms');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
@@ -63,13 +63,13 @@ export default async function ContentPage({ searchParams }: Props) {
 
         <div className="flex gap-2 text-sm">
           <Link
-            href="/staff/content?locale=en"
+            href="/staff/cms?locale=en"
             className={`rounded-pill border px-3 py-1 ${locale === 'en' ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'}`}
           >
             {t('english')}
           </Link>
           <Link
-            href="/staff/content?locale=fr"
+            href="/staff/cms?locale=fr"
             className={`rounded-pill border px-3 py-1 ${locale === 'fr' ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'}`}
           >
             {t('french')}
@@ -79,7 +79,7 @@ export default async function ContentPage({ searchParams }: Props) {
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
           {canWrite ? (
-            <form action={updateSiteContentAction} className="space-y-3">
+            <form action={updateTextBlockAction} className="space-y-3">
               <input type="hidden" name="locale" value={locale} />
               <FormField label={t('aboutTitle')} htmlFor="title">
                 <input
@@ -186,7 +186,7 @@ export default async function ContentPage({ searchParams }: Props) {
               </div>
             )}
             {error === 'missing_file' && <p className="text-sm text-amber">{t('chooseFileFirst')}</p>}
-            <form action={uploadContentImageAction} className="flex flex-wrap items-end gap-3">
+            <form action={uploadCmsImageAction} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="locale" value={locale} />
               <input type="file" name="file" required accept="image/jpeg,image/png,image/webp" className="text-sm" />
               <SubmitButton size="compact" pendingLabel={t('uploading')}>

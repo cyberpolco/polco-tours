@@ -113,13 +113,14 @@ export type Permission =
   // itineraries) and by TOUR_OPERATOR/PLATFORM_ADMIN (unscoped, matching
   // their existing org-wide itinerary.write access).
   | 'hotel_restaurant_rating.write'
-  // Content (DR-071): SiteContent (About page)/FaqEntry CRUD -- SUPERADMIN-
-  // only for both read and write (explicit user choice, unchanged by
-  // DR-159); contentService's requireContentWriter additionally hardcodes a
-  // SUPERADMIN role check on every write. The public /about and /faq guest
-  // pages don't go through this gate at all.
-  | 'content.read'
-  | 'content.write'
+  // CMS (DR-071, module+permission renamed from `content` in DR-162):
+  // CmsTextBlock (About page)/CmsFaqEntry CRUD -- SUPERADMIN-only for both
+  // read and write (explicit user choice, unchanged by DR-159 or DR-162);
+  // cmsService's requireCmsWriter additionally hardcodes a SUPERADMIN role
+  // check on every write. The public /about and /faq guest pages don't go
+  // through this gate at all.
+  | 'cms.read'
+  | 'cms.write'
   // Insights & Decision Making (DR-155): gates ONLY the staff-headcount/
   // roster-summary aggregate (authService.getStaffRosterSummary) --
   // deliberately NOT `admin.all`, which also unlocks full user CRUD.
