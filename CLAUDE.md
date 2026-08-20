@@ -19,8 +19,18 @@ on two real domains instead: the Vercel default
 a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
-> Current through DR-159 — see `docs/decisions/DECISION_LOG.md` for full
-> history. **DR-159** (explicit user request, walked through the
+> Current through DR-160 — see `docs/decisions/DECISION_LOG.md` for full
+> history. **DR-160** (user-reported bug) fixes the guest `/weather/[town]`
+> forecast silently returning only 5 of its requested days: Google's
+> `forecast.days:lookup` paginates independently of the `days` param —
+> `pageSize` defaults to 5 server-side when omitted, with a `nextPageToken`
+> needed for the rest — and `GoogleWeatherGateway.getDailyForecast`
+> (`src/modules/weather/gateway.ts`) never set `pageSize`, so it silently
+> stopped at page 1. Fixed by passing `pageSize: String(days)` alongside
+> `days` (still one request, since `FORECAST_DAYS` stays well under
+> Google's 10-day/10-pageSize cap). Same DR also bumps `FORECAST_DAYS`
+> (`src/modules/weather/service.ts`) 7 → 9, explicit user request. No
+> schema/permission/module-dependency change. **DR-159** (explicit user request, walked through the
 > permission review tab-by-tab with the user before any code, per their
 > own "ask questions, don't assume" instruction) reverses DR-035's
 > runtime, DB-backed permission-matrix editor: what each role grants is a

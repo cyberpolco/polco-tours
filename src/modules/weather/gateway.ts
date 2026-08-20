@@ -136,11 +136,16 @@ class GoogleWeatherGateway implements WeatherGateway {
 
   async getDailyForecast(lat: number, lng: number, days: number): Promise<ForecastDayResult[]> {
     const apiKey = this.requireApiKey();
+    // pageSize defaults to 5 server-side if omitted, independent of `days` --
+    // without setting it explicitly, a `days` value above 5 would silently
+    // truncate to a 5-day first page (real bug, found 2026-08-20: FORECAST_DAYS
+    // was 7 but only 5 ever rendered). Google caps pageSize at 10, same as days.
     const params = new URLSearchParams({
       key: apiKey,
       'location.latitude': String(lat),
       'location.longitude': String(lng),
       days: String(days),
+      pageSize: String(days),
     });
 
     try {
