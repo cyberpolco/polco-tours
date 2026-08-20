@@ -5,12 +5,13 @@
 // tree. Mirrors itinerary-summary-pdf.tsx's single-Document/day-block/
 // wrap={false} shape -- one PDF for the whole tour, not one per day.
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
 import type { MapStopView } from './domain';
 
 const styles = StyleSheet.create({
-  page: { padding: 28, fontSize: 11 },
+  page: { padding: 28, fontSize: 11, fontFamily: PDF_FONT_BODY },
   title: { fontSize: 16, marginBottom: 4 },
-  subtitle: { fontSize: 10, color: '#8C7D78', marginBottom: 12 },
+  subtitle: { fontSize: 10, color: '#8C7D78', marginBottom: 12, fontFamily: PDF_FONT_CODE },
   image: { width: '100%', marginBottom: 16 },
   dayBlock: { marginBottom: 10 },
   dayHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
@@ -37,6 +38,7 @@ export interface ItineraryMapPdfInput {
 }
 
 export async function renderItineraryMapPdf(input: ItineraryMapPdfInput, mapImage: Buffer): Promise<Buffer> {
+  registerPdfFonts();
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page}>

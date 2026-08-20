@@ -46,6 +46,17 @@
   h3 {
     @apply font-display;
   }
+  /* Explicit user request: the staff dashboard doesn't use the headline
+     stencil face (role 1, Big Shoulders Stencil Display) -- reserved for
+     the guest site only. .staff-shell (the staff dashboard/login/
+     forbidden/change-password root) opts its own h1-h3 back to the body
+     face. Higher specificity than the bare h1/h2/h3 rule above wins
+     regardless of source order within this same @layer. */
+  .staff-shell h1,
+  .staff-shell h2,
+  .staff-shell h3 {
+    @apply font-sans;
+  }
   ::selection {
     @apply bg-amber/25;
   }

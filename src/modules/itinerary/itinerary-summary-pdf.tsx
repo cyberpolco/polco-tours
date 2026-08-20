@@ -7,13 +7,15 @@
 // anywhere on Itinerary/ItineraryDay, so "without the prices" needs no
 // stripping logic -- this data is inherently price-free.
 import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
 
 const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8' };
 
 const styles = StyleSheet.create({
-  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 40, fontSize: 10, color: COLORS.ink },
+  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 40, fontSize: 10, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
   heading: { fontSize: 16, fontWeight: 700, color: COLORS.navy, marginBottom: 4 },
   subheading: { fontSize: 10, color: COLORS.mist, marginBottom: 2 },
+  bookingRef: { fontSize: 10, color: COLORS.mist, marginBottom: 2, fontFamily: PDF_FONT_CODE },
   headerRule: { borderBottom: `1pt solid ${COLORS.rule}`, marginTop: 8, marginBottom: 14 },
   dayBlock: { marginBottom: 14 },
   dayTitle: { fontSize: 12, fontWeight: 700, color: COLORS.forest, marginBottom: 4 },
@@ -58,11 +60,12 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 export async function renderItinerarySummaryPdf(input: ItinerarySummaryPdfInput): Promise<Buffer> {
+  registerPdfFonts();
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.heading}>Detailed Itinerary</Text>
-        <Text style={styles.subheading}>Booking reference: {input.bookingReference}</Text>
+        <Text style={styles.bookingRef}>Booking reference: {input.bookingReference}</Text>
         <Text style={styles.subheading}>Travel dates: {input.travelDates}</Text>
         {input.emergencyContact && <Text style={styles.subheading}>Emergency contact: {input.emergencyContact}</Text>}
         {input.notes && <Text style={styles.subheading}>Notes: {input.notes}</Text>}

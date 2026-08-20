@@ -14,7 +14,10 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
   const t = await getTranslations('StaffChrome');
 
   return (
-    <div className="min-h-screen bg-bone text-ink">
+    // staff-shell: opts every heading in this subtree out of the global
+    // h1/h2/h3 -> font-display rule (globals.css) -- explicit user
+    // request, headline stencil face reserved for the guest site only.
+    <div className="staff-shell min-h-screen bg-bone text-ink">
       {/* relative: anchors StaffNav's absolutely-positioned mobile drawer
           (top-full) to this header instead of the page body. flex-wrap
           (matching (guest)/layout.tsx's header): brand text + hamburger +

@@ -55,7 +55,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
+    <main className="staff-shell relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
       <div className="absolute right-8 top-8 flex items-center gap-4 text-sm">
         <LanguageSwitcher />
         <SignOutButton />

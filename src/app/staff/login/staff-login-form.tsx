@@ -68,7 +68,7 @@ export function StaffLoginForm() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
+    <main className="staff-shell relative flex min-h-screen items-center justify-center bg-navy px-8 text-bone">
       <BackLink href="/" tone="dark" className="absolute left-8 top-8">
         {t('back')}
       </BackLink>

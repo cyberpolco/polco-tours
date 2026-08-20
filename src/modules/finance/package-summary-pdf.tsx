@@ -17,6 +17,7 @@
 // same "static constant, not a DB table" precedent as src/lib/weather-towns.ts.
 import { Circle, Document, Page, Path, StyleSheet, Svg, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import type { Currency } from '@lib/money';
+import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
 
 /** Deliberately NOT src/lib/money.ts's own `format` (Intl.NumberFormat) --
  * the French locale's thousands-grouping character (a narrow no-break
@@ -155,7 +156,7 @@ export interface ClientPackageSummaryPdfInput {
 const COLORS = { navy: '#3B1F3A', amber: '#D65B2E', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8', bone: '#F6EFE4' };
 
 const styles = StyleSheet.create({
-  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 72, fontSize: 9, color: COLORS.ink },
+  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 72, fontSize: 9, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
   headerRow: { flexDirection: 'row', marginBottom: 20 },
   companyBlock: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, width: 190 },
   companyText: { fontSize: 8, color: COLORS.mist, lineHeight: 1.4 },
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
   titleBlock: { alignItems: 'center', flex: 1, paddingTop: 2 },
   heading: { fontSize: 15, fontWeight: 700, color: COLORS.navy, marginBottom: 4, textAlign: 'center' },
   packageTitle: { fontSize: 12, fontWeight: 700, color: COLORS.ink, textAlign: 'center' },
-  packageRef: { fontSize: 9, color: COLORS.mist, marginTop: 2, textAlign: 'center' },
+  packageRef: { fontSize: 9, color: COLORS.mist, marginTop: 2, textAlign: 'center', fontFamily: PDF_FONT_CODE },
   sectionHeading: { fontSize: 12, fontWeight: 700, color: COLORS.forest, marginTop: 16, marginBottom: 6 },
   tableHeaderRow: { flexDirection: 'row', borderBottom: `1pt solid ${COLORS.rule}`, paddingBottom: 4, marginBottom: 2 },
   tableRow: { flexDirection: 'row', borderBottom: `0.5pt solid ${COLORS.rule}`, paddingVertical: 4 },
@@ -263,6 +264,7 @@ function DocumentFooter({ locale }: { locale: PdfLocale }) {
  * and every internal cost bucket. Never handed to a guest -- see
  * renderClientPackageSummaryPdf below for the version that is. */
 export async function renderPackageSummaryPdf(input: PackageSummaryPdfInput): Promise<Buffer> {
+  registerPdfFonts();
   const t = LABELS[input.locale];
   const fmt = (minor: number) => formatMoneyForPdf(minor, input.currency);
   const transportPerPerson = Math.round(input.computedTransportMinor / input.referenceGroupSize);
@@ -329,6 +331,7 @@ export async function renderPackageSummaryPdf(input: PackageSummaryPdfInput): Pr
  * charged (TourPackage.priceMinor, already tax + platform-fee inclusive
  * per DR-134). Meant to be forwarded to a guest as-is. */
 export async function renderClientPackageSummaryPdf(input: ClientPackageSummaryPdfInput): Promise<Buffer> {
+  registerPdfFonts();
   const t = LABELS[input.locale];
   const fmt = (minor: number) => formatMoneyForPdf(minor, input.currency);
 
