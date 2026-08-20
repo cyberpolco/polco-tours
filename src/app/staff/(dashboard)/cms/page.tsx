@@ -25,8 +25,29 @@ import { MediaPicker } from './media-picker';
 import { PageTextEditor } from './page-text-editor';
 
 interface Props {
-  searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string }>;
+  searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string; tab?: string }>;
 }
+
+// Nav+footer order (DR-164) -- each tab's label key already exists (section
+// headings), except `faq` (its heading is a dynamic "FAQ ({count})", not a
+// plain label) and `media` (the generic image-upload utility, reusing its
+// existing section heading key).
+const CMS_TABS = [
+  { key: 'home-hero', labelKey: 'heroSectionTitle' },
+  { key: 'packages', labelKey: 'packagesSectionTitle' },
+  { key: 'plan-my-trip', labelKey: 'planMyTripSectionTitle' },
+  { key: 'gallery', labelKey: 'gallerySectionTitle' },
+  { key: 'find-booking', labelKey: 'findBookingSectionTitle' },
+  { key: 'about', labelKey: 'aboutPage' },
+  { key: 'faq', labelKey: 'faqSectionTitle' },
+  { key: 'contact', labelKey: 'contactSectionTitle' },
+  { key: 'rate', labelKey: 'rateSectionTitle' },
+  { key: 'weather', labelKey: 'weatherSectionTitle' },
+  { key: 'terms', labelKey: 'termsSectionTitle' },
+  { key: 'media', labelKey: 'imageUpload' },
+] as const;
+type CmsTabKey = (typeof CMS_TABS)[number]['key'];
+const CMS_TAB_KEYS: readonly string[] = CMS_TABS.map((tabDef) => tabDef.key);
 
 function DeleteButton({
   action,
@@ -55,8 +76,9 @@ function DeleteButton({
 // already means SUPERADMIN -- canWrite is computed anyway, matching the
 // tax-rates page's "route passes, service still rejects" layering convention.
 export default async function CmsPage({ searchParams }: Props) {
-  const { locale: localeParam, uploadedUrl, error } = await searchParams;
+  const { locale: localeParam, uploadedUrl, error, tab: tabParam } = await searchParams;
   const locale: CmsLocale = localeParam === 'fr' ? 'fr' : 'en';
+  const activeTab: CmsTabKey = (tabParam && CMS_TAB_KEYS.includes(tabParam) ? tabParam : 'home-hero') as CmsTabKey;
   const ctx = await requireStaffContext('cms.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
@@ -103,19 +125,32 @@ export default async function CmsPage({ searchParams }: Props) {
 
         <div className="flex gap-2 text-sm">
           <Link
-            href="/staff/cms?locale=en"
+            href={`/staff/cms?locale=en&tab=${activeTab}`}
             className={`rounded-pill border px-3 py-1 ${locale === 'en' ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'}`}
           >
             {t('english')}
           </Link>
           <Link
-            href="/staff/cms?locale=fr"
+            href={`/staff/cms?locale=fr&tab=${activeTab}`}
             className={`rounded-pill border px-3 py-1 ${locale === 'fr' ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'}`}
           >
             {t('french')}
           </Link>
         </div>
 
+        <div className="flex flex-wrap gap-2 border-b border-rule pb-4 text-sm">
+          {CMS_TABS.map((tabDef) => (
+            <Link
+              key={tabDef.key}
+              href={`/staff/cms?locale=${locale}&tab=${tabDef.key}`}
+              className={`rounded-pill border px-3 py-1 ${activeTab === tabDef.key ? 'border-amber bg-amber text-navy font-semibold' : 'border-rule text-ink hover:border-navy'}`}
+            >
+              {t(tabDef.labelKey)}
+            </Link>
+          ))}
+        </div>
+
+        {activeTab === 'home-hero' && (
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('heroSectionTitle')}</h2>
           <p className="text-xs text-mist">{t('heroIntro')}</p>
@@ -224,7 +259,9 @@ export default async function CmsPage({ searchParams }: Props) {
             </form>
           )}
         </section>
+        )}
 
+        {activeTab === 'packages' && (
         <PageTextEditor
           cmsKey="packages"
           locale={locale}
@@ -237,7 +274,9 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        )}
 
+        {activeTab === 'plan-my-trip' && (
         <PageTextEditor
           cmsKey="plan-my-trip"
           locale={locale}
@@ -250,7 +289,9 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        )}
 
+        {activeTab === 'gallery' && (
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('gallerySectionTitle')}</h2>
           <p className="text-xs text-mist">{t('galleryIntro')}</p>
@@ -287,7 +328,9 @@ export default async function CmsPage({ searchParams }: Props) {
             })}
           </RevealGroup>
         </section>
+        )}
 
+        {activeTab === 'find-booking' && (
         <PageTextEditor
           cmsKey="find-booking"
           locale={locale}
@@ -300,7 +343,9 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        )}
 
+        {activeTab === 'about' && (
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
           {canWrite ? (
@@ -331,7 +376,9 @@ export default async function CmsPage({ searchParams }: Props) {
             <p className="text-mist">{about ? about.body : t('noAboutContent')}</p>
           )}
         </section>
+        )}
 
+        {activeTab === 'faq' && (
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('faqCount', { count: faqs.length })}</h2>
           <RevealGroup as="div" itemAs="div" className="space-y-3">
@@ -399,7 +446,10 @@ export default async function CmsPage({ searchParams }: Props) {
             </form>
           )}
         </section>
+        )}
 
+        {activeTab === 'contact' && (
+        <>
         <PageTextEditor
           cmsKey="contact"
           locale={locale}
@@ -440,7 +490,10 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        </>
+        )}
 
+        {activeTab === 'rate' && (
         <PageTextEditor
           cmsKey="rate"
           locale={locale}
@@ -453,7 +506,9 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        )}
 
+        {activeTab === 'weather' && (
         <PageTextEditor
           cmsKey="weather"
           locale={locale}
@@ -466,7 +521,9 @@ export default async function CmsPage({ searchParams }: Props) {
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
+        )}
 
+        {activeTab === 'terms' && (
         <PageTextEditor
           cmsKey="terms"
           locale={locale}
@@ -480,8 +537,9 @@ export default async function CmsPage({ searchParams }: Props) {
           saveLabel={t('save')}
           bodyRows={6}
         />
+        )}
 
-        {canWrite && (
+        {activeTab === 'media' && canWrite && (
           <section className="space-y-3">
             <h2 className="font-semibold text-navy">{t('imageUpload')}</h2>
             <p className="text-xs text-mist">{t('imageUploadNotice')}</p>

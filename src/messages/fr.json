@@ -1765,6 +1765,7 @@
     "saveAboutPage": "Enregistrer la page À propos",
     "noAboutContent": "Aucun contenu « À propos » défini pour cette langue pour l'instant.",
     "faqCount": "FAQ ({count})",
+    "faqSectionTitle": "FAQ",
     "order": "Ordre",
     "save": "Enregistrer",
     "removing": "Suppression…",

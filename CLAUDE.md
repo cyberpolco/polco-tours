@@ -20,7 +20,7 @@ a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
 
-Current through **DR-164** (2026-08-20). This file used to carry a running
+Current through **DR-165** (2026-08-20). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -315,7 +315,10 @@ src/
                    #   blocks, Rate, Weather, Terms), and a real per-site
                    #   Gallery media grid (CmsMediaItem, page='gallery',
                    #   slotKey=the fixed DESTINATION_SITES name — not
-                   #   dynamic, that list is shared with plan-my-trip)
+                   #   dynamic, that list is shared with plan-my-trip).
+                   #   DR-165: /staff/cms is now tabbed (one section shown
+                   #   at a time, `?tab=` query param + a real navigation,
+                   #   no client JS) rather than one long scrolling page
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

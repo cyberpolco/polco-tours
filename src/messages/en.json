@@ -1765,6 +1765,7 @@
     "saveAboutPage": "Save About page",
     "noAboutContent": "No About content set for this locale yet.",
     "faqCount": "FAQ ({count})",
+    "faqSectionTitle": "FAQ",
     "order": "Order",
     "save": "Save",
     "removing": "Removing…",
