@@ -12,20 +12,20 @@ import './globals.css';
 // pattern and booking/rating codes -- a rugged, expedition-manifest register
 // replacing the old warm-editorial one. All three via next/font/google
 // (already part of the Next.js dependency, no new package).
-// axes: ['opsz'] is required for the actual die-cut look -- without it, the
-// served file's optical size axis is pinned at Google's default (a small/
-// "Text"-leaning instance), so a big hero headline never reaches the
-// dramatic Display cut the font is chosen for. With it, the browser's
-// default `font-optical-sizing: auto` picks a larger opsz automatically as
-// rendered font-size grows -- no extra CSS needed at any call site. next/font
-// only allows axes on a variable-weight font (weight: 'variable', not a
-// pinned list) -- same "weight controlled by each call site's own Tailwind
-// class, not pinned at load time" situation Fraunces was already in before
-// this font swap, so heading boldness is unaffected.
+// `weight: 'variable'` (tried for a live opsz axis, DR-156 follow-up)
+// turned out to be a dead end for this family -- despite the compiled CSS
+// claiming a `font-weight: 100 900` range, fc-query on the actual served
+// file showed it was really a single static "Big Shoulders Stencil Thin"
+// instance (~weight 100), not a true variable binary; next/font silently
+// degrades to that rather than erroring. Pinned static weights (matching
+// what the Google Fonts CSS2 API actually served in the specimen the user
+// picked from) are the only reliable way to get the real heavy/Black cut --
+// verified via fc-query against the redeployed file before calling this
+// done. No opsz axis as a result; the die-cut look comes from the weight,
+// not an optical-size ramp.
 const bigShouldersStencil = Big_Shoulders_Stencil({
   subsets: ['latin'],
-  weight: 'variable',
-  axes: ['opsz'],
+  weight: ['700', '900'],
   variable: '--font-display',
 });
 const archivo = Archivo({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-sans' });
