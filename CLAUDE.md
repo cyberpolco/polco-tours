@@ -1859,17 +1859,27 @@ gold, gradients/badges/stars), bone `#F6EFE4` (warm sand), mist `#8C7D78`
 visually coherent with the design package.
 
 **Typography (DR-156)** is a rugged/expedition register, not warm-editorial —
-three `next/font/google` faces, each its own Tailwind `fontFamily` key/CSS
-variable in `src/app/layout.tsx`/`tailwind.config.ts`: **Big Shoulders
-Stencil** (`--font-display`, `font-display`) for `h1`/`h2`/`h3` and hero
-figures — a die-cut crate/signage stencil, used at weight 700/900 only
-(legibility degrades below ~28px, so it's a headline face, not a body one);
-**Archivo** (`--font-sans`, `font-sans`, the page default) for body copy and
-UI chrome — an institutional grotesque built for wayfinding signage, holding
-up in dense staff tables; **Special Elite** (`--font-mono`, `font-mono`) for
-the `.eyebrow` label pattern and booking/rating reference codes — a
-distressed field-dispatch typewriter face, one weight only. Replaces the
-prior Fraunces/IBM Plex Sans/IBM Plex Mono trio, which read as generic
+three faces, each its own Tailwind `fontFamily` key/CSS variable in
+`src/app/layout.tsx`/`tailwind.config.ts`: **Big Shoulders Stencil Display**
+(`--font-display`, `font-display`) for `h1`/`h2`/`h3` and hero figures — a
+die-cut crate/signage stencil (weight 100-900, a true variable font;
+legibility degrades below ~28px, so it's a headline face, not a body one).
+Self-hosted via **`next/font/local`**, not `next/font/google` — a real
+DR-156 follow-up incident: "Big Shoulders Stencil" and "Big Shoulders
+Stencil Display" are two *separate* published Google Fonts families, and
+`next/font/google` only bundles the base (non-Display) one, which has no
+Bold/Black named instances and renders as a plain sans with no die-cut gaps
+at all — confirmed by inspecting the file with fontTools and by a live
+screenshot showing an ordinary bold sans. The real Display family's file
+(fetched directly from Google's own CSS2 endpoint, OFL-licensed, Latin
+subset) is vendored at `src/app/fonts/big-shoulders-stencil-display.woff2`.
+**Archivo** (`--font-sans`, `font-sans`, the page default, `next/font/google`)
+for body copy and UI chrome — an institutional grotesque built for
+wayfinding signage, holding up in dense staff tables; **Special Elite**
+(`--font-mono`, `font-mono`, `next/font/google`) for the `.eyebrow` label
+pattern and booking/rating reference codes — a distressed field-dispatch
+typewriter face, one weight only. Replaces the prior Fraunces/IBM Plex
+Sans/IBM Plex Mono trio, which read as generic
 "boutique DTC"/"dev-tool" defaults.
 
 ---
