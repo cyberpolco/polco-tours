@@ -1793,7 +1793,22 @@
     "mediaUploadError": "Échec du téléchargement — vérifiez le type/la taille du fichier et réessayez.",
     "addSlide": "Ajouter une diapositive",
     "removeSlide": "Supprimer la diapositive",
-    "removeSlideConfirm": "Supprimer cette diapositive ? Cette action est irréversible."
+    "removeSlideConfirm": "Supprimer cette diapositive ? Cette action est irréversible.",
+    "pageTitleLabel": "Titre",
+    "pageBodyLabel": "Texte",
+    "packagesSectionTitle": "Page Circuits",
+    "planMyTripSectionTitle": "Page Organiser mon voyage",
+    "gallerySectionTitle": "Galerie",
+    "galleryIntro": "Une photo ou vidéo par site de destination. Un site sans média téléchargé affiche le visuel illustré par défaut.",
+    "findBookingSectionTitle": "Page Retrouver ma réservation",
+    "contactSectionTitle": "Page Contact",
+    "officeNamibiaLabel": "Bureau Namibie",
+    "officeDrcLabel": "Bureau RDC",
+    "officeLabelFieldLabel": "Nom du bureau",
+    "officeDetailsFieldLabel": "Adresse / e-mail / téléphone (texte libre)",
+    "rateSectionTitle": "Page Évaluer mon voyage",
+    "weatherSectionTitle": "Page Météo",
+    "termsSectionTitle": "Page Conditions"
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",

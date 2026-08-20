@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { weatherService } from '@modules/weather';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
@@ -7,6 +9,12 @@ import { WeatherAnimation } from './weather-animation';
 import { classifyCondition, weatherCardTint } from './weather-classify';
 
 const COUNTRY_ORDER = ['NA', 'CD', 'ZM', 'ZW'] as const;
+
+// Same direct-cookie-read convention as (guest)/about/page.tsx.
+async function resolveLocale(): Promise<CmsLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
 
 // Fully public, no requireGuestContext -- same shape as about/faq/gallery
 // (DR-113). weatherService.listPublicTowns() fetches every town's current
@@ -17,13 +25,15 @@ export default async function WeatherPage() {
   const t = await getTranslations('WeatherPage');
   const tCountries = await getTranslations('Countries');
   const towns = await weatherService.listPublicTowns();
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('weather', locale);
 
   return (
     <Reveal>
       <div>
-        <p className="eyebrow text-mist">{t('eyebrow')}</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-mist">{t('subhead')}</p>
+        <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-mist">{cms?.body ?? t('subhead')}</p>
 
         {COUNTRY_ORDER.map((country) => {
           const countryTowns = towns.filter((town) => town.country === country);

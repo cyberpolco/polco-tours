@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import PlanMyTripForm from './plan-my-trip-form';
 
 interface Props {
@@ -6,6 +8,12 @@ interface Props {
   // (AfricaMap.tsx) -- pre-selects that destination on step 0 instead of
   // starting the wizard empty.
   searchParams: Promise<{ destination?: string }>;
+}
+
+// Same direct-cookie-read convention as (guest)/about/page.tsx.
+async function resolveLocale(): Promise<CmsLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
 // Mirrors plan-my-trip-form.tsx's own local DESTINATIONS codes -- kept in
@@ -25,12 +33,14 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
   const { destination } = await searchParams;
   const initialDestination = destination && VALID_DESTINATION_CODES.has(destination) ? destination : undefined;
   const t = await getTranslations('PlanMyTripPage');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('plan-my-trip', locale);
 
   return (
     <div className="max-w-lg">
-      <p className="eyebrow mt-4 text-mist">{t('eyebrow')}</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
-      <p className="mt-1 text-sm text-mist">{t('subhead')}</p>
+      <p className="eyebrow mt-4 text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
+      <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
+      <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
       <PlanMyTripForm initialDestination={initialDestination} />
     </div>
   );

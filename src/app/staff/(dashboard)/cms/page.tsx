@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { cmsService, type CmsLocale } from '@modules/cms';
+import { DESTINATION_SITES } from '@lib/destination-sites';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -20,7 +21,8 @@ import {
   updateTextBlockAction,
   uploadCmsImageAction,
 } from './actions';
-import { HeroSlideMediaPicker } from './hero-slide-media-picker';
+import { MediaPicker } from './media-picker';
+import { PageTextEditor } from './page-text-editor';
 
 interface Props {
   searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string }>;
@@ -58,12 +60,37 @@ export default async function CmsPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('cms.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
-  const [about, faqs, heroItems] = await Promise.all([
+  const [
+    about,
+    faqs,
+    heroItems,
+    packagesText,
+    planMyTripText,
+    findBookingText,
+    contactText,
+    officeNamibiaText,
+    officeDrcText,
+    rateText,
+    weatherText,
+    termsText,
+    galleryItems,
+  ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
     cmsService.listMediaItems(ctx, 'home-hero'),
+    cmsService.getTextBlock(ctx, 'packages', locale),
+    cmsService.getTextBlock(ctx, 'plan-my-trip', locale),
+    cmsService.getTextBlock(ctx, 'find-booking', locale),
+    cmsService.getTextBlock(ctx, 'contact', locale),
+    cmsService.getTextBlock(ctx, 'contact.office.namibia', locale),
+    cmsService.getTextBlock(ctx, 'contact.office.drc', locale),
+    cmsService.getTextBlock(ctx, 'rate', locale),
+    cmsService.getTextBlock(ctx, 'weather', locale),
+    cmsService.getTextBlock(ctx, 'terms', locale),
+    cmsService.listMediaItems(ctx, 'gallery'),
   ]);
   const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
+  const galleryBySite = new Map(galleryItems.map((item) => [item.slotKey, item]));
   const t = await getTranslations('StaffCms');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
 
@@ -163,7 +190,8 @@ export default async function CmsPage({ searchParams }: Props) {
                             <p className="text-xs text-mist">{t('noMediaYet')}</p>
                           )}
                         </div>
-                        <HeroSlideMediaPicker
+                        <MediaPicker
+                          page="home-hero"
                           slotKey={item.slotKey}
                           uploadingLabel={t('uploadingMedia')}
                           chooseFileLabel={t('chooseMediaFile')}
@@ -196,6 +224,82 @@ export default async function CmsPage({ searchParams }: Props) {
             </form>
           )}
         </section>
+
+        <PageTextEditor
+          cmsKey="packages"
+          locale={locale}
+          current={packagesText}
+          canWrite={canWrite}
+          sectionTitle={t('packagesSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="plan-my-trip"
+          locale={locale}
+          current={planMyTripText}
+          canWrite={canWrite}
+          sectionTitle={t('planMyTripSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('gallerySectionTitle')}</h2>
+          <p className="text-xs text-mist">{t('galleryIntro')}</p>
+          <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {DESTINATION_SITES.map((site) => {
+              const media = galleryBySite.get(site.name);
+              return (
+                <Card key={site.name}>
+                  <p className="font-semibold text-navy">{site.name}</p>
+                  <div className="mt-2 flex flex-wrap items-start gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-mist">{t('mediaLabel')}</p>
+                      {media?.mediaType === 'image' && media.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
+                        <img src={media.url} alt="" className="h-20 w-32 rounded-survey object-cover" />
+                      ) : media?.mediaType === 'video' && media.url ? (
+                        <video src={media.url} muted className="h-20 w-32 rounded-survey object-cover" />
+                      ) : (
+                        <p className="text-xs text-mist">{t('noMediaYet')}</p>
+                      )}
+                    </div>
+                    {canWrite && (
+                      <MediaPicker
+                        page="gallery"
+                        slotKey={site.name}
+                        uploadingLabel={t('uploadingMedia')}
+                        chooseFileLabel={t('chooseMediaFile')}
+                        errorLabel={t('mediaUploadError')}
+                      />
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </RevealGroup>
+        </section>
+
+        <PageTextEditor
+          cmsKey="find-booking"
+          locale={locale}
+          current={findBookingText}
+          canWrite={canWrite}
+          sectionTitle={t('findBookingSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
 
         <section className="space-y-3">
           <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
@@ -295,6 +399,87 @@ export default async function CmsPage({ searchParams }: Props) {
             </form>
           )}
         </section>
+
+        <PageTextEditor
+          cmsKey="contact"
+          locale={locale}
+          current={contactText}
+          canWrite={canWrite}
+          sectionTitle={t('contactSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="contact.office.namibia"
+          locale={locale}
+          current={officeNamibiaText}
+          canWrite={canWrite}
+          sectionTitle={t('officeNamibiaLabel')}
+          eyebrowLabel=""
+          showEyebrow={false}
+          titleLabel={t('officeLabelFieldLabel')}
+          bodyLabel={t('officeDetailsFieldLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="contact.office.drc"
+          locale={locale}
+          current={officeDrcText}
+          canWrite={canWrite}
+          sectionTitle={t('officeDrcLabel')}
+          eyebrowLabel=""
+          showEyebrow={false}
+          titleLabel={t('officeLabelFieldLabel')}
+          bodyLabel={t('officeDetailsFieldLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="rate"
+          locale={locale}
+          current={rateText}
+          canWrite={canWrite}
+          sectionTitle={t('rateSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="weather"
+          locale={locale}
+          current={weatherText}
+          canWrite={canWrite}
+          sectionTitle={t('weatherSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="terms"
+          locale={locale}
+          current={termsText}
+          canWrite={canWrite}
+          sectionTitle={t('termsSectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+          bodyRows={6}
+        />
 
         {canWrite && (
           <section className="space-y-3">

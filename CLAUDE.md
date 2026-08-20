@@ -20,7 +20,7 @@ a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
 
-Current through **DR-163** (2026-08-20). This file used to carry a running
+Current through **DR-164** (2026-08-20). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -307,7 +307,15 @@ src/
                    #   staff-managed slides — text, image or video, per-slide
                    #   gradient overlay) — api/v1/cms/media-upload/route.ts
                    #   (this module's first REST route) mints client tokens
-                   #   for direct browser-to-Blob video upload
+                   #   for direct browser-to-Blob video upload. DR-164
+                   #   extends coverage to every guest page (nav+footer
+                   #   order): reusable PageTextEditor/updatePageTextAction
+                   #   for the "thin" eyebrow/title/body pages (Packages,
+                   #   Plan my trip, Find booking, Contact incl. 2 office
+                   #   blocks, Rate, Weather, Terms), and a real per-site
+                   #   Gallery media grid (CmsMediaItem, page='gallery',
+                   #   slotKey=the fixed DESTINATION_SITES name — not
+                   #   dynamic, that list is shared with plan-my-trip)
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

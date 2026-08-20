@@ -1793,7 +1793,22 @@
     "mediaUploadError": "Upload failed — check the file type/size and try again.",
     "addSlide": "Add slide",
     "removeSlide": "Remove slide",
-    "removeSlideConfirm": "Remove this hero slide? This cannot be undone."
+    "removeSlideConfirm": "Remove this hero slide? This cannot be undone.",
+    "pageTitleLabel": "Title",
+    "pageBodyLabel": "Body text",
+    "packagesSectionTitle": "Packages page",
+    "planMyTripSectionTitle": "Plan my trip page",
+    "gallerySectionTitle": "Gallery",
+    "galleryIntro": "A photo or video per destination site. A site with nothing uploaded yet shows the illustrated placeholder.",
+    "findBookingSectionTitle": "Find my booking page",
+    "contactSectionTitle": "Contact page",
+    "officeNamibiaLabel": "Namibia office",
+    "officeDrcLabel": "DRC office",
+    "officeLabelFieldLabel": "Office label",
+    "officeDetailsFieldLabel": "Address / email / phone (free text)",
+    "rateSectionTitle": "Rate my trip page",
+    "weatherSectionTitle": "Weather page",
+    "termsSectionTitle": "Terms page"
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",

@@ -17,6 +17,28 @@ function localeFromForm(formData: FormData): CmsLocale {
   return formData.get('locale') === 'fr' ? 'fr' : 'en';
 }
 
+// Guest path to revalidate per CmsTextBlock key / CmsMediaItem page, for
+// the generic page-intro editor and media picker below -- every entry here
+// is a full CmsTextBlock `key` (not just a page-name prefix), since
+// Contact's two office blocks share the /contact page with Contact's own
+// intro key.
+const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
+  packages: '/packages',
+  'plan-my-trip': '/plan-my-trip',
+  'find-booking': '/find-booking',
+  contact: '/contact',
+  'contact.office.namibia': '/contact',
+  'contact.office.drc': '/contact',
+  rate: '/rate',
+  weather: '/weather',
+  terms: '/terms',
+};
+
+const GUEST_PATH_BY_MEDIA_PAGE: Record<string, string> = {
+  'home-hero': '/',
+  gallery: '/gallery',
+};
+
 export async function updateTextBlockAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
   const locale = localeFromForm(formData);
@@ -29,6 +51,27 @@ export async function updateTextBlockAction(formData: FormData): Promise<void> {
   await cmsService.updateTextBlock(ctx, input);
   revalidatePath('/staff/cms');
   revalidatePath('/about');
+}
+
+/** Generic page-intro editor (eyebrow/title/body) reused across every
+ * "thin" guest page (Packages, Plan my trip, Find booking, Contact incl.
+ * its two office blocks, Rate, Weather, Terms) -- one action for all of
+ * them, keyed by the CmsTextBlock `key` itself, same as `updateTextBlockAction`
+ * above but not hardcoded to 'about'. */
+export async function updatePageTextAction(key: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const locale = localeFromForm(formData);
+  const input = UpdateCmsTextBlockInput.parse({
+    key,
+    locale,
+    title: String(formData.get('title') ?? ''),
+    body: String(formData.get('body') ?? ''),
+    eyebrow: String(formData.get('eyebrow') ?? '') || null,
+  });
+  await cmsService.updateTextBlock(ctx, input);
+  revalidatePath('/staff/cms');
+  const guestPath = GUEST_PATH_BY_TEXT_KEY[key];
+  if (guestPath) revalidatePath(guestPath);
 }
 
 export async function createFaqEntryAction(formData: FormData): Promise<void> {
@@ -136,8 +179,9 @@ export async function deleteHeroSlideAction(slotKey: string): Promise<void> {
 /** Image path only -- small enough to proxy through this Server Action
  * (server-side sharp compression, same as uploadCmsImageAction above), just
  * returning the url instead of redirecting since it's called directly from
- * the client media-picker component, not a plain <form action>. */
-export async function uploadHeroSlideImageAction(formData: FormData): Promise<{ url: string }> {
+ * the client MediaPicker component, not a plain <form action>. Page-agnostic
+ * (originally hero-slide-only; generalized so Gallery reuses it too). */
+export async function uploadMediaImageAction(formData: FormData): Promise<{ url: string }> {
   const ctx = await requireStaffContext('cms.write');
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
@@ -149,13 +193,16 @@ export async function uploadHeroSlideImageAction(formData: FormData): Promise<{ 
 
 /** Video path: the file itself already reached Vercel Blob directly from
  * the browser (bypassing this server entirely, DR-163) by the time this is
- * called -- this just persists the resulting url against the slide. Also
- * covers the image path's final "attach to slide" step, after
- * uploadHeroSlideImageAction has already produced a compressed url. */
-export async function setHeroSlideMediaAction(slotKey: string, mediaType: CmsMediaType, url: string): Promise<void> {
+ * called -- this just persists the resulting url against the (page, slotKey)
+ * slot. Also covers the image path's final "attach" step, after
+ * uploadMediaImageAction has already produced a compressed url. Generalized
+ * from the original Home-hero-only setHeroSlideMediaAction so Gallery can
+ * reuse the same MediaPicker under a different `page`. */
+export async function setMediaItemAction(page: string, slotKey: string, mediaType: CmsMediaType, url: string): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
   const input = UpdateCmsMediaItemInput.parse({ mediaType, url });
-  await cmsService.updateMediaItem(ctx, HOME_HERO_PAGE, slotKey, input);
+  await cmsService.updateMediaItem(ctx, page, slotKey, input);
   revalidatePath('/staff/cms');
-  revalidatePath('/');
+  const guestPath = GUEST_PATH_BY_MEDIA_PAGE[page];
+  if (guestPath) revalidatePath(guestPath);
 }

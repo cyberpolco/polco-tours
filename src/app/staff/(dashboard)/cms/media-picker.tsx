@@ -3,27 +3,28 @@
 import { useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import { useRouter } from 'next/navigation';
-import { setHeroSlideMediaAction, uploadHeroSlideImageAction } from './actions';
+import { setMediaItemAction, uploadMediaImageAction } from './actions';
 
-interface HeroSlideMediaPickerProps {
+interface MediaPickerProps {
+  page: string;
   slotKey: string;
   uploadingLabel: string;
   chooseFileLabel: string;
   errorLabel: string;
 }
 
-// DR-163: the one client component in this module. Branches by the chosen
-// file's MIME type -- an image is small enough to proxy through the
-// existing Server-Action-with-FormData path (server-side sharp
-// compression); a video is uploaded directly from the browser to Vercel
-// Blob via @vercel/blob/client's upload(), bypassing this app's server
-// entirely, since a 25MB file exceeds Vercel serverless functions' request
-// body limit. Either way, the resulting url is then attached to the slide
-// via setHeroSlideMediaAction. router.refresh() is needed because this
-// component calls the Server Actions directly (not via a <form action>
-// transition), so revalidatePath alone won't re-render this already-
-// mounted client tree.
-export function HeroSlideMediaPicker({ slotKey, uploadingLabel, chooseFileLabel, errorLabel }: HeroSlideMediaPickerProps) {
+// DR-163 (Home hero), generalized in the CMS nav/footer coverage pass so
+// Gallery can reuse the same upload mechanics under a different `page`.
+// Branches by the chosen file's MIME type -- an image is small enough to
+// proxy through the existing Server-Action-with-FormData path (server-side
+// sharp compression); a video is uploaded directly from the browser to
+// Vercel Blob via @vercel/blob/client's upload(), bypassing this app's
+// server entirely, since a 25MB file exceeds Vercel serverless functions'
+// request body limit. Either way, the resulting url is then attached via
+// setMediaItemAction. router.refresh() is needed because this component
+// calls the Server Actions directly (not via a <form action> transition),
+// so revalidatePath alone won't re-render this already-mounted client tree.
+export function MediaPicker({ page, slotKey, uploadingLabel, chooseFileLabel, errorLabel }: MediaPickerProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,14 +37,14 @@ export function HeroSlideMediaPicker({ slotKey, uploadingLabel, chooseFileLabel,
       if (file.type.startsWith('image/')) {
         const formData = new FormData();
         formData.set('file', file);
-        const { url } = await uploadHeroSlideImageAction(formData);
-        await setHeroSlideMediaAction(slotKey, 'image', url);
+        const { url } = await uploadMediaImageAction(formData);
+        await setMediaItemAction(page, slotKey, 'image', url);
       } else if (file.type.startsWith('video/')) {
-        const blob = await upload(`cms-media/${slotKey}-${Date.now()}-${file.name}`, file, {
+        const blob = await upload(`cms-media/${page}-${slotKey}-${Date.now()}-${file.name}`, file, {
           access: 'public',
           handleUploadUrl: '/api/v1/cms/media-upload',
         });
-        await setHeroSlideMediaAction(slotKey, 'video', blob.url);
+        await setMediaItemAction(page, slotKey, 'video', blob.url);
       } else {
         setError(true);
         return;

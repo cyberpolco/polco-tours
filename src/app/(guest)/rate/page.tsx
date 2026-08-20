@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
+import { cmsService, type CmsLocale } from '@modules/cms';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Alert } from '@/components/ui/Alert';
@@ -8,6 +10,12 @@ interface Props {
   searchParams: Promise<{ submitted?: string }>;
 }
 
+// Same direct-cookie-read convention as (guest)/about/page.tsx.
+async function resolveLocale(): Promise<CmsLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
 // Customer Ratings & Feedback (DR-037) -- same plain-GET-form, no-session
 // convention as /find-booking. A client rates using their Booking
 // Reference + the single-use Rating Code staff issued once their booking
@@ -15,12 +23,14 @@ interface Props {
 export default async function RatePage({ searchParams }: Props) {
   const { submitted } = await searchParams;
   const t = await getTranslations('RatePage');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('rate', locale);
 
   return (
     <Reveal>
       <div className="max-w-sm">
-        <p className="eyebrow text-mist">{t('eyebrow')}</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
+        <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
 
         {submitted && (
           <div className="mt-4">
@@ -28,7 +38,7 @@ export default async function RatePage({ searchParams }: Props) {
           </div>
         )}
 
-        <p className="mt-2 text-sm text-mist">{t('subhead')}</p>
+        <p className="mt-2 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
 
         <form method="get" action="/rate/result" className="mt-6 space-y-4">
           <FormField label={t('bookingReference')} htmlFor="bookingReference">
