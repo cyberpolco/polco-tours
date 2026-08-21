@@ -1,9 +1,22 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { BrandMark } from '@/components/BrandMark';
 import { GuestFooter } from './footer';
 import { MaintenanceBanner } from './maintenance-banner';
 import { GuestNav } from './nav';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
+
+// Scoped to this route group only -- the root layout.tsx metadata ("POLCO
+// TOURS") still covers the staff dashboard, which keeps the POLCO TOURS
+// name (DR-168: guest-facing brand text only was renamed to Mufasa Safaris
+// & Tours, staff dashboard/emails intentionally excluded).
+export const metadata: Metadata = {
+  title: {
+    default: 'Mufasa Safaris & Tours',
+    template: '%s | Mufasa Safaris & Tours',
+  },
+  description: 'Tourism Operating System for Namibia & the Democratic Republic of Congo.',
+};
 
 // Public chrome for the tourist self-serve site (DR-016) -- a route group so
 // this nav doesn't leak into /staff (which has its own dashboard layout) or
@@ -21,7 +34,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <Link href="/" className="eyebrow flex items-center gap-2 text-amber">
             <BrandMark className="h-5 w-5" />
-            Polco Tours
+            Mufasa Safaris & Tours
           </Link>
           <div className="flex items-center gap-6">
             <GuestNav />

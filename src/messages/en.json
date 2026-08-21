@@ -89,7 +89,7 @@
     "contact": "Contact"
   },
   "Footer": {
-    "tagline": "Tourism OS for Mufasa Safaris and Tours powered by Cyber PolCo",
+    "tagline": "Tourism OS for Mufasa Safaris & Tours powered by Cyber PolCo",
     "browse": "Browse",
     "planMyTrip": "Plan my trip",
     "findBooking": "Find my booking",
@@ -215,7 +215,7 @@
   },
   "AboutPage": {
     "eyebrow": "About",
-    "defaultTitle": "About Polco Tours",
+    "defaultTitle": "About Mufasa Safaris & Tours",
     "contentComingSoon": "Content coming soon."
   },
   "FaqPage": {

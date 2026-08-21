@@ -125,12 +125,12 @@ export default async function HomePage() {
   // mark rather than fabricate a logo for a real organization. Swap this
   // array for the real list (and add `logoUrl` per entry once files exist).
   const PARTNERS: Partner[] = [
-    { name: 'Polco Tours' },
-    { name: 'Polco Tours' },
-    { name: 'Polco Tours' },
-    { name: 'Polco Tours' },
-    { name: 'Polco Tours' },
-    { name: 'Polco Tours' },
+    { name: 'Mufasa Safaris & Tours' },
+    { name: 'Mufasa Safaris & Tours' },
+    { name: 'Mufasa Safaris & Tours' },
+    { name: 'Mufasa Safaris & Tours' },
+    { name: 'Mufasa Safaris & Tours' },
+    { name: 'Mufasa Safaris & Tours' },
   ];
 
   // "/" is the highest-traffic route on the site and, unlike every other

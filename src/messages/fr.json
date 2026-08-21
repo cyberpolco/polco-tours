@@ -89,7 +89,7 @@
     "contact": "Contact"
   },
   "Footer": {
-    "tagline": "Système de gestion touristique pour Mufasa Safaris and Tours, propulsé par Cyber PolCo",
+    "tagline": "Système de gestion touristique pour Mufasa Safaris & Tours, propulsé par Cyber PolCo",
     "browse": "Découvrir",
     "planMyTrip": "Planifier mon voyage",
     "findBooking": "Retrouver ma réservation",
@@ -215,7 +215,7 @@
   },
   "AboutPage": {
     "eyebrow": "À propos",
-    "defaultTitle": "À propos de Polco Tours",
+    "defaultTitle": "À propos de Mufasa Safaris & Tours",
     "contentComingSoon": "Contenu à venir."
   },
   "FaqPage": {

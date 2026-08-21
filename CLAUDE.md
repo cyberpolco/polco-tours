@@ -15,12 +15,23 @@ facilitators). Web platform first; native apps later. Brand: **polcotours**
 (OI-02, trademark clearance still open). Production is currently reachable
 on two real domains instead: the Vercel default
 (`polco-tours.vercel.app`) and a second custom domain, `mufasasafaris.com`
-/ `www.mufasasafaris.com` (added DR-072). This is a domain/infra state, not
-a rebrand — don't rename the brand or module names off "Mufasa" without an
-explicit decision to do so.
+/ `www.mufasasafaris.com` (added DR-072). This was, until DR-168, a
+domain/infra state only, not a rebrand — the caution against renaming the
+brand or module names off "Mufasa" without an explicit decision still
+holds for everything **except** guest-facing display text: DR-168 (explicit
+user request) renders every guest-site occurrence of "POLCO Tours" as
+**"Mufasa Safaris & Tours"** (header brand link, footer eyebrow/copyright,
+homepage partner-placeholder list, package-page `opengraph-image`,
+`Footer.tagline`/`AboutPage.defaultTitle` in `en.json`/`fr.json`, and the
+guest route group's own `metadata` title/description, scoped via a
+`(guest)/layout.tsx` export so it doesn't touch the root layout). The
+staff dashboard, transactional notification copy, the root `layout.tsx`
+app metadata, the `polcotours.com` brand/domain itself, and every module/
+internal identifier are unaffected and still say POLCO TOURS/polcotours —
+this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-167** (2026-08-20). This file used to carry a running
+Current through **DR-168** (2026-08-21). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own

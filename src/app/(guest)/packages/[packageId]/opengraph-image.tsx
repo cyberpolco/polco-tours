@@ -21,7 +21,7 @@ interface Props {
 export default async function Image({ params }: Props) {
   const { packageId } = await params;
 
-  let title = 'Polco Tours';
+  let title = 'Mufasa Safaris & Tours';
   let imageUrl: string | null = null;
   try {
     const { pkg } = await catalogService.getPublicPackageWithDepartures(packageId);
@@ -56,7 +56,7 @@ export default async function Image({ params }: Props) {
         }}
       >
         <div style={{ display: 'flex', fontSize: 26, letterSpacing: 6, textTransform: 'uppercase', opacity: 0.75 }}>
-          Polco Tours
+          Mufasa Safaris & Tours
         </div>
         <div style={{ display: 'flex', fontSize: 60, fontWeight: 700, marginTop: 16, maxWidth: 1000 }}>{title}</div>
       </div>

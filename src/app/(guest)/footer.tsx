@@ -42,7 +42,7 @@ export async function GuestFooter() {
           <div>
             <div className="flex items-center gap-2 text-amber">
               <BrandMark className="h-5 w-5" />
-              <span className="eyebrow">Polco Tours</span>
+              <span className="eyebrow">Mufasa Safaris & Tours</span>
             </div>
             <p className="mt-3 max-w-xs text-sm text-mist">{t('tagline')}</p>
             <div className="mt-4 flex gap-3">
@@ -86,7 +86,7 @@ export async function GuestFooter() {
         <div className="survey-rule mt-8 opacity-20" />
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
           <p className="text-xs text-mist">
-            &copy; {year} PolCo Tours, a{' '}
+            &copy; {year} Mufasa Safaris & Tours, a{' '}
             <a
               href="https://www.cyberpolco.com"
               target="_blank"
