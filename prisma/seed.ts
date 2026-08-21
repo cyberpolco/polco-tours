@@ -595,7 +595,7 @@ async function main() {
     }
   }
 
-  // --- Gallery sites (DR-167) -- one-time seed of the 13 originally-
+  // --- Gallery sites (DR-167) -- one-time seed of the 20 originally-
   // hardcoded DESTINATION_SITES entries as real CmsMediaItem rows (that
   // static file is now retired), so /gallery and the plan-my-trip wizard's
   // "sites to visit" step render identically to before this shipped, and
