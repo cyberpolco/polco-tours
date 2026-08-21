@@ -206,3 +206,14 @@ export async function setMediaItemAction(page: string, slotKey: string, mediaTyp
   const guestPath = GUEST_PATH_BY_MEDIA_PAGE[page];
   if (guestPath) revalidatePath(guestPath);
 }
+
+/** Page-agnostic caption editor -- `CmsMediaItem.caption` existed since
+ * DR-163 but had no UI yet; first wired for Gallery. */
+export async function updateMediaCaptionAction(page: string, slotKey: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const input = UpdateCmsMediaItemInput.parse({ caption: String(formData.get('caption') ?? '') || null });
+  await cmsService.updateMediaItem(ctx, page, slotKey, input);
+  revalidatePath('/staff/cms');
+  const guestPath = GUEST_PATH_BY_MEDIA_PAGE[page];
+  if (guestPath) revalidatePath(guestPath);
+}

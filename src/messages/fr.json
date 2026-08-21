@@ -1788,6 +1788,7 @@
     "ledeLabel": "Chapô",
     "gradientLabel": "Dégradé de superposition (CSS)",
     "mediaLabel": "Média",
+    "captionLabel": "Légende",
     "noMediaYet": "Aucune image ou vidéo choisie pour l'instant.",
     "uploadingMedia": "Téléchargement…",
     "chooseMediaFile": "Choisissez une image ou une vidéo pour remplacer le média actuel.",

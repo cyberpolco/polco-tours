@@ -20,7 +20,7 @@ a rebrand — don't rename the brand or module names off "Mufasa" without an
 explicit decision to do so.
 
 
-Current through **DR-165** (2026-08-20). This file used to carry a running
+Current through **DR-166** (2026-08-20). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own

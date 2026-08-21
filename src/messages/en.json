@@ -1788,6 +1788,7 @@
     "ledeLabel": "Lede",
     "gradientLabel": "Overlay gradient (CSS)",
     "mediaLabel": "Media",
+    "captionLabel": "Caption",
     "noMediaYet": "No image or video chosen yet.",
     "uploadingMedia": "Uploading…",
     "chooseMediaFile": "Choose an image or video to replace the current media.",

@@ -18,6 +18,7 @@ import {
   updateFaqEntryAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
+  updateMediaCaptionAction,
   updateTextBlockAction,
   uploadCmsImageAction,
 } from './actions';
@@ -323,6 +324,22 @@ export default async function CmsPage({ searchParams }: Props) {
                       />
                     )}
                   </div>
+                  {canWrite ? (
+                    <form action={updateMediaCaptionAction.bind(null, 'gallery', site.name)} className="mt-3 flex items-end gap-2">
+                      <FormField label={t('captionLabel')} htmlFor={`caption-${site.name}`}>
+                        <input
+                          name="caption"
+                          defaultValue={media?.caption ?? ''}
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                        />
+                      </FormField>
+                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                        {t('save')}
+                      </SubmitButton>
+                    </form>
+                  ) : (
+                    media?.caption && <p className="mt-2 text-sm text-mist">{media.caption}</p>
+                  )}
                 </Card>
               );
             })}

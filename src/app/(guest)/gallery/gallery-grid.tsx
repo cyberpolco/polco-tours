@@ -98,6 +98,7 @@ export function GalleryGrid({ sites, mediaBySite, closeLabel }: GalleryGridProps
                 <p className="text-sm text-bone/80">
                   {flagEmoji(active.country)} {tCountries(active.country)}
                 </p>
+                {mediaBySite[active.name]?.caption && <p className="mt-2 text-sm text-bone/80">{mediaBySite[active.name]!.caption}</p>}
               </div>
             </motion.div>
           </motion.div>
