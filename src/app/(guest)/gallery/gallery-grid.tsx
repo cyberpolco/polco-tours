@@ -4,16 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
-import type { CmsMediaItemView } from '@modules/cms';
+import type { GallerySite } from './page';
 import { flagEmoji } from '@lib/country-codes';
-import type { DestinationSite } from '@lib/destination-sites';
 import { PackageImage } from '@/components/ui/PackageImage';
 
 interface GalleryGridProps {
-  sites: DestinationSite[];
-  /** Keyed by site name (the CmsMediaItem `slotKey`) -- a site with no
-   * entry here still falls back to PackageImage's illustrated gradient. */
-  mediaBySite: Record<string, CmsMediaItemView>;
+  sites: GallerySite[];
   closeLabel: string;
 }
 
@@ -21,12 +17,12 @@ interface GalleryGridProps {
 // PackageImage's own null-imageUrl gradient fallback -- same image/video
 // branching HeroCarousel.tsx already does, just without the Ken Burns
 // motion (this is a static grid tile/lightbox, not an autoplay carousel).
-function SiteMedia({ site, media, className }: { site: DestinationSite; media: CmsMediaItemView | undefined; className?: string }) {
-  if (media?.mediaType === 'video' && media.url) {
-    return <video src={media.url} muted loop playsInline autoPlay className={className ?? 'aspect-[16/10] w-full rounded-card object-cover'} />;
+function SiteMedia({ site, className }: { site: GallerySite; className?: string }) {
+  if (site.mediaType === 'video' && site.url) {
+    return <video src={site.url} muted loop playsInline autoPlay className={className ?? 'aspect-[16/10] w-full rounded-card object-cover'} />;
   }
-  const imageUrl = media?.mediaType === 'image' ? media.url : null;
-  return <PackageImage imageUrl={imageUrl} alt={site.name} seed={site.name} className={className} />;
+  const imageUrl = site.mediaType === 'image' ? site.url : null;
+  return <PackageImage imageUrl={imageUrl} alt={site.name} seed={site.slotKey} className={className} />;
 }
 
 // Previously the whole tile was one Link straight into /plan-my-trip, so
@@ -34,9 +30,9 @@ function SiteMedia({ site, media, className }: { site: DestinationSite; media: C
 // the destination name/flag is a Link (unchanged path to booking); the
 // picture itself is a button that opens this in-page preview instead of
 // navigating away.
-export function GalleryGrid({ sites, mediaBySite, closeLabel }: GalleryGridProps) {
+export function GalleryGrid({ sites, closeLabel }: GalleryGridProps) {
   const tCountries = useTranslations('Countries');
-  const [active, setActive] = useState<DestinationSite | null>(null);
+  const [active, setActive] = useState<GallerySite | null>(null);
 
   useEffect(() => {
     if (!active) return undefined;
@@ -51,9 +47,9 @@ export function GalleryGrid({ sites, mediaBySite, closeLabel }: GalleryGridProps
     <>
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
         {sites.map((site) => (
-          <div key={site.name} className="group">
+          <div key={site.slotKey} className="group">
             <button type="button" onClick={() => setActive(site)} className="block w-full text-left" aria-label={site.name}>
-              <SiteMedia site={site} media={mediaBySite[site.name]} />
+              <SiteMedia site={site} />
             </button>
             <Link href={`/plan-my-trip?destination=${site.country}`} className="mt-2 block">
               <p className="text-sm font-medium text-navy transition-colors duration-200 group-hover:text-amber">{site.name}</p>
@@ -92,13 +88,13 @@ export function GalleryGrid({ sites, mediaBySite, closeLabel }: GalleryGridProps
               >
                 ×
               </button>
-              <SiteMedia site={active} media={mediaBySite[active.name]} />
+              <SiteMedia site={active} />
               <div className="mt-4 text-bone">
                 <p className="text-lg font-bold">{active.name}</p>
                 <p className="text-sm text-bone/80">
                   {flagEmoji(active.country)} {tCountries(active.country)}
                 </p>
-                {mediaBySite[active.name]?.caption && <p className="mt-2 text-sm text-bone/80">{mediaBySite[active.name]!.caption}</p>}
+                {active.description && <p className="mt-2 text-sm text-bone/80">{active.description}</p>}
               </div>
             </motion.div>
           </motion.div>

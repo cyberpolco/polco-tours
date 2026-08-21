@@ -25,7 +25,7 @@ describe('CmsMediaItem', () => {
       data: { page: TEST_PAGE, slotKey: 'slide-1', mediaType: 'image', url: 'https://example.com/a.webp' },
     });
     expect(created.sortOrder).toBe(0);
-    expect(created.caption).toBeNull();
+    expect(created.description).toBeNull();
 
     const found = await admin.cmsMediaItem.findUnique({ where: { page_slotKey: { page: TEST_PAGE, slotKey: 'slide-1' } } });
     expect(found?.url).toBe('https://example.com/a.webp');

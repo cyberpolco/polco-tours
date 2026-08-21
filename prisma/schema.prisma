@@ -422,14 +422,28 @@ model CmsFaqEntry {
 // freshly-added slide can exist with its text filled in but no media
 // chosen yet, which the original non-nullable columns couldn't represent
 // without a placeholder-URL hack.
+// DR-167 (Gallery becomes dynamic/staff-editable, and the single source of
+// truth for site name/country -- also read by the plan-my-trip wizard's
+// "sites to visit" step, replacing the old static `DESTINATION_SITES`)
+// adds `name`/`country`, additive/nullable -- only meaningful for
+// page='gallery' rows (null/unused for 'home-hero'). `country` is a plain
+// zod-validated string (against OPERATING_COUNTRY_CODES), same "no
+// Postgres enum" convention as `mediaType`. Also renames `caption` ->
+// `description` (`@map("caption")`, pure TS-facing rename, same
+// zero-data-risk technique as the DR-162 SiteContent->CmsTextBlock rename
+// -- the column itself is untouched) since a gallery site's blurb reads
+// more naturally as "description" than "caption" once it's describing the
+// place itself, not just annotating a photo.
 model CmsMediaItem {
   id               String   @id @default(uuid()) @db.Uuid
   page             String // e.g. "home-hero", "gallery"
   slotKey          String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
   mediaType        String? // 'image' | 'video', null until media is chosen
   url              String?
-  caption          String?
+  description      String?  @map("caption")
   overlayGradient  String? // e.g. "linear-gradient(100deg, rgba(...) 0%, ...)"
+  name             String? // gallery sites only -- staff-editable display name
+  country          String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

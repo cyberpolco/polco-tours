@@ -12,8 +12,16 @@ import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
-import { DESTINATION_SITES } from '@lib/destination-sites';
 import { createPlanMyTripRequestAction, recordWizardStepAction } from './actions';
+
+// DR-167: gallery sites are now staff-managed (name/country, add/remove)
+// from /staff/cms -- fetched server-side by plan-my-trip/page.tsx (the
+// same list the Gallery page itself reads) and passed down here, replacing
+// the old static DESTINATION_SITES import.
+export interface PlanMyTripSite {
+  name: string;
+  country: string;
+}
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
@@ -42,9 +50,13 @@ interface PlanMyTripFormProps {
   /** Pre-selected from the homepage map's country click (AfricaMap.tsx),
    * via plan-my-trip/page.tsx's ?destination= query param. */
   initialDestination?: string;
+  /** Fetched server-side from the same staff-managed gallery-site list the
+   * Gallery page reads (DR-167) -- already filtered to entries with a
+   * name+country set. */
+  sites: PlanMyTripSite[];
 }
 
-export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormProps) {
+export default function PlanMyTripForm({ initialDestination, sites: allSites }: PlanMyTripFormProps) {
   const router = useRouter();
   const t = useTranslations('PlanMyTripForm');
   const tSteps = useTranslations('PlanMyTripSteps');
@@ -91,7 +103,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
 
   // Only sites belonging to a selected country are offered -- a site ticked
   // before its country was deselected is dropped rather than silently kept.
-  const availableSites = useMemo(() => DESTINATION_SITES.filter((s) => countries.includes(s.country)), [countries]);
+  const availableSites = useMemo(() => allSites.filter((s) => countries.includes(s.country)), [allSites, countries]);
 
   const datesValid = customTravelStart !== '' && customTravelEnd !== '' && customTravelEnd >= customTravelStart;
   const canAdvance = [
@@ -109,7 +121,7 @@ export default function PlanMyTripForm({ initialDestination }: PlanMyTripFormPro
   function next() {
     if (step === 0 && countries.length > 0) {
       // Drop any previously-picked site whose country is no longer selected.
-      setSites((current) => current.filter((name) => DESTINATION_SITES.some((s) => s.name === name && countries.includes(s.country))));
+      setSites((current) => current.filter((name) => allSites.some((s) => s.name === name && countries.includes(s.country))));
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
+import { cmsService } from '@modules/cms';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
@@ -44,12 +45,20 @@ export default async function NewBookingPage({ searchParams }: Props) {
   const tBookingStart = await getTranslations('BookingStart');
 
   if (tailorMade) {
+    // Gallery sites are the single source of truth for this step's "sites
+    // to visit" picker too (DR-167), same fetch/filter the guest
+    // plan-my-trip page does.
+    const mediaItems = await cmsService.listPublicMediaItems('gallery');
+    const sites = mediaItems
+      .filter((item) => item.name && item.country)
+      .map((item) => ({ name: item.name!, country: item.country! }));
+
     return (
       <div className="max-w-md">
         <BackLink href="/staff/bookings/new">{t('back')}</BackLink>
         <PageHeader eyebrow={t('newBookingEyebrow')} title={t('tailorMadeTitle')} />
         <Reveal>
-          <StaffPlanMyTripForm />
+          <StaffPlanMyTripForm sites={sites} />
         </Reveal>
       </div>
     );

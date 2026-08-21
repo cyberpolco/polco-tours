@@ -11,8 +11,15 @@ import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
-import { DESTINATION_SITES } from '@lib/destination-sites';
 import { createStaffTailorMadeBookingAction } from './actions';
+
+// DR-167: gallery sites are now staff-managed (name/country, add/remove)
+// from /staff/cms -- fetched server-side by bookings/new/page.tsx and
+// passed down here, replacing the old static DESTINATION_SITES import.
+interface StaffPlanMyTripSite {
+  name: string;
+  country: string;
+}
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
@@ -45,7 +52,7 @@ function toggleTag(list: string[], value: string): string[] {
   return [...list.filter((v) => v !== opposite), value];
 }
 
-export default function StaffPlanMyTripForm() {
+export default function StaffPlanMyTripForm({ sites: allSites }: { sites: StaffPlanMyTripSite[] }) {
   const router = useRouter();
   const t = useTranslations('PlanMyTripForm');
   const tStaff = useTranslations('StaffPlanMyTripForm');
@@ -84,7 +91,7 @@ export default function StaffPlanMyTripForm() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
 
-  const availableSites = useMemo(() => DESTINATION_SITES.filter((s) => countries.includes(s.country)), [countries]);
+  const availableSites = useMemo(() => allSites.filter((s) => countries.includes(s.country)), [allSites, countries]);
 
   const datesValid = customTravelStart !== '' && customTravelEnd !== '' && customTravelEnd >= customTravelStart;
   const canAdvance = [
@@ -101,7 +108,7 @@ export default function StaffPlanMyTripForm() {
 
   function next() {
     if (step === 0 && countries.length > 0) {
-      setSites((current) => current.filter((name) => DESTINATION_SITES.some((s) => s.name === name && countries.includes(s.country))));
+      setSites((current) => current.filter((name) => allSites.some((s) => s.name === name && countries.includes(s.country))));
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }

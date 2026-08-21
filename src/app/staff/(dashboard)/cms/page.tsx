@@ -1,24 +1,26 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { cmsService, type CmsLocale } from '@modules/cms';
-import { DESTINATION_SITES } from '@lib/destination-sites';
+import { cmsService, GALLERY_COUNTRY_CODES, type CmsLocale } from '@modules/cms';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
+import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
 import {
   createFaqEntryAction,
+  createGallerySiteAction,
   createHeroSlideAction,
   deleteFaqEntryAction,
+  deleteGallerySiteAction,
   deleteHeroSlideAction,
   updateFaqEntryAction,
+  updateGallerySiteAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
-  updateMediaCaptionAction,
   updateTextBlockAction,
   uploadCmsImageAction,
 } from './actions';
@@ -113,8 +115,8 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.listMediaItems(ctx, 'gallery'),
   ]);
   const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
-  const galleryBySite = new Map(galleryItems.map((item) => [item.slotKey, item]));
   const t = await getTranslations('StaffCms');
+  const tCountries = await getTranslations('Countries');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
 
   return (
@@ -297,53 +299,98 @@ export default async function CmsPage({ searchParams }: Props) {
           <h2 className="font-semibold text-navy">{t('gallerySectionTitle')}</h2>
           <p className="text-xs text-mist">{t('galleryIntro')}</p>
           <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {DESTINATION_SITES.map((site) => {
-              const media = galleryBySite.get(site.name);
-              return (
-                <Card key={site.name}>
-                  <p className="font-semibold text-navy">{site.name}</p>
-                  <div className="mt-2 flex flex-wrap items-start gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs text-mist">{t('mediaLabel')}</p>
-                      {media?.mediaType === 'image' && media.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
-                        <img src={media.url} alt="" className="h-20 w-32 rounded-survey object-cover" />
-                      ) : media?.mediaType === 'video' && media.url ? (
-                        <video src={media.url} muted className="h-20 w-32 rounded-survey object-cover" />
-                      ) : (
-                        <p className="text-xs text-mist">{t('noMediaYet')}</p>
-                      )}
-                    </div>
-                    {canWrite && (
+            {galleryItems.map((item) => (
+              <Card key={item.slotKey}>
+                {canWrite ? (
+                  <div className="space-y-3">
+                    <form action={updateGallerySiteAction.bind(null, item.slotKey)} className="space-y-2">
+                      <FormField label={t('siteNameLabel')} htmlFor={`name-${item.slotKey}`}>
+                        <input
+                          name="name"
+                          required
+                          defaultValue={item.name ?? ''}
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
+                        />
+                      </FormField>
+                      <FormField label={t('countryLabel')} htmlFor={`country-${item.slotKey}`}>
+                        <Select name="country" required defaultValue={item.country ?? ''}>
+                          <option value="" disabled>
+                            {t('countryLabel')}
+                          </option>
+                          {GALLERY_COUNTRY_CODES.map((code) => (
+                            <option key={code} value={code}>
+                              {tCountries(code)}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormField>
+                      <FormField label={t('descriptionLabel')} htmlFor={`description-${item.slotKey}`}>
+                        <textarea
+                          name="description"
+                          rows={2}
+                          defaultValue={item.description ?? ''}
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                        />
+                      </FormField>
+                      <div className="flex items-end gap-3">
+                        <FormField label={t('order')} htmlFor={`sortOrder-${item.slotKey}`}>
+                          <input
+                            name="sortOrder"
+                            type="number"
+                            defaultValue={item.sortOrder}
+                            className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </div>
+                    </form>
+
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-mist">{t('mediaLabel')}</p>
+                        {item.mediaType === 'image' && item.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
+                          <img src={item.url} alt="" className="h-20 w-32 rounded-survey object-cover" />
+                        ) : item.mediaType === 'video' && item.url ? (
+                          <video src={item.url} muted className="h-20 w-32 rounded-survey object-cover" />
+                        ) : (
+                          <p className="text-xs text-mist">{t('noMediaYet')}</p>
+                        )}
+                      </div>
                       <MediaPicker
                         page="gallery"
-                        slotKey={site.name}
+                        slotKey={item.slotKey}
                         uploadingLabel={t('uploadingMedia')}
                         chooseFileLabel={t('chooseMediaFile')}
                         errorLabel={t('mediaUploadError')}
                       />
-                    )}
+                    </div>
+
+                    <DeleteButton
+                      action={deleteGallerySiteAction.bind(null, item.slotKey)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removeSiteConfirm')}
+                      removeLabel={t('removeSite')}
+                    />
                   </div>
-                  {canWrite ? (
-                    <form action={updateMediaCaptionAction.bind(null, 'gallery', site.name)} className="mt-3 flex items-end gap-2">
-                      <FormField label={t('captionLabel')} htmlFor={`caption-${site.name}`}>
-                        <input
-                          name="caption"
-                          defaultValue={media?.caption ?? ''}
-                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
-                        />
-                      </FormField>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
-                        {t('save')}
-                      </SubmitButton>
-                    </form>
-                  ) : (
-                    media?.caption && <p className="mt-2 text-sm text-mist">{media.caption}</p>
-                  )}
-                </Card>
-              );
-            })}
+                ) : (
+                  <>
+                    <p className="font-semibold text-navy">{item.name}</p>
+                    {item.description && <p className="mt-1 text-sm text-mist">{item.description}</p>}
+                  </>
+                )}
+              </Card>
+            ))}
           </RevealGroup>
+          {canWrite && (
+            <form action={createGallerySiteAction}>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('addSite')}
+              </SubmitButton>
+            </form>
+          )}
         </section>
         )}
 

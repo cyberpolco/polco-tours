@@ -4,10 +4,12 @@ import type { Coordinates } from './geo';
  * Static curated list of towns POLCO TOURS operates in, one entry per town,
  * for the guest-facing Weather feature (DR-113). Deliberately a plain array,
  * not a Prisma model -- this list changes rarely and needs no staff-editing
- * UI, same call already made for src/lib/destination-sites.ts. Do not
- * "for consistency" this into a DB table without an explicit decision --
- * the moment staff need to self-edit it (or seasonalNotes), that's a real
- * schema change and needs its own DR.
+ * UI (the former "no staff-editing needed" precedent this cited,
+ * destination-sites.ts, was itself moved to a real staff-editable
+ * CmsMediaItem list in DR-167, once that turned out not to hold for it).
+ * Do not "for consistency" this into a DB table without an explicit
+ * decision -- the moment staff need to self-edit it (or seasonalNotes),
+ * that's a real schema change and needs its own DR.
  *
  * seasonalNotes is scoped NARROWLY to weather-driven travel logistics
  * (rainy season timing, road/access conditions, best months to visit) --

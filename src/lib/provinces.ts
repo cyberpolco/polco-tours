@@ -2,7 +2,8 @@
  * Static ISO-3166-2-style province/region names for the app's 4 operating
  * countries (Namibia, DRC, Zambia, Zimbabwe) -- no external dependency
  * (charter rule 4), same "static curated list" precedent as
- * destination-sites.ts/country-codes.ts. Powers the Site form's
+ * country-codes.ts (the former destination-sites.ts precedent moved to a
+ * real staff-editable CmsMediaItem list in DR-167). Powers the Site form's
  * country -> province cascading dropdown.
  *
  * Explicit user direction: a Site's country is restricted to these 4

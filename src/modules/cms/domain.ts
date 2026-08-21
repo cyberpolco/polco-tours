@@ -10,6 +10,7 @@
 // Gallery, etc.) -- not yet given domain types/repository methods here
 // since nothing calls them until that page is actually built.
 import { z } from 'zod';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 
 // Only the two locales the guest site itself supports (src/i18n/request.ts).
 export const SUPPORTED_LOCALES = ['en', 'fr'] as const;
@@ -87,8 +88,14 @@ export function isValidCmsVideoContentType(contentType: string): boolean {
   return (CMS_VIDEO_CONTENT_TYPES as readonly string[]).includes(contentType);
 }
 
-// `mediaType`/`url` are nullable -- a freshly-added slide (dynamic
-// add/remove, DR-163) can have its text filled in with no media chosen
+// `name`/`country` (DR-167) are gallery-site-only fields -- null/unused for
+// Home hero's 'home-hero' page rows. `country` is validated against the
+// same OPERATING_COUNTRY_CODES the rest of the app already uses (packages,
+// country regulations, etc.), not a fresh vocabulary.
+export const GALLERY_COUNTRY_CODES = OPERATING_COUNTRY_CODES;
+
+// `mediaType`/`url` are nullable -- a freshly-added slide/site (dynamic
+// add/remove, DR-163/167) can have its text filled in with no media chosen
 // yet; `page`/`slotKey` are supplied as repository/service function
 // arguments, not part of this input, since callers never choose their own
 // slotKey (server-generated) and always operate within one known page.
@@ -98,8 +105,10 @@ export interface CmsMediaItemView {
   slotKey: string;
   mediaType: CmsMediaType | null;
   url: string | null;
-  caption: string | null;
+  description: string | null;
   overlayGradient: string | null;
+  name: string | null;
+  country: string | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -109,8 +118,10 @@ export interface CmsMediaItemView {
 export const CreateCmsMediaItemInput = z.object({
   mediaType: z.enum(CMS_MEDIA_TYPES).nullable().optional(),
   url: z.string().url().nullable().optional(),
-  caption: z.string().max(300).nullable().optional(),
+  description: z.string().max(300).nullable().optional(),
   overlayGradient: z.string().max(500).nullable().optional(),
+  name: z.string().min(1).max(200).nullable().optional(),
+  country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
   sortOrder: z.number().int().nonnegative().default(0),
 });
 export type CreateCmsMediaItemInput = z.infer<typeof CreateCmsMediaItemInput>;
@@ -118,8 +129,10 @@ export type CreateCmsMediaItemInput = z.infer<typeof CreateCmsMediaItemInput>;
 export const UpdateCmsMediaItemInput = z.object({
   mediaType: z.enum(CMS_MEDIA_TYPES).nullable().optional(),
   url: z.string().url().nullable().optional(),
-  caption: z.string().max(300).nullable().optional(),
+  description: z.string().max(300).nullable().optional(),
   overlayGradient: z.string().max(500).nullable().optional(),
+  name: z.string().min(1).max(200).nullable().optional(),
+  country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type UpdateCmsMediaItemInput = z.infer<typeof UpdateCmsMediaItemInput>;

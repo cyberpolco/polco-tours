@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
-import PlanMyTripForm from './plan-my-trip-form';
+import PlanMyTripForm, { type PlanMyTripSite } from './plan-my-trip-form';
 
 interface Props {
   // Populated when a guest arrives via the homepage map's country click
@@ -34,14 +34,23 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
   const initialDestination = destination && VALID_DESTINATION_CODES.has(destination) ? destination : undefined;
   const t = await getTranslations('PlanMyTripPage');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock('plan-my-trip', locale);
+  const [cms, mediaItems] = await Promise.all([
+    cmsService.getPublicTextBlock('plan-my-trip', locale),
+    cmsService.listPublicMediaItems('gallery'),
+  ]);
+  // Gallery sites are the single source of truth for this step's "sites to
+  // visit" picker too (DR-167) -- a site with no name/country set yet is
+  // filtered out, same as the Gallery page itself.
+  const sites: PlanMyTripSite[] = mediaItems
+    .filter((item) => item.name && item.country)
+    .map((item) => ({ name: item.name!, country: item.country! }));
 
   return (
     <div className="max-w-lg">
       <p className="eyebrow mt-4 text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
       <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
-      <PlanMyTripForm initialDestination={initialDestination} />
+      <PlanMyTripForm initialDestination={initialDestination} sites={sites} />
     </div>
   );
 }

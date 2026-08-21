@@ -111,6 +111,16 @@ describe('cms domain', () => {
       expect(() => CreateCmsMediaItemInput.parse({ mediaType: 'audio' })).toThrow();
       expect(() => CreateCmsMediaItemInput.parse({ url: 'not-a-url' })).toThrow();
     });
+
+    it('accepts a gallery site with name + country (DR-167)', () => {
+      const result = CreateCmsMediaItemInput.parse({ name: 'Etosha National Park', country: 'NA' });
+      expect(result.name).toBe('Etosha National Park');
+      expect(result.country).toBe('NA');
+    });
+
+    it('rejects a country outside the operating-country set', () => {
+      expect(() => CreateCmsMediaItemInput.parse({ name: 'Somewhere', country: 'US' })).toThrow();
+    });
   });
 
   describe('UpdateCmsMediaItemInput', () => {
@@ -120,10 +130,10 @@ describe('cms domain', () => {
       expect(result.url).toBeUndefined();
     });
 
-    it('accepts explicitly clearing overlayGradient/caption to null', () => {
-      const result = UpdateCmsMediaItemInput.parse({ overlayGradient: null, caption: null });
+    it('accepts explicitly clearing overlayGradient/description to null', () => {
+      const result = UpdateCmsMediaItemInput.parse({ overlayGradient: null, description: null });
       expect(result.overlayGradient).toBeNull();
-      expect(result.caption).toBeNull();
+      expect(result.description).toBeNull();
     });
   });
 });

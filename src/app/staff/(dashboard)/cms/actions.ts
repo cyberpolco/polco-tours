@@ -34,10 +34,16 @@ const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
   terms: '/terms',
 };
 
-const GUEST_PATH_BY_MEDIA_PAGE: Record<string, string> = {
-  'home-hero': '/',
-  gallery: '/gallery',
+const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {
+  'home-hero': ['/'],
+  // Gallery sites are also the single source of truth for the plan-my-trip
+  // wizard's "sites to visit" step (DR-167), guest and staff both.
+  gallery: ['/gallery', '/plan-my-trip', '/staff/bookings/new'],
 };
+
+function revalidateMediaPage(page: string): void {
+  for (const path of GUEST_PATHS_BY_MEDIA_PAGE[page] ?? []) revalidatePath(path);
+}
 
 export async function updateTextBlockAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
@@ -203,17 +209,46 @@ export async function setMediaItemAction(page: string, slotKey: string, mediaTyp
   const input = UpdateCmsMediaItemInput.parse({ mediaType, url });
   await cmsService.updateMediaItem(ctx, page, slotKey, input);
   revalidatePath('/staff/cms');
-  const guestPath = GUEST_PATH_BY_MEDIA_PAGE[page];
-  if (guestPath) revalidatePath(guestPath);
+  revalidateMediaPage(page);
 }
 
-/** Page-agnostic caption editor -- `CmsMediaItem.caption` existed since
- * DR-163 but had no UI yet; first wired for Gallery. */
-export async function updateMediaCaptionAction(page: string, slotKey: string, formData: FormData): Promise<void> {
+// ----------------------------------------------------------- Gallery (DR-167)
+const GALLERY_PAGE = 'gallery';
+
+/** Creates a bare site (no name/country/media yet) at the end of the
+ * current order -- every site (new or existing) shares the same edit card
+ * in the admin UI, same "add blank, edit in place" convention as
+ * createHeroSlideAction. A blank site is filtered out of every guest-facing
+ * read (Gallery, both plan-my-trip pickers) until staff sets a name+country. */
+export async function createGallerySiteAction(): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
-  const input = UpdateCmsMediaItemInput.parse({ caption: String(formData.get('caption') ?? '') || null });
-  await cmsService.updateMediaItem(ctx, page, slotKey, input);
+  const existing = await cmsService.listMediaItems(ctx, GALLERY_PAGE);
+  const nextSortOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1;
+  await cmsService.createMediaItem(ctx, GALLERY_PAGE, { sortOrder: nextSortOrder });
   revalidatePath('/staff/cms');
-  const guestPath = GUEST_PATH_BY_MEDIA_PAGE[page];
-  if (guestPath) revalidatePath(guestPath);
+  revalidateMediaPage(GALLERY_PAGE);
+}
+
+/** name + country + description + sortOrder in one form -- a gallery site
+ * is fully described by CmsMediaItem alone (DR-167), no paired CmsTextBlock
+ * the way Home hero slides need (a site only has 2 text fields, and
+ * `description` already lives on CmsMediaItem). */
+export async function updateGallerySiteAction(slotKey: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const input = UpdateCmsMediaItemInput.parse({
+    name: String(formData.get('name') ?? '') || null,
+    country: String(formData.get('country') ?? '') || null,
+    description: String(formData.get('description') ?? '') || null,
+    sortOrder: Number(formData.get('sortOrder') ?? 0),
+  });
+  await cmsService.updateMediaItem(ctx, GALLERY_PAGE, slotKey, input);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(GALLERY_PAGE);
+}
+
+export async function deleteGallerySiteAction(slotKey: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteMediaItem(ctx, GALLERY_PAGE, slotKey);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(GALLERY_PAGE);
 }

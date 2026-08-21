@@ -595,6 +595,46 @@ async function main() {
     }
   }
 
+  // --- Gallery sites (DR-167) -- one-time seed of the 13 originally-
+  // hardcoded DESTINATION_SITES entries as real CmsMediaItem rows (that
+  // static file is now retired), so /gallery and the plan-my-trip wizard's
+  // "sites to visit" step render identically to before this shipped, and
+  // staff has real rows to edit rather than a blank list. `slotKey` is a
+  // stable slug of each site's ORIGINAL name, chosen once here -- staff
+  // can freely rename `name` afterward without it ever changing (a rename
+  // must never orphan a site's photo/video). sortOrder preserves the
+  // original array's NA -> CD -> ZM -> ZW grouping. No media/description
+  // seeded -- no real photos exist for any of these today either. ---
+  const gallerySites: Array<{ slotKey: string; name: string; country: string; sortOrder: number }> = [
+    { slotKey: 'etosha-national-park', name: 'Etosha National Park', country: 'NA', sortOrder: 0 },
+    { slotKey: 'sossusvlei', name: 'Sossusvlei', country: 'NA', sortOrder: 1 },
+    { slotKey: 'fish-river-canyon', name: 'Fish River Canyon', country: 'NA', sortOrder: 2 },
+    { slotKey: 'skeleton-coast', name: 'Skeleton Coast', country: 'NA', sortOrder: 3 },
+    { slotKey: 'swakopmund', name: 'Swakopmund', country: 'NA', sortOrder: 4 },
+    { slotKey: 'caprivi-strip', name: 'Caprivi Strip', country: 'NA', sortOrder: 5 },
+    { slotKey: 'windhoek', name: 'Windhoek', country: 'NA', sortOrder: 6 },
+    { slotKey: 'virunga-national-park', name: 'Virunga National Park', country: 'CD', sortOrder: 7 },
+    { slotKey: 'kahuzi-biega-national-park', name: 'Kahuzi-Biéga National Park', country: 'CD', sortOrder: 8 },
+    { slotKey: 'congo-river', name: 'Congo River', country: 'CD', sortOrder: 9 },
+    { slotKey: 'kinshasa', name: 'Kinshasa', country: 'CD', sortOrder: 10 },
+    { slotKey: 'salonga-national-park', name: 'Salonga National Park', country: 'CD', sortOrder: 11 },
+    { slotKey: 'victoria-falls-zambia-side', name: 'Victoria Falls (Zambia side)', country: 'ZM', sortOrder: 12 },
+    { slotKey: 'south-luangwa-national-park', name: 'South Luangwa National Park', country: 'ZM', sortOrder: 13 },
+    { slotKey: 'lower-zambezi-national-park', name: 'Lower Zambezi National Park', country: 'ZM', sortOrder: 14 },
+    { slotKey: 'livingstone', name: 'Livingstone', country: 'ZM', sortOrder: 15 },
+    { slotKey: 'victoria-falls-zimbabwe-side', name: 'Victoria Falls (Zimbabwe side)', country: 'ZW', sortOrder: 16 },
+    { slotKey: 'hwange-national-park', name: 'Hwange National Park', country: 'ZW', sortOrder: 17 },
+    { slotKey: 'mana-pools-national-park', name: 'Mana Pools National Park', country: 'ZW', sortOrder: 18 },
+    { slotKey: 'great-zimbabwe-ruins', name: 'Great Zimbabwe Ruins', country: 'ZW', sortOrder: 19 },
+  ];
+  for (const site of gallerySites) {
+    await prisma.cmsMediaItem.upsert({
+      where: { page_slotKey: { page: 'gallery', slotKey: site.slotKey } },
+      update: {},
+      create: { page: 'gallery', slotKey: site.slotKey, name: site.name, country: site.country, sortOrder: site.sortOrder },
+    });
+  }
+
   console.log('Seeded:', {
     operator: lam.name,
     superadmin: admin.email,
@@ -612,6 +652,7 @@ async function main() {
     siteContent: siteContent.length,
     faqEntries: faqEntries.length,
     heroSlides: heroSlides.length,
+    gallerySites: gallerySites.length,
   });
 }
 

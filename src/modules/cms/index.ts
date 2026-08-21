@@ -5,6 +5,7 @@ export {
   CMS_VIDEO_CONTENT_TYPES,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
+  GALLERY_COUNTRY_CODES,
   isValidCmsVideoContentType,
   MAX_CMS_VIDEO_SIZE_BYTES,
   SUPPORTED_LOCALES,
