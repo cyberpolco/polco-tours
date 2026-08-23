@@ -575,7 +575,9 @@ export const catalogService = {
       description: pkg.description,
       country: pkg.country,
       durationDays: pkg.durationDays,
-      imageUrl: pkg.imageUrl,
+      // DR-172: this summary card only ever shows one image -- the package's
+      // cover (first of up to 3), never the full slideshow.
+      imageUrl: pkg.imageUrls[0] ?? null,
       startDate: departure.startDate,
       endDate: departure.endDate,
     };

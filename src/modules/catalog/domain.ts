@@ -33,11 +33,11 @@ export interface TourPackageView {
   pricePlatformFeeRateBp: number | null;
   currency: Currency;
   durationDays: number | null;
-  // DR-068: optional hero image. Nullable/additive -- no photography existed
-  // at first, so this is null until staff upload one. Since DR-114 this is
-  // a Vercel Blob public URL (catalogService.uploadPackageImage), not a
-  // pasted string.
-  imageUrl: string | null;
+  // DR-068: optional hero image(s). Empty until staff upload one. Since
+  // DR-114 each is a Vercel Blob public URL (catalogService.uploadPackageImage),
+  // not a pasted string. DR-172: up to 3, display/slideshow order -- the
+  // first is the "cover" image used wherever only one fits.
+  imageUrls: string[];
   tags: PackageTag[];
   status: PackageStatus;
   createdAt: Date;
@@ -97,12 +97,11 @@ export const CreatePackageInput = z
     // than left reachable via a direct API call.
     currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']),
     durationDays: z.number().int().positive().optional(),
-    // Since DR-114 this is populated from catalogService.uploadPackageImage's
-    // returned Blob URL, not staff-typed -- still just a string here (the
-    // Server Action is what decides the value, this schema only bounds its
-    // shape). Empty string treated as "no image" by the staff form, not
-    // passed through as "".
-    imageUrl: z.string().max(500).optional(),
+    // Since DR-114 each is populated from catalogService.uploadPackageImage's
+    // returned Blob URL, not staff-typed -- still just strings here (the
+    // Server Action decides the values, this schema only bounds their shape
+    // and count). DR-172: up to 3, display/slideshow order.
+    imageUrls: z.array(z.string().max(500)).max(3).optional(),
     tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
   })
   .refine((v) => v.countries.includes(v.country), {
@@ -119,7 +118,7 @@ export const UpdatePackageInput = z
     countries: z.array(z.enum(OPERATING_COUNTRY_CODES)).min(1).optional(),
     currency: z.enum(['USD', 'EUR', 'NAD', 'CDF']).optional(),
     durationDays: z.number().int().positive().optional(),
-    imageUrl: z.string().max(500).optional(),
+    imageUrls: z.array(z.string().max(500)).max(3).optional(),
     tags: z.array(z.enum(PACKAGE_TAGS)).optional(),
     status: z.enum(['DRAFT', 'PUBLISHED_AVAILABLE', 'PUBLISHED_UNAVAILABLE', 'ARCHIVED']).optional(),
   })

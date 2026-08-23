@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { ApiError } from '@lib/errors';
+import { ApiError, Errors } from '@lib/errors';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { CreatePackageInput, catalogService } from '@modules/catalog';
 
@@ -26,16 +26,22 @@ export async function createPackageAction(formData: FormData): Promise<void> {
   // error page, same convention as the edit page's updatePackageAction.
   let pkg;
   try {
-    // DR-114: staff upload a real file instead of pasting a URL -- optional,
-    // same "no file selected -> stays unset" shape as passport upload's own
-    // `instanceof File && size > 0` check (uploadPassportAction).
-    let imageUrl: string | undefined;
-    const image = formData.get('image');
-    if (image instanceof File && image.size > 0) {
-      const bytes = Buffer.from(await image.arrayBuffer());
-      const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
-      imageUrl = uploaded.url;
+    // DR-114/DR-172: staff upload real files instead of pasting a URL --
+    // optional, same "no file selected -> stays unset" shape as passport
+    // upload's own `instanceof File && size > 0` check (uploadPassportAction),
+    // now for up to 3 files at once. Checked BEFORE uploading anything, so a
+    // too-many-files mistake never burns a Blob upload it'll just discard.
+    const images = formData.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
+    if (images.length > 3) {
+      throw Errors.validation('You can upload at most 3 images per package');
     }
+    const imageUrls = await Promise.all(
+      images.map(async (image) => {
+        const bytes = Buffer.from(await image.arrayBuffer());
+        const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
+        return uploaded.url;
+      }),
+    );
 
     // DR-039: no priceMinor here -- a new package starts unpriced until the
     // finance module's cost breakdown computes one.
@@ -47,7 +53,7 @@ export async function createPackageAction(formData: FormData): Promise<void> {
       countries,
       currency: String(formData.get('currency') ?? ''),
       durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
-      imageUrl,
+      imageUrls,
       tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
     });
 

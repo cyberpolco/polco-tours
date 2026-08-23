@@ -26,7 +26,9 @@ export default async function Image({ params }: Props) {
   try {
     const { pkg } = await catalogService.getPublicPackageWithDepartures(packageId);
     title = pkg.title;
-    imageUrl = pkg.imageUrl;
+    // DR-172: the cover (first of up to 3 images) -- a static social preview
+    // has no room for a slideshow.
+    imageUrl = pkg.imageUrls[0] ?? null;
   } catch {
     // Unknown/unpublished package -- fall through to the generic plate below.
   }

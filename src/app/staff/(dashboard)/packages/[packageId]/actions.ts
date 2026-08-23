@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { ApiError } from '@lib/errors';
+import { ApiError, Errors } from '@lib/errors';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
 
@@ -31,17 +31,27 @@ export async function updatePackageAction(packageId: string, formData: FormData)
   // (Errors.internal) are exactly the same class of "real, expected
   // ApiError" this block already exists to catch.
   try {
-    // DR-114: a new file replaces the existing image; leaving the field
-    // empty keeps whatever imageUrl the package already has (imageUrl left
-    // undefined below in that case, same "omitted = unchanged" shape
-    // UpdatePackageInput already uses for every optional field).
-    let imageUrl: string | undefined;
-    const image = formData.get('image');
-    if (image instanceof File && image.size > 0) {
-      const bytes = Buffer.from(await image.arrayBuffer());
-      const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
-      imageUrl = uploaded.url;
+    // DR-114/DR-172: kept existing images (whichever weren't checked for
+    // removal) + newly uploaded ones, in that order -- capped at 3 BEFORE
+    // uploading anything, so a too-many mistake never burns a Blob upload
+    // it'll just discard. Neither box touched at all (no removals, no new
+    // files) reproduces the exact current imageUrls, same net effect as the
+    // old single-image field's "leave empty -> unchanged" shape.
+    const existing = await catalogService.getPackage(ctx, packageId);
+    const removedUrls = new Set(formData.getAll('removeImages').filter((u): u is string => typeof u === 'string'));
+    const keptUrls = existing.imageUrls.filter((url) => !removedUrls.has(url));
+    const newImages = formData.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
+    if (keptUrls.length + newImages.length > 3) {
+      throw Errors.validation('You can upload at most 3 images per package');
     }
+    const uploadedUrls = await Promise.all(
+      newImages.map(async (image) => {
+        const bytes = Buffer.from(await image.arrayBuffer());
+        const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
+        return uploaded.url;
+      }),
+    );
+    const imageUrls = [...keptUrls, ...uploadedUrls];
 
     // DR-039: price is no longer typed here -- it's computed by the finance
     // module's cost breakdown (or set there via an audited override). This
@@ -56,7 +66,7 @@ export async function updatePackageAction(packageId: string, formData: FormData)
       countries,
       currency: String(formData.get('currency') ?? ''),
       durationDays: durationDaysRaw ? Number(durationDaysRaw) : undefined,
-      imageUrl,
+      imageUrls,
       tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
       status: String(formData.get('status') ?? ''),
     });

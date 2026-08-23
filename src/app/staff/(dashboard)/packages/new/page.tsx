@@ -91,17 +91,21 @@ export default async function NewPackagePage({ searchParams }: Props) {
         <FormField label={t('durationDays')} htmlFor="durationDays" optional>
           <input name="durationDays" type="number" min={1} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
-        {/* DR-114: staff upload a real file (catalogService.uploadPackageImage,
+        {/* DR-114: staff upload real files (catalogService.uploadPackageImage,
             Vercel Blob public) instead of pasting a URL -- optional, the
-            guest UI falls back to an illustrated placeholder until one is set. */}
-        <FormField label={t('image')} htmlFor="image" optional>
+            guest UI falls back to an illustrated placeholder until any are
+            set. DR-172: up to 3, selected together via `multiple` -- shown
+            as a slideshow on the guest package card, in the order uploaded. */}
+        <FormField label={t('image')} htmlFor="images" optional>
           <input
-            name="image"
+            name="images"
             type="file"
+            multiple
             accept="image/jpeg,image/png,image/webp"
             className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-navy file:px-3 file:py-1 file:text-sm file:text-bone"
           />
         </FormField>
+        <p className="text-xs text-mist">{t('imagesHint')}</p>
         <p className="text-xs text-mist">{t('durationNotice')}</p>
         <div>
           <p className="mb-1 text-sm text-mist">{t('tags')}</p>

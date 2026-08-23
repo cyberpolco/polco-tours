@@ -29,7 +29,7 @@ function pkg(overrides: Partial<TourPackageView> = {}): TourPackageView {
     pricePlatformFeeRateBp: null,
     currency: 'USD',
     durationDays: 3,
-    imageUrl: null,
+    imageUrls: [],
     tags: [],
     status: 'PUBLISHED_AVAILABLE',
     createdAt: new Date('2026-01-01'),
@@ -213,6 +213,26 @@ describe('catalog domain', () => {
       const result = CreatePackageInput.safeParse({ ...base, country: 'NA', countries: [] });
       expect(result.success).toBe(false);
     });
+
+    it('DR-172: accepts up to 3 images', () => {
+      const result = CreatePackageInput.safeParse({
+        ...base,
+        country: 'NA',
+        countries: ['NA'],
+        imageUrls: ['https://a', 'https://b', 'https://c'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('DR-172: rejects more than 3 images', () => {
+      const result = CreatePackageInput.safeParse({
+        ...base,
+        country: 'NA',
+        countries: ['NA'],
+        imageUrls: ['https://a', 'https://b', 'https://c', 'https://d'],
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('UpdatePackageInput (DR-114)', () => {
@@ -230,6 +250,11 @@ describe('catalog domain', () => {
     it('accepts a valid combo update', () => {
       const result = UpdatePackageInput.safeParse({ country: 'ZM', countries: ['ZM', 'ZW'] });
       expect(result.success).toBe(true);
+    });
+
+    it('DR-172: rejects more than 3 images', () => {
+      const result = UpdatePackageInput.safeParse({ imageUrls: ['https://a', 'https://b', 'https://c', 'https://d'] });
+      expect(result.success).toBe(false);
     });
   });
 });

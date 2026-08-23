@@ -248,25 +248,41 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
-        {/* DR-114: staff upload a real file (catalogService.uploadPackageImage,
-            Vercel Blob public) instead of pasting a URL -- selecting a new
-            file replaces the current one; leaving it empty keeps the
-            existing image (or none) unchanged. */}
-        {pkg.imageUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element -- a
-             staff-only settings-form thumbnail, not the guest-facing
-             PackageImage component (next/image) this same URL renders
-             through elsewhere. */
-          <img src={pkg.imageUrl} alt={t('currentImageAlt')} className="h-24 w-40 rounded-survey object-cover" />
+        {/* DR-114/DR-172: staff upload real files (catalogService.
+            uploadPackageImage, Vercel Blob public) instead of pasting a URL
+            -- up to 3, shown as a slideshow on the guest package card, in
+            this order. Each existing one has its own "remove" checkbox
+            (checking it drops that image on save); newly selected files are
+            appended after whatever's kept. Leaving everything alone (no
+            checkboxes ticked, no new files chosen) keeps the images
+            unchanged. */}
+        {pkg.imageUrls.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {pkg.imageUrls.map((url, i) => (
+              <div key={url}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- a
+                   staff-only settings-form thumbnail, not the guest-facing
+                   PackageImage component (next/image) this same URL renders
+                   through elsewhere. */}
+                <img src={url} alt={`${t('currentImageAlt')} ${i + 1}`} className="h-24 w-40 rounded-survey object-cover" />
+                <label className="mt-1 flex items-center gap-1.5 text-xs text-mist">
+                  <input type="checkbox" name="removeImages" value={url} />
+                  {t('removeImage')}
+                </label>
+              </div>
+            ))}
+          </div>
         )}
-        <FormField label={t('image')} htmlFor="image" optional>
+        <FormField label={t('image')} htmlFor="images" optional>
           <input
-            name="image"
+            name="images"
             type="file"
+            multiple
             accept="image/jpeg,image/png,image/webp"
             className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-navy file:px-3 file:py-1 file:text-sm file:text-bone"
           />
         </FormField>
+        <p className="text-xs text-mist">{t('imagesHint')}</p>
         <p className="text-xs text-mist">{t('durationNotice')}</p>
         <div>
           <p className="mb-1 text-sm text-mist">{t('tags')}</p>

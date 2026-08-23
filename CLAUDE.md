@@ -31,7 +31,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-171** (2026-08-23). This file used to carry a running
+Current through **DR-172** (2026-08-23). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -765,15 +765,16 @@ Surface these to the human — don't invent answers.
 - **OI-09** Real Starlink API/account access (live kit location feed).
   `StarlinkKit.lastLatitude`/`lastLongitude` is staff-entered for now.
   Blocks real-time fleet location tracking.
-- **OI-12** (DR-069; partially resolved DR-073) `TourPackage.imageUrl`
-  still ships `null` on every package, and `/gallery` still uses
+- **OI-12** (DR-069; partially resolved DR-073) `TourPackage.imageUrls`
+  (renamed from the singular `imageUrl`, DR-172 — up to 3 now, not just 1)
+  still ships empty on every package, and `/gallery` still uses
   `PackageImage`'s illustrated gradient fallback — no real photos, don't
   fabricate or scrape images to fill this. DR-073 (2026-08-05) closes the
   narrower "nothing real exists anywhere" gap for the homepage hero only:
   three licensed stock photos (Sossusvlei/Namibia, Virunga/DRC, Victoria
   Falls/Zambia+Zimbabwe) now render in `HeroCarousel`. DR-071's `cms`
   module (renamed from `content`, DR-162) image-upload primitive (public
-  Vercel Blob URL) remains unwired to `/gallery` or `TourPackage.imageUrl`
+  Vercel Blob URL) remains unwired to `/gallery` or `TourPackage.imageUrls`
   — still nothing real to attach
   there; would need operator-supplied photos or a licensed stock budget
   for that broader scope.

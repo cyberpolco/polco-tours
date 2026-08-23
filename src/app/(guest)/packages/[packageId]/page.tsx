@@ -56,8 +56,11 @@ export default async function PackageDetailPage({ params }: Props) {
       <BackLink href="/packages">{t('allPackages')}</BackLink>
 
       {/* Full-bleed hero echoing the homepage carousel's own scrim
-          language, instead of a plain photo with the title typed below it. */}
-      <PackageImage imageUrl={pkg.imageUrl} alt={pkg.title} seed={pkg.id} className="mt-4 !aspect-auto h-80 sm:h-[26rem]">
+          language, instead of a plain photo with the title typed below it.
+          DR-172: just the cover (first of up to 3 images) -- the slideshow
+          through all of them is the guest package card's own thing, not
+          this static hero. */}
+      <PackageImage imageUrl={pkg.imageUrls[0] ?? null} alt={pkg.title} seed={pkg.id} className="mt-4 !aspect-auto h-80 sm:h-[26rem]">
         <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9">
           <div className="flex flex-wrap gap-2">

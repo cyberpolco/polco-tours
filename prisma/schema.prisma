@@ -582,8 +582,13 @@ model TourPackage {
   // (`catalogService.uploadPackageImage`) rather than pasting a URL -- this
   // is a Vercel Blob `access: 'public'` URL (next.config.mjs's
   // `*.public.blob.vercel-storage.com` remotePattern, added DR-071), not a
-  // local `/public/images/...` asset path.
-  imageUrl               String?
+  // local `/public/images/...` asset path. DR-172: up to 3 images (order =
+  // display/slideshow order, first is the "cover" used wherever only one
+  // image fits -- detail-page hero, opengraph-image); the cap itself is
+  // enforced in catalog/domain.ts's zod schemas, not a DB constraint.
+  // Renamed from the singular `imageUrl` -- safe as a clean rename (not an
+  // add+backfill+drop) since no package had a real value yet (OI-12).
+  imageUrls              String[]      @default([])
   tags                   PackageTag[] // interest-matching for the public quiz (DR-016)
   status                 PackageStatus @default(DRAFT)
   createdAt              DateTime      @default(now())
