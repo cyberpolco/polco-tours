@@ -31,7 +31,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-168** (2026-08-21). This file used to carry a running
+Current through **DR-169** (2026-08-22). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -206,7 +206,9 @@ src/
                    #   DR-145: a TAILOR_MADE booking's tax rate is blended
                    #   across its linked customized package's Day Template
                    #   countries via financeService.resolveEffectiveTaxRateBp
-                   #   (new invoicing -> finance dependency)
+                   #   (new invoicing -> finance dependency); invoice-pdf.tsx
+                   #   (DR-169: downloadable invoice/receipt PDF, guest +
+                   #   staff, once an invoice has a succeeded payment)
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +

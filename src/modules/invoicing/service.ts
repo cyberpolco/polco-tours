@@ -17,9 +17,26 @@ import { money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
 import { validateCoupon, type CouponUnavailableReason } from '@lib/coupons';
-import { amountForPaymentKind, canInitiatePayment, computeInvoiceAmounts, type InvoiceView, type PaymentView } from './domain';
+import {
+  amountForPaymentKind,
+  canDownloadInvoicePdf,
+  canInitiatePayment,
+  computeInvoiceAmounts,
+  type InvoiceView,
+  type PaymentView,
+} from './domain';
 import { paymentGateway } from './gateway';
+import { renderInvoicePdf, type PdfLocale } from './invoice-pdf';
 import { invoicingRepository } from './repository';
+
+/** DR-169: booking reference (already ASCII-only, no slugify needed, same
+ * "human id, not the raw cuid" precedent as finance's own
+ * buildPackageSummaryPdfFilename) + whether this is still owed (invoice) or
+ * fully settled (receipt), so the filename itself signals which one it is. */
+function buildInvoicePdfFilename(bookingReference: string, status: InvoiceStatus, locale: PdfLocale): string {
+  const kind = status === 'PAID' ? 'receipt' : 'invoice';
+  return `${bookingReference}-${kind}-${locale}.pdf`;
+}
 
 export interface BillingSummaryView {
   currency: Currency;
@@ -196,6 +213,64 @@ export const invoicingService = {
       organizationId,
     });
     return invoice;
+  },
+
+  /** DR-169: renders a downloadable PDF once at least one payment has
+   * actually succeeded -- ownership inherited from bookingService.getById,
+   * same "anti-BOLA for free" convention as getOrCreateInvoiceForBooking
+   * above. Deliberately reads the existing invoice via findByBookingId
+   * rather than getOrCreateInvoiceForBooking -- creating one as a side
+   * effect of a PDF download would be wrong, and canDownloadInvoicePdf
+   * already 409s before that could matter in practice (no invoice can have
+   * a succeeded payment without existing first). */
+  async streamInvoicePdf(
+    ctx: AuthContext,
+    bookingId: string,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
+    assertCan(ctx, 'invoice.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await bookingService.getById(ctx, bookingId);
+
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    if (!invoice) throw Errors.notFound('Invoice not found');
+    if (!canDownloadInvoicePdf(invoice.status)) {
+      throw Errors.conflict('This invoice has no successful payment yet -- nothing to download');
+    }
+
+    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+    const succeededPayments = (detail?.payments ?? []).filter((p) => p.status === 'SUCCEEDED');
+
+    const body = await renderInvoicePdf({
+      locale,
+      // Narrowed by canDownloadInvoicePdf above -- ISSUED/VOID already threw.
+      status: invoice.status as Extract<InvoiceStatus, 'PARTIALLY_PAID' | 'PAID'>,
+      currency: invoice.currency,
+      bookingReference: booking.bookingReference,
+      subtotalMinor: invoice.subtotalMinor,
+      discountMinor: invoice.discountMinor,
+      couponCode: invoice.couponCode,
+      taxMinor: invoice.taxMinor,
+      platformFeeMinor: invoice.platformFeeMinor,
+      totalMinor: invoice.totalMinor,
+      balanceMinor: invoice.balanceMinor,
+      payments: succeededPayments.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, createdAt: p.createdAt })),
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'invoice.pdf_downloaded',
+      resourceType: 'Invoice',
+      resourceId: invoice.id,
+      organizationId,
+    });
+
+    return {
+      body,
+      contentType: 'application/pdf',
+      filename: buildInvoicePdfFilename(booking.bookingReference, invoice.status, locale),
+    };
   },
 
   /** Ratings module (DR-037): "payment received in full" for the

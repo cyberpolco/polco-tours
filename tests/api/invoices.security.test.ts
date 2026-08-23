@@ -6,6 +6,7 @@ import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { generateBookingReference } from '../../src/modules/booking';
 import { GET as getInvoice } from '../../src/app/api/v1/bookings/[bookingId]/invoice/route';
+import { GET as getInvoicePdf } from '../../src/app/api/v1/bookings/[bookingId]/invoice/pdf/route';
 import { GET as listPayments, POST as initiatePayment } from '../../src/app/api/v1/invoices/[invoiceId]/payments/route';
 import { POST as applyCoupon, DELETE as removeCoupon } from '../../src/app/api/v1/invoices/[invoiceId]/coupon/route';
 
@@ -139,6 +140,17 @@ describe('anti-BOLA: invoice/payment ownership', () => {
     const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/invoice`, { headers });
     const res = await getInvoice(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
+  });
+
+  // DR-169: this invoice is still ISSUED (no payment) in this fixture, so
+  // tourist A would themselves get a 409 -- proves the ownership check for
+  // tourist B fires BEFORE the payment-status gate, same "ownership checked
+  // before anything else" convention as the coupon tests below.
+  it("tourist B cannot download tourist A's invoice PDF (404, not 409)", async () => {
+    const headers = await loginAs(touristBId);
+    const req = new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/invoice/pdf`, { headers });
+    const res = await getInvoicePdf(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(404);
   });
 
   // DR-104: ownership is checked before the coupon code itself is even

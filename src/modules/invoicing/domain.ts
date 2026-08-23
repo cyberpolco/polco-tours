@@ -157,6 +157,13 @@ export function canInitiatePayment(
   return !activeOrSucceeded('FULL');
 }
 
+/** DR-169: an invoice/receipt PDF is only meaningful once at least one
+ * payment has actually succeeded -- ISSUED has nothing paid yet, VOID was
+ * cancelled before anything could be. */
+export function canDownloadInvoicePdf(status: InvoiceStatus): boolean {
+  return status === 'PARTIALLY_PAID' || status === 'PAID';
+}
+
 /** Replaces a `kind === 'DEPOSIT' ? invoice.depositMinor : invoice.balanceMinor`
  * binary ternary that would have silently charged a FULL payment the balance
  * amount -- an exhaustive lookup can't miss a kind like that again. */

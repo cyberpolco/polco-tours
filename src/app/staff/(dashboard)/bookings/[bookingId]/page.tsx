@@ -6,7 +6,7 @@ import { requireStaffRole } from '@lib/staff-guard';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { financeService } from '@modules/finance';
-import { invoicingService } from '@modules/invoicing';
+import { canDownloadInvoicePdf, invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService } from '@modules/visa';
@@ -535,6 +535,18 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
           <p className="mt-2 flex items-center gap-2 text-sm text-mist">
             {t('status')} <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{tInvoiceStatus(invoice.status)}</Badge>
           </p>
+          {canDownloadInvoicePdf(invoice.status) && (
+            <p className="mt-2 text-xs text-mist">
+              {t('downloadInvoicePdf')}{' '}
+              <a href={`/api/v1/bookings/${bookingId}/invoice/pdf?locale=en`} className="font-semibold text-amber underline">
+                {t('downloadInvoiceEn')}
+              </a>{' '}
+              ·{' '}
+              <a href={`/api/v1/bookings/${bookingId}/invoice/pdf?locale=fr`} className="font-semibold text-amber underline">
+                {t('downloadInvoiceFr')}
+              </a>
+            </p>
+          )}
         </div>
       )}
 

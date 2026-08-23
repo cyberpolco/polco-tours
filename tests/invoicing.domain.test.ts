@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amountForPaymentKind,
+  canDownloadInvoicePdf,
   canInitiatePayment,
   canTransitionInvoice,
   canTransitionPayment,
@@ -152,6 +153,28 @@ describe('invoicing domain', () => {
       expect(
         canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'FULL'),
       ).toBe(true);
+    });
+  });
+
+  describe('canDownloadInvoicePdf (DR-169)', () => {
+    it('blocks download while nothing has been paid (ISSUED)', () => {
+      expect(canDownloadInvoicePdf('ISSUED')).toBe(false);
+    });
+
+    it('blocks download once voided', () => {
+      expect(canDownloadInvoicePdf('VOID')).toBe(false);
+    });
+
+    it('allows download once the deposit succeeds (PARTIALLY_PAID)', () => {
+      expect(canDownloadInvoicePdf('PARTIALLY_PAID')).toBe(true);
+    });
+
+    it('allows download once fully settled (PAID)', () => {
+      expect(canDownloadInvoicePdf('PAID')).toBe(true);
+    });
+
+    it('blocks download on a still-unissued DRAFT invoice', () => {
+      expect(canDownloadInvoicePdf('DRAFT')).toBe(false);
     });
   });
 

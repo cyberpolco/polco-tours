@@ -4,7 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
 import { format, formatOrPending, money } from '@lib/money';
 import { bookingService, isBookingLocked } from '@modules/booking';
-import { invoicingService } from '@modules/invoicing';
+import { canDownloadInvoicePdf, invoicingService } from '@modules/invoicing';
 import { visaService, type GuestVisaApplicationView } from '@modules/visa';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -273,6 +273,18 @@ export default async function BookingHomePage({ params }: Props) {
           onApply={applyCouponAction.bind(null, invoice.id, booking.id)}
           onRemove={removeCouponAction.bind(null, invoice.id, booking.id)}
         />
+        {canDownloadInvoicePdf(invoice.status) && (
+          <p className="mt-3 text-xs text-mist">
+            {t('downloadInvoicePdf')}{' '}
+            <a href={`/api/v1/bookings/${bookingId}/invoice/pdf?locale=en`} className="font-semibold text-amber underline">
+              {t('downloadInvoiceEn')}
+            </a>{' '}
+            ·{' '}
+            <a href={`/api/v1/bookings/${bookingId}/invoice/pdf?locale=fr`} className="font-semibold text-amber underline">
+              {t('downloadInvoiceFr')}
+            </a>
+          </p>
+        )}
       </div>
       </Reveal>
 

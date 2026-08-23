@@ -41,6 +41,7 @@ vi.mock('@modules/notifications/gateway', () => ({
 }));
 
 const { GET: getInvoice } = await import('../../src/app/api/v1/bookings/[bookingId]/invoice/route');
+const { GET: getInvoicePdf } = await import('../../src/app/api/v1/bookings/[bookingId]/invoice/pdf/route');
 const { GET: listPayments, POST: initiatePayment } = await import('../../src/app/api/v1/invoices/[invoiceId]/payments/route');
 const { POST: resolvePayment } = await import('../../src/app/api/v1/payments/[paymentId]/resolve/route');
 const { POST: applyCoupon, DELETE: removeCoupon } = await import('../../src/app/api/v1/invoices/[invoiceId]/coupon/route');
@@ -227,6 +228,16 @@ describe('GET /api/v1/bookings/:bookingId/invoice', () => {
   });
 });
 
+// DR-169.
+describe('GET /api/v1/bookings/:bookingId/invoice/pdf', () => {
+  it('rejects downloading before any payment has succeeded (409)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice/pdf`, headers);
+    const res = await getInvoicePdf(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(409);
+  });
+});
+
 describe('POST /api/v1/invoices/:invoiceId/payments', () => {
   it('rejects a role without payment.initiate (403)', async () => {
     const headers = await loginAs(guideId);
@@ -275,6 +286,28 @@ describe('POST /api/v1/invoices/:invoiceId/payments', () => {
   });
 });
 
+// DR-169: the invoice is PARTIALLY_PAID at this point in the file (the
+// deposit leg above just succeeded) -- the balance is still outstanding.
+describe('GET /api/v1/bookings/:bookingId/invoice/pdf (PARTIALLY_PAID)', () => {
+  it('downloads the invoice PDF once the deposit has succeeded (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice/pdf`, headers);
+    const res = await getInvoicePdf(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/pdf');
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    expect(disposition).toContain('invoice-en.pdf');
+  });
+
+  it('serves the French locale via ?locale=fr (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice/pdf?locale=fr`, headers);
+    const res = await getInvoicePdf(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('invoice-fr.pdf');
+  });
+});
+
 describe('POST /api/v1/payments/:paymentId/resolve', () => {
   // Kept as a manual-override safety net (e.g. a payment PENDING for some
   // other reason) even though the golden path now auto-succeeds -- DR-012's
@@ -313,6 +346,18 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     const body = await res.json();
     expect(body.payments).toHaveLength(2);
     expect(body.payments.every((p: { status: string }) => p.status === 'SUCCEEDED')).toBe(true);
+  });
+});
+
+// DR-169: the invoice is PAID at this point in the file (the balance leg
+// above just succeeded) -- filename/heading switch to "receipt".
+describe('GET /api/v1/bookings/:bookingId/invoice/pdf (PAID)', () => {
+  it('downloads the receipt PDF once fully settled (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice/pdf`, headers);
+    const res = await getInvoicePdf(req, { params: Promise.resolve({ bookingId }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('receipt-en.pdf');
   });
 });
 
