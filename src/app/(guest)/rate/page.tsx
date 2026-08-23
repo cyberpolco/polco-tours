@@ -45,7 +45,6 @@ export default async function RatePage({ searchParams }: Props) {
             <input
               name="bookingReference"
               required
-              placeholder="POL-2026-000154"
               className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
             />
           </FormField>
