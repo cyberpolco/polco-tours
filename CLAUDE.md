@@ -767,9 +767,11 @@ Surface these to the human — don't invent answers.
   Blocks real-time fleet location tracking.
 - **OI-12** (DR-069; partially resolved DR-073) `TourPackage.imageUrls`
   (renamed from the singular `imageUrl`, DR-172 — up to 3 now, not just 1)
-  still ships empty on every package, and `/gallery` still uses
-  `PackageImage`'s illustrated gradient fallback — no real photos, don't
-  fabricate or scrape images to fill this. DR-073 (2026-08-05) closes the
+  ships empty on every package except one real staff upload discovered
+  during DR-172's migration (`PKG-00040`, "The Nomad Loop") — still
+  effectively no systematic photography, and `/gallery` still uses
+  `PackageImage`'s illustrated gradient fallback — don't fabricate or
+  scrape images to fill the rest. DR-073 (2026-08-05) closes the
   narrower "nothing real exists anywhere" gap for the homepage hero only:
   three licensed stock photos (Sossusvlei/Namibia, Virunga/DRC, Victoria
   Falls/Zambia+Zimbabwe) now render in `HeroCarousel`. DR-071's `cms`
