@@ -9,7 +9,7 @@ import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
 import type { MapStopView } from './domain';
 
 const styles = StyleSheet.create({
-  page: { padding: 28, fontSize: 11, fontFamily: PDF_FONT_BODY },
+  page: { paddingTop: 28, paddingHorizontal: 28, paddingBottom: 48, fontSize: 11, fontFamily: PDF_FONT_BODY },
   title: { fontSize: 16, marginBottom: 4 },
   subtitle: { fontSize: 10, color: '#8C7D78', marginBottom: 12, fontFamily: PDF_FONT_CODE },
   image: { width: '100%', marginBottom: 16 },
@@ -21,6 +21,8 @@ const styles = StyleSheet.create({
   stopKind: { width: 90, fontWeight: 700, color: '#2F6E4F' },
   stopLabel: { flex: 1 },
   noCoords: { fontSize: 9, color: '#8C7D78', marginLeft: 8 },
+  footer: { position: 'absolute', bottom: 20, left: 28, right: 28, borderTop: '0.5pt solid #E3D6C8', paddingTop: 6, alignItems: 'center' },
+  footerText: { fontSize: 7, color: '#8C7D78' },
 });
 
 export interface ItineraryMapPdfDay {
@@ -66,6 +68,9 @@ export async function renderItineraryMapPdf(input: ItineraryMapPdfInput, mapImag
             ))}
           </View>
         ))}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>Powered by Cyber PolCo</Text>
+        </View>
       </Page>
     </Document>,
   );
