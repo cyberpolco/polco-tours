@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
 import { LinkButton } from '@/components/ui/Button';
-import { PackageImage } from '@/components/ui/PackageImage';
+import { PackageSlideshow } from '@/components/ui/PackageSlideshow';
 import { formatOrPending } from '@lib/money';
 
 interface Props {
@@ -57,10 +57,17 @@ export default async function PackageDetailPage({ params }: Props) {
 
       {/* Full-bleed hero echoing the homepage carousel's own scrim
           language, instead of a plain photo with the title typed below it.
-          DR-172: just the cover (first of up to 3 images) -- the slideshow
-          through all of them is the guest package card's own thing, not
-          this static hero. */}
-      <PackageImage imageUrl={pkg.imageUrls[0] ?? null} alt={pkg.title} seed={pkg.id} className="mt-4 !aspect-auto h-80 sm:h-[26rem]">
+          DR-173: plays the same up-to-3-image autoplay slideshow as the
+          package card, reversing DR-172's original "card-only" split, so
+          the cycle continues rather than freezing on the cover image once a
+          guest clicks through. */}
+      <PackageSlideshow
+        imageUrls={pkg.imageUrls}
+        alt={pkg.title}
+        seed={pkg.id}
+        className="mt-4 !aspect-auto h-80 sm:h-[26rem]"
+        sizes="100vw"
+      >
         <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/35 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-6 sm:p-9">
           <div className="flex flex-wrap gap-2">
@@ -77,7 +84,7 @@ export default async function PackageDetailPage({ params }: Props) {
           </div>
           <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.02] text-bone sm:text-4xl">{pkg.title}</h1>
         </div>
-      </PackageImage>
+      </PackageSlideshow>
 
       <p className="mt-6 max-w-2xl text-mist">{pkg.description}</p>
       {pkg.tags.length > 0 && (

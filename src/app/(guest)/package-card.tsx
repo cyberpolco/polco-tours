@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import type { TourPackageView } from '@modules/catalog';
 import { Card } from '@/components/ui/Card';
-import { PackageCardSlideshow } from '@/components/ui/PackageCardSlideshow';
+import { PackageSlideshow } from '@/components/ui/PackageSlideshow';
 import { formatOrPending } from '@lib/money';
 
 interface PackageCardProps {
@@ -17,8 +17,11 @@ interface PackageCardProps {
 // fallback, see PackageImage) and hover elevation (Card's `interactive`) --
 // previously a bare text card with no visual differentiation between packages.
 // DR-172: that hero image is now up to 3 images (TourPackage.imageUrls),
-// autoplay-cycled by PackageCardSlideshow -- collapses back to PackageImage's
+// autoplay-cycled by PackageSlideshow -- collapses back to PackageImage's
 // original single-image/gradient rendering for the common 0-or-1-image case.
+// DR-173: the same component now also plays on the detail page's own hero
+// (packages/[packageId]/page.tsx), so the cycle continues after a guest
+// clicks through instead of freezing on the cover image.
 export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
   const t = await getTranslations('PackageCard');
   const tCountries = await getTranslations('Countries');
@@ -29,7 +32,7 @@ export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
           -- falls back to the raw id only for a pre-DR-118 package still
           awaiting its backfilled slug. */}
       <Link href={`/packages/${pkg.slug ?? pkg.id}`} className="flex h-full flex-col">
-        <PackageCardSlideshow imageUrls={pkg.imageUrls} alt={pkg.title} seed={pkg.id} />
+        <PackageSlideshow imageUrls={pkg.imageUrls} alt={pkg.title} seed={pkg.id} rounded={false} className="shrink-0" />
         {/* Every package card in a grid renders the same size regardless of
             how long its title/description happen to be: line-clamp bounds
             both from above, min-h reserves their space from below (a
