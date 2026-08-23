@@ -273,6 +273,55 @@ export const invoicingService = {
     };
   },
 
+  /** DR-175: guest "find my booking" invoice/receipt PDF (no-ctx) -- same
+   * trust boundary as getBillingSummaryForBookingLookup: the caller (the
+   * find-booking invoice-pdf route) has already re-verified the two-factor
+   * bookingReference+lastName match via bookingService.lookupByBookingReference
+   * before calling this, so no session/ownership check is needed here.
+   * `bookingReference` is passed in rather than re-derived, since the
+   * caller already has the resolved booking in hand from that lookup.
+   * Returns null (not throw) when there's nothing downloadable yet --
+   * same "never reveal which part was wrong" shape the lookup itself uses,
+   * and the route treats it as a plain 404. Deliberately duplicates
+   * streamInvoicePdf's render-payload construction above rather than
+   * sharing a helper -- the two have different error semantics (this one
+   * never throws notFound/conflict, that one always does) and duplicating
+   * ~15 lines here is simpler than a shared helper with two different
+   * "nothing to download" behaviors layered on top. */
+  async streamInvoicePdfForBookingLookup(
+    organizationId: string,
+    bookingId: string,
+    bookingReference: string,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string } | null> {
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    if (!invoice || !canDownloadInvoicePdf(invoice.status)) return null;
+
+    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+    const succeededPayments = (detail?.payments ?? []).filter((p) => p.status === 'SUCCEEDED');
+
+    const body = await renderInvoicePdf({
+      locale,
+      status: invoice.status as Extract<InvoiceStatus, 'PARTIALLY_PAID' | 'PAID'>,
+      currency: invoice.currency,
+      bookingReference,
+      subtotalMinor: invoice.subtotalMinor,
+      discountMinor: invoice.discountMinor,
+      couponCode: invoice.couponCode,
+      taxMinor: invoice.taxMinor,
+      platformFeeMinor: invoice.platformFeeMinor,
+      totalMinor: invoice.totalMinor,
+      balanceMinor: invoice.balanceMinor,
+      payments: succeededPayments.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, createdAt: p.createdAt })),
+    });
+
+    return {
+      body,
+      contentType: 'application/pdf',
+      filename: buildInvoicePdfFilename(bookingReference, invoice.status, locale),
+    };
+  },
+
   /** Ratings module (DR-037): "payment received in full" for the
    * guest-facing rating-eligibility check -- a booking can reach
    * CONFIRMED/COMPLETED off a deposit-only payment (DR-027), so this must

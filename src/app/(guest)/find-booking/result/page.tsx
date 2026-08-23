@@ -5,7 +5,7 @@ import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
-import { invoicingService } from '@modules/invoicing';
+import { canDownloadInvoicePdf, invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService, type VisaStatus } from '@modules/visa';
@@ -383,6 +383,24 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                     ))}
                   </ul>
                 </div>
+              )}
+              {canDownloadInvoicePdf(billingSummary.status) && (
+                <p className="text-xs text-mist">
+                  {t('downloadInvoicePdf')}{' '}
+                  <a
+                    href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=en`}
+                    className="font-semibold text-amber underline"
+                  >
+                    {t('downloadInvoiceEn')}
+                  </a>{' '}
+                  ·{' '}
+                  <a
+                    href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=fr`}
+                    className="font-semibold text-amber underline"
+                  >
+                    {t('downloadInvoiceFr')}
+                  </a>
+                </p>
               )}
             </Card>
           </div>

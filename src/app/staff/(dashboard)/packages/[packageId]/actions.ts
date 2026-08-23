@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { ZodError } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError, Errors } from '@lib/errors';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
@@ -73,8 +74,21 @@ export async function updatePackageAction(packageId: string, formData: FormData)
 
     await catalogService.updatePackage(ctx, packageId, input);
   } catch (err) {
+    // DR-174 incident: a ZodError from UpdatePackageInput.parse (e.g. a
+    // malformed field this form itself should never actually produce, but
+    // the schema still enforces server-side per the charter's "backend is
+    // the source of truth" rule) was falling through the ApiError-only
+    // check below and crashing to Next's generic error page with no useful
+    // message -- same "surface it via ?error=&detail= instead of a raw
+    // crash" treatment as every ApiError already gets here, converting via
+    // Errors.validation (the same mapping withAuth's route-guard.ts already
+    // applies to a ZodError from a JSON API route).
     if (err instanceof ApiError) {
       redirect(`/staff/packages/${packageId}?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
+    }
+    if (err instanceof ZodError) {
+      const validationErr = Errors.validation(err.message);
+      redirect(`/staff/packages/${packageId}?error=${validationErr.slug}&detail=${encodeURIComponent(validationErr.detail ?? '')}`);
     }
     throw err;
   }

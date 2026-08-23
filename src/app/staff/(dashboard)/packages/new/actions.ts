@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { ZodError } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError, Errors } from '@lib/errors';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
@@ -59,8 +60,18 @@ export async function createPackageAction(formData: FormData): Promise<void> {
 
     pkg = await catalogService.createPackage(ctx, input);
   } catch (err) {
+    // DR-174 incident: a ZodError from CreatePackageInput.parse was falling
+    // through the ApiError-only check below and crashing to Next's generic
+    // error page with no useful message -- same treatment as every ApiError
+    // already gets here, converting via Errors.validation (the same mapping
+    // withAuth's route-guard.ts already applies to a ZodError from a JSON
+    // API route).
     if (err instanceof ApiError) {
       redirect(`/staff/packages/new?error=${err.slug}&detail=${encodeURIComponent(err.detail ?? '')}`);
+    }
+    if (err instanceof ZodError) {
+      const validationErr = Errors.validation(err.message);
+      redirect(`/staff/packages/new?error=${validationErr.slug}&detail=${encodeURIComponent(validationErr.detail ?? '')}`);
     }
     throw err;
   }
