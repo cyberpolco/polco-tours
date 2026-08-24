@@ -2,7 +2,7 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
-import { bookingService, isBookingLocked } from '@modules/booking';
+import { bookingService, isBookingLocked, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 // New invoicing -> finance dependency (confirmed acyclic -- finance depends
 // on {auth, catalog, booking, itinerary}, never invoicing) so a TAILOR_MADE
@@ -26,8 +26,19 @@ import {
   type PaymentView,
 } from './domain';
 import { paymentGateway } from './gateway';
-import { renderInvoicePdf, type PdfLocale } from './invoice-pdf';
+import { renderInvoicePdf, type InvoicePdfTourLead, type PdfLocale } from './invoice-pdf';
 import { invoicingRepository } from './repository';
+
+/** DR-176 (explicit user request): the invoice/receipt PDF names the tour
+ * lead -- same fields (name/phone/email) already shown for them on the
+ * guest booking page and find-booking result page, never the full
+ * manifest or anything more sensitive. Shared by both streamInvoicePdf
+ * (ctx) and streamInvoicePdfForBookingLookup (no-ctx). */
+function resolveTourLead(travelers: Pick<TravelerView, 'firstName' | 'lastName' | 'phone' | 'email' | 'isTourLead'>[]): InvoicePdfTourLead | null {
+  const lead = travelers.find((t) => t.isTourLead);
+  if (!lead) return null;
+  return { name: `${lead.firstName} ${lead.lastName}`, phone: lead.phone, email: lead.email };
+}
 
 /** DR-169: booking reference (already ASCII-only, no slugify needed, same
  * "human id, not the raw cuid" precedent as finance's own
@@ -240,6 +251,7 @@ export const invoicingService = {
 
     const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
     const succeededPayments = (detail?.payments ?? []).filter((p) => p.status === 'SUCCEEDED');
+    const travelers = await bookingService.listTravelers(ctx, bookingId);
 
     const body = await renderInvoicePdf({
       locale,
@@ -255,6 +267,7 @@ export const invoicingService = {
       totalMinor: invoice.totalMinor,
       balanceMinor: invoice.balanceMinor,
       payments: succeededPayments.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, createdAt: p.createdAt })),
+      tourLead: resolveTourLead(travelers),
     });
 
     await audit({
@@ -287,11 +300,15 @@ export const invoicingService = {
    * sharing a helper -- the two have different error semantics (this one
    * never throws notFound/conflict, that one always does) and duplicating
    * ~15 lines here is simpler than a shared helper with two different
-   * "nothing to download" behaviors layered on top. */
+   * "nothing to download" behaviors layered on top. `travelers` is passed
+   * in rather than re-fetched -- the caller (the route) already has them
+   * from that same lookupByBookingReference call, which has no ctx of its
+   * own to fetch them a second time with. */
   async streamInvoicePdfForBookingLookup(
     organizationId: string,
     bookingId: string,
     bookingReference: string,
+    travelers: Pick<TravelerView, 'firstName' | 'lastName' | 'phone' | 'email' | 'isTourLead'>[],
     locale: PdfLocale,
   ): Promise<{ body: Buffer; contentType: string; filename: string } | null> {
     const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
@@ -313,6 +330,7 @@ export const invoicingService = {
       totalMinor: invoice.totalMinor,
       balanceMinor: invoice.balanceMinor,
       payments: succeededPayments.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, createdAt: p.createdAt })),
+      tourLead: resolveTourLead(travelers),
     });
 
     return {

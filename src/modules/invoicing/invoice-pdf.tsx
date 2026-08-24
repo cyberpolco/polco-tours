@@ -50,6 +50,9 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     receiptHeading: 'Receipt — Paid in Full',
     bookingReference: 'Booking reference',
     companyRegistration: 'Reg.',
+    tourLead: 'Tour Lead',
+    phone: 'Phone',
+    email: 'Email',
     billingSummary: 'Billing Summary',
     subtotal: 'Subtotal',
     discount: 'Discount',
@@ -72,6 +75,9 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     receiptHeading: 'Reçu — Payé intégralement',
     bookingReference: 'Référence de réservation',
     companyRegistration: 'Enr.',
+    tourLead: 'Chef de groupe',
+    phone: 'Téléphone',
+    email: 'E-mail',
     billingSummary: 'Résumé de facturation',
     subtotal: 'Sous-total',
     discount: 'Remise',
@@ -97,6 +103,16 @@ export interface InvoicePdfPayment {
   createdAt: Date;
 }
 
+/** DR-176 (explicit user request): the traveler manifest's isTourLead row --
+ * same fields already shown for the tour lead on the guest booking page and
+ * find-booking result page (name/phone/email), never the full manifest or
+ * anything more sensitive (passport number, allergies, emergency contact). */
+export interface InvoicePdfTourLead {
+  name: string;
+  phone: string | null;
+  email: string | null;
+}
+
 export interface InvoicePdfInput {
   locale: PdfLocale;
   status: Extract<InvoiceStatus, 'PARTIALLY_PAID' | 'PAID'>;
@@ -110,6 +126,11 @@ export interface InvoicePdfInput {
   totalMinor: number;
   balanceMinor: number;
   payments: InvoicePdfPayment[];
+  // DR-176: null only for a TAILOR_MADE inquiry that never reached a real
+  // traveler manifest -- shouldn't happen in practice, since this document
+  // is only reachable once an invoice has a succeeded payment, but the
+  // section is simply omitted rather than rendering blank fields if so.
+  tourLead: InvoicePdfTourLead | null;
 }
 
 const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8' };
@@ -130,6 +151,9 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, marginTop: 4, borderTop: `1.5pt solid ${COLORS.navy}` },
   totalLabel: { fontSize: 11, fontWeight: 700, color: COLORS.navy },
   totalValue: { fontSize: 13, fontWeight: 700, color: COLORS.navy },
+  tourLeadBlock: { marginTop: 4, marginBottom: 8 },
+  tourLeadName: { fontSize: 10, fontWeight: 700, color: COLORS.ink },
+  tourLeadLine: { fontSize: 9, color: COLORS.mist, marginTop: 1 },
   noteBox: { marginTop: 10, padding: 8, backgroundColor: '#F6EFE4' },
   noteText: { fontSize: 9, color: COLORS.ink },
   tableHeaderRow: { flexDirection: 'row', borderBottom: `1pt solid ${COLORS.rule}`, paddingBottom: 4, marginBottom: 2 },
@@ -193,6 +217,24 @@ export async function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> 
             </Text>
           </View>
         </View>
+
+        {input.tourLead && (
+          <View style={styles.tourLeadBlock}>
+            <Text style={styles.tourLeadName}>
+              {t.tourLead}: {input.tourLead.name}
+            </Text>
+            {input.tourLead.phone && (
+              <Text style={styles.tourLeadLine}>
+                {t.phone}: {input.tourLead.phone}
+              </Text>
+            )}
+            {input.tourLead.email && (
+              <Text style={styles.tourLeadLine}>
+                {t.email}: {input.tourLead.email}
+              </Text>
+            )}
+          </View>
+        )}
 
         <Text style={styles.sectionHeading}>{t.billingSummary}</Text>
         <View style={styles.row}>

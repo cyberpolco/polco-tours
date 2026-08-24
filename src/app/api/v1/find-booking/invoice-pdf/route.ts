@@ -36,7 +36,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const locale = parseLocale(request.nextUrl.searchParams.get('locale'));
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
 
-    const { booking } = await bookingService.lookupByBookingReference(
+    const { booking, travelers } = await bookingService.lookupByBookingReference(
       { bookingReference: bookingReference.trim().toUpperCase(), lastName },
       ip,
     );
@@ -45,6 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       booking.organizationId,
       booking.id,
       booking.bookingReference,
+      travelers,
       locale,
     );
     if (!pdf) throw Errors.notFound('No downloadable invoice for this booking yet');
