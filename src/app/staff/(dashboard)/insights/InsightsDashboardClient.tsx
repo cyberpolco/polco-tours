@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { categoricalColor } from './chart-colors';
 import { DateRangeControls } from './DateRangeControls';
+import { ExportPdfButton } from './ExportPdfButton';
 import { DonutChart } from './charts/DonutChart';
 import { FunnelChart } from './charts/FunnelChart';
 import { RingMeter } from './charts/RingMeter';
@@ -107,7 +108,25 @@ export function InsightsDashboardClient({ initialSummary }: Props) {
           }}
           minDate={DASHBOARD_EPOCH.toISOString().slice(0, 10)}
         />
-        <p className="text-xs text-mist">{t('lastUpdated', { time: new Date(summary.generatedAt).toLocaleTimeString() })}</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-mist">{t('lastUpdated', { time: new Date(summary.generatedAt).toLocaleTimeString() })}</p>
+          <ExportPdfButton
+            labels={{
+              exportPdf: t('exportPdf'),
+              exportPdfSections: t('exportPdfSections'),
+              exportPdfDownload: t('exportPdfDownload'),
+              sectionLabel: {
+                bookings: t('bookings'),
+                revenue: t('revenue'),
+                operations: t('operations'),
+                staff: t('staffStats'),
+                guest: t('guestStats'),
+                customerExperience: t('customerExperience'),
+                immigration: t('immigration'),
+              },
+            }}
+          />
+        </div>
       </div>
 
       <Reveal className="space-y-8">

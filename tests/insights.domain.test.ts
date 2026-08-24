@@ -8,7 +8,9 @@ import {
   computeFinanceExtras,
   computeGuestSummary,
   DASHBOARD_EPOCH,
+  DASHBOARD_SECTION_KEYS,
   GUEST_GEOGRAPHY_NOT_COLLECTED,
+  isDashboardSectionKey,
   isInsightsViewer,
   isWithinRange,
   resolveBookingCountry,
@@ -311,6 +313,18 @@ describe('insights domain', () => {
       expect(extras.platformFeeCollected.USD).toBe(75);
       expect(extras.totalDiscountGiven.USD).toBe(20);
       expect(extras.couponRedemptionCount).toBe(1);
+    });
+  });
+
+  describe('isDashboardSectionKey', () => {
+    it('accepts every value in DASHBOARD_SECTION_KEYS', () => {
+      for (const key of DASHBOARD_SECTION_KEYS) {
+        expect(isDashboardSectionKey(key)).toBe(true);
+      }
+    });
+
+    it('rejects a value not in DASHBOARD_SECTION_KEYS', () => {
+      expect(isDashboardSectionKey('not-a-real-section')).toBe(false);
     });
   });
 });

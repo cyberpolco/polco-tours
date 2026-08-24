@@ -6,6 +6,7 @@ import { generateBookingReference } from '@modules/booking';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getInsights } from '../../src/app/api/v1/insights/route';
+import { GET as getInsightsPdf } from '../../src/app/api/v1/insights/pdf/route';
 
 /**
  * Role-gate + cross-tenant coverage for the new DR-038 route: a role
@@ -97,6 +98,17 @@ describe('insights route -- role gate', () => {
     const headers = await loginAs(guideAId);
     const req = new NextRequest('http://localhost/api/v1/insights', { headers });
     const res = await getInsights(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(403);
+  });
+
+  // DR-193: the PDF export route re-declares the same insights.read +
+  // isInsightsViewer gate as the summary route above, rather than relying
+  // on generateDashboardPdf's own internal call into getDashboardSummary to
+  // be the only thing enforcing it.
+  it('TOUR_GUIDE (no insights.read) is forbidden (403) on the PDF export route too', async () => {
+    const headers = await loginAs(guideAId);
+    const req = new NextRequest('http://localhost/api/v1/insights/pdf', { headers });
+    const res = await getInsightsPdf(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
   });
 });

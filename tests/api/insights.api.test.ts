@@ -7,6 +7,7 @@ import { GUEST_GEOGRAPHY_NOT_COLLECTED } from '@modules/insights';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
 import { GET as getInsights } from '../../src/app/api/v1/insights/route';
+import { GET as getInsightsPdf } from '../../src/app/api/v1/insights/pdf/route';
 
 /**
  * Insights & Decision Making (DR-038) -- drives the real route end to end
@@ -293,6 +294,44 @@ describe('GET /api/v1/insights', () => {
     // transactions, which this sandbox's Neon connection pool has choked
     // on) -- trades wall-clock time for robustness, so this needs a longer
     // allowance than most single-call API tests.
+    60_000,
+  );
+});
+
+// DR-193: staff can export the exact same dashboard figures the polling
+// route above returns, as a downloadable PDF, with a caller-chosen subset
+// of sections.
+describe('GET /api/v1/insights/pdf', () => {
+  it(
+    'renders a real PDF covering the same fixture, with all sections by default',
+    async () => {
+      const headers = await loginAs(operatorId);
+      const req = new NextRequest('http://localhost/api/v1/insights/pdf', { headers });
+      const res = await getInsightsPdf(req, { params: Promise.resolve({}) });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toBe('application/pdf');
+      expect(res.headers.get('Content-Disposition')).toContain('attachment');
+      const buffer = Buffer.from(await res.arrayBuffer());
+      expect(buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+    },
+    60_000,
+  );
+
+  it(
+    'honors a caller-chosen subset of sections and falls back to every section on garbage input',
+    async () => {
+      const headers = await loginAs(operatorId);
+      const narrow = await getInsightsPdf(new NextRequest('http://localhost/api/v1/insights/pdf?sections=bookings', { headers }), {
+        params: Promise.resolve({}),
+      });
+      expect(narrow.status).toBe(200);
+
+      const garbage = await getInsightsPdf(
+        new NextRequest('http://localhost/api/v1/insights/pdf?sections=not-a-real-section', { headers }),
+        { params: Promise.resolve({}) },
+      );
+      expect(garbage.status).toBe(200);
+    },
     60_000,
   );
 });

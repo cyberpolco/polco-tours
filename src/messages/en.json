@@ -1507,7 +1507,10 @@
     "bookingsTrend": "Bookings over time",
     "visaTrend": "Visa applications over time",
     "newGuestsTrend": "New guests over time",
-    "noTrendData": "No data for this period."
+    "noTrendData": "No data for this period.",
+    "exportPdf": "Export PDF",
+    "exportPdfSections": "Sections to include",
+    "exportPdfDownload": "Download PDF"
   },
   "StaffPackages": {
     "dashboardEyebrow": "Dashboard",

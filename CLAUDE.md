@@ -33,7 +33,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-192** (2026-08-24). This file used to carry a running
+Current through **DR-193** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -145,7 +145,7 @@ gaps a fresh Postgres would hit).
 | Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryCircuitMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only whole-circuit map on the staff Map tab (DR-089, whole-circuit since DR-150); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
 | Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's whole-circuit PDF map image (DR-150: every day in its own color, one call covering the whole itinerary instead of one per day); `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
 | Weather data | Google Maps Platform Weather API (DR-113) — reuses the same server-only `GOOGLE_MAPS_SERVER_API_KEY`, not a new credential; that key's Google Cloud project still needs the Weather API product enabled + added to its restriction list (OI-14) before this serves live data (degrades gracefully to town/seasonal-notes-only until then). `src/modules/weather/gateway.ts` (`GoogleWeatherGateway`) calls `currentConditions:lookup`/`forecast/days:lookup`, one bounded retry on a genuine failure (never on timeout), no circuit breaker — call volume is bounded by `src/lib/weather-cache.ts` (Upstash Redis) instead |
-| PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's whole-circuit PDF (DR-150: one combined Static Maps image covering every day + a color-keyed, day-grouped stop list). Every generated PDF embeds the app's own Archivo/Special Elite type roles via `src/lib/pdf-fonts.ts` (DR-161), not Helvetica |
+| PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's whole-circuit PDF (DR-150: one combined Static Maps image covering every day + a color-keyed, day-grouped stop list). `src/modules/insights/insights-pdf.tsx` (DR-193) is the same idea for the Insights dashboard — a caller-chosen subset of the live summary's sections, as tables/stat rows rather than charts (no server-renderable equivalent to the dashboard's rings/donuts/funnels here). Every generated PDF embeds the app's own Archivo/Special Elite type roles via `src/lib/pdf-fonts.ts` (DR-161), not Helvetica |
 | i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (country-regulations text, package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
@@ -294,7 +294,12 @@ src/
                    #   booking/invoicing/assignment/fleet/ratings/visa/auth
                    #   AND analytics (new dependency, confirmed acyclic).
                    #   Restricted beyond insights.read to SUPERADMIN/
-                   #   TOUR_OPERATOR/PLATFORM_ADMIN via isInsightsViewer
+                   #   TOUR_OPERATOR/PLATFORM_ADMIN via isInsightsViewer.
+                   #   DR-193: insights-pdf.tsx + generateDashboardPdf add a
+                   #   staff "Export PDF" action -- reuses getDashboardSummary
+                   #   (same cached figures the live page polls) rather than
+                   #   a separate re-derivation, with a caller-chosen subset
+                   #   of DASHBOARD_SECTION_KEYS
     finance/       # Cost-plus pricing engine — 7 rate tables feed the cost
                    #   breakdown itself (StaffRate; HotelRate/ActivityFee
                    #   reference itinerary's Hotel/Activity by id, DR-116;
@@ -660,9 +665,12 @@ Archivo (`globals.css`), overriding the global `h1,h2,h3 { @apply
 font-display }` rule.
 
 Every downloadable PDF (`finance/package-summary-pdf.tsx`,
-`itinerary/itinerary-summary-pdf.tsx`, `itinerary/map-pdf.tsx`) also embeds
-roles 2 and 3 — Archivo for body copy, Special Elite for the one booking/
-package-reference line each renders — via shared `src/lib/pdf-fonts.ts`
+`itinerary/itinerary-summary-pdf.tsx`, `itinerary/map-pdf.tsx`,
+`insights/insights-pdf.tsx`) also embeds roles 2 and 3 — Archivo for body
+copy, Special Elite for the one booking/package-reference line each of the
+first three renders (`insights/insights-pdf.tsx` has no reference code of
+its own; it reuses the same face for its footer credit line instead) — via
+shared `src/lib/pdf-fonts.ts`
 (DR-161), rather than `@react-pdf/renderer`'s built-in Helvetica default.
 The two font files it embeds are **not** Google's own CSS2-served files —
 those crashed `@react-pdf`'s fontkit subsetter on real (non-trivial) PDF
@@ -681,7 +689,8 @@ is a generic hand-drawn placeholder mark, still used (unchanged) by
 reusing the real badge there would misrepresent those partners as us. Every
 downloadable PDF (`finance/package-summary-pdf.tsx`,
 `itinerary/itinerary-summary-pdf.tsx`, `itinerary/map-pdf.tsx`,
-`invoicing/invoice-pdf.tsx`) and the package-page `opengraph-image.tsx`
+`invoicing/invoice-pdf.tsx`, `insights/insights-pdf.tsx`) and the
+package-page `opengraph-image.tsx`
 fallback plate embed the same badge via `src/lib/brand-logo.ts`, a base64
 data URL rather than a `public/` filesystem read — same production-safety
 reasoning as `pdf-fonts.ts` (DR-161): Vercel's output-file-tracer can't

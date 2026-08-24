@@ -13,6 +13,7 @@ import { fleetService, type DriverProfileView, type GuideProfileView } from '@mo
 import { invoicingService } from '@modules/invoicing';
 import { ratingsService } from '@modules/ratings';
 import { visaService } from '@modules/visa';
+import { audit } from '@lib/audit';
 import { getCached, setCached } from '@lib/cache';
 import { assertCan } from '@lib/rbac';
 import { Errors } from '@lib/errors';
@@ -31,7 +32,22 @@ import {
   resolveBookingCountry,
   utilizationRatio,
 } from './domain';
-import type { DashboardSummary, DateRange, MoneyByCurrency, TopPerformer } from './domain';
+import type { DashboardSectionKey, DashboardSummary, DateRange, MoneyByCurrency, TopPerformer } from './domain';
+import { renderInsightsPdf, type PdfLocale } from './insights-pdf';
+
+function requireOrg(ctx: AuthContext): string {
+  if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+  return ctx.organizationId;
+}
+
+function formatRangeLabel(range: DateRange, locale: PdfLocale): string {
+  const allTime = locale === 'fr' ? 'Depuis toujours' : 'All time';
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  if (!range.from && !range.to) return allTime;
+  const from = range.from ? fmt(range.from) : allTime;
+  const to = range.to ? fmt(range.to) : (locale === 'fr' ? "aujourd'hui" : 'today');
+  return `${from} — ${to}`;
+}
 
 const TOP_PERFORMER_LIMIT = 5;
 const MOST_BOOKED_DESTINATIONS_LIMIT = 5;
@@ -92,6 +108,58 @@ export const insightsService = {
     const summary = await computeDashboardSummary(ctx, range);
     await setCached(cacheKey, summary, SUMMARY_CACHE_TTL_SECONDS);
     return summary;
+  },
+
+  /** DR-193, explicit user request: an Export PDF button on the Insights
+   * dashboard, letting staff choose which metric sections to include.
+   * Reuses getDashboardSummary (same function/cache the live page polls) so
+   * the exported figures can never disagree with what's on screen -- never
+   * a separate re-derivation. `range` is the caller's original, pre-clamp
+   * selection (so "All time" reads as "All time" in the printed date-range
+   * line, not the clamped epoch date); the summary itself still clamps to
+   * DASHBOARD_EPOCH exactly as the live dashboard does. */
+  async generateDashboardPdf(
+    ctx: AuthContext,
+    range: DateRange,
+    sections: DashboardSectionKey[],
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
+    // Same two-layer gate as getDashboardSummary above -- insights.read is
+    // DB-editable and broader than the hardcoded SUPERADMIN/TOUR_OPERATOR/
+    // PLATFORM_ADMIN restriction DR-155 imposed on this dashboard; both
+    // checks must run here too, not just inside getDashboardSummary, so a
+    // future caller of this method alone can't skip the role check.
+    assertCan(ctx, 'insights.read');
+    if (!isInsightsViewer(ctx.roles)) {
+      throw Errors.forbidden('Only SUPERADMIN, TOUR_OPERATOR, or PLATFORM_ADMIN may export the Insights dashboard');
+    }
+    const organizationId = requireOrg(ctx);
+
+    const summary = await insightsService.getDashboardSummary(ctx, range);
+    const generatedAtLabel = new Date(summary.generatedAt).toISOString().slice(0, 10);
+    const body = await renderInsightsPdf({
+      locale,
+      sections,
+      rangeLabel: formatRangeLabel(range, locale),
+      generatedAtLabel,
+      summary,
+    });
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'insights.dashboard_pdf_exported',
+      resourceType: 'Organization',
+      resourceId: organizationId,
+      organizationId,
+      metadata: { sections },
+    });
+
+    return {
+      body,
+      contentType: 'application/pdf',
+      filename: `insights-report-${generatedAtLabel}-${locale}.pdf`,
+    };
   },
 };
 

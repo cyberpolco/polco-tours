@@ -181,6 +181,28 @@ export function utilizationRatio(activeCount: number, totalActiveCount: number):
   return Math.min(1, activeCount / totalActiveCount);
 }
 
+/** DR-193: the exportable PDF's opt-in metric groups -- one per visual
+ * section on the live dashboard (InsightsDashboardClient.tsx), so the
+ * checkbox list staff sees for "which metrics" always matches what they
+ * already see on screen. `wizardFunnel`/per-section trends aren't their own
+ * checkbox -- each rides along with the section it's displayed under there
+ * (wizardFunnel with `guest`, the bookings/revenue/newGuests/visa trends
+ * with their own section) rather than fragmenting the choice further. */
+export const DASHBOARD_SECTION_KEYS = [
+  'bookings',
+  'revenue',
+  'operations',
+  'staff',
+  'guest',
+  'customerExperience',
+  'immigration',
+] as const;
+export type DashboardSectionKey = (typeof DASHBOARD_SECTION_KEYS)[number];
+
+export function isDashboardSectionKey(value: string): value is DashboardSectionKey {
+  return (DASHBOARD_SECTION_KEYS as readonly string[]).includes(value);
+}
+
 /** DR-155: restricts the Insights dashboard beneath its own insights.read
  * permission check, same "hardcoded role check beneath the DB-editable
  * permission gate" convention as isBookingDeleter/isFleetDeleter/

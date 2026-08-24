@@ -2522,6 +2522,46 @@ paths:
                   summary: { $ref: '#/components/schemas/DashboardSummary' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /insights/pdf:
+    get:
+      summary: Downloadable PDF export of the dashboard above (insights.read; same SUPERADMIN/TOUR_OPERATOR/PLATFORM_ADMIN restriction; DR-193)
+      description: >-
+        Renders the same cached summary /insights returns (never a separate
+        re-derivation) as an EN/FR @react-pdf/renderer PDF -- tables/stat
+        rows in place of the live dashboard's charts, since those have no
+        server-renderable equivalent here. Every export is audited
+        (insights.dashboard_pdf_exported).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Same as /insights.
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Same as /insights.
+        - name: sections
+          in: query
+          required: false
+          schema: { type: string }
+          description: >-
+            Comma-separated subset of bookings,revenue,operations,staff,
+            guest,customerExperience,immigration. Missing/empty/unrecognized
+            falls back to every section.
+        - name: locale
+          in: query
+          required: false
+          schema: { type: string, enum: [en, fr] }
+          description: Defaults to en.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf: {}
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     sessionCookie:

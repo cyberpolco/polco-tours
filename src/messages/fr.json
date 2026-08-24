@@ -1507,7 +1507,10 @@
     "bookingsTrend": "Réservations dans le temps",
     "visaTrend": "Demandes de visa dans le temps",
     "newGuestsTrend": "Nouveaux clients dans le temps",
-    "noTrendData": "Aucune donnée pour cette période."
+    "noTrendData": "Aucune donnée pour cette période.",
+    "exportPdf": "Exporter en PDF",
+    "exportPdfSections": "Sections à inclure",
+    "exportPdfDownload": "Télécharger le PDF"
   },
   "StaffPackages": {
     "dashboardEyebrow": "Tableau de bord",
