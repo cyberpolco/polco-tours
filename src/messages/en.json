@@ -1963,7 +1963,9 @@
     "noDaysYet": "This itinerary has no days yet.",
     "circuitFor": "Tour circuit for {reference}",
     "dayLabel": "Day {number}",
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "openInGoogleMaps": "Open in Google Maps",
+    "openWholeTourInGoogleMaps": "Open whole tour in Google Maps"
   },
   "CouponForm": {
     "label": "Have a coupon code?",
