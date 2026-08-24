@@ -31,7 +31,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-176** (2026-08-24). This file used to carry a running
+Current through **DR-178** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -242,11 +242,24 @@ src/
                    #   ItineraryDay.activityIds directly) +
                    #   HotelRating/RestaurantRating (staff + guide/driver) +
                    #   gateway.ts/map-pdf.tsx (Static Maps + PDF rendering
-                   #   for the Map tab's whole-circuit view, DR-089/DR-150)
+                   #   for the Map tab's whole-circuit view, DR-089/DR-150;
+                   #   DR-178: dynamic `itinerary-circuit-map-
+                   #   ${bookingReference}.pdf` filename, replacing the old
+                   #   static one, same convention as the detailed-itinerary
+                   #   PDF below)
                    #   + itinerary-summary-pdf.tsx
                    #   (DR-137: staff "download detailed itinerary" PDF,
                    #   shown once APPROVED, no prices — none exist on this
-                   #   module's own tables)
+                   #   module's own tables; DR-178: same company footer as
+                   #   invoicing's invoice-pdf.tsx, hardcoded English since
+                   #   this file has no locale dict of its own, plus a
+                   #   dynamic `itinerary-detailed-${bookingReference}.pdf`
+                   #   filename replacing the old static one).
+                   #   DR-178 also extends createItinerary's existing
+                   #   emergency-contact-from-tour-lead prefill convention
+                   #   to `notes`, now defaulting from the guest's own
+                   #   Booking.specialRequests (TAILOR_MADE plan-my-trip
+                   #   free text) when staff supplies none
     immigration/   # CountryRegulation — platform-wide visa/entry reference data
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's

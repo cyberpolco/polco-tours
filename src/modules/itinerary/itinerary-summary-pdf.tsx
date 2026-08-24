@@ -11,8 +11,20 @@ import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
 
 const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8' };
 
+// Same letterhead footer as invoicing/invoice-pdf.tsx's DocumentFooter --
+// this file has no locale/LABELS dict of its own (English-only, per the
+// header note above), so the footer's "operating in" line is hardcoded to
+// its English form rather than threading a locale param through just for
+// this.
+const FOOTER = {
+  ntb: 'NTB: TFA01163',
+  emails: 'info@mufasasafaris.com / faustin@mufasasafaris.com',
+  operatingCountries: 'Operating in Namibia, DRC, Zambia & Zimbabwe',
+  poweredBy: 'Powered by Cyber PolCo',
+};
+
 const styles = StyleSheet.create({
-  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 40, fontSize: 10, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
+  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 72, fontSize: 10, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
   heading: { fontSize: 16, fontWeight: 700, color: COLORS.navy, marginBottom: 4 },
   subheading: { fontSize: 10, color: COLORS.mist, marginBottom: 2 },
   bookingRef: { fontSize: 10, color: COLORS.mist, marginBottom: 2, fontFamily: PDF_FONT_CODE },
@@ -24,7 +36,20 @@ const styles = StyleSheet.create({
   rowLabel: { width: 100, fontWeight: 700 },
   rowValue: { flex: 1 },
   dayRule: { borderBottom: `0.5pt solid ${COLORS.rule}`, marginTop: 8 },
+  footer: { position: 'absolute', bottom: 24, left: 32, right: 32, borderTop: `0.5pt solid ${COLORS.rule}`, paddingTop: 6, alignItems: 'center' },
+  footerText: { fontSize: 7, color: COLORS.mist, textAlign: 'center', marginTop: 1 },
 });
+
+function DocumentFooter() {
+  return (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerText}>{FOOTER.ntb}</Text>
+      <Text style={styles.footerText}>{FOOTER.emails}</Text>
+      <Text style={styles.footerText}>{FOOTER.operatingCountries}</Text>
+      <Text style={styles.footerText}>{FOOTER.poweredBy}</Text>
+    </View>
+  );
+}
 
 export interface ItinerarySummaryPdfDay {
   dayNumber: number;
@@ -97,6 +122,8 @@ export async function renderItinerarySummaryPdf(input: ItinerarySummaryPdfInput)
             <View style={styles.dayRule} />
           </View>
         ))}
+
+        <DocumentFooter />
       </Page>
     </Document>,
   );

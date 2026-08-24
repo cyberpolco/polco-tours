@@ -18,7 +18,7 @@ export const GET = withAuth<Params>('itinerary.read', async (ctx, _req, { itiner
   return new NextResponse(pdf.body, {
     headers: {
       'Content-Type': pdf.contentType,
-      'Content-Disposition': 'attachment; filename="itinerary-detailed.pdf"',
+      'Content-Disposition': `attachment; filename="${pdf.filename}"`,
       'Cache-Control': 'private, no-store',
     },
   });

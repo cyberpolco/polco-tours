@@ -95,10 +95,15 @@ export const itineraryService = {
     // override" convention as the departure page's guide auto-assign --
     // staff may legitimately want a different on-the-ground contact (e.g.
     // a local ranger station, see the Relation field's placeholder).
+    // `notes` gets the same treatment from Booking.specialRequests -- the
+    // guest's own plan-my-trip free-text request (TAILOR_MADE bookings
+    // only; PREDEFINED_PACKAGE has no guest-entered notes to default from,
+    // so this is a no-op there).
     const travelers = await bookingService.listTravelers(ctx, bookingId);
     const tourLead = travelers.find((t) => t.isTourLead);
     const effectiveInput: CreateItineraryInput = {
       ...input,
+      notes: input.notes ?? booking.specialRequests ?? undefined,
       emergencyContactName: input.emergencyContactName ?? tourLead?.emergencyContactName ?? undefined,
       emergencyContactPhone: input.emergencyContactPhone ?? tourLead?.emergencyContactPhone ?? undefined,
       emergencyContactRelation: input.emergencyContactRelation ?? tourLead?.emergencyContactRelation ?? undefined,
@@ -460,7 +465,7 @@ export const itineraryService = {
    * approval status, unlike streamItinerarySummaryPdf -- this is staff's
    * own working tool for checking geocoding/circuit sanity while an
    * itinerary is still being built, not a client-facing final document. */
-  async streamItineraryMapPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string }> {
+  async streamItineraryMapPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string; filename: string }> {
     assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     const itinerary = await getOwnedItinerary(ctx, organizationId, itineraryId);
@@ -508,7 +513,7 @@ export const itineraryService = {
       organizationId,
     });
 
-    return { body, contentType: 'application/pdf' };
+    return { body, contentType: 'application/pdf', filename: `itinerary-circuit-map-${booking.bookingReference}.pdf` };
   },
 
   /** Whole-itinerary detailed PDF -- staff/guide/driver download, only once
@@ -517,7 +522,7 @@ export const itineraryService = {
    * ItineraryDay, so "no prices" needs no stripping -- this data is
    * inherently price-free (unlike finance's package-summary-pdf.tsx, which
    * layers a cost section on top of a similar day table). */
-  async streamItinerarySummaryPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string }> {
+  async streamItinerarySummaryPdf(ctx: AuthContext, itineraryId: string): Promise<{ body: Buffer; contentType: string; filename: string }> {
     assertCan(ctx, 'itinerary.read');
     const organizationId = requireOrg(ctx);
     const itinerary = await getOwnedItinerary(ctx, organizationId, itineraryId);
@@ -593,7 +598,7 @@ export const itineraryService = {
       organizationId,
     });
 
-    return { body, contentType: 'application/pdf' };
+    return { body, contentType: 'application/pdf', filename: `itinerary-detailed-${booking.bookingReference}.pdf` };
   },
 
   // ------------------------------------------------------------ hotels / restaurants (reference data)
