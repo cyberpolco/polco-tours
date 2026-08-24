@@ -441,7 +441,7 @@ async function main() {
   // SUPERADMIN fills them in by hand. French is a genuine, independently-
   // worded translation (not a literal port of the English) -- same bar the
   // pre-existing Nav/Footer/HomePage French already meets. ---
-  const siteContent: Array<{ key: string; locale: string; title: string; body: string }> = [
+  const siteContent: Array<{ key: string; locale: string; title: string; body: string; eyebrow?: string }> = [
     {
       key: 'about',
       locale: 'en',
@@ -462,12 +462,49 @@ async function main() {
         "On est encore au tout début. La plateforme grandit de semaine en semaine, et on préfère vous le dire franchement plutôt que d'en faire trop.",
       ].join('\n\n'),
     },
+    // DR-181 (explicit user request): every other guest page wired to CMS
+    // (DR-164) but never yet edited by staff shows up BLANK in /staff/cms --
+    // the guest site itself looks fine (it falls back to these exact
+    // next-intl strings), but there's nothing for staff to actually tweak,
+    // only an empty box to write from scratch. Seeding the *current*
+    // fallback text as each page's starting CmsTextBlock row (via the same
+    // upsert-with-update:{} below, so this can never clobber a real staff
+    // edit already in place) turns every one of these into a real edit
+    // instead of a blank-page rewrite. `packages` never had a body fallback
+    // at all (schema requires one) -- newly authored here, same voice as
+    // the rest. `contact.office.{namibia,drc}` never had a single fallback
+    // *string* either (the page renders 3 separate translated dt/dd lines
+    // when body is null) -- seeded as the closest single-body equivalent of
+    // that exact pending display, still just a placeholder for staff to
+    // replace with the real address once available (OI-02/03).
+    { key: 'rate', locale: 'en', eyebrow: 'Rate your trip', title: 'Share your feedback', body: 'Enter your booking reference and the Rating Code you were sent — available once your tour is complete.' },
+    { key: 'rate', locale: 'fr', eyebrow: 'Évaluer mon voyage', title: 'Partagez votre avis', body: "Saisissez votre référence de réservation et le code d'évaluation qui vous a été envoyé — disponible une fois votre voyage terminé." },
+    { key: 'terms', locale: 'en', eyebrow: 'Terms & Policies', title: 'Terms of service & policies', body: "We're still putting the finishing touches on our terms of service and our privacy, cancellation, and refund policies — check back soon." },
+    { key: 'terms', locale: 'fr', eyebrow: 'Conditions et politiques', title: "Conditions d'utilisation et politiques", body: "Nous mettons encore la dernière main à nos conditions d'utilisation ainsi qu'à nos politiques de confidentialité, d'annulation et de remboursement — repassez bientôt." },
+    { key: 'plan-my-trip', locale: 'en', eyebrow: 'Plan my trip', title: 'Tell us what you have in mind', body: 'Answer a few questions about the trip you want and our team will send you a quotation.' },
+    // "envoyra" (not "enverra") preserved verbatim -- the exact live typo
+    // staff will now be able to fix themselves via the editor.
+    { key: 'plan-my-trip', locale: 'fr', eyebrow: 'Planifier mon voyage', title: 'Dites-nous ce que vous avez en tête', body: 'Répondez à quelques questions sur le voyage que vous souhaitez et notre équipe vous envoyra un devis.' },
+    { key: 'find-booking', locale: 'en', eyebrow: 'Find my booking', title: 'Look up a booking', body: "Enter your booking reference, plus the tour lead's last name." },
+    { key: 'find-booking', locale: 'fr', eyebrow: 'Retrouver ma réservation', title: 'Rechercher une réservation', body: "Saisissez votre référence de réservation, ainsi que le nom de famille du chef de groupe." },
+    { key: 'weather', locale: 'en', eyebrow: 'Weather', title: 'Weather where we operate', body: 'Current conditions for our main towns, grouped by country — tap a town for a forecast and seasonal travel notes.' },
+    { key: 'weather', locale: 'fr', eyebrow: 'Météo', title: 'La météo là où nous opérons', body: 'Conditions actuelles pour nos principales villes, regroupées par pays — cliquez sur une ville pour ses prévisions et des notes saisonnières.' },
+    { key: 'gallery', locale: 'en', eyebrow: 'Gallery', title: 'Where you could be headed', body: "Real destination photography is still on our to-do list, so what you're seeing here are illustrated stand-ins, not photos — tap a picture for a closer look, or a destination's name to start planning a trip there." },
+    { key: 'gallery', locale: 'fr', eyebrow: 'Galerie', title: 'Vos prochaines destinations', body: "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur une image pour l'agrandir, ou sur le nom d'une destination pour commencer à planifier votre voyage." },
+    { key: 'packages', locale: 'en', eyebrow: 'Browse', title: 'Tour packages', body: 'Browse every package we currently offer — filter by country or search by name.' },
+    { key: 'packages', locale: 'fr', eyebrow: 'Découvrir', title: 'Circuits touristiques', body: 'Parcourez tous les circuits que nous proposons actuellement — filtrez par pays ou recherchez par nom.' },
+    { key: 'contact', locale: 'en', eyebrow: 'Contact', title: 'Get in touch', body: "Both our offices are listed below — we're still filling in the details, so bear with us." },
+    { key: 'contact', locale: 'fr', eyebrow: 'Contact', title: 'Contactez-nous', body: 'Nos deux bureaux sont indiqués ci-dessous — les coordonnées complètes arrivent bientôt, merci de votre patience.' },
+    { key: 'contact.office.namibia', locale: 'en', title: 'Namibia office', body: 'Address — on its way\nEmail — on its way\nPhone — on its way' },
+    { key: 'contact.office.namibia', locale: 'fr', title: 'Bureau de Namibie', body: 'Adresse — à venir\nE-mail — à venir\nTéléphone — à venir' },
+    { key: 'contact.office.drc', locale: 'en', title: 'DR Congo office', body: 'Address — on its way\nEmail — on its way\nPhone — on its way' },
+    { key: 'contact.office.drc', locale: 'fr', title: 'Bureau de RDC', body: 'Adresse — à venir\nE-mail — à venir\nTéléphone — à venir' },
   ];
   for (const c of siteContent) {
     await prisma.cmsTextBlock.upsert({
       where: { key_locale: { key: c.key, locale: c.locale } },
       update: {},
-      create: { key: c.key, locale: c.locale, title: c.title, body: c.body },
+      create: { key: c.key, locale: c.locale, title: c.title, body: c.body, eyebrow: c.eyebrow ?? null },
     });
   }
 
