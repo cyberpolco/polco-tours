@@ -30,11 +30,15 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
         {/* The public homepage, same target as /staff/login's own
             back-arrow-to-/ link -- a plain client-side navigation, so it
             never touches the session cookie/sign-out flow; the staff
-            session stays live if they come back to /staff/* afterward. */}
-        <Link href="/" className="eyebrow flex items-center gap-2 hover:text-amber">
-          <Logo className="h-10 w-10 sm:h-20 sm:w-20" />
-          {t('brand')}
-        </Link>
+            session stays live if they come back to /staff/* afterward.
+            Explicit user request: only the logo image links home -- the
+            brand text next to it is plain, non-interactive. */}
+        <div className="flex items-center gap-2">
+          <Link href="/">
+            <Logo className="h-10 w-10 sm:h-20 sm:w-20" />
+          </Link>
+          <span className="eyebrow">{t('brand')}</span>
+        </div>
         <div className="flex items-center gap-4 text-sm sm:gap-6">
           <StaffNav roles={ctx.roles} permissions={[...ctx.permissions]} />
           <LanguageSwitcher />
