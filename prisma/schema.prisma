@@ -192,6 +192,7 @@ model Organization {
   documents             Document[]
   addonServices         AddonService[]
   bookingAddons         BookingAddon[]
+  packageAddonServices  PackageAddonService[]
   vehicles              Vehicle[]
   driverProfiles        DriverProfile[]
   guideProfiles         GuideProfile[]
@@ -604,6 +605,8 @@ model TourPackage {
   // DR-108: the (at most one, Booking.customizedPackageId is @unique)
   // TAILOR_MADE booking this package was created from, if any.
   customizedFromBooking Booking?
+  // DR-180: which add-ons this package offers on the guest site.
+  addonServices         PackageAddonService[]
 
   @@index([organizationId])
   @@map("tour_packages")
@@ -1485,11 +1488,36 @@ model AddonService {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bookingAddons BookingAddon[]
+  packages      PackageAddonService[]
 
   @@index([organizationId])
   @@map("addon_services")
+}
+
+// DR-180: which add-ons a given TourPackage offers on the guest site --
+// previously add-ons were shown uniformly to every package (org+country
+// scoped only, no per-package curation). Plain join table since
+// TourPackage/AddonService both live in the catalog module (no
+// cross-module-dependency implication). A package with zero rows here
+// shows no add-ons at all on the guest booking flow -- DR-180's migration
+// backfilled every pre-existing package against every then-active add-on so
+// existing guest-facing behavior didn't change on deploy.
+model PackageAddonService {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  packageId      String   @db.Uuid
+  addonServiceId String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  package      TourPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  addonService AddonService @relation(fields: [addonServiceId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, addonServiceId])
+  @@index([organizationId])
+  @@map("package_addon_services")
 }
 
 // A selected add-on on a Booking. priceMinor/currency are snapshotted at

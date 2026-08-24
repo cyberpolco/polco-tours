@@ -377,6 +377,40 @@ export const catalogRepository = {
     });
   },
 
+  // DR-180: which add-ons a package offers on the guest site.
+
+  /** Replace-all semantics -- staff resave the package's full add-on list each edit. */
+  async setPackageAddons(organizationId: string, packageId: string, addonServiceIds: string[]): Promise<void> {
+    await withOrg(organizationId, async (tx) => {
+      await tx.packageAddonService.deleteMany({ where: { packageId } });
+      if (addonServiceIds.length > 0) {
+        await tx.packageAddonService.createMany({
+          data: addonServiceIds.map((addonServiceId) => ({ organizationId, packageId, addonServiceId })),
+        });
+      }
+    });
+  },
+
+  async listAddonServiceIdsForPackage(organizationId: string, packageId: string): Promise<string[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.packageAddonService.findMany({ where: { packageId }, select: { addonServiceId: true } });
+      return rows.map((r) => r.addonServiceId);
+    });
+  },
+
+  // Guest-facing: only the add-ons a package was explicitly given, and only
+  // if still active (mirrors listActiveAddonServices) -- a since-deactivated
+  // selection silently drops off rather than erroring.
+  async listAddonServicesForPackage(organizationId: string, packageId: string): Promise<AddonServiceView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.addonService.findMany({
+        where: { active: true, packages: { some: { packageId } } },
+        orderBy: { code: 'asc' },
+      });
+      return rows.map(toAddonServiceView);
+    });
+  },
+
   // ------------------------------------------------------------ package itinerary template
 
   async addTemplateDay(

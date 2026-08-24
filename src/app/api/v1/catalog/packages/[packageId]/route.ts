@@ -15,8 +15,16 @@ export const GET = withAuth<Params>('catalog.read', async (ctx, _req, { packageI
 });
 
 export const PATCH = withAuth<Params>('catalog.write', async (ctx, req: NextRequest, { packageId }) => {
-  const input = UpdatePackageInput.parse(await req.json());
-  const pkg = await catalogService.updatePackage(ctx, packageId, input);
+  const body = await req.json();
+  const input = UpdatePackageInput.parse(body);
+  // DR-180: undefined -> leave the package's add-on list untouched (this
+  // route's body simply omitted it); an array (including empty) -> replace
+  // it with exactly that set. Not part of UpdatePackageInput's own zod
+  // schema for the same "spread directly into Prisma" reason as the create route.
+  const addonServiceIds = Array.isArray(body.addonServiceIds)
+    ? body.addonServiceIds.filter((id: unknown) => typeof id === 'string')
+    : undefined;
+  const pkg = await catalogService.updatePackage(ctx, packageId, input, addonServiceIds);
   return NextResponse.json({ package: pkg });
 });
 

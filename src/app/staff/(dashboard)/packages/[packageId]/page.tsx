@@ -53,6 +53,13 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
     notFound();
   }
   const templateDays = await catalogService.listTemplateDays(ctx, packageId);
+  // DR-180: this package's currently-offered add-ons (a curated subset of
+  // the org's active add-ons, not all of them by default).
+  const [addons, selectedAddonIds] = await Promise.all([
+    catalogService.listActiveAddonServices(ctx),
+    catalogService.getPackageAddonServiceIds(ctx, packageId),
+  ]);
+  const selectedAddonIdSet = new Set(selectedAddonIds);
   // DR-108: reverse direction of Booking.customizedPackageId -- a package
   // created from a plan-my-trip request links back to it. can()-guarded
   // since not every catalog.read holder is guaranteed booking.read too.
@@ -293,6 +300,29 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
               </SelectableCard>
             ))}
           </div>
+        </div>
+        {/* DR-180: staff pick exactly which add-ons this package offers on
+            the guest site. Leaving all boxes unchecked means this package
+            offers no add-ons at all, not "show everything." */}
+        <div>
+          <p className="mb-1 text-sm text-mist">{t('addons')}</p>
+          {addons.length === 0 ? (
+            <p className="text-xs text-mist">{t('noAddonsAvailable')}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {addons.map((addon) => (
+                <SelectableCard
+                  key={addon.id}
+                  type="checkbox"
+                  name="addonServiceId"
+                  value={addon.id}
+                  defaultChecked={selectedAddonIdSet.has(addon.id)}
+                >
+                  {addon.name}
+                </SelectableCard>
+              ))}
+            </div>
+          )}
         </div>
         <FormField label={t('status')} htmlFor="status">
           <Select name="status" defaultValue={pkg.status} required>

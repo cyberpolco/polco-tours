@@ -97,6 +97,19 @@ async function resolveBookingCountry(ctx: AuthContext, booking: BookingView): Pr
   throw Errors.conflict('This booking has no destination country');
 }
 
+/** DR-180: which TourPackage this booking's add-ons step should curate
+ * against. PREDEFINED_PACKAGE resolves it via the departure; TAILOR_MADE has
+ * none until customizedPackageId is set post-quote (DR-108) -- null in that
+ * case, meaning "no package to curate against yet." See
+ * bookingService.getBookingPackageId's own doc comment. */
+async function resolvePackageId(ctx: AuthContext, booking: BookingView): Promise<string | null> {
+  if (booking.departureId) {
+    const { departure } = await catalogService.getDepartureDetail(ctx, booking.departureId);
+    return departure.tourPackageId;
+  }
+  return booking.customizedPackageId ?? null;
+}
+
 /** Every status-transitioning repository call (updateStatus/sendQuotation)
  * throws InvalidTransitionError when the FROM status can't reach the
  * requested TO status (domain.ts's canTransition) -- turns that into a
@@ -702,6 +715,16 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
     return resolveBookingCountry(ctx, booking);
+  },
+
+  /** DR-180: the guest add-ons step's package-curation lookup -- null means
+   * "no package resolved yet" (a TAILOR_MADE request pre-quote), in which
+   * case the caller falls back to the org-wide add-on list. */
+  async getBookingPackageId(ctx: AuthContext, bookingId: string): Promise<string | null> {
+    assertCan(ctx, 'booking.read');
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    return resolvePackageId(ctx, booking);
   },
 
   /** Replace-all: the add-ons wizard step is meant to be finalized once,

@@ -194,9 +194,13 @@ src/
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
-                   #   AddonService + PackageItineraryDay (per-package
-                   #   itinerary template; activityIds/hotelId/restaurantId,
-                   #   DR-116/DR-119 — plain scalars, no FK into itinerary's
+                   #   AddonService + PackageAddonService (DR-180: which
+                   #   add-ons a package offers on the guest site — a
+                   #   package with no rows here shows none at all, not
+                   #   every org-active add-on) + PackageItineraryDay
+                   #   (per-package itinerary template;
+                   #   activityIds/hotelId/restaurantId, DR-116/DR-119 —
+                   #   plain scalars, no FK into itinerary's
                    #   Activity/Hotel/Restaurant)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
                    #   bookingReference is the sole guest-facing lookup key

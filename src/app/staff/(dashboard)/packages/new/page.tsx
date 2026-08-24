@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
+import { catalogService } from '@modules/catalog';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -19,11 +20,14 @@ interface Props {
 }
 
 export default async function NewPackagePage({ searchParams }: Props) {
-  await requireStaffContext('catalog.write');
+  const ctx = await requireStaffContext('catalog.write');
   const { error, detail } = await searchParams;
   const t = await getTranslations('StaffPackages');
   const tTags = await getTranslations('TripTags');
   const tCountries = await getTranslations('Countries');
+  // DR-180: which add-ons this package offers on the guest site -- a
+  // curated subset of the org's active add-ons, not all of them by default.
+  const addons = await catalogService.listActiveAddonServices(ctx);
 
   // DR-115: uploadPackageImage/createPackage can throw a real, expected
   // ApiError (bad file type/size, a Blob failure) -- surfaced here via
@@ -116,6 +120,24 @@ export default async function NewPackagePage({ searchParams }: Props) {
               </SelectableCard>
             ))}
           </div>
+        </div>
+        {/* DR-180: staff pick exactly which add-ons this package offers on
+            the guest site -- previously every org-active add-on showed up
+            for every package uniformly. Leaving all boxes unchecked means
+            this package offers no add-ons at all, not "show everything." */}
+        <div>
+          <p className="mb-1 text-sm text-mist">{t('addons')}</p>
+          {addons.length === 0 ? (
+            <p className="text-xs text-mist">{t('noAddonsAvailable')}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {addons.map((addon) => (
+                <SelectableCard key={addon.id} type="checkbox" name="addonServiceId" value={addon.id}>
+                  {addon.name}
+                </SelectableCard>
+              ))}
+            </div>
+          )}
         </div>
         <SubmitButton>{t('createPackage')}</SubmitButton>
       </form>

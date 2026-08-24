@@ -131,6 +131,15 @@ CREATE POLICY tenant_isolation ON booking_addons
   USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
   WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
 
+-- ---------------------------------------------------------- package_addon_services (DR-180)
+ALTER TABLE package_addon_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_addon_services FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON package_addon_services;
+CREATE POLICY tenant_isolation ON package_addon_services
+  USING ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid)
+  WITH CHECK ("organizationId" = NULLIF(current_setting('app.org_id', true), '')::uuid);
+
 -- ------------------------------------------------------------------- vehicles (DR-017)
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehicles FORCE ROW LEVEL SECURITY;

@@ -89,13 +89,34 @@ function requireOrg(ctx: AuthContext): string {
   return ctx.organizationId;
 }
 
+// DR-180: drops any addonServiceId that doesn't actually belong to this org
+// (anti-BOLA -- e.g. a stale form submission after an add-on was deleted)
+// rather than throwing, since this is a curation step, not a critical write.
+async function applyPackageAddons(organizationId: string, packageId: string, addonServiceIds: string[]): Promise<void> {
+  const owned = await catalogRepository.findAddonServicesByIds(organizationId, addonServiceIds);
+  const validIds = owned.map((a) => a.id);
+  await catalogRepository.setPackageAddons(organizationId, packageId, validIds);
+}
+
 export const catalogService = {
-  async createPackage(ctx: AuthContext, input: CreatePackageInput): Promise<TourPackageView> {
+  async createPackage(ctx: AuthContext, input: CreatePackageInput, addonServiceIds: string[] = []): Promise<TourPackageView> {
     assertCan(ctx, 'catalog.write');
-    return catalogRepository.createPackage(requireOrg(ctx), input);
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogRepository.createPackage(organizationId, input);
+    if (addonServiceIds.length > 0) await applyPackageAddons(organizationId, pkg.id, addonServiceIds);
+    return pkg;
   },
 
-  async updatePackage(ctx: AuthContext, packageId: string, input: UpdatePackageInput): Promise<TourPackageView> {
+  // addonServiceIds undefined -> leave the package's add-on list untouched
+  // (internal callers that don't manage add-ons); an array (including
+  // empty) -> replace it with exactly that set, since the staff checklist
+  // always submits its full current state, unchecked included.
+  async updatePackage(
+    ctx: AuthContext,
+    packageId: string,
+    input: UpdatePackageInput,
+    addonServiceIds?: string[],
+  ): Promise<TourPackageView> {
     assertCan(ctx, 'catalog.write');
     const organizationId = requireOrg(ctx);
     // DR-039: a package with no price at all (no cost breakdown yet, never
@@ -129,6 +150,7 @@ export const catalogService = {
     }
     const updated = await catalogRepository.updatePackage(organizationId, packageId, input);
     if (!updated) throw Errors.notFound('Package not found');
+    if (addonServiceIds !== undefined) await applyPackageAddons(organizationId, packageId, addonServiceIds);
     if (regenerateSlugFromTitle) {
       const withNewSlug = await catalogRepository.regeneratePackageSlug(organizationId, packageId, regenerateSlugFromTitle);
       if (withNewSlug) return withNewSlug;
@@ -461,6 +483,28 @@ export const catalogService = {
     const addon = await catalogRepository.findAddonServiceById(requireOrg(ctx), addonServiceId);
     if (!addon || !addon.active) throw Errors.notFound('Add-on service not found');
     return addon;
+  },
+
+  /** DR-180: staff's explicit "which add-ons does this package offer" list. */
+  async setPackageAddons(ctx: AuthContext, packageId: string, addonServiceIds: string[]): Promise<void> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const pkg = await catalogRepository.findPackageById(organizationId, packageId);
+    if (!pkg) throw Errors.notFound('Package not found');
+    await applyPackageAddons(organizationId, packageId, addonServiceIds);
+  },
+
+  /** Staff-form prefill -- bare ids of the package's currently-selected add-ons. */
+  async getPackageAddonServiceIds(ctx: AuthContext, packageId: string): Promise<string[]> {
+    assertCan(ctx, 'catalog.read');
+    return catalogRepository.listAddonServiceIdsForPackage(requireOrg(ctx), packageId);
+  },
+
+  /** Guest-facing: only the add-ons this specific package was given (DR-180),
+   * unlike listActiveAddonServices' org-wide list. */
+  async listAddonServicesForPackage(ctx: AuthContext, packageId: string): Promise<AddonServiceView[]> {
+    assertCan(ctx, 'catalog.read');
+    return catalogRepository.listAddonServicesForPackage(requireOrg(ctx), packageId);
   },
 
   // ---------------------------------------------------------- public (DR-016)

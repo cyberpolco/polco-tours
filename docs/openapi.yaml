@@ -2622,6 +2622,10 @@ components:
         priceMinor: { type: integer, minimum: 0 }
         currency: { type: string, enum: [USD, EUR, NAD, CDF] }
         durationDays: { type: integer, minimum: 1 }
+        addonServiceIds:
+          type: array
+          items: { type: string, format: uuid }
+          description: DR-180 -- which AddonService ids this package offers on the guest site. Omitted/empty means none; a cross-org id is silently dropped rather than linked.
 
     UpdatePackageInput:
       allOf:

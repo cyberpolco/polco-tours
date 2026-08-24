@@ -48,11 +48,17 @@ export default async function AddonsPage({ params }: Props) {
     );
   }
 
-  const [allAddons, selected, country] = await Promise.all([
-    catalogService.listActiveAddonServices(ctx),
+  const [packageId, selected, country] = await Promise.all([
+    bookingService.getBookingPackageId(ctx, bookingId),
     booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
     bookingService.getBookingCountry(ctx, bookingId),
   ]);
+  // DR-180: a package curates its own add-on list; a TAILOR_MADE request
+  // pre-quote has no package yet (packageId null), so it falls back to the
+  // org-wide list -- today's behavior, unaffected by this change.
+  const allAddons = packageId
+    ? await catalogService.listAddonServicesForPackage(ctx, packageId)
+    : await catalogService.listActiveAddonServices(ctx);
   // DR-128: each add-on's real, chargeable price comes from AddonRate
   // (country + code, resolved by src/lib/addon-rates.ts) -- AddonService's
   // own flat priceMinor/currency is no longer used for pricing. An add-on

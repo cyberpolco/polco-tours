@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { ZodError } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError, Errors } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
 
@@ -71,8 +72,11 @@ export async function updatePackageAction(packageId: string, formData: FormData)
       tags: formData.getAll('tags').filter((t): t is string => typeof t === 'string' && (PACKAGE_TAGS as readonly string[]).includes(t)),
       status: String(formData.get('status') ?? ''),
     });
+    // DR-180: the checklist always submits its full current state (unchecked
+    // included), so an empty array here means "no add-ons," not "unchanged."
+    const addonServiceIds = formData.getAll('addonServiceId').filter((v): v is string => typeof v === 'string');
 
-    await catalogService.updatePackage(ctx, packageId, input);
+    await catalogService.updatePackage(ctx, packageId, input, addonServiceIds);
   } catch (err) {
     // DR-174 incident: a ZodError from UpdatePackageInput.parse (e.g. a
     // malformed field this form itself should never actually produce, but
@@ -90,7 +94,24 @@ export async function updatePackageAction(packageId: string, formData: FormData)
       const validationErr = Errors.validation(err.message);
       redirect(`/staff/packages/${packageId}?error=${validationErr.slug}&detail=${encodeURIComponent(validationErr.detail ?? '')}`);
     }
-    throw err;
+    // DR-182 incident: staff kept hitting a raw server-side crash here even
+    // after DR-174's ZodError fix -- the actual trigger was never confirmed
+    // (no Vercel log access this session), but DR-174 only closed the
+    // ZodError gap, leaving anything else (a raw Prisma error, or literally
+    // any other exception type) still falling through to an unhandled
+    // `throw err`. Charter rule 8 ("third-party integrations must not crash
+    // the system") applies just as much to an unexpected internal error as
+    // to a third-party one -- this is now a true catch-all: log the real
+    // error server-side (the only way to actually diagnose the next one,
+    // since nothing here leaked to Vercel's logs distinctly before) and
+    // show the same generic message an ApiError('internal') already gets,
+    // rather than a raw crash page, regardless of what actually threw.
+    const traceId = newTraceId();
+    logger(traceId).error('updatePackageAction: unhandled error', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    redirect(`/staff/packages/${packageId}?error=internal&detail=${encodeURIComponent(traceId)}`);
   }
   redirect(`/staff/packages/${packageId}`);
 }
