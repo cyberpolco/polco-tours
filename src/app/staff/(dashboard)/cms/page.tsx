@@ -449,40 +449,42 @@ export default async function CmsPage({ searchParams }: Props) {
             {faqs.map((f) => (
               <Card key={f.id}>
                 {canWrite ? (
-                  <form action={updateFaqEntryAction.bind(null, f.id)} className="space-y-2">
-                    <input
-                      name="question"
-                      required
-                      defaultValue={f.question}
-                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
-                    />
-                    <textarea
-                      name="answer"
-                      required
-                      rows={3}
-                      defaultValue={f.answer}
-                      className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
-                    />
-                    <div className="flex items-end gap-3">
-                      <FormField label={t('order')} htmlFor={`sortOrder-${f.id}`}>
-                        <input
-                          name="sortOrder"
-                          type="number"
-                          defaultValue={f.sortOrder}
-                          className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
-                        />
-                      </FormField>
-                      <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
-                        {t('save')}
-                      </SubmitButton>
-                      <DeleteButton
-                        action={deleteFaqEntryAction.bind(null, f.id)}
-                        removingLabel={t('removing')}
-                        removeConfirm={t('removeFaqConfirm')}
-                        removeLabel={t('remove')}
+                  <>
+                    <form action={updateFaqEntryAction.bind(null, f.id)} className="space-y-2">
+                      <input
+                        name="question"
+                        required
+                        defaultValue={f.question}
+                        className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
                       />
-                    </div>
-                  </form>
+                      <textarea
+                        name="answer"
+                        required
+                        rows={3}
+                        defaultValue={f.answer}
+                        className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                      />
+                      <div className="flex items-end gap-3">
+                        <FormField label={t('order')} htmlFor={`sortOrder-${f.id}`}>
+                          <input
+                            name="sortOrder"
+                            type="number"
+                            defaultValue={f.sortOrder}
+                            className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </div>
+                    </form>
+                    <DeleteButton
+                      action={deleteFaqEntryAction.bind(null, f.id)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removeFaqConfirm')}
+                      removeLabel={t('remove')}
+                    />
+                  </>
                 ) : (
                   <>
                     <p className="font-semibold text-navy">{f.question}</p>
