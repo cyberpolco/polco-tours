@@ -189,7 +189,7 @@ export default async function HomePage() {
           className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
           {featured.map((p) => (
-            <PackageCard key={p.id} pkg={p} as="div" />
+            <PackageCard key={p.id} pkg={p} as="div" titleSize="large" />
           ))}
         </RevealGroup>
       )}

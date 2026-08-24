@@ -139,7 +139,7 @@ const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211
 const styles = StyleSheet.create({
   page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 72, fontSize: 9, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
   headerRow: { flexDirection: 'row', marginBottom: 20 },
-  companyBlock: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, width: 190 },
+  companyBlock: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, width: 220 },
   companyText: { fontSize: 8, color: COLORS.mist, lineHeight: 1.4 },
   companyName: { fontSize: 10, fontWeight: 700, color: COLORS.navy, marginBottom: 2 },
   titleBlock: { alignItems: 'center', flex: 1, paddingTop: 2 },
@@ -192,7 +192,7 @@ export async function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> 
             {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
                 Image is a PDF layout node, not an HTML <img>; it has no alt prop
                 at all, so the DOM a11y rule is a false positive here. */}
-            <Image src={BRAND_LOGO_DATA_URI} style={{ width: 32, height: 32 }} />
+            <Image src={BRAND_LOGO_DATA_URI} style={{ width: 48, height: 48 }} />
             <View>
               <Text style={styles.companyName}>{COMPANY.name}</Text>
               <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>

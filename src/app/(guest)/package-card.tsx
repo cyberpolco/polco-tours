@@ -10,6 +10,10 @@ interface PackageCardProps {
   /** 'div' when a caller (e.g. RevealGroup) already supplies the `<li>` a
    * card grid needs -- defaults to 'li' for every other caller, unchanged. */
   as?: 'li' | 'div';
+  /** 'large' bumps the title's font size -- explicit user request, scoped to
+   * the homepage's 3-card featured grid only; the denser /packages listing
+   * grid and quiz results keep the original size by leaving this unset. */
+  titleSize?: 'default' | 'large';
 }
 
 // Was duplicated verbatim in packages/page.tsx and quiz/results/page.tsx --
@@ -22,7 +26,7 @@ interface PackageCardProps {
 // DR-173: the same component now also plays on the detail page's own hero
 // (packages/[packageId]/page.tsx), so the cycle continues after a guest
 // clicks through instead of freezing on the cover image.
-export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
+export async function PackageCard({ pkg, as = 'li', titleSize = 'default' }: PackageCardProps) {
   const t = await getTranslations('PackageCard');
   const tCountries = await getTranslations('Countries');
   const tTags = await getTranslations('TripTags');
@@ -43,7 +47,11 @@ export async function PackageCard({ pkg, as = 'li' }: PackageCardProps) {
             sentence. mt-auto pins price/CTA to the same bottom edge on every
             card whether or not this package has tags. */}
         <div className="flex min-h-[19rem] flex-1 flex-col p-4">
-          <h2 className="line-clamp-2 min-h-[3rem] font-semibold text-navy transition-colors group-hover:text-amber">
+          <h2
+            className={`line-clamp-2 font-semibold text-navy transition-colors group-hover:text-amber ${
+              titleSize === 'large' ? 'min-h-[3.5rem] text-xl' : 'min-h-[3rem]'
+            }`}
+          >
             {pkg.title}
           </h2>
           <p className="mt-1 line-clamp-3 min-h-[3.75rem] text-sm text-mist">{pkg.description}</p>
