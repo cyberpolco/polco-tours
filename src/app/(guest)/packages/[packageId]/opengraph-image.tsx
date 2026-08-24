@@ -1,10 +1,15 @@
 import { ImageResponse } from 'next/og';
+import sharp from 'sharp';
 import { catalogService } from '@modules/catalog';
 import { fallbackGradientFor } from '@lib/package-fallback-gradient';
 
 export const alt = 'Package preview';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
+// sharp (below) needs Node's native bindings -- not available on the Edge
+// runtime -- same convention as cms/media-upload/route.ts, this repo's other
+// sharp consumer.
+export const runtime = 'nodejs';
 
 interface Props {
   params: Promise<{ packageId: string }>;
@@ -34,12 +39,24 @@ export default async function Image({ params }: Props) {
   }
 
   if (imageUrl) {
-    return new ImageResponse(
-      (
-        <img src={imageUrl} width={size.width} height={size.height} style={{ objectFit: 'cover' }} alt="" />
-      ),
-      { ...size },
-    );
+    // Real production bug: every image uploaded since DR-163 is compressed
+    // to webp, and next/og's renderer (Satori) can't decode webp -- a bare
+    // <img src={webpUrl}> silently produced a blank white 1200x630 plate
+    // instead of throwing (confirmed against a live webp-covered package;
+    // a pre-DR-163 PNG-covered package rendered correctly). Re-encoding
+    // through sharp (already a pinned dependency) to PNG before handing it
+    // to Satori sidesteps the decode gap regardless of the source format.
+    try {
+      const res = await fetch(imageUrl);
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const inputBuffer = Buffer.from(await res.arrayBuffer());
+      const pngBuffer = await sharp(inputBuffer).resize(size.width, size.height, { fit: 'cover' }).png().toBuffer();
+      const dataUri = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+      return new ImageResponse(<img src={dataUri} width={size.width} height={size.height} alt="" />, { ...size });
+    } catch {
+      // A broken/unreachable Blob URL or a decode failure falls through to
+      // the generic plate below -- never crash the social-preview route.
+    }
   }
 
   return new ImageResponse(
