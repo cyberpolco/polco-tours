@@ -237,7 +237,12 @@ describe('find-booking lifecycle no-ctx lookups', () => {
   });
 
   it('visaService.getStatusForBookingLookup resolves the real status, null when none exists', async () => {
-    expect(await visaService.getStatusForBookingLookup(orgId, travelerId)).toBe('SUBMITTED');
+    // DR-187: now resolves a BookingLookupVisaView ({ status, feePaymentStatus }),
+    // not a bare status string.
+    expect(await visaService.getStatusForBookingLookup(orgId, travelerId)).toMatchObject({
+      status: 'SUBMITTED',
+      feePaymentStatus: 'NOT_REQUESTED',
+    });
     expect(await visaService.getStatusForBookingLookup(orgId, '00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 
