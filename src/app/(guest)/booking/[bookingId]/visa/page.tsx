@@ -10,7 +10,8 @@ import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Reveal } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { VISA_STATUS_TONE } from '@lib/status-tones';
+import { formatOrPending } from '@lib/money';
+import { VISA_FEE_PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { resubmitVisaAction } from './actions';
 
 interface Props {
@@ -41,6 +42,7 @@ export default async function BookingVisaPage({ params, searchParams }: Props) {
 
   const t = await getTranslations('BookingVisaPage');
   const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const tFeeStatus = await getTranslations('VisaFeePaymentStatusLabel');
 
   return (
     <Reveal>
@@ -63,6 +65,13 @@ export default async function BookingVisaPage({ params, searchParams }: Props) {
                   <p className="font-semibold text-navy">{a.travelerName}</p>
                   <Badge tone={VISA_STATUS_TONE[a.status]}>{tVisaStatus(a.status)}</Badge>
                 </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-mist">
+                    {t('governmentFeeLabel')}: {formatOrPending(a.governmentFeeMinor, a.governmentFeeCurrency, t('governmentFeeUnspecified'))}
+                  </span>
+                  <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[a.feePaymentStatus]}>{tFeeStatus(a.feePaymentStatus)}</Badge>
+                </div>
+                <p className="text-xs text-mist">{t('governmentFeeDisclaimer')}</p>
                 {a.status === 'REJECTED' && (
                   <div className="space-y-3">
                     {a.rejectionReason && <p className="text-sm text-mist">{a.rejectionReason}</p>}

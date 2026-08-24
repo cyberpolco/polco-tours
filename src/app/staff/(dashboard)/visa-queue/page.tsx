@@ -10,11 +10,14 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
-import { VISA_STATUS_TONE } from '@lib/status-tones';
+import { formatOrPending } from '@lib/money';
+import { VISA_FEE_PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import {
   contactTravelerAction,
   decideApplicationAction,
   deleteApplicationAction,
+  markFeePaidAction,
+  requestFeePaymentAction,
   requestMissingDocumentsAction,
   startApplicationAction,
   uploadVisaDocumentAction,
@@ -46,6 +49,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
   const { origin } = await searchParams;
   const t = await getTranslations('StaffVisaQueue');
   const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const tFeeStatus = await getTranslations('VisaFeePaymentStatusLabel');
   const tCountries = await getTranslations('Countries');
   const ORIGIN_LABEL: Record<string, string> = {
     PREDEFINED_PACKAGE: t('packageLabel'),
@@ -187,6 +191,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                 <Th>{t('source')}</Th>
                 <Th>{t('country')}</Th>
                 <Th>{t('status')}</Th>
+                <Th>{t('governmentFee')}</Th>
                 <Th>{t('travelDate')}</Th>
                 <Th>{t('document')}</Th>
                 <Th>{t('passport')}</Th>
@@ -231,6 +236,26 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                   </Td>
                   <Td>
                     <Badge tone={VISA_STATUS_TONE[a.status]}>{tVisaStatus(a.status)}</Badge>
+                  </Td>
+                  <Td>
+                    <div className="space-y-1">
+                      <p>{formatOrPending(a.governmentFeeMinor, a.governmentFeeCurrency, t('feeUnspecified'))}</p>
+                      <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[a.feePaymentStatus]}>{tFeeStatus(a.feePaymentStatus)}</Badge>
+                      {a.bookingId && a.feePaymentStatus === 'NOT_REQUESTED' && (
+                        <form action={requestFeePaymentAction.bind(null, a.bookingId, a.travelerId)}>
+                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('requestingFee')}>
+                            {t('requestFee')}
+                          </SubmitButton>
+                        </form>
+                      )}
+                      {a.bookingId && a.feePaymentStatus === 'REQUESTED' && (
+                        <form action={markFeePaidAction.bind(null, a.bookingId, a.travelerId)}>
+                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('markingFeePaid')}>
+                            {t('markFeePaid')}
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </Td>
                   <Td>
                     {a.travelStartDate ? (

@@ -59,6 +59,22 @@ export async function uploadVisaDocumentAction(bookingId: string, travelerId: st
   revalidatePath('/staff/visa-queue');
 }
 
+// DR-184: marks the destination country's government fee (distinct from the
+// guest-facing VISA_ASSISTANCE add-on charge) as requested from the
+// traveler -- a status flag only, no Payment/Invoice, no notification.
+export async function requestFeePaymentAction(bookingId: string, travelerId: string): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  await visaService.requestFeePayment(ctx, bookingId, travelerId);
+  revalidatePath('/staff/visa-queue');
+}
+
+// DR-184: marks that fee as collected.
+export async function markFeePaidAction(bookingId: string, travelerId: string): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  await visaService.markFeePaid(ctx, bookingId, travelerId);
+  revalidatePath('/staff/visa-queue');
+}
+
 // DR-151 (explicit user request): SUPERADMIN-only genuine delete of an
 // individual visa application. requireStaffContext('visa.delete') redirects
 // to /staff/forbidden for anyone else -- visa.delete is never seeded to any

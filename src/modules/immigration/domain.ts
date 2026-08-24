@@ -22,6 +22,14 @@ export interface CountryRegulationView {
   updatedAt: Date;
 }
 
+// DR-184: minimal, no-ctx-safe projection for other modules (e.g. visa) to
+// read the government fee without country_regulation.read -- deliberately
+// excludes every other field (visa text, embassy contact, advisories).
+export interface CountryRegulationPublicFee {
+  governmentFeeMinor: number | null;
+  feeCurrency: Currency | null;
+}
+
 export const CreateCountryRegulationInput = z.object({
   country: z.string().length(2),
   visaRequirements: z.string().min(1),

@@ -3,6 +3,7 @@ import { requireGuestContext } from '@lib/guest-guard';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { immigrationService } from '@modules/immigration';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Reveal } from '@/components/ui/Reveal';
@@ -81,6 +82,12 @@ export default async function AddonsPage({ params }: Props) {
   // bookings until this filter existed.
   const addons = countryPricedAddons.filter((a) => a.currency === booking.currency);
   const selectedIds = new Set(selected.map((a) => a.addonServiceId));
+  // DR-184: the destination country's own government/immigration fee --
+  // distinct from the VISA_ASSISTANCE add-on's own price above. Fetched
+  // unconditionally (no-ctx, cheap) rather than gating on whether that
+  // add-on is actually offered here, since AddonsForm only renders the
+  // disclaimer next to that specific add-on anyway.
+  const governmentFee = await immigrationService.getPublicFee(country);
 
   return (
     <Reveal>
@@ -93,10 +100,12 @@ export default async function AddonsPage({ params }: Props) {
 
         <AddonsForm
           bookingId={bookingId}
-          addons={addons.map((a) => ({ id: a.id, name: a.name, priceMinor: a.priceMinor, currency: a.currency }))}
+          addons={addons.map((a) => ({ id: a.id, name: a.name, priceMinor: a.priceMinor, currency: a.currency, code: a.code }))}
           selectedIds={[...selectedIds]}
           alreadyFinalized={Boolean(booking.addonsFinalizedAt)}
           emptyMessage={countryPricedAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency })}
+          governmentFeeMinor={governmentFee.governmentFeeMinor}
+          governmentFeeCurrency={governmentFee.feeCurrency}
         />
       </div>
     </Reveal>

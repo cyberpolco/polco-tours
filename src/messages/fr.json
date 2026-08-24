@@ -314,6 +314,11 @@
     "APPROVED": "Approuvé",
     "REJECTED": "Rejeté"
   },
+  "VisaFeePaymentStatusLabel": {
+    "NOT_REQUESTED": "Non demandé",
+    "REQUESTED": "Demandé",
+    "PAID": "Payé"
+  },
   "ItineraryStatusLabel": {
     "DRAFT": "Brouillon",
     "IN_REVIEW": "En révision",
@@ -367,7 +372,8 @@
     "visaApplication": "Demande de visa",
     "visaInProgress": "Votre demande de visa est en cours.",
     "visaNeedsAttention": "Une demande de visa nécessite votre attention.",
-    "viewVisaDetails": "Voir les détails"
+    "viewVisaDetails": "Voir les détails",
+    "governmentFeeDisclaimer": "Les frais gouvernementaux/d'immigration du pays de destination sont distincts de ce que vous avez payé jusqu'ici — ils ne sont pas facturés aujourd'hui. Nous vous informerons lorsqu'ils seront dus. Payer l'assistance visa ne garantit pas l'obtention du visa."
   },
   "AddonsPage": {
     "backToBooking": "retour à votre réservation",
@@ -380,7 +386,10 @@
     "noAddonsConfigured": "Aucun service optionnel configuré.",
     "noAddonsInCurrency": "Aucun service optionnel n'est actuellement disponible en {currency}.",
     "saveChanges": "Enregistrer les modifications",
-    "continueLabel": "Continuer"
+    "continueLabel": "Continuer",
+    "governmentFeeEstimate": "Frais gouvernementaux/d'immigration estimés : {amount}.",
+    "governmentFeeUnspecified": "à confirmer",
+    "governmentFeeDisclaimer": "Ces frais sont distincts du prix ci-dessus et ne sont pas facturés aujourd'hui — nous vous informerons lorsqu'ils seront dus. Payer l'assistance visa ne garantit pas l'obtention du visa."
   },
   "CancelButtons": {
     "cancelBooking": "Annuler la réservation",
@@ -410,7 +419,10 @@
     "passportPdfLabel": "Nouveau passeport (PDF)",
     "resubmitting": "Nouvelle soumission…",
     "resubmit": "Téléverser et soumettre à nouveau",
-    "downloadVisa": "Télécharger votre visa"
+    "downloadVisa": "Télécharger votre visa",
+    "governmentFeeLabel": "Frais gouvernementaux",
+    "governmentFeeUnspecified": "à confirmer",
+    "governmentFeeDisclaimer": "Ce sont les frais propres au pays de destination, distincts de l'assistance visa — ils ne sont pas facturés aujourd'hui. Nous vous informerons lorsqu'ils seront dus, et payer l'assistance ne garantit pas l'obtention du visa."
   },
   "TravelersPage": {
     "backToAddons": "retour aux options",
@@ -552,6 +564,7 @@
     "vehicleTracking": "Suivi du véhicule",
     "starlinkAssigned": "{count, plural, one {Un kit Starlink est affecté à votre véhicule.} other {Un kit Starlink est affecté à vos véhicules.}}",
     "visaStatus": "Statut du visa",
+    "feePaymentPrefix": "Frais gouvernementaux :",
     "feedback": "Retour d'expérience",
     "ratingCodeAvailable": "Un code d'évaluation a été émis pour votre voyage — consultez votre e-mail de confirmation ou contactez notre équipe pour l'obtenir.",
     "ratingCodeUnavailable": "Votre code d'évaluation a déjà été utilisé ou a expiré."
@@ -1291,7 +1304,13 @@
     "uploading": "Téléversement…",
     "delete": "Supprimer",
     "deleting": "Suppression…",
-    "deleteConfirm": "Supprimer définitivement cette demande de visa ? Cette action est irréversible."
+    "deleteConfirm": "Supprimer définitivement cette demande de visa ? Cette action est irréversible.",
+    "governmentFee": "Frais gouvernementaux",
+    "feeUnspecified": "Non précisé",
+    "requestFee": "Demander le paiement",
+    "requestingFee": "Demande en cours…",
+    "markFeePaid": "Marquer comme payé",
+    "markingFeePaid": "Marquage en cours…"
   },
   "StaffCountryRegulations": {
     "backToCountryRegulations": "retour aux réglementations par pays",

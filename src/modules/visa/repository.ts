@@ -1,5 +1,5 @@
 // visa module — repository. The only place that touches the DB for this module.
-import type { VisaApplication, VisaStatus } from '@prisma/client';
+import type { Currency, VisaApplication, VisaStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type { FacilitatorVisaView, VisaApplicationView } from './domain';
 
@@ -15,6 +15,18 @@ export interface CreateVisaApplicationParams {
   travelerLastName: string;
   travelerNationality: string;
   travelerIdOrPassportNumber: string;
+  // DR-184: snapshotted from CountryRegulation at submit time by the caller
+  // (visaService) -- the repository never reaches into another module itself.
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
+}
+
+// DR-184: only passed on resubmission when the caller has decided a
+// re-snapshot is warranted (feePaymentStatus still NOT_REQUESTED) -- omitted
+// entirely otherwise, leaving the existing fee fields untouched.
+export interface ResubmitFeeRefresh {
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
 }
 
 function toView(a: VisaApplication): VisaApplicationView {
@@ -29,6 +41,11 @@ function toView(a: VisaApplication): VisaApplicationView {
     documentId: a.documentId,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
+    governmentFeeMinor: a.governmentFeeMinor,
+    governmentFeeCurrency: a.governmentFeeCurrency,
+    feePaymentStatus: a.feePaymentStatus,
+    feeRequestedAt: a.feeRequestedAt,
+    feePaidAt: a.feePaidAt,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
   };
@@ -49,6 +66,11 @@ function toFacilitatorRow(a: VisaApplication): FacilitatorVisaRow {
     hasDocument: a.documentId !== null,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
+    governmentFeeMinor: a.governmentFeeMinor,
+    governmentFeeCurrency: a.governmentFeeCurrency,
+    feePaymentStatus: a.feePaymentStatus,
+    feeRequestedAt: a.feeRequestedAt,
+    feePaidAt: a.feePaidAt,
   };
 }
 
@@ -88,7 +110,7 @@ export const visaRepository = {
    * rejectionReason/decidedAt to reflect a fresh, undecided cycle; bumps
    * submittedAt so the facilitator queue (ordered by submittedAt desc)
    * actually resurfaces it for review. */
-  async resubmit(organizationId: string, id: string): Promise<VisaApplicationView> {
+  async resubmit(organizationId: string, id: string, feeRefresh?: ResubmitFeeRefresh): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
       const a = await tx.visaApplication.update({
         where: { id },
@@ -99,7 +121,34 @@ export const visaRepository = {
           documentId: null,
           rejectionReason: null,
           resubmissionCount: { increment: 1 },
+          ...(feeRefresh
+            ? { governmentFeeMinor: feeRefresh.governmentFeeMinor, governmentFeeCurrency: feeRefresh.governmentFeeCurrency }
+            : {}),
         },
+      });
+      return toView(a);
+    });
+  },
+
+  /** DR-184: staff marks the separately-collected government fee as
+   * requested/paid -- transition validity (NOT_REQUESTED -> REQUESTED ->
+   * PAID) is enforced by the service via canRequestFeePayment/
+   * canMarkFeePaid before either of these is called. */
+  async requestFeePayment(organizationId: string, id: string): Promise<VisaApplicationView> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.visaApplication.update({
+        where: { id },
+        data: { feePaymentStatus: 'REQUESTED', feeRequestedAt: new Date() },
+      });
+      return toView(a);
+    });
+  },
+
+  async markFeePaid(organizationId: string, id: string): Promise<VisaApplicationView> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.visaApplication.update({
+        where: { id },
+        data: { feePaymentStatus: 'PAID', feePaidAt: new Date() },
       });
       return toView(a);
     });

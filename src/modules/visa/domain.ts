@@ -1,5 +1,5 @@
 // visa module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingOrigin, Role, VisaStatus } from '@prisma/client';
+import type { BookingOrigin, Currency, Role, VisaFeePaymentStatus, VisaStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VisaApplicationView {
@@ -13,6 +13,13 @@ export interface VisaApplicationView {
   documentId: string | null;
   submittedAt: Date;
   decidedAt: Date | null;
+  // DR-184: the destination country's government/immigration fee, snapshotted
+  // from CountryRegulation at (re)submission time -- see schema.prisma comment.
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
+  feePaymentStatus: VisaFeePaymentStatus;
+  feeRequestedAt: Date | null;
+  feePaidAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +59,12 @@ export interface FacilitatorVisaView {
   hasDocument: boolean;
   submittedAt: Date;
   decidedAt: Date | null;
+  // DR-184
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
+  feePaymentStatus: VisaFeePaymentStatus;
+  feeRequestedAt: Date | null;
+  feePaidAt: Date | null;
   travelStartDate: Date | null;
   // Resolved live alongside origin/bookingId -- whether the traveler's own
   // passport (uploaded during the booking-setup wizard, distinct from
@@ -105,6 +118,10 @@ export interface GuestVisaApplicationView {
   rejectionReason: string | null;
   resubmissionCount: number;
   hasDocument: boolean;
+  // DR-184: safe to expose to the guest -- just a fee amount + status, no PII.
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
+  feePaymentStatus: VisaFeePaymentStatus;
 }
 
 // Immigration Module (DR-034): "contact travellers" -- a staff-authored
@@ -137,6 +154,28 @@ export function canDecide(status: VisaStatus): boolean {
  * append-only audit_logs table, not in a parallel schema history. */
 export function canResubmit(status: VisaStatus): boolean {
   return status === 'REJECTED';
+}
+
+// DR-184: the guest `/find-booking` lookup's per-traveler visa summary --
+// same "bare status, no PII" scoping as the pre-existing bare VisaStatus
+// return, just widened to also carry the fee-payment state.
+export interface BookingLookupVisaView {
+  status: VisaStatus;
+  feePaymentStatus: VisaFeePaymentStatus;
+}
+
+/** DR-184: forward-only fee-payment transitions, mirroring canDecide/
+ * canResubmit's shape. Only reachable from NOT_REQUESTED -- a REQUESTED or
+ * PAID fee can't be "requested" again (that would silently look like a
+ * fresh request to whoever's watching /find-booking). */
+export function canRequestFeePayment(feePaymentStatus: VisaFeePaymentStatus): boolean {
+  return feePaymentStatus === 'NOT_REQUESTED';
+}
+
+/** DR-184: only a REQUESTED fee can be marked PAID -- can't mark a fee paid
+ * that was never requested, and PAID itself is terminal. */
+export function canMarkFeePaid(feePaymentStatus: VisaFeePaymentStatus): boolean {
+  return feePaymentStatus === 'REQUESTED';
 }
 
 /** DR-151: genuinely destructive (VisaApplication has no soft-delete

@@ -30,10 +30,22 @@ export default function Image() {
           fontFamily: 'sans-serif',
         }}
       >
-        <img src={BRAND_LOGO_DATA_URI} width={360} height={360} alt="" />
-        <div style={{ display: 'flex', fontSize: 48, fontWeight: 700, color: '#F6EFE4', marginTop: 28 }}>Mufasa Safaris & Tours</div>
-        <div style={{ display: 'flex', fontSize: 22, color: '#8C7D78', marginTop: 12 }}>
-          Tourism Operating System for Namibia & the DRC
+        <img src={BRAND_LOGO_DATA_URI} width={400} height={400} alt="" />
+        <div style={{ display: 'flex', fontSize: 48, fontWeight: 700, color: '#F6EFE4', marginTop: 16 }}>Mufasa Safaris & Tours</div>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            textAlign: 'center',
+            fontSize: 22,
+            color: '#8C7D78',
+            marginTop: 12,
+            maxWidth: 860,
+            lineHeight: 1.4,
+          }}
+        >
+          One system handles both sides of a trip: the packages you browse, and everything behind them! Tourism OS Powered by Cyber PolCo
         </div>
       </div>
     ),

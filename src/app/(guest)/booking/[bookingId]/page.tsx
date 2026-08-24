@@ -143,6 +143,7 @@ export default async function BookingHomePage({ params }: Props) {
               </div>
             )}
           </Card>
+          {booking.requiresPassportUpload && <p className="text-xs text-mist">{t('governmentFeeDisclaimer')}</p>}
           <LinkButton href={nextHref}>{t('continueSetup')}</LinkButton>
         </div>
       </Reveal>
@@ -343,6 +344,7 @@ export default async function BookingHomePage({ params }: Props) {
                 {t('viewVisaDetails')}
               </Link>
             </Card>
+            <p className="mt-2 text-xs text-mist">{t('governmentFeeDisclaimer')}</p>
           </div>
         </Reveal>
       )}

@@ -33,7 +33,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-186** (2026-08-24). This file used to carry a running
+Current through **DR-188** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -235,7 +235,18 @@ src/
                    #   reason, re-upload + resubmit, download once approved)
                    #   — no new permission, anti-BOLA via the existing
                    #   findTraveler/bookingService.listTravelers ownership
-                   #   check, same convention as autoSubmitOnPassportUpload
+                   #   check, same convention as autoSubmitOnPassportUpload.
+                   #   DR-187: VisaApplication gains governmentFeeMinor/
+                   #   governmentFeeCurrency/feePaymentStatus/feeRequestedAt/
+                   #   feePaidAt — the destination country's own government
+                   #   fee (distinct from the guest-charged VISA_ASSISTANCE
+                   #   add-on), snapshotted from immigration's new public
+                   #   getPublicFee at (re)submission time, frozen once set,
+                   #   tracked staff-side (visa.process) as NOT_REQUESTED ->
+                   #   REQUESTED -> PAID entirely out-of-band (no Payment/
+                   #   Invoice, no notification) — new visa -> immigration
+                   #   module dependency (see "Module dependency direction
+                   #   matters" below)
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -266,7 +277,12 @@ src/
                    #   to `notes`, now defaulting from the guest's own
                    #   Booking.specialRequests (TAILOR_MADE plan-my-trip
                    #   free text) when staff supplies none
-    immigration/   # CountryRegulation — platform-wide visa/entry reference data
+    immigration/   # CountryRegulation — platform-wide visa/entry reference
+                   #   data. DR-187: gains its first inbound module
+                   #   dependency (visa) via a new no-ctx public
+                   #   getPublicFee(country) — a minimal fee-only
+                   #   projection, still nothing else in CountryRegulation
+                   #   is read cross-module
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings; DR-148: SUPERADMIN
@@ -422,6 +438,11 @@ also depends on `analytics` (to read the plan-my-trip wizard-step funnel) —
 confirmed acyclic: `analytics` imports nothing from `insights` (it has no
 module dependencies at all — its one public write, `recordWizardStep`, is
 called directly from a Server Action, not through another module's service).
+Since DR-187, `visa` also depends on `immigration` (to snapshot a
+destination country's government fee via a new no-ctx
+`immigrationService.getPublicFee`, mirroring `cms`'s/`weather`'s public-read
+convention) — confirmed acyclic: `immigration` had zero inbound module
+dependencies before this and still imports nothing from `visa`.
 
 ---
 

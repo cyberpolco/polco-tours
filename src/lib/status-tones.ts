@@ -10,6 +10,7 @@ import type {
   PaymentStatus,
   StarlinkStatus,
   VehicleStatus,
+  VisaFeePaymentStatus,
   VisaStatus,
 } from '@prisma/client';
 import type { ComplianceStatus } from '@modules/fleet';
@@ -107,6 +108,14 @@ export const VISA_STATUS_TONE: Record<VisaStatus, BadgeTone> = {
   SUBMITTED: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
+};
+
+// DR-184: the destination country's own government fee -- distinct from the
+// visa decision itself, tracked purely as a status flag (no Payment/Invoice).
+export const VISA_FEE_PAYMENT_STATUS_TONE: Record<VisaFeePaymentStatus, BadgeTone> = {
+  NOT_REQUESTED: 'neutral',
+  REQUESTED: 'warning',
+  PAID: 'success',
 };
 
 export const ITINERARY_STATUS_TONE: Record<ItineraryStatus, BadgeTone> = {

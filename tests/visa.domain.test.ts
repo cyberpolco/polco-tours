@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canDecide, canResubmit, DecideVisaInput } from '../src/modules/visa/domain';
+import { canDecide, canMarkFeePaid, canRequestFeePayment, canResubmit, DecideVisaInput } from '../src/modules/visa/domain';
 
 describe('visa domain', () => {
   describe('canDecide', () => {
@@ -59,6 +59,35 @@ describe('visa domain', () => {
 
     it('rejects a missing outcome', () => {
       expect(DecideVisaInput.safeParse({}).success).toBe(false);
+    });
+  });
+
+  // DR-184
+  describe('canRequestFeePayment', () => {
+    it('is true for NOT_REQUESTED', () => {
+      expect(canRequestFeePayment('NOT_REQUESTED')).toBe(true);
+    });
+
+    it('is false for REQUESTED (already requested)', () => {
+      expect(canRequestFeePayment('REQUESTED')).toBe(false);
+    });
+
+    it('is false for PAID', () => {
+      expect(canRequestFeePayment('PAID')).toBe(false);
+    });
+  });
+
+  describe('canMarkFeePaid', () => {
+    it('is true for REQUESTED', () => {
+      expect(canMarkFeePaid('REQUESTED')).toBe(true);
+    });
+
+    it('is false for NOT_REQUESTED (must be requested first)', () => {
+      expect(canMarkFeePaid('NOT_REQUESTED')).toBe(false);
+    });
+
+    it('is false for PAID (terminal)', () => {
+      expect(canMarkFeePaid('PAID')).toBe(false);
     });
   });
 });

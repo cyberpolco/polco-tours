@@ -8,7 +8,7 @@ import { fleetService } from '@modules/fleet';
 import { canDownloadInvoicePdf, invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
-import { visaService, type VisaStatus } from '@modules/visa';
+import { visaService, type BookingLookupVisaView } from '@modules/visa';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -23,6 +23,7 @@ import {
   INVOICE_STATUS_TONE,
   ITINERARY_STATUS_TONE,
   PAYMENT_STATUS_TONE,
+  VISA_FEE_PAYMENT_STATUS_TONE,
   VISA_STATUS_TONE,
 } from '@lib/status-tones';
 
@@ -51,6 +52,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   const tPaymentKind = await getTranslations('PaymentKindLabel');
   const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
   const tVisaStatus = await getTranslations('VisaStatusLabel');
+  const tFeeStatus = await getTranslations('VisaFeePaymentStatusLabel');
   const locale = await getLocale();
 
   if (!bookingReference || !lastName) {
@@ -161,7 +163,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   // Explicit user scoping: visa status only surfaces when the finalized
   // add-ons included Visa Assistance in the first place -- never a bare
   // country-regulation dump.
-  const visaStatuses = new Map<string, VisaStatus>();
+  const visaStatuses = new Map<string, BookingLookupVisaView>();
   if (!isTailorMadeInquiry && booking.requiresPassportUpload) {
     for (const traveler of travelers) {
       const status = await visaService.getStatusForBookingLookup(booking.organizationId, traveler.id);
@@ -456,14 +458,26 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                   <dd className="space-y-1">
                     {travelers
                       .filter((tv) => visaStatuses.has(tv.id))
-                      .map((tv) => (
-                        <div key={tv.id} className="flex items-center gap-2">
-                          <span>
-                            {tv.firstName} {tv.lastName}
-                          </span>
-                          <Badge tone={VISA_STATUS_TONE[visaStatuses.get(tv.id)!]}>{tVisaStatus(visaStatuses.get(tv.id)!)}</Badge>
-                        </div>
-                      ))}
+                      .map((tv) => {
+                        const v = visaStatuses.get(tv.id)!;
+                        return (
+                          <div key={tv.id} className="flex flex-wrap items-center gap-2">
+                            <span>
+                              {tv.firstName} {tv.lastName}
+                            </span>
+                            <Badge tone={VISA_STATUS_TONE[v.status]}>{tVisaStatus(v.status)}</Badge>
+                            {/* DR-184: the government-fee status is only worth
+                                showing once staff has actually acted on it --
+                                NOT_REQUESTED is a non-actionable "nothing has
+                                happened yet" state, per explicit user scoping. */}
+                            {v.feePaymentStatus !== 'NOT_REQUESTED' && (
+                              <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[v.feePaymentStatus]}>
+                                {t('feePaymentPrefix')} {tFeeStatus(v.feePaymentStatus)}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })}
                   </dd>
                 </div>
               )}

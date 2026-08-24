@@ -4,7 +4,13 @@ import type { AuthContext } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
-import { isCountryRegulationWriter, type CountryRegulationView, type CreateCountryRegulationInput, type UpdateCountryRegulationInput } from './domain';
+import {
+  isCountryRegulationWriter,
+  type CountryRegulationPublicFee,
+  type CountryRegulationView,
+  type CreateCountryRegulationInput,
+  type UpdateCountryRegulationInput,
+} from './domain';
 import { immigrationRepository } from './repository';
 
 function requireWriter(ctx: AuthContext): void {
@@ -25,6 +31,19 @@ export const immigrationService = {
     const regulation = await immigrationRepository.findByCountry(country.toUpperCase());
     if (!regulation) throw Errors.notFound('No regulation on file for this country');
     return regulation;
+  },
+
+  // No-ctx, public read (DR-184) -- mirrors cms's/weather's public read
+  // path. Lets visa's guest-facing/automatic code snapshot the government
+  // fee without a staff ctx or country_regulation.read. Degrades to nulls
+  // (never throws) when no regulation is on file, same graceful-degradation
+  // convention as weather's gateway.
+  async getPublicFee(country: string): Promise<CountryRegulationPublicFee> {
+    const regulation = await immigrationRepository.findByCountry(country.toUpperCase());
+    return {
+      governmentFeeMinor: regulation?.immigrationFeeMinor ?? null,
+      feeCurrency: regulation?.feeCurrency ?? null,
+    };
   },
 
   async createRegulation(ctx: AuthContext, input: CreateCountryRegulationInput): Promise<CountryRegulationView> {

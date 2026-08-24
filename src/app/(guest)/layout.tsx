@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     default: 'Mufasa Safaris & Tours',
     template: '%s | Mufasa Safaris & Tours',
   },
-  description: 'Tourism Operating System for Namibia & the Democratic Republic of Congo.',
+  description: 'Tourism OS Powered by Cyber PolCo.',
 };
 
 // Public chrome for the tourist self-serve site (DR-016) -- a route group so

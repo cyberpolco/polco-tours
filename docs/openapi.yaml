@@ -884,6 +884,58 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
 
+  /bookings/{bookingId}/travelers/{travelerId}/visa/fee/request:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Mark the destination country's government fee as requested (VISA_FACILITATOR, DR-184)
+      description: >-
+        The government/immigration fee is distinct from the guest-facing
+        VISA_ASSISTANCE add-on charge -- it's collected entirely out-of-band
+        (no Payment/Invoice created here, no push notification sent). Only
+        valid from NOT_REQUESTED.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The fee is already REQUESTED or PAID
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /bookings/{bookingId}/travelers/{travelerId}/visa/fee/paid:
+    parameters:
+      - $ref: '#/components/parameters/bookingId'
+      - $ref: '#/components/parameters/travelerId'
+    post:
+      summary: Mark the government fee as collected (VISA_FACILITATOR, DR-184)
+      description: Only valid from REQUESTED. Again a status flag only -- no Payment/Invoice.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/VisaApplication' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The fee was never REQUESTED, or is already PAID
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
   /bookings/{bookingId}/travelers/{travelerId}/visa/document:
     parameters:
       - $ref: '#/components/parameters/bookingId'
@@ -3421,6 +3473,11 @@ components:
         documentId: { type: string, format: uuid, nullable: true, description: The granted visa document }
         submittedAt: { type: string, format: date-time }
         decidedAt: { type: string, format: date-time, nullable: true }
+        governmentFeeMinor: { type: integer, nullable: true, description: 'DR-184: destination country''s own government/immigration fee, snapshotted from CountryRegulation at (re)submission time -- distinct from the guest-facing VISA_ASSISTANCE add-on charge' }
+        governmentFeeCurrency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true }
+        feePaymentStatus: { type: string, enum: [NOT_REQUESTED, REQUESTED, PAID], description: 'DR-184: collected entirely out-of-band -- never a Payment/Invoice line' }
+        feeRequestedAt: { type: string, format: date-time, nullable: true }
+        feePaidAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 

@@ -314,6 +314,11 @@
     "APPROVED": "Approved",
     "REJECTED": "Rejected"
   },
+  "VisaFeePaymentStatusLabel": {
+    "NOT_REQUESTED": "Not requested",
+    "REQUESTED": "Requested",
+    "PAID": "Paid"
+  },
   "ItineraryStatusLabel": {
     "DRAFT": "Draft",
     "IN_REVIEW": "In review",
@@ -367,7 +372,8 @@
     "visaApplication": "Visa application",
     "visaInProgress": "Your visa application is in progress.",
     "visaNeedsAttention": "A visa application needs your attention.",
-    "viewVisaDetails": "View details"
+    "viewVisaDetails": "View details",
+    "governmentFeeDisclaimer": "The destination country's own government/immigration fee is separate from what you've paid so far — it isn't charged today. We'll let you know when it's due. Paying for visa assistance doesn't guarantee a visa will be granted."
   },
   "AddonsPage": {
     "backToBooking": "back to your booking",
@@ -380,7 +386,10 @@
     "noAddonsConfigured": "No add-on services configured.",
     "noAddonsInCurrency": "No add-on services are currently available in {currency}.",
     "saveChanges": "Save changes",
-    "continueLabel": "Continue"
+    "continueLabel": "Continue",
+    "governmentFeeEstimate": "Estimated government/immigration fee: {amount}.",
+    "governmentFeeUnspecified": "to be confirmed",
+    "governmentFeeDisclaimer": "This is separate from the price above and isn't charged today — we'll let you know when it's due. Paying for visa assistance doesn't guarantee a visa will be granted."
   },
   "CancelButtons": {
     "cancelBooking": "Cancel booking",
@@ -410,7 +419,10 @@
     "passportPdfLabel": "New passport (PDF)",
     "resubmitting": "Resubmitting…",
     "resubmit": "Upload & resubmit",
-    "downloadVisa": "Download your visa"
+    "downloadVisa": "Download your visa",
+    "governmentFeeLabel": "Government fee",
+    "governmentFeeUnspecified": "to be confirmed",
+    "governmentFeeDisclaimer": "This is the destination country's own fee, separate from visa assistance — it isn't charged today. We'll let you know when it's due, and paying for assistance doesn't guarantee a visa will be granted."
   },
   "TravelersPage": {
     "backToAddons": "back to add-ons",
@@ -552,6 +564,7 @@
     "vehicleTracking": "Vehicle tracking",
     "starlinkAssigned": "{count, plural, one {Starlink kit assigned to your vehicle.} other {Starlink kit assigned to your vehicles.}}",
     "visaStatus": "Visa status",
+    "feePaymentPrefix": "Government fee:",
     "feedback": "Feedback",
     "ratingCodeAvailable": "A rating code has been issued for your trip — check your confirmation email or contact our team for it.",
     "ratingCodeUnavailable": "Your rating code has already been used or has expired."
@@ -1291,7 +1304,13 @@
     "uploading": "Uploading…",
     "delete": "Delete",
     "deleting": "Deleting…",
-    "deleteConfirm": "Permanently delete this visa application? This cannot be undone."
+    "deleteConfirm": "Permanently delete this visa application? This cannot be undone.",
+    "governmentFee": "Government fee",
+    "feeUnspecified": "Unspecified",
+    "requestFee": "Request payment",
+    "requestingFee": "Requesting…",
+    "markFeePaid": "Mark paid",
+    "markingFeePaid": "Marking paid…"
   },
   "StaffCountryRegulations": {
     "backToCountryRegulations": "back to country regulations",

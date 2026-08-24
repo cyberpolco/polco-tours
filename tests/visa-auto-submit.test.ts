@@ -137,7 +137,10 @@ describe('visaService.autoSubmitOnPassportUpload (DR-060)', () => {
     expect(application).not.toBeNull();
     expect(application?.status).toBe('SUBMITTED');
     expect(application?.country).toBe('NA');
-  });
+    // DR-184 added one more real Neon round-trip (the government-fee lookup)
+    // to this same call -- same sandbox-latency headroom bump as the
+    // "reject -> resubmit" cycle in tests/api/visa.api.test.ts.
+  }, 40_000);
 
   it('is a no-op, not an error, when an application already exists for that traveler', async () => {
     const { bookingId, travelerId } = await createVisaBooking();
@@ -148,7 +151,24 @@ describe('visaService.autoSubmitOnPassportUpload (DR-060)', () => {
 
     const applications = await withOrg(orgId, (tx) => tx.visaApplication.findMany({ where: { travelerId } }));
     expect(applications).toHaveLength(1);
-  });
+  }, 40_000);
+
+  it('snapshots the destination country\'s government fee from CountryRegulation (DR-184)', async () => {
+    const { bookingId, travelerId } = await createVisaBooking();
+    await attachPassport(travelerId);
+    // Read-only against the platform-wide, unscoped CountryRegulation table
+    // (no RLS, no organizationId) -- never write/mutate it here, since this
+    // suite runs against the one shared dev/production Neon DB and 'NA' is a
+    // real seeded country, not a disposable test fixture.
+    const regulation = await admin.countryRegulation.findUnique({ where: { country: 'NA' } });
+
+    await visaService.autoSubmitOnPassportUpload(ctxFor(operatorId), bookingId, travelerId);
+
+    const application = await withOrg(orgId, (tx) => tx.visaApplication.findUnique({ where: { travelerId } }));
+    expect(application?.governmentFeeMinor ?? null).toBe(regulation?.immigrationFeeMinor ?? null);
+    expect(application?.governmentFeeCurrency ?? null).toBe(regulation?.feeCurrency ?? null);
+    expect(application?.feePaymentStatus).toBe('NOT_REQUESTED');
+  }, 40_000);
 
   it('is a no-op when the booking does not require a passport upload', async () => {
     const booking = await withOrg(orgId, (tx) =>
@@ -204,7 +224,7 @@ describe('visaService.listNeedingApplication (DR-060)', () => {
     const pendingRow = results.find((r) => r.travelerId === pending.travelerId);
     expect(pendingRow?.origin).toBe('PREDEFINED_PACKAGE');
     expect(pendingRow?.bookingId).toBe(pending.bookingId);
-  });
+  }, 40_000);
 
   it('excludes a traveler with no passport uploaded at all', async () => {
     const { travelerId } = await createVisaBooking();

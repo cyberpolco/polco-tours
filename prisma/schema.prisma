@@ -929,6 +929,15 @@ enum VisaStatus {
   REJECTED
 }
 
+// The destination country's own government/immigration processing fee,
+// tracked separately from the guest-facing VISA_ASSISTANCE add-on charge
+// (DR-184) -- collected out-of-band, never a Payment/Invoice line.
+enum VisaFeePaymentStatus {
+  NOT_REQUESTED
+  REQUESTED
+  PAID
+}
+
 // A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED, with a
 // REJECTED application resubmittable back to SUBMITTED (DR-025). Traveler
 // identity fields are snapshotted here (not joined live) -- originally so
@@ -950,6 +959,17 @@ model VisaApplication {
   documentId                 String?    @unique @db.Uuid // the granted visa doc
   submittedAt                DateTime   @default(now())
   decidedAt                  DateTime?
+  // DR-184: the destination country's government/immigration fee, snapshotted
+  // from CountryRegulation at (re)submission time -- frozen once set, never
+  // retroactively updated by a later CountryRegulation edit. Re-snapshotted on
+  // resubmission only while feePaymentStatus is still NOT_REQUESTED (once
+  // staff has requested/collected it, resubmission must not silently change
+  // the number). Collected entirely out-of-band -- no Payment/Invoice link.
+  governmentFeeMinor         Int?
+  governmentFeeCurrency      Currency?
+  feePaymentStatus           VisaFeePaymentStatus @default(NOT_REQUESTED)
+  feeRequestedAt             DateTime?
+  feePaidAt                  DateTime?
   createdAt                  DateTime   @default(now())
   updatedAt                  DateTime   @updatedAt
 

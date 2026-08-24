@@ -38,6 +38,12 @@ const { POST: resubmitApplication } = await import(
 const { GET: downloadVisaDocument, POST: uploadVisaDocument } = await import(
   '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/visa/document/route'
 );
+const { POST: requestFeePayment } = await import(
+  '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/visa/fee/request/route'
+);
+const { POST: markFeePaid } = await import(
+  '../../src/app/api/v1/bookings/[bookingId]/travelers/[travelerId]/visa/fee/paid/route'
+);
 
 const admin = new PrismaClient();
 
@@ -163,7 +169,10 @@ describe('POST /api/v1/bookings/:bookingId/travelers/:travelerId/visa/submit', (
     const body = await res.json();
     expect(body.application.status).toBe('SUBMITTED');
     expect(body.application.country).toBe('NA');
-  });
+    // DR-184 added one more real Neon round-trip (the government-fee
+    // lookup) inside submitApplication -- same sandbox-latency headroom
+    // bump as the "reject -> resubmit" cycle test below.
+  }, 40_000);
 
   it('rejects a second submission for the same traveler (409)', async () => {
     const headers = await loginAs(facilitatorId);
@@ -213,7 +222,11 @@ describe('POST /api/v1/bookings/:bookingId/travelers/:travelerId/visa/decide', (
     const body = await res.json();
     expect(body.application.status).toBe('APPROVED');
     expect(body.application.decidedAt).not.toBeNull();
-  });
+    // Notification fallback chain (WhatsApp -> SMS -> email) makes real
+    // network attempts against this environment's live-but-degraded
+    // credentials (OI-05/OI-07) before giving up -- same latency headroom
+    // bump as the other slow tests in this file.
+  }, 40_000);
 
   it('rejects deciding an already-decided application (409)', async () => {
     const headers = await loginAs(facilitatorId);
@@ -387,5 +400,85 @@ describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/visa/docume
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe('%PDF-visa-fixture');
+  });
+});
+
+// DR-184: the destination country's own government fee, tracked as a status
+// flag (NOT_REQUESTED -> REQUESTED -> PAID) separate from the visa decision
+// itself and from any Payment/Invoice.
+describe('POST /api/v1/bookings/:bookingId/travelers/:travelerId/visa/fee/request and /fee/paid', () => {
+  it('a VISA_FACILITATOR requests, then marks paid, the government fee (200 -> 200)', async () => {
+    const headers = await loginAs(facilitatorId);
+
+    let res = await requestFeePayment(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId}/visa/fee/request`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId }) },
+    );
+    expect(res.status).toBe(200);
+    let body = await res.json();
+    expect(body.application.feePaymentStatus).toBe('REQUESTED');
+    expect(body.application.feeRequestedAt).not.toBeNull();
+
+    res = await markFeePaid(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId}/visa/fee/paid`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId }) },
+    );
+    expect(res.status).toBe(200);
+    body = await res.json();
+    expect(body.application.feePaymentStatus).toBe('PAID');
+    expect(body.application.feePaidAt).not.toBeNull();
+    // Two sequential real Neon round-trips -- same latency headroom bump as
+    // the other multi-call tests in this file.
+  }, 40_000);
+
+  it('rejects requesting payment for a fee already REQUESTED/PAID (409)', async () => {
+    const headers = await loginAs(facilitatorId);
+    const res = await requestFeePayment(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId}/visa/fee/request`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId }) },
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects marking paid a fee that was never requested (409)', async () => {
+    const headers = await loginAs(facilitatorId);
+    const res = await markFeePaid(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId2}/visa/fee/paid`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId: travelerId2 }) },
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it('a TOURIST cannot request or mark the fee paid (403)', async () => {
+    const headers = await loginAs(touristId);
+    let res = await requestFeePayment(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId2}/visa/fee/request`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId: travelerId2 }) },
+    );
+    expect(res.status).toBe(403);
+
+    res = await markFeePaid(
+      new NextRequest(`http://localhost/api/v1/bookings/${bookingId}/travelers/${travelerId2}/visa/fee/paid`, {
+        method: 'POST',
+        headers,
+      }),
+      { params: Promise.resolve({ bookingId, travelerId: travelerId2 }) },
+    );
+    expect(res.status).toBe(403);
   });
 });

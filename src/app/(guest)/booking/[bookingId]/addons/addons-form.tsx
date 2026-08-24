@@ -3,10 +3,11 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { AddonCode } from '@prisma/client';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { SelectableCard } from '@/components/ui/SelectableCard';
-import { format, money, type Currency } from '@lib/money';
+import { format, formatOrPending, money, type Currency } from '@lib/money';
 import { finalizeAddonsAction } from './actions';
 
 interface AddonOption {
@@ -14,6 +15,7 @@ interface AddonOption {
   name: string;
   priceMinor: number;
   currency: Currency;
+  code: AddonCode;
 }
 
 interface Props {
@@ -22,6 +24,11 @@ interface Props {
   selectedIds: string[];
   alreadyFinalized: boolean;
   emptyMessage: string;
+  // DR-184: the destination country's own government/immigration fee --
+  // distinct from this add-on's own priceMinor/currency above (that's the
+  // guest-facing assistance service fee; this is what the country charges).
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
 }
 
 // Client-driven submit (mirrors book/[departureId]/booking-form.tsx's own
@@ -30,7 +37,15 @@ interface Props {
 // real CI trace, but the browser's router occasionally never acted on the
 // redirect it carried. router.push() after an already-resolved promise is
 // a plain client-side call with none of that redirect-header handling.
-export function AddonsForm({ bookingId, addons, selectedIds, alreadyFinalized, emptyMessage }: Props) {
+export function AddonsForm({
+  bookingId,
+  addons,
+  selectedIds,
+  alreadyFinalized,
+  emptyMessage,
+  governmentFeeMinor,
+  governmentFeeCurrency,
+}: Props) {
   const router = useRouter();
   const t = useTranslations('AddonsPage');
   const tCommon = useTranslations('Common');
@@ -71,18 +86,21 @@ export function AddonsForm({ bookingId, addons, selectedIds, alreadyFinalized, e
         <p className="text-sm text-mist">{emptyMessage}</p>
       ) : (
         addons.map((a) => (
-          <SelectableCard
-            key={a.id}
-            type="checkbox"
-            name="addonServiceId"
-            value={a.id}
-            defaultChecked={selected.has(a.id)}
-          >
-            <span className="flex flex-1 items-center justify-between">
-              <span>{a.name}</span>
-              <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
-            </span>
-          </SelectableCard>
+          <div key={a.id}>
+            <SelectableCard type="checkbox" name="addonServiceId" value={a.id} defaultChecked={selected.has(a.id)}>
+              <span className="flex flex-1 items-center justify-between">
+                <span>{a.name}</span>
+                <span className="text-mist">{format(money(a.priceMinor, a.currency))}</span>
+              </span>
+            </SelectableCard>
+            {a.code === 'VISA_ASSISTANCE' && (
+              <p className="mt-1 px-1 text-xs text-mist">
+                {t('governmentFeeEstimate', { amount: formatOrPending(governmentFeeMinor, governmentFeeCurrency, t('governmentFeeUnspecified')) })}
+                {' '}
+                {t('governmentFeeDisclaimer')}
+              </p>
+            )}
+          </div>
         ))
       )}
       <Button type="submit" disabled={pending}>

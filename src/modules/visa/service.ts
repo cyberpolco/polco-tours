@@ -1,18 +1,22 @@
 // visa module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { VisaStatus } from '@prisma/client';
+import type { Currency } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { bookingService, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { documentsService, type DocumentSummary, type DocumentStream } from '@modules/documents';
+import { immigrationService } from '@modules/immigration';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
   canDecide,
+  canMarkFeePaid,
+  canRequestFeePayment,
   canResubmit,
   isVisaDeleter,
+  type BookingLookupVisaView,
   type ContactTravelerInput,
   type DecideVisaInput,
   type FacilitatorVisaView,
@@ -21,6 +25,16 @@ import {
   type VisaApplicationView,
 } from './domain';
 import { visaRepository } from './repository';
+
+// DR-184: shared by submitApplication/autoSubmitOnPassportUpload/the two
+// resubmit paths -- the government fee is always looked up the same way,
+// via the new no-ctx immigration.getPublicFee (never immigrationService
+// .getRegulation, which requires country_regulation.read and would reject
+// a guest/no-permission caller).
+async function resolveGovernmentFee(country: string): Promise<{ governmentFeeMinor: number | null; governmentFeeCurrency: Currency | null }> {
+  const fee = await immigrationService.getPublicFee(country);
+  return { governmentFeeMinor: fee.governmentFeeMinor, governmentFeeCurrency: fee.feeCurrency };
+}
 
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
@@ -71,6 +85,7 @@ export const visaService = {
       throw Errors.conflict('This booking has no destination country for a visa application');
     }
 
+    const fee = await resolveGovernmentFee(country);
     const application = await visaRepository.create(organizationId, {
       travelerId,
       country,
@@ -78,6 +93,7 @@ export const visaService = {
       travelerLastName: traveler.lastName,
       travelerNationality: traveler.nationality,
       travelerIdOrPassportNumber: traveler.idOrPassportNumber,
+      ...fee,
     });
 
     await audit({
@@ -143,7 +159,11 @@ export const visaService = {
     if (!existing) throw Errors.notFound('Visa application not found');
     if (!canResubmit(existing.status)) throw Errors.conflict(`Cannot resubmit a ${existing.status} application`);
 
-    const resubmitted = await visaRepository.resubmit(organizationId, existing.id);
+    // DR-184: only re-snapshot the government fee while nothing has been
+    // requested/collected against it yet -- once staff has acted on the
+    // fee, a resubmission must not silently change the number.
+    const feeRefresh = existing.feePaymentStatus === 'NOT_REQUESTED' ? await resolveGovernmentFee(existing.country) : undefined;
+    const resubmitted = await visaRepository.resubmit(organizationId, existing.id, feeRefresh);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -176,7 +196,9 @@ export const visaService = {
     if (!existing) throw Errors.notFound('Visa application not found');
     if (!canResubmit(existing.status)) throw Errors.conflict(`Cannot resubmit a ${existing.status} application`);
 
-    const resubmitted = await visaRepository.resubmit(organizationId, existing.id);
+    // DR-184: same re-snapshot-only-while-untouched rule as the staff path.
+    const feeRefresh = existing.feePaymentStatus === 'NOT_REQUESTED' ? await resolveGovernmentFee(existing.country) : undefined;
+    const resubmitted = await visaRepository.resubmit(organizationId, existing.id, feeRefresh);
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -245,6 +267,62 @@ export const visaService = {
     });
   },
 
+  /** DR-184: staff marks the destination country's government fee as
+   * requested from the traveler -- entirely out-of-band (no Payment/Invoice
+   * created here, no push notification sent; the guest finds out by
+   * checking /find-booking or their booking pages, per explicit user
+   * choice). Same findTraveler ownership check as every other row action on
+   * /staff/visa-queue. */
+  async requestFeePayment(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!existing) throw Errors.notFound('Visa application not found');
+    if (!canRequestFeePayment(existing.feePaymentStatus)) {
+      throw Errors.conflict(`Cannot request payment for a fee already ${existing.feePaymentStatus}`);
+    }
+
+    const updated = await visaRepository.requestFeePayment(organizationId, existing.id);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.fee_payment_requested',
+      resourceType: 'VisaApplication',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { governmentFeeMinor: updated.governmentFeeMinor, governmentFeeCurrency: updated.governmentFeeCurrency },
+    });
+    return updated;
+  },
+
+  /** DR-184: staff marks the government fee as collected -- again purely a
+   * status flag, no Payment/Invoice, no notification. */
+  async markFeePaid(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!existing) throw Errors.notFound('Visa application not found');
+    if (!canMarkFeePaid(existing.feePaymentStatus)) {
+      throw Errors.conflict(`Cannot mark a ${existing.feePaymentStatus} fee as paid`);
+    }
+
+    const updated = await visaRepository.markFeePaid(organizationId, existing.id);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.fee_marked_paid',
+      resourceType: 'VisaApplication',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { governmentFeeMinor: updated.governmentFeeMinor, governmentFeeCurrency: updated.governmentFeeCurrency },
+    });
+    return updated;
+  },
+
   async uploadDocument(
     ctx: AuthContext,
     bookingId: string,
@@ -296,18 +374,25 @@ export const visaService = {
       rejectionReason: application.rejectionReason,
       resubmissionCount: application.resubmissionCount,
       hasDocument: application.documentId !== null,
+      governmentFeeMinor: application.governmentFeeMinor,
+      governmentFeeCurrency: application.governmentFeeCurrency,
+      feePaymentStatus: application.feePaymentStatus,
     };
   },
 
-  /** Guest `/find-booking` lookup: just the bare status (never the full
-   * VisaApplicationView -- no rejectionReason/documentId exposure to an
-   * unauthenticated caller), no ctx -- same "caller already gates"
-   * convention as fleetService.listVehiclesForBookingLookup. Only ever
-   * called when Booking.requiresPassportUpload is true, per explicit user
-   * scoping ("just the visa status if it was ticked by the client"). */
-  async getStatusForBookingLookup(organizationId: string, travelerId: string): Promise<VisaStatus | null> {
+  /** Guest `/find-booking` lookup: just the bare status + fee-payment state
+   * (never the full VisaApplicationView -- no rejectionReason/documentId
+   * exposure to an unauthenticated caller), no ctx -- same "caller already
+   * gates" convention as fleetService.listVehiclesForBookingLookup. Only
+   * ever called when Booking.requiresPassportUpload is true, per explicit
+   * user scoping ("just the visa status if it was ticked by the client").
+   * DR-184 widened this from a bare VisaStatus to also carry
+   * feePaymentStatus, so /find-booking can reflect the government-fee
+   * status staff sets from /staff/visa-queue. */
+  async getStatusForBookingLookup(organizationId: string, travelerId: string): Promise<BookingLookupVisaView | null> {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
-    return application?.status ?? null;
+    if (!application) return null;
+    return { status: application.status, feePaymentStatus: application.feePaymentStatus };
   },
 
   async streamDocument(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {
@@ -478,6 +563,7 @@ export const visaService = {
     // view (listNeedingApplication) still surfaces the traveler so staff can
     // submit manually once the missing details are known.
     if (!traveler.nationality || !traveler.idOrPassportNumber) return;
+    const fee = await resolveGovernmentFee(country);
     const application = await visaRepository.create(organizationId, {
       travelerId,
       country,
@@ -485,6 +571,7 @@ export const visaService = {
       travelerLastName: traveler.lastName,
       travelerNationality: traveler.nationality,
       travelerIdOrPassportNumber: traveler.idOrPassportNumber,
+      ...fee,
     });
 
     await audit({
