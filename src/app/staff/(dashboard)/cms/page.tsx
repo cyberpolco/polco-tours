@@ -14,13 +14,16 @@ import {
   createFaqEntryAction,
   createGallerySiteAction,
   createHeroSlideAction,
+  createPartnerAction,
   deleteFaqEntryAction,
   deleteGallerySiteAction,
   deleteHeroSlideAction,
+  deletePartnerAction,
   updateFaqEntryAction,
   updateGallerySiteAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
+  updatePartnerAction,
   updateTextBlockAction,
   uploadCmsImageAction,
 } from './actions';
@@ -31,12 +34,15 @@ interface Props {
   searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string; tab?: string }>;
 }
 
-// Nav+footer order (DR-164) -- each tab's label key already exists (section
+// Nav+footer order (DR-164), with `partners` (DR-185) placed right after
+// `home-hero` since it's a second section of the same homepage rather than
+// its own guest route -- each tab's label key already exists (section
 // headings), except `faq` (its heading is a dynamic "FAQ ({count})", not a
 // plain label) and `media` (the generic image-upload utility, reusing its
 // existing section heading key).
 const CMS_TABS = [
   { key: 'home-hero', labelKey: 'heroSectionTitle' },
+  { key: 'partners', labelKey: 'partnersSectionTitle' },
   { key: 'packages', labelKey: 'packagesSectionTitle' },
   { key: 'plan-my-trip', labelKey: 'planMyTripSectionTitle' },
   { key: 'gallery', labelKey: 'gallerySectionTitle' },
@@ -99,6 +105,7 @@ export default async function CmsPage({ searchParams }: Props) {
     weatherText,
     termsText,
     galleryItems,
+    partnerItems,
   ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
@@ -113,6 +120,7 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'weather', locale),
     cmsService.getTextBlock(ctx, 'terms', locale),
     cmsService.listMediaItems(ctx, 'gallery'),
+    cmsService.listMediaItems(ctx, 'partners'),
   ]);
   const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
   const t = await getTranslations('StaffCms');
@@ -258,6 +266,81 @@ export default async function CmsPage({ searchParams }: Props) {
             <form action={createHeroSlideAction}>
               <SubmitButton size="compact" pendingLabel={t('adding')}>
                 {t('addSlide')}
+              </SubmitButton>
+            </form>
+          )}
+        </section>
+        )}
+
+        {activeTab === 'partners' && (
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('partnersSectionTitle')}</h2>
+          <p className="text-xs text-mist">{t('partnersIntro')}</p>
+          <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {partnerItems.map((item) => (
+              <Card key={item.slotKey}>
+                {canWrite ? (
+                  <div className="space-y-3">
+                    <form action={updatePartnerAction.bind(null, item.slotKey)} className="space-y-2">
+                      <FormField label={t('partnerNameLabel')} htmlFor={`name-${item.slotKey}`}>
+                        <input
+                          name="name"
+                          required
+                          defaultValue={item.name ?? ''}
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm font-semibold"
+                        />
+                      </FormField>
+                      <div className="flex items-end gap-3">
+                        <FormField label={t('order')} htmlFor={`sortOrder-${item.slotKey}`}>
+                          <input
+                            name="sortOrder"
+                            type="number"
+                            defaultValue={item.sortOrder}
+                            className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </div>
+                    </form>
+
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-mist">{t('mediaLabel')}</p>
+                        {item.mediaType === 'image' && item.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
+                          <img src={item.url} alt="" className="h-16 w-32 rounded-survey object-contain" />
+                        ) : (
+                          <p className="text-xs text-mist">{t('noMediaYet')}</p>
+                        )}
+                      </div>
+                      <MediaPicker
+                        page="partners"
+                        slotKey={item.slotKey}
+                        uploadingLabel={t('uploadingMedia')}
+                        chooseFileLabel={t('choosePartnerLogoFile')}
+                        errorLabel={t('mediaUploadError')}
+                      />
+                    </div>
+
+                    <DeleteButton
+                      action={deletePartnerAction.bind(null, item.slotKey)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removePartnerConfirm')}
+                      removeLabel={t('removePartner')}
+                    />
+                  </div>
+                ) : (
+                  <p className="font-semibold text-navy">{item.name}</p>
+                )}
+              </Card>
+            ))}
+          </RevealGroup>
+          {canWrite && (
+            <form action={createPartnerAction}>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('addPartner')}
               </SubmitButton>
             </form>
           )}

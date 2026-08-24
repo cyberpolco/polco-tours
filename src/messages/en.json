@@ -1831,7 +1831,14 @@
     "officeDetailsFieldLabel": "Address / email / phone (free text)",
     "rateSectionTitle": "Rate my trip page",
     "weatherSectionTitle": "Weather page",
-    "termsSectionTitle": "Terms page"
+    "termsSectionTitle": "Terms page",
+    "partnersSectionTitle": "Partners & clients",
+    "partnersIntro": "The homepage's scrolling partner/client strip. A partner with no logo uploaded yet shows our own mark and its name instead.",
+    "partnerNameLabel": "Partner or client name",
+    "addPartner": "Add partner",
+    "removePartner": "Remove partner",
+    "removePartnerConfirm": "Remove this partner? This cannot be undone.",
+    "choosePartnerLogoFile": "Choose a logo image to replace the current one."
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",

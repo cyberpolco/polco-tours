@@ -21,7 +21,9 @@ brand or module names off "Mufasa" without an explicit decision still
 holds for everything **except** guest-facing display text: DR-168 (explicit
 user request) renders every guest-site occurrence of "POLCO Tours" as
 **"Mufasa Safaris & Tours"** (header brand link, footer eyebrow/copyright,
-homepage partner-placeholder list, package-page `opengraph-image`,
+the homepage partner strip's placeholder fallback rows — DR-185 made the
+list itself staff-editable, so this is now only the text shown until staff
+adds a real partner — package-page `opengraph-image`,
 `Footer.tagline`/`AboutPage.defaultTitle` in `en.json`/`fr.json`, and the
 guest route group's own `metadata` title/description, scoped via a
 `(guest)/layout.tsx` export so it doesn't touch the root layout). The
@@ -31,7 +33,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-184** (2026-08-24). This file used to carry a running
+Current through **DR-185** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -352,7 +354,13 @@ src/
                    #   CmsMediaItem is the single source of truth, also read
                    #   by the plan-my-trip wizard's "sites to visit" step
                    #   (guest + staff); the old static DESTINATION_SITES
-                   #   file is gone. `caption` renamed to `description`
+                   #   file is gone. `caption` renamed to `description`.
+                   #   DR-185: the homepage partner/client strip
+                   #   (PartnersMarquee) is a third CmsMediaItem-backed
+                   #   staff-editable list (page='partners', name + optional
+                   #   logo image only — no country/description), replacing
+                   #   the old hardcoded 6-row placeholder array; degrades to
+                   #   that same placeholder text until staff adds a real one
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

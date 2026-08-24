@@ -39,6 +39,7 @@ const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {
   // Gallery sites are also the single source of truth for the plan-my-trip
   // wizard's "sites to visit" step (DR-167), guest and staff both.
   gallery: ['/gallery', '/plan-my-trip', '/staff/bookings/new'],
+  partners: ['/'],
 };
 
 function revalidateMediaPage(page: string): void {
@@ -251,4 +252,41 @@ export async function deleteGallerySiteAction(slotKey: string): Promise<void> {
   await cmsService.deleteMediaItem(ctx, GALLERY_PAGE, slotKey);
   revalidatePath('/staff/cms');
   revalidateMediaPage(GALLERY_PAGE);
+}
+
+// ---------------------------------------------------------- Partners (DR-185)
+const PARTNERS_PAGE = 'partners';
+
+/** Creates a bare partner (no name/logo yet) at the end of the current
+ * order -- same "add blank, edit in place" convention as
+ * createHeroSlideAction/createGallerySiteAction. A blank partner is filtered
+ * out of the homepage read until staff sets a name. */
+export async function createPartnerAction(): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const existing = await cmsService.listMediaItems(ctx, PARTNERS_PAGE);
+  const nextSortOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1;
+  await cmsService.createMediaItem(ctx, PARTNERS_PAGE, { sortOrder: nextSortOrder });
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(PARTNERS_PAGE);
+}
+
+/** name + sortOrder only -- a partner has no country/description fields,
+ * unlike a gallery site (DR-167); the logo itself is set separately via
+ * MediaPicker/setMediaItemAction, same as every other CmsMediaItem page. */
+export async function updatePartnerAction(slotKey: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const input = UpdateCmsMediaItemInput.parse({
+    name: String(formData.get('name') ?? '') || null,
+    sortOrder: Number(formData.get('sortOrder') ?? 0),
+  });
+  await cmsService.updateMediaItem(ctx, PARTNERS_PAGE, slotKey, input);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(PARTNERS_PAGE);
+}
+
+export async function deletePartnerAction(slotKey: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteMediaItem(ctx, PARTNERS_PAGE, slotKey);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(PARTNERS_PAGE);
 }

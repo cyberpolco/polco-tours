@@ -120,11 +120,12 @@ export default async function HomePage() {
     { mark: '03', title: t('step3Title'), body: t('step3Body') },
   ] as const;
 
-  // Placeholder until real partner/client names (and optionally logo
-  // files) are supplied -- explicit user direction: stand in with our own
-  // mark rather than fabricate a logo for a real organization. Swap this
-  // array for the real list (and add `logoUrl` per entry once files exist).
-  const PARTNERS: Partner[] = [
+  // DR-185: staff-managed via /staff/cms (name + optional logo per entry,
+  // reusing CmsMediaItem the same way Home hero/Gallery already do). Degrades
+  // to the placeholder row below -- our own mark standing in six times,
+  // never a fabricated logo for a real organization (OI-12 convention) --
+  // until staff adds at least one real partner.
+  let PARTNERS: Partner[] = [
     { name: 'Mufasa Safaris & Tours' },
     { name: 'Mufasa Safaris & Tours' },
     { name: 'Mufasa Safaris & Tours' },
@@ -132,6 +133,15 @@ export default async function HomePage() {
     { name: 'Mufasa Safaris & Tours' },
     { name: 'Mufasa Safaris & Tours' },
   ];
+  try {
+    const partnerItems = await cmsService.listPublicMediaItems('partners');
+    const named = partnerItems.filter((item) => item.name);
+    if (named.length > 0) {
+      PARTNERS = named.map((item) => ({ name: item.name!, logoUrl: item.url ?? undefined }));
+    }
+  } catch (error) {
+    console.error('Failed to load partners for homepage', error);
+  }
 
   // "/" is the highest-traffic route on the site and, unlike every other
   // catalog-backed page, has no reason to fail the whole page over this one

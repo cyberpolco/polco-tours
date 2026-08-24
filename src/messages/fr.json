@@ -1831,7 +1831,14 @@
     "officeDetailsFieldLabel": "Adresse / e-mail / téléphone (texte libre)",
     "rateSectionTitle": "Page Évaluer mon voyage",
     "weatherSectionTitle": "Page Météo",
-    "termsSectionTitle": "Page Conditions"
+    "termsSectionTitle": "Page Conditions",
+    "partnersSectionTitle": "Partenaires et clients",
+    "partnersIntro": "Le bandeau défilant des partenaires/clients de la page d'accueil. Un partenaire sans logo téléchargé affiche notre propre symbole et son nom à la place.",
+    "partnerNameLabel": "Nom du partenaire ou client",
+    "addPartner": "Ajouter un partenaire",
+    "removePartner": "Supprimer le partenaire",
+    "removePartnerConfirm": "Supprimer ce partenaire ? Cette action est irréversible.",
+    "choosePartnerLogoFile": "Choisissez une image de logo pour remplacer le logo actuel."
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",
