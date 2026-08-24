@@ -599,9 +599,11 @@ export const bookingService = {
   },
 
   /** Staff-only, batched: backs the Clients directory showing each client's
-   * real, guest-typed email (Booking.contactEmail) instead of their
-   * anonymous User.email placeholder. Same permission shape as
-   * listForTourist above, just one query for the whole directory. */
+   * real, guest-typed email (Booking.contactEmail for TAILOR_MADE, or,
+   * DR-194, the tour lead Traveler's own email for PREDEFINED_PACKAGE)
+   * instead of their anonymous User.email placeholder. Same permission
+   * shape as listForTourist above, just one (well, two -- see the
+   * repository) query for the whole directory. */
   async listLatestContactEmailsForTourists(ctx: AuthContext, touristUserIds: string[]): Promise<Map<string, string>> {
     assertCan(ctx, 'booking.read');
     if (!isStaff(ctx)) throw Errors.forbidden('Only staff may look up other tourists\' contact emails');

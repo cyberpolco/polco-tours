@@ -50,14 +50,18 @@ export default async function ClientsPage({ searchParams }: Props) {
   const dial = params.dial ?? '';
 
   const rawClients = await authService.listClients(ctx);
-  // Real, guest-typed email lives on their booking(s) (Booking.contactEmail),
-  // never on User.email -- that stays a better-auth-managed anonymous
-  // placeholder (temp@<random>.com) for every guest checkout, since two
-  // different anonymous guests can share the same real email and User.email
-  // is @unique. Substituting it here (display-only, nothing is written back)
-  // is what makes this directory actually useful for contacting a client --
-  // falls back to the placeholder only for a client with no contactEmail on
-  // any booking yet (e.g. a still-in-progress TAILOR_MADE inquiry).
+  // Real, guest-typed email lives on their booking(s) -- Booking.contactEmail
+  // for a TAILOR_MADE request, or (DR-194) the tour lead Traveler's own
+  // email for a PREDEFINED_PACKAGE booking, since that flow has no
+  // booking-level contact field of its own -- never on User.email, which
+  // stays a better-auth-managed anonymous placeholder (temp@<random>.com)
+  // for every guest checkout, since two different anonymous guests can
+  // share the same real email and User.email is @unique. Substituting it
+  // here (display-only, nothing is written back) is what makes this
+  // directory actually useful for contacting a client -- falls back to the
+  // placeholder only for a client with no contact email resolvable from
+  // either source yet (e.g. a still-in-progress TAILOR_MADE inquiry, or a
+  // PREDEFINED_PACKAGE booking that hasn't reached traveler setup yet).
   const contactEmails = await bookingService.listLatestContactEmailsForTourists(
     ctx,
     rawClients.map((c) => c.id),

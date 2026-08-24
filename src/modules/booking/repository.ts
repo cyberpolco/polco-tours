@@ -423,24 +423,44 @@ export const bookingRepository = {
     });
   },
 
-  /** One batched query for the whole Clients directory (not N+1 per row) --
-   * the most recent non-null `contactEmail` per tourist, since that's the
-   * real email a guest actually typed at checkout (User.email is a
-   * better-auth-managed anonymous placeholder, see Booking.contactEmail's
-   * own schema comment for why the two are never merged). Rows come back
-   * ordered newest-first, so the first hit per touristUserId is kept. */
+  /** Two batched queries for the whole Clients directory (not N+1 per row),
+   * DR-194 follow-up to DR-191. First pass: the most recent non-null
+   * `contactEmail` per tourist -- but that column is TAILOR_MADE-only
+   * (DR-047; see Booking.contactEmail's own schema comment), so it's always
+   * null for a tourist whose only bookings are PREDEFINED_PACKAGE, real
+   * bookings included, not just legacy ones. Second pass covers exactly
+   * that gap: for whichever tourists the first pass left unresolved, fall
+   * back to the tour lead Traveler's own `email` (Traveler.email's schema
+   * comment -- collected during the traveler-setup wizard, the real
+   * guest-typed address for that flow). Both passes order newest-first, so
+   * the first hit per touristUserId wins. */
   async listLatestContactEmailsForTourists(organizationId: string, touristUserIds: string[]): Promise<Map<string, string>> {
     if (touristUserIds.length === 0) return new Map();
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.booking.findMany({
+      const result = new Map<string, string>();
+
+      const bookingRows = await tx.booking.findMany({
         where: { touristUserId: { in: touristUserIds }, contactEmail: { not: null }, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         select: { touristUserId: true, contactEmail: true },
       });
-      const result = new Map<string, string>();
-      for (const row of rows) {
+      for (const row of bookingRows) {
         if (!result.has(row.touristUserId) && row.contactEmail) result.set(row.touristUserId, row.contactEmail);
       }
+
+      const remaining = touristUserIds.filter((id) => !result.has(id));
+      if (remaining.length > 0) {
+        const travelerRows = await tx.traveler.findMany({
+          where: { isTourLead: true, email: { not: null }, booking: { touristUserId: { in: remaining }, deletedAt: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { email: true, booking: { select: { touristUserId: true } } },
+        });
+        for (const row of travelerRows) {
+          const touristUserId = row.booking.touristUserId;
+          if (!result.has(touristUserId) && row.email) result.set(touristUserId, row.email);
+        }
+      }
+
       return result;
     });
   },
