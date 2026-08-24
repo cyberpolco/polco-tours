@@ -6,6 +6,26 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // DR-182 incident: staff uploading a package image straight from a phone
+  // camera (routinely 2-8MB, unlike a pre-resized desktop file) kept
+  // crashing before their Server Action (updatePackageAction/
+  // createPackageAction) even started running -- Next.js's own default
+  // Server Action body-size cap is 1MB, enforced in its own request-parsing
+  // layer, so no amount of try/catch inside those actions could ever have
+  // caught it (confirmed only after this incident recurred post-DR-174's
+  // ZodError fix, which addressed a real but different gap). Raised to 4MB,
+  // just under Vercel's own ~4.5MB hard platform ceiling for a serverless
+  // function's request body (see the DR-163 tech-stack note on why hero
+  // video upload bypasses this entirely via a direct-to-Blob client
+  // upload instead) -- that platform ceiling itself can't be configured
+  // away here, so a single photo pushing 4-5MB (or 3 photos combined) can
+  // still fail; a durable full fix would move package images to the same
+  // direct-to-Blob client-upload pattern DR-163 already uses for video.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '4mb',
+    },
+  },
   // DR-071 allowlists Vercel Blob's public-storage host so next/image can
   // render images uploaded through the content module's uploadImage
   // primitive -- staff-uploaded/staff-controlled content (a SUPERADMIN
