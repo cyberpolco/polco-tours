@@ -277,7 +277,12 @@ const styles = StyleSheet.create({
   colWide: { flex: 2 },
   colNarrow: { flex: 1, textAlign: 'right' },
   colMid: { flex: 1 },
-  noDataText: { fontSize: 8, color: COLORS.mist, fontStyle: 'italic', marginTop: 2, marginBottom: 4 },
+  // No `fontStyle: 'italic'` here -- pdf-fonts.ts's registerPdfFonts only
+  // registers Archivo at weight 400/700, no italic face at all; asking
+  // react-pdf to fall back to an unregistered style throws ("Could not
+  // resolve font for Archivo, fontWeight 400, fontStyle italic") the moment
+  // this branch actually renders empty data, real CI failure caught here.
+  noDataText: { fontSize: 8, color: COLORS.mist, marginTop: 2, marginBottom: 4 },
   footer: {
     position: 'absolute',
     bottom: 20,
