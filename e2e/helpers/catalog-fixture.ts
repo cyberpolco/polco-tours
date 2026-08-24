@@ -50,6 +50,12 @@ export async function seedPublicDeparture(opts?: { capacity?: number }): Promise
         currency: 'USD',
       },
     });
+    // DR-180: the guest add-ons step now only shows a package's explicitly
+    // curated add-ons, not every org-active one -- without this link row,
+    // the checkbox below never renders and the journey times out.
+    await tx.packageAddonService.create({
+      data: { organizationId: org.id, packageId: pkg.id, addonServiceId: visaAddon.id },
+    });
     return { departureId: departure.id, visaAddonServiceId: visaAddon.id };
   });
 
