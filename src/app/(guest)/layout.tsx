@@ -33,7 +33,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
       <header className="relative border-b border-rule bg-navy text-bone">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <Link href="/" className="eyebrow flex items-center gap-2 text-amber">
-            <Logo className="h-14 w-14" />
+            <Logo className="h-20 w-20" />
             Mufasa Safaris & Tours
           </Link>
           <div className="flex items-center gap-6">

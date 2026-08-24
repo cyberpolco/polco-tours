@@ -70,16 +70,16 @@ export function PartnersMarquee({ partners, eyebrow, title }: PartnersMarqueePro
 // consistent shape for every entry regardless of which branch it takes.
 function PartnerMark({ partner }: { partner: Partner }) {
   return (
-    <div className="group flex w-28 shrink-0 flex-col items-center gap-2 text-center">
+    <div className="group flex w-36 shrink-0 flex-col items-center gap-2 text-center">
       {partner.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- staff-supplied partner logos, not part of next/image's local-asset allowlist
         <img
           src={partner.logoUrl}
           alt=""
-          className="h-16 w-auto max-w-[128px] object-contain opacity-80 grayscale transition-all duration-200 group-hover:opacity-100 group-hover:grayscale-0"
+          className="h-24 w-auto max-w-[160px] object-contain opacity-80 grayscale transition-all duration-200 group-hover:opacity-100 group-hover:grayscale-0"
         />
       ) : (
-        <BrandMark className="h-10 w-10 text-mist transition-colors duration-200 group-hover:text-navy" />
+        <BrandMark className="h-14 w-14 text-mist transition-colors duration-200 group-hover:text-navy" />
       )}
       <span className="eyebrow text-mist transition-colors duration-200 group-hover:text-navy">{partner.name}</span>
     </div>
