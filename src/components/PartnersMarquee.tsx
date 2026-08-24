@@ -38,7 +38,7 @@ export function PartnersMarquee({ partners, eyebrow, title }: PartnersMarqueePro
       <h2 className="mt-1 text-2xl font-bold text-navy">{title}</h2>
 
       {reduceMotion ? (
-        <div className="mt-6 flex flex-wrap items-center gap-x-10 gap-y-6">
+        <div className="mt-6 flex flex-wrap items-start gap-x-10 gap-y-8">
           {partners.map((partner, i) => (
             <PartnerMark key={`${partner.name}-${i}`} partner={partner} />
           ))}
@@ -50,7 +50,7 @@ export function PartnersMarquee({ partners, eyebrow, title }: PartnersMarqueePro
           onMouseLeave={() => setPaused(false)}
         >
           <motion.div
-            className="flex w-max items-center gap-12"
+            className="flex w-max items-start gap-16"
             animate={paused ? undefined : { x: ['0%', '-50%'] }}
             transition={{ duration: MARQUEE_DURATION_SECONDS, ease: 'linear', repeat: Infinity }}
           >
@@ -64,21 +64,24 @@ export function PartnersMarquee({ partners, eyebrow, title }: PartnersMarqueePro
   );
 }
 
+// A logo (or, absent one, BrandMark) stacked above the partner's name --
+// bigger than the old inline logo-only/mark+name layouts (both too small,
+// and a real logo had no visible name at all, only alt text) and a
+// consistent shape for every entry regardless of which branch it takes.
 function PartnerMark({ partner }: { partner: Partner }) {
-  if (partner.logoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- staff-supplied partner logos, not part of next/image's local-asset allowlist
-      <img
-        src={partner.logoUrl}
-        alt={partner.name}
-        className="h-8 w-auto shrink-0 opacity-80 grayscale transition-all duration-200 hover:opacity-100 hover:grayscale-0"
-      />
-    );
-  }
   return (
-    <span className="flex shrink-0 items-center gap-2 text-mist transition-colors duration-200 hover:text-navy">
-      <BrandMark className="h-5 w-5" />
-      <span className="eyebrow whitespace-nowrap">{partner.name}</span>
-    </span>
+    <div className="group flex w-28 shrink-0 flex-col items-center gap-2 text-center">
+      {partner.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- staff-supplied partner logos, not part of next/image's local-asset allowlist
+        <img
+          src={partner.logoUrl}
+          alt=""
+          className="h-16 w-auto max-w-[128px] object-contain opacity-80 grayscale transition-all duration-200 group-hover:opacity-100 group-hover:grayscale-0"
+        />
+      ) : (
+        <BrandMark className="h-10 w-10 text-mist transition-colors duration-200 group-hover:text-navy" />
+      )}
+      <span className="eyebrow text-mist transition-colors duration-200 group-hover:text-navy">{partner.name}</span>
+    </div>
   );
 }
