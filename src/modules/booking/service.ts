@@ -598,6 +598,17 @@ export const bookingService = {
     return bookingRepository.listMine(organizationId, touristUserId);
   },
 
+  /** Staff-only, batched: backs the Clients directory showing each client's
+   * real, guest-typed email (Booking.contactEmail) instead of their
+   * anonymous User.email placeholder. Same permission shape as
+   * listForTourist above, just one query for the whole directory. */
+  async listLatestContactEmailsForTourists(ctx: AuthContext, touristUserIds: string[]): Promise<Map<string, string>> {
+    assertCan(ctx, 'booking.read');
+    if (!isStaff(ctx)) throw Errors.forbidden('Only staff may look up other tourists\' contact emails');
+    const organizationId = requireOrg(ctx);
+    return bookingRepository.listLatestContactEmailsForTourists(organizationId, touristUserIds);
+  },
+
   async addTraveler(ctx: AuthContext, bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);

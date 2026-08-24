@@ -423,6 +423,28 @@ export const bookingRepository = {
     });
   },
 
+  /** One batched query for the whole Clients directory (not N+1 per row) --
+   * the most recent non-null `contactEmail` per tourist, since that's the
+   * real email a guest actually typed at checkout (User.email is a
+   * better-auth-managed anonymous placeholder, see Booking.contactEmail's
+   * own schema comment for why the two are never merged). Rows come back
+   * ordered newest-first, so the first hit per touristUserId is kept. */
+  async listLatestContactEmailsForTourists(organizationId: string, touristUserIds: string[]): Promise<Map<string, string>> {
+    if (touristUserIds.length === 0) return new Map();
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.booking.findMany({
+        where: { touristUserId: { in: touristUserIds }, contactEmail: { not: null }, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        select: { touristUserId: true, contactEmail: true },
+      });
+      const result = new Map<string, string>();
+      for (const row of rows) {
+        if (!result.has(row.touristUserId) && row.contactEmail) result.set(row.touristUserId, row.contactEmail);
+      }
+      return result;
+    });
+  },
+
   /** Guides Module (DR-030) -- backs a guide's "client list". Only bookings
    * that actually occupy a seat on this departure (not a cancelled/refunded
    * one) are relevant to someone running the tour. */

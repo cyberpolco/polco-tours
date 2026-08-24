@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
+import { bookingService } from '@modules/booking';
 import { emailDomain, listEmailDomains, listPhoneDialCodes, matchesPhoneDialCode, matchesSearch, paginate } from '@lib/directory-filters';
 import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
@@ -48,7 +49,20 @@ export default async function ClientsPage({ searchParams }: Props) {
   const domain = params.domain ?? '';
   const dial = params.dial ?? '';
 
-  const allClients = await authService.listClients(ctx);
+  const rawClients = await authService.listClients(ctx);
+  // Real, guest-typed email lives on their booking(s) (Booking.contactEmail),
+  // never on User.email -- that stays a better-auth-managed anonymous
+  // placeholder (temp@<random>.com) for every guest checkout, since two
+  // different anonymous guests can share the same real email and User.email
+  // is @unique. Substituting it here (display-only, nothing is written back)
+  // is what makes this directory actually useful for contacting a client --
+  // falls back to the placeholder only for a client with no contactEmail on
+  // any booking yet (e.g. a still-in-progress TAILOR_MADE inquiry).
+  const contactEmails = await bookingService.listLatestContactEmailsForTourists(
+    ctx,
+    rawClients.map((c) => c.id),
+  );
+  const allClients = rawClients.map((c) => ({ ...c, email: contactEmails.get(c.id) ?? c.email }));
   const canDelete = ctx.roles.includes('SUPERADMIN');
   const t = await getTranslations('StaffClients');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
