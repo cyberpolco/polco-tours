@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { BrandMark } from '@/components/BrandMark';
+import { Logo } from '@/components/Logo';
 
 // Minimal currentColor glyphs, same hand-drawn convention as BrandMark --
 // avoids adding an icon-library dependency for four social links. Empty
@@ -41,7 +41,7 @@ export async function GuestFooter() {
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div>
             <div className="flex items-center gap-2 text-amber">
-              <BrandMark className="h-5 w-5" />
+              <Logo className="h-9 w-9" />
               <span className="eyebrow">Mufasa Safaris & Tours</span>
             </div>
             <p className="mt-3 max-w-xs text-sm text-mist">{t('tagline')}</p>

@@ -1,7 +1,7 @@
 // finance module — package summary PDF (staff download, package detail
 // page). Mirrors itinerary/map-pdf.tsx's shape exactly: @react-pdf/renderer
-// components are its own React reconciler (Document/Page/View/Text/Svg host
-// nodes, not DOM), server-side only. Explicit user request: one staff-only
+// components are its own React reconciler (Document/Page/View/Text/Image
+// host nodes, not DOM), server-side only. Explicit user request: one staff-only
 // document combining a plain-language cost summary with the package's
 // day-by-day itinerary template, downloadable in English or French.
 //
@@ -15,9 +15,10 @@
 // Company/footer details are fixed, explicit user-supplied values (not
 // staff-editable reference data, so no Settings-module CRUD screen) --
 // same "static constant, not a DB table" precedent as src/lib/weather-towns.ts.
-import { Circle, Document, Page, Path, StyleSheet, Svg, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import type { Currency } from '@lib/money';
 import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
+import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
 
 /** Deliberately NOT src/lib/money.ts's own `format` (Intl.NumberFormat) --
  * the French locale's thousands-grouping character (a narrow no-break
@@ -184,19 +185,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, color: COLORS.mist, textAlign: 'center', marginTop: 1 },
 });
 
-// Same crosshair/compass mark as src/components/BrandMark.tsx (no real
-// uploaded logo file exists anywhere in this repo yet -- this is the site's
-// own placeholder mark, reused here rather than left off).
-function BrandMarkPdf() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={7} stroke={COLORS.navy} strokeWidth={1.25} fill="none" />
-      <Path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke={COLORS.navy} strokeWidth={1.25} strokeLinecap="round" />
-      <Circle cx={12} cy={12} r={1.5} fill={COLORS.navy} />
-    </Svg>
-  );
-}
-
 // DR-152: shared between the staff and client render functions, so the
 // company block/title/itinerary table/footer chrome can never drift
 // between the two documents -- only the pricing section differs.
@@ -204,7 +192,10 @@ function DocumentHeader({ t, title, packageReference }: { t: Record<string, stri
   return (
     <View style={styles.headerRow}>
       <View style={styles.companyBlock}>
-        <BrandMarkPdf />
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
+            Image is a PDF layout node, not an HTML <img>; it has no alt prop
+            at all, so the DOM a11y rule is a false positive here. */}
+        <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
         <View>
           <Text style={styles.companyName}>{COMPANY.name}</Text>
           <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>

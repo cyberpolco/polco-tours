@@ -31,7 +31,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-183** (2026-08-24). This file used to carry a running
+Current through **DR-184** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -638,6 +638,26 @@ package-reference line each renders — via shared `src/lib/pdf-fonts.ts`
 The two font files it embeds are **not** Google's own CSS2-served files —
 those crashed `@react-pdf`'s fontkit subsetter on real (non-trivial) PDF
 content; see DR-161 for the fontTools-instancing workaround.
+
+**Logo (DR-184):** a real logo exists — a circular "Mufasa Safaris & Tours"
+badge (lion, mountains, sunrise, "EST. 2019" ring text), white background
+removed. `src/components/Logo.tsx` (`next/image`,
+`public/images/brand/mufasa-logo.png`) renders it in the guest header/
+footer, the staff dashboard header, and the pre-auth `/staff/login` +
+`/staff/change-password` pages (login sized larger, `h-24 w-24`, than every
+other placement's `h-9 w-9`); `src/app/icon.png` is the static favicon. This
+is a **separate** component from `src/components/BrandMark.tsx` — `BrandMark`
+is a generic hand-drawn placeholder mark, still used (unchanged) by
+`PartnersMarquee.tsx` as the fallback for a partner with no logo of its own;
+reusing the real badge there would misrepresent those partners as us. Every
+downloadable PDF (`finance/package-summary-pdf.tsx`,
+`itinerary/itinerary-summary-pdf.tsx`, `itinerary/map-pdf.tsx`,
+`invoicing/invoice-pdf.tsx`) and the package-page `opengraph-image.tsx`
+fallback plate embed the same badge via `src/lib/brand-logo.ts`, a base64
+data URL rather than a `public/` filesystem read — same production-safety
+reasoning as `pdf-fonts.ts` (DR-161): Vercel's output-file-tracer can't
+reliably discover a runtime `fs` read against a `public/` path from inside a
+serverless function bundle.
 
 ---
 

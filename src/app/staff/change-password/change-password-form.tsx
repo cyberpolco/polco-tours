@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { authClient } from '@lib/auth-client';
-import { BrandMark } from '@/components/BrandMark';
+import { Logo } from '@/components/Logo';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { SignOutButton } from '../(dashboard)/sign-out-button';
 import { clearMustChangePasswordAction } from './actions';
@@ -62,7 +62,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <BrandMark className="h-8 w-8 text-amber" />
+          <Logo className="h-9 w-9" />
           <p className="mt-2 text-xs font-semibold tracking-survey text-amber">{tChrome('brandEyebrow')}</p>
           <h1 className="mt-4 text-2xl font-bold">{forced ? t('titleForced') : t('titleVoluntary')}</h1>
           <p className="mt-2 text-sm text-mist">{forced ? t('subtitleForced') : t('subtitleVoluntary')}</p>

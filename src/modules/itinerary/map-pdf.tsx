@@ -6,11 +6,13 @@
 // wrap={false} shape -- one PDF for the whole tour, not one per day.
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
+import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
 import type { MapStopView } from './domain';
 
 const styles = StyleSheet.create({
   page: { paddingTop: 28, paddingHorizontal: 28, paddingBottom: 48, fontSize: 11, fontFamily: PDF_FONT_BODY },
-  title: { fontSize: 16, marginBottom: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  title: { fontSize: 16 },
   subtitle: { fontSize: 10, color: '#8C7D78', marginBottom: 12, fontFamily: PDF_FONT_CODE },
   image: { width: '100%', marginBottom: 16 },
   dayBlock: { marginBottom: 10 },
@@ -44,7 +46,11 @@ export async function renderItineraryMapPdf(input: ItineraryMapPdfInput, mapImag
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>Tour Circuit Map</Text>
+        <View style={styles.titleRow}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- see the map-image Image below */}
+          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
+          <Text style={styles.title}>Tour Circuit Map</Text>
+        </View>
         <Text style={styles.subtitle}>Booking reference: {input.bookingReference}</Text>
         {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
             Image is a PDF layout node, not an HTML <img>; it has no alt prop

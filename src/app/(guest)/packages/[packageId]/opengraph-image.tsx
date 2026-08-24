@@ -2,6 +2,7 @@ import { ImageResponse } from 'next/og';
 import sharp from 'sharp';
 import { catalogService } from '@modules/catalog';
 import { fallbackGradientFor } from '@lib/package-fallback-gradient';
+import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
 
 export const alt = 'Package preview';
 export const size = { width: 1200, height: 630 };
@@ -74,7 +75,8 @@ export default async function Image({ params }: Props) {
           fontFamily: 'sans-serif',
         }}
       >
-        <div style={{ display: 'flex', fontSize: 26, letterSpacing: 6, textTransform: 'uppercase', opacity: 0.75 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 26, letterSpacing: 6, textTransform: 'uppercase', opacity: 0.75 }}>
+          <img src={BRAND_LOGO_DATA_URI} width={40} height={40} alt="" />
           Mufasa Safaris & Tours
         </div>
         <div style={{ display: 'flex', fontSize: 60, fontWeight: 700, marginTop: 16, maxWidth: 1000 }}>{title}</div>

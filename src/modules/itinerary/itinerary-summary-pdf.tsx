@@ -1,13 +1,15 @@
 // itinerary module — detailed, whole-itinerary PDF (staff/guide/driver
 // download once an itinerary is APPROVED). Mirrors map-pdf.tsx's shape
-// (plain @react-pdf/renderer Document/Page/View/Text, no letterhead) --
-// this is an internal operational document, not a client-facing proposal
-// like finance/package-summary-pdf.tsx, so it skips that file's
-// company-letterhead/BrandMark treatment. There is no price/money field
+// (plain @react-pdf/renderer Document/Page/View/Text) -- this is an
+// internal operational document, not a client-facing proposal like
+// finance/package-summary-pdf.tsx, so it skips that file's full
+// company-letterhead treatment (address/registration block), keeping just
+// a small logo badge next to the heading. There is no price/money field
 // anywhere on Itinerary/ItineraryDay, so "without the prices" needs no
 // stripping logic -- this data is inherently price-free.
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
+import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
 
 const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211A1D', rule: '#E3D6C8' };
 
@@ -25,7 +27,8 @@ const FOOTER = {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 72, fontSize: 10, color: COLORS.ink, fontFamily: PDF_FONT_BODY },
-  heading: { fontSize: 16, fontWeight: 700, color: COLORS.navy, marginBottom: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  heading: { fontSize: 16, fontWeight: 700, color: COLORS.navy },
   subheading: { fontSize: 10, color: COLORS.mist, marginBottom: 2 },
   bookingRef: { fontSize: 10, color: COLORS.mist, marginBottom: 2, fontFamily: PDF_FONT_CODE },
   headerRule: { borderBottom: `1pt solid ${COLORS.rule}`, marginTop: 8, marginBottom: 14 },
@@ -89,7 +92,13 @@ export async function renderItinerarySummaryPdf(input: ItinerarySummaryPdfInput)
   return renderToBuffer(
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.heading}>Detailed Itinerary</Text>
+        <View style={styles.titleRow}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
+              Image is a PDF layout node, not an HTML <img>; it has no alt prop
+              at all, so the DOM a11y rule is a false positive here. */}
+          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
+          <Text style={styles.heading}>Detailed Itinerary</Text>
+        </View>
         <Text style={styles.bookingRef}>Booking reference: {input.bookingReference}</Text>
         <Text style={styles.subheading}>Travel dates: {input.travelDates}</Text>
         {input.emergencyContact && <Text style={styles.subheading}>Emergency contact: {input.emergencyContact}</Text>}

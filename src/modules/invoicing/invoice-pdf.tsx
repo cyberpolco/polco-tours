@@ -11,8 +11,9 @@
 // reasoning as package-summary-pdf.tsx: react-pdf's built-in font can't
 // render the French locale's narrow-no-break-space thousands separator.
 import type { Currency, InvoiceStatus, PaymentKind } from '@prisma/client';
-import { Circle, Document, Page, Path, StyleSheet, Svg, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import { PDF_FONT_BODY, PDF_FONT_CODE, registerPdfFonts } from '@lib/pdf-fonts';
+import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
 
 export type PdfLocale = 'en' | 'fr';
 
@@ -166,16 +167,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, color: COLORS.mist, textAlign: 'center', marginTop: 1 },
 });
 
-function BrandMarkPdf() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={7} stroke={COLORS.navy} strokeWidth={1.25} fill="none" />
-      <Path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke={COLORS.navy} strokeWidth={1.25} strokeLinecap="round" />
-      <Circle cx={12} cy={12} r={1.5} fill={COLORS.navy} />
-    </Svg>
-  );
-}
-
 function DocumentFooter({ locale }: { locale: PdfLocale }) {
   return (
     <View style={styles.footer} fixed>
@@ -198,7 +189,10 @@ export async function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> 
       <Page size="A4" style={styles.page}>
         <View style={styles.headerRow}>
           <View style={styles.companyBlock}>
-            <BrandMarkPdf />
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
+                Image is a PDF layout node, not an HTML <img>; it has no alt prop
+                at all, so the DOM a11y rule is a false positive here. */}
+            <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
             <View>
               <Text style={styles.companyName}>{COMPANY.name}</Text>
               <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>
