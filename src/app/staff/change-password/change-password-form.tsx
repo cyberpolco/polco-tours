@@ -62,7 +62,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Logo className="h-9 w-9" />
+          <Logo className="h-14 w-14" />
           <p className="mt-2 text-xs font-semibold tracking-survey text-amber">{tChrome('brandEyebrow')}</p>
           <h1 className="mt-4 text-2xl font-bold">{forced ? t('titleForced') : t('titleVoluntary')}</h1>
           <p className="mt-2 text-sm text-mist">{forced ? t('subtitleForced') : t('subtitleVoluntary')}</p>

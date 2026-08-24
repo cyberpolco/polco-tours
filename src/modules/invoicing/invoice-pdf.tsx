@@ -192,7 +192,7 @@ export async function renderInvoicePdf(input: InvoicePdfInput): Promise<Buffer> 
             {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
                 Image is a PDF layout node, not an HTML <img>; it has no alt prop
                 at all, so the DOM a11y rule is a false positive here. */}
-            <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
+            <Image src={BRAND_LOGO_DATA_URI} style={{ width: 32, height: 32 }} />
             <View>
               <Text style={styles.companyName}>{COMPANY.name}</Text>
               <Text style={styles.companyText}>{COMPANY.addressLine1}</Text>

@@ -32,7 +32,7 @@ export default async function StaffDashboardLayout({ children }: { children: Rea
             never touches the session cookie/sign-out flow; the staff
             session stays live if they come back to /staff/* afterward. */}
         <Link href="/" className="eyebrow flex items-center gap-2 hover:text-amber">
-          <Logo className="h-9 w-9" />
+          <Logo className="h-14 w-14" />
           {t('brand')}
         </Link>
         <div className="flex items-center gap-4 text-sm sm:gap-6">

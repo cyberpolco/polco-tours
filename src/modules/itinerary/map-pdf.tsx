@@ -48,7 +48,7 @@ export async function renderItineraryMapPdf(input: ItineraryMapPdfInput, mapImag
       <Page size="A4" style={styles.page}>
         <View style={styles.titleRow}>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- see the map-image Image below */}
-          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
+          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 32, height: 32 }} />
           <Text style={styles.title}>Tour Circuit Map</Text>
         </View>
         <Text style={styles.subtitle}>Booking reference: {input.bookingReference}</Text>

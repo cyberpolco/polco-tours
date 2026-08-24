@@ -77,7 +77,7 @@ export function StaffLoginForm() {
       </div>
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Logo className="h-24 w-24" />
+          <Logo className="h-32 w-32" />
           <p className="mt-2 text-xs font-semibold tracking-survey text-amber">{tChrome('brandEyebrow')}</p>
           <h1 className="mt-4 text-2xl font-bold">{t('signIn')}</h1>
         </div>

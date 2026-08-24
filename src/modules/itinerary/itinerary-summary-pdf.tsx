@@ -96,7 +96,7 @@ export async function renderItinerarySummaryPdf(input: ItinerarySummaryPdfInput)
           {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's
               Image is a PDF layout node, not an HTML <img>; it has no alt prop
               at all, so the DOM a11y rule is a false positive here. */}
-          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 20, height: 20 }} />
+          <Image src={BRAND_LOGO_DATA_URI} style={{ width: 32, height: 32 }} />
           <Text style={styles.heading}>Detailed Itinerary</Text>
         </View>
         <Text style={styles.bookingRef}>Booking reference: {input.bookingReference}</Text>

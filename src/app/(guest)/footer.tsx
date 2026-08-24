@@ -41,7 +41,7 @@ export async function GuestFooter() {
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div>
             <div className="flex items-center gap-2 text-amber">
-              <Logo className="h-9 w-9" />
+              <Logo className="h-14 w-14" />
               <span className="eyebrow">Mufasa Safaris & Tours</span>
             </div>
             <p className="mt-3 max-w-xs text-sm text-mist">{t('tagline')}</p>

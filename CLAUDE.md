@@ -33,7 +33,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-185** (2026-08-24). This file used to carry a running
+Current through **DR-186** (2026-08-24). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
