@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
-import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
+import { FaqList } from './faq-list';
 
 // DR-071: FAQ list is DB-backed (CmsFaqEntry) instead of a hardcoded array
 // -- edited at /staff/cms (renamed from /staff/content, DR-162). Same
@@ -23,18 +23,7 @@ export default async function FaqPage() {
       <div className="max-w-3xl">
         <p className="eyebrow text-mist">{t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
-        {faqs.length === 0 ? (
-          <p className="mt-6 text-mist">{t('noQuestions')}</p>
-        ) : (
-          <dl className="mt-6 space-y-4">
-            {faqs.map(({ id, question, answer }) => (
-              <Card as="div" key={id}>
-                <dt className="font-semibold text-navy">{question}</dt>
-                <dd className="mt-2 text-sm text-mist">{answer}</dd>
-              </Card>
-            ))}
-          </dl>
-        )}
+        {faqs.length === 0 ? <p className="mt-6 text-mist">{t('noQuestions')}</p> : <FaqList faqs={faqs} />}
         <p className="mt-6 text-sm text-mist">
           {t('stillHaveQuestion')}{' '}
           <Link href="/contact" className="text-forest hover:underline">
