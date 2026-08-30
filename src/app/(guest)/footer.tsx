@@ -1,37 +1,44 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, type CmsSocialPlatform } from '@modules/cms';
 import { Logo } from '@/components/Logo';
 
 // Minimal currentColor glyphs, same hand-drawn convention as BrandMark --
-// avoids adding an icon-library dependency for these social links. Empty
-// href for now (no accounts set up yet); update in place once they exist.
-const SOCIAL_LINKS: { label: string; href: string; path: string }[] = [
-  {
-    label: 'Facebook',
-    href: '#',
-    path: 'M14 8.5h2V5.5h-2c-1.66 0-3 1.34-3 3v2H9v3h2v6.5h3V13.5h2.1l.4-3H14v-1c0-.55.45-1 1-1z',
-  },
-  {
-    label: 'Instagram',
-    href: '#',
-    path: 'M8 3h8a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5zm4 5.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zM17.5 7a1 1 0 1 1-1 1 1 1 0 0 1 1-1z',
-  },
-  {
-    label: 'X',
-    href: '#',
-    path: 'M4 4l7.2 9.4L4.4 20H7l5.6-6.1L17 20h3l-7.5-9.8L19.5 4H17l-5.2 5.6L7 4H4z',
-  },
-  {
-    label: 'WhatsApp',
-    href: '#',
-    path: 'M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3zm5.2 12.9c-.2.6-1.2 1.2-1.7 1.3-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1-1.3-1-2.5s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.5.7 1.8.8 1.9.1.2.1.3 0 .5-.1.2-.2.3-.3.5-.2.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1.2-.2.7-.8.9-1.1.2-.3.4-.2.6-.1l1.7.8c.2.1.3.2.4.3.1.2.1.7-.1 1.3z',
-  },
-  {
-    label: 'TikTok',
-    href: '#',
-    path: 'M16.6 3h-3v12.2a2.8 2.8 0 1 1-2-2.7v-3.1a5.9 5.9 0 1 0 5 5.8V9.3a7.7 7.7 0 0 0 4.4 1.4V7.6a4.6 4.6 0 0 1-4.4-4.6z',
-  },
-];
+// avoids adding an icon-library dependency for these social links. Keyed
+// by platform (DR-200) so a staff-configured CmsMediaItem row (page=
+// 'social-links') can pick the right glyph without storing icon markup in
+// the DB -- adding a 6th platform is still a code change here, not a
+// staff-configurable one (see CMS_SOCIAL_PLATFORMS in the cms module).
+const SOCIAL_ICON_PATHS: Record<CmsSocialPlatform, string> = {
+  facebook: 'M14 8.5h2V5.5h-2c-1.66 0-3 1.34-3 3v2H9v3h2v6.5h3V13.5h2.1l.4-3H14v-1c0-.55.45-1 1-1z',
+  instagram: 'M8 3h8a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5zm4 5.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zM17.5 7a1 1 0 1 1-1 1 1 1 0 0 1 1-1z',
+  x: 'M4 4l7.2 9.4L4.4 20H7l5.6-6.1L17 20h3l-7.5-9.8L19.5 4H17l-5.2 5.6L7 4H4z',
+  whatsapp:
+    'M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3zm5.2 12.9c-.2.6-1.2 1.2-1.7 1.3-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1-1.3-1-2.5s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.5.7 1.8.8 1.9.1.2.1.3 0 .5-.1.2-.2.3-.3.5-.2.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1.2-.2.7-.8.9-1.1.2-.3.4-.2.6-.1l1.7.8c.2.1.3.2.4.3.1.2.1.7-.1 1.3z',
+  tiktok: 'M16.6 3h-3v12.2a2.8 2.8 0 1 1-2-2.7v-3.1a5.9 5.9 0 1 0 5 5.8V9.3a7.7 7.7 0 0 0 4.4 1.4V7.6a4.6 4.6 0 0 1-4.4-4.6z',
+};
+
+// Shown until staff configures real accounts from /staff/cms's Social
+// links tab (DR-200) -- href '#' placeholder, same "no accounts set up
+// yet" convention the old hardcoded array used.
+const FALLBACK_SOCIAL_LINKS: { platform: CmsSocialPlatform; href: string }[] = (
+  ['facebook', 'instagram', 'x', 'whatsapp', 'tiktok'] as const
+).map((platform) => ({ platform, href: '#' }));
+
+async function getSocialLinks(): Promise<{ platform: CmsSocialPlatform; href: string }[]> {
+  try {
+    const items = await cmsService.listPublicMediaItems('social-links');
+    const configured = items
+      .filter((item): item is typeof item & { platform: CmsSocialPlatform; url: string } => Boolean(item.platform && item.url))
+      .map((item) => ({ platform: item.platform, href: item.url }));
+    return configured.length > 0 ? configured : FALLBACK_SOCIAL_LINKS;
+  } catch {
+    // Degrade to the placeholder set rather than failing the footer render
+    // (charter rule 8's graceful-degradation spirit, applied to our own DB
+    // read the same way it applies to a third-party integration).
+    return FALLBACK_SOCIAL_LINKS;
+  }
+}
 
 // Kept honest -- no fabricated contact info (no cleared trademark/business
 // registration yet, OI-02/03 in CLAUDE.md), just the brand, real nav links,
@@ -39,6 +46,7 @@ const SOCIAL_LINKS: { label: string; href: string; path: string }[] = [
 export async function GuestFooter() {
   const year = new Date().getFullYear();
   const t = await getTranslations('Footer');
+  const socialLinks = await getSocialLinks();
 
   return (
     <footer className="border-t border-rule bg-navy text-bone">
@@ -51,10 +59,10 @@ export async function GuestFooter() {
             </div>
             <p className="mt-3 max-w-xs text-sm text-mist">{t('tagline')}</p>
             <div className="mt-4 flex gap-3">
-              {SOCIAL_LINKS.map(({ label, href, path }) => (
-                <Link key={label} href={href} aria-label={label} className="text-mist hover:text-amber">
+              {socialLinks.map(({ platform, href }) => (
+                <Link key={platform} href={href} aria-label={CMS_SOCIAL_PLATFORM_LABELS[platform]} className="text-mist hover:text-amber">
                   <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true">
-                    <path d={path} />
+                    <path d={SOCIAL_ICON_PATHS[platform]} />
                   </svg>
                 </Link>
               ))}

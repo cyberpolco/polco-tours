@@ -1880,7 +1880,14 @@
     "addPartner": "Ajouter un partenaire",
     "removePartner": "Supprimer le partenaire",
     "removePartnerConfirm": "Supprimer ce partenaire ? Cette action est irréversible.",
-    "choosePartnerLogoFile": "Choisissez une image de logo pour remplacer le logo actuel."
+    "choosePartnerLogoFile": "Choisissez une image de logo pour remplacer le logo actuel.",
+    "socialLinksSectionTitle": "Réseaux sociaux",
+    "socialLinksIntro": "Les icônes de réseaux sociaux du pied de page. Un lien sans plateforme ni URL n'apparaît pas sur le site public.",
+    "platformLabel": "Plateforme",
+    "urlLabel": "URL du profil",
+    "addSocialLink": "Ajouter un lien",
+    "removeSocialLink": "Supprimer le lien",
+    "removeSocialLinkConfirm": "Supprimer ce lien ? Cette action est irréversible."
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",

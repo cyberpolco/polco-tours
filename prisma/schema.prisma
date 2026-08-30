@@ -454,9 +454,19 @@ model CmsFaqEntry {
 // -- the column itself is untouched) since a gallery site's blurb reads
 // more naturally as "description" than "caption" once it's describing the
 // place itself, not just annotating a photo.
+// DR-200 adds `platform` (nullable, additive -- every existing home-hero/
+// gallery/partners row keeps `platform=null`, unaffected) for the new
+// page='social-links' rows: one of CMS_SOCIAL_PLATFORMS (facebook,
+// instagram, x, whatsapp, tiktok), a plain zod-validated string against a
+// fixed enum, same "no Postgres enum" convention as `mediaType`/`country`
+// -- reused to look up the matching hand-drawn SVG icon in the guest
+// footer rather than storing icon markup in the DB. `url` doubles as the
+// profile link for these rows (already nullable -- unset until staff adds
+// the real handle, same "no accounts set up yet" placeholder convention
+// the old hardcoded footer array used).
 model CmsMediaItem {
   id              String   @id @default(uuid()) @db.Uuid
-  page            String // e.g. "home-hero", "gallery"
+  page            String // e.g. "home-hero", "gallery", "social-links"
   slotKey         String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
   mediaType       String? // 'image' | 'video', null until media is chosen
   url             String?
@@ -464,6 +474,7 @@ model CmsMediaItem {
   overlayGradient String? // e.g. "linear-gradient(100deg, rgba(...) 0%, ...)"
   name            String? // gallery sites only -- staff-editable display name
   country         String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
+  platform        String? // social-links only -- one of CMS_SOCIAL_PLATFORMS
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

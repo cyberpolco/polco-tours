@@ -121,6 +121,16 @@ describe('cms domain', () => {
     it('rejects a country outside the operating-country set', () => {
       expect(() => CreateCmsMediaItemInput.parse({ name: 'Somewhere', country: 'US' })).toThrow();
     });
+
+    it('accepts a social link with a valid platform (DR-200)', () => {
+      const result = CreateCmsMediaItemInput.parse({ platform: 'tiktok', url: 'https://tiktok.com/@mufasa' });
+      expect(result.platform).toBe('tiktok');
+      expect(result.url).toBe('https://tiktok.com/@mufasa');
+    });
+
+    it('rejects a platform outside CMS_SOCIAL_PLATFORMS', () => {
+      expect(() => CreateCmsMediaItemInput.parse({ platform: 'linkedin' })).toThrow();
+    });
   });
 
   describe('UpdateCmsMediaItemInput', () => {
@@ -134,6 +144,12 @@ describe('cms domain', () => {
       const result = UpdateCmsMediaItemInput.parse({ overlayGradient: null, description: null });
       expect(result.overlayGradient).toBeNull();
       expect(result.description).toBeNull();
+    });
+
+    it('accepts updating platform + url together (DR-200)', () => {
+      const result = UpdateCmsMediaItemInput.parse({ platform: 'facebook', url: 'https://facebook.com/mufasasafaris' });
+      expect(result.platform).toBe('facebook');
+      expect(result.url).toBe('https://facebook.com/mufasasafaris');
     });
   });
 });

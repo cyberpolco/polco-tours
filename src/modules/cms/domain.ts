@@ -94,6 +94,26 @@ export function isValidCmsVideoContentType(contentType: string): boolean {
 // country regulations, etc.), not a fresh vocabulary.
 export const GALLERY_COUNTRY_CODES = OPERATING_COUNTRY_CODES;
 
+// Social links only (DR-200, page='social-links') -- a fixed, closed set
+// matching the hand-drawn SVG icons the guest footer already knows how to
+// render (src/app/(guest)/footer.tsx). Adding a 6th platform is a code
+// change (new icon path + enum entry), same "no Postgres enum" convention
+// as `mediaType`/`country` above -- not staff-configurable free text.
+export const CMS_SOCIAL_PLATFORMS = ['facebook', 'instagram', 'x', 'whatsapp', 'tiktok'] as const;
+export type CmsSocialPlatform = (typeof CMS_SOCIAL_PLATFORMS)[number];
+
+// Display labels are proper nouns (brand names), not translated -- same
+// convention as Role/permission-slug values elsewhere in the app. Shared
+// by the staff platform dropdown and the guest footer's icon aria-label so
+// the two never drift.
+export const CMS_SOCIAL_PLATFORM_LABELS: Record<CmsSocialPlatform, string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  x: 'X',
+  whatsapp: 'WhatsApp',
+  tiktok: 'TikTok',
+};
+
 // `mediaType`/`url` are nullable -- a freshly-added slide/site (dynamic
 // add/remove, DR-163/167) can have its text filled in with no media chosen
 // yet; `page`/`slotKey` are supplied as repository/service function
@@ -109,6 +129,7 @@ export interface CmsMediaItemView {
   overlayGradient: string | null;
   name: string | null;
   country: string | null;
+  platform: CmsSocialPlatform | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -122,6 +143,7 @@ export const CreateCmsMediaItemInput = z.object({
   overlayGradient: z.string().max(500).nullable().optional(),
   name: z.string().min(1).max(200).nullable().optional(),
   country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
+  platform: z.enum(CMS_SOCIAL_PLATFORMS).nullable().optional(),
   sortOrder: z.number().int().nonnegative().default(0),
 });
 export type CreateCmsMediaItemInput = z.infer<typeof CreateCmsMediaItemInput>;
@@ -133,6 +155,7 @@ export const UpdateCmsMediaItemInput = z.object({
   overlayGradient: z.string().max(500).nullable().optional(),
   name: z.string().min(1).max(200).nullable().optional(),
   country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
+  platform: z.enum(CMS_SOCIAL_PLATFORMS).nullable().optional(),
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type UpdateCmsMediaItemInput = z.infer<typeof UpdateCmsMediaItemInput>;

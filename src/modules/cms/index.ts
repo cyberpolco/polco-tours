@@ -2,6 +2,8 @@
 export { cmsService } from './service';
 export type { UploadCmsImageInput } from './service';
 export {
+  CMS_SOCIAL_PLATFORM_LABELS,
+  CMS_SOCIAL_PLATFORMS,
   CMS_VIDEO_CONTENT_TYPES,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
@@ -14,4 +16,4 @@ export {
   UpdateCmsTextBlockInput,
   MAX_CMS_IMAGE_SIZE_BYTES,
 } from './domain';
-export type { CmsLocale, CmsFaqEntryView, CmsMediaItemView, CmsMediaType, CmsTextBlockView } from './domain';
+export type { CmsLocale, CmsFaqEntryView, CmsMediaItemView, CmsMediaType, CmsSocialPlatform, CmsTextBlockView } from './domain';

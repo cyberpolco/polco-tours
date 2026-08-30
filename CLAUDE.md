@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-199** (2026-08-30). This file used to carry a running
+Current through **DR-200** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -425,7 +425,17 @@ src/
                    #   staff-editable list (page='partners', name + optional
                    #   logo image only — no country/description), replacing
                    #   the old hardcoded 6-row placeholder array; degrades to
-                   #   that same placeholder text until staff adds a real one
+                   #   that same placeholder text until staff adds a real one.
+                   #   DR-200: the guest footer's social icons are a fourth
+                   #   CmsMediaItem-backed staff-editable list (page=
+                   #   'social-links', a new `platform` column — one of
+                   #   CMS_SOCIAL_PLATFORMS, additive/nullable, null on every
+                   #   existing home-hero/gallery/partners row — plus the
+                   #   existing `url` field for the profile link); no image
+                   #   upload, the icon itself stays a fixed hand-drawn SVG in
+                   #   footer.tsx keyed by `platform`. Degrades to the same
+                   #   5-icon/`href:'#'` placeholder set until staff configures
+                   #   a real link.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

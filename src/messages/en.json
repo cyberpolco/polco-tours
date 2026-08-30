@@ -1880,7 +1880,14 @@
     "addPartner": "Add partner",
     "removePartner": "Remove partner",
     "removePartnerConfirm": "Remove this partner? This cannot be undone.",
-    "choosePartnerLogoFile": "Choose a logo image to replace the current one."
+    "choosePartnerLogoFile": "Choose a logo image to replace the current one.",
+    "socialLinksSectionTitle": "Social links",
+    "socialLinksIntro": "The footer's social icons. A link with no platform or URL set yet is hidden from the guest site.",
+    "platformLabel": "Platform",
+    "urlLabel": "Profile URL",
+    "addSocialLink": "Add social link",
+    "removeSocialLink": "Remove social link",
+    "removeSocialLinkConfirm": "Remove this social link? This cannot be undone."
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",

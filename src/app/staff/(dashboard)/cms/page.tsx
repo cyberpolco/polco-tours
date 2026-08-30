@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { cmsService, GALLERY_COUNTRY_CODES, type CmsLocale } from '@modules/cms';
+import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, CMS_SOCIAL_PLATFORMS, GALLERY_COUNTRY_CODES, type CmsLocale } from '@modules/cms';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -15,15 +15,18 @@ import {
   createGallerySiteAction,
   createHeroSlideAction,
   createPartnerAction,
+  createSocialLinkAction,
   deleteFaqEntryAction,
   deleteGallerySiteAction,
   deleteHeroSlideAction,
   deletePartnerAction,
+  deleteSocialLinkAction,
   updateFaqEntryAction,
   updateGallerySiteAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
   updatePartnerAction,
+  updateSocialLinkAction,
   updateTextBlockAction,
   uploadCmsImageAction,
 } from './actions';
@@ -34,15 +37,17 @@ interface Props {
   searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string; tab?: string }>;
 }
 
-// Nav+footer order (DR-164), with `partners` (DR-185) placed right after
-// `home-hero` since it's a second section of the same homepage rather than
-// its own guest route -- each tab's label key already exists (section
-// headings), except `faq` (its heading is a dynamic "FAQ ({count})", not a
+// Nav+footer order (DR-164), with `partners` (DR-185) and `social-links`
+// (DR-200) placed right after `home-hero` since both are a second section
+// of the same homepage/footer rather than their own guest route -- most
+// tabs' label keys already exist (section headings), except `faq` (its
+// heading is a dynamic "FAQ ({count})", not a
 // plain label) and `media` (the generic image-upload utility, reusing its
 // existing section heading key).
 const CMS_TABS = [
   { key: 'home-hero', labelKey: 'heroSectionTitle' },
   { key: 'partners', labelKey: 'partnersSectionTitle' },
+  { key: 'social-links', labelKey: 'socialLinksSectionTitle' },
   { key: 'packages', labelKey: 'packagesSectionTitle' },
   { key: 'plan-my-trip', labelKey: 'planMyTripSectionTitle' },
   { key: 'gallery', labelKey: 'gallerySectionTitle' },
@@ -107,6 +112,7 @@ export default async function CmsPage({ searchParams }: Props) {
     termsText,
     galleryItems,
     partnerItems,
+    socialLinkItems,
   ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
@@ -123,6 +129,7 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'terms', locale),
     cmsService.listMediaItems(ctx, 'gallery'),
     cmsService.listMediaItems(ctx, 'partners'),
+    cmsService.listMediaItems(ctx, 'social-links'),
   ]);
   const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
   const t = await getTranslations('StaffCms');
@@ -343,6 +350,77 @@ export default async function CmsPage({ searchParams }: Props) {
             <form action={createPartnerAction}>
               <SubmitButton size="compact" pendingLabel={t('adding')}>
                 {t('addPartner')}
+              </SubmitButton>
+            </form>
+          )}
+        </section>
+        )}
+
+        {activeTab === 'social-links' && (
+        <section className="space-y-3">
+          <h2 className="font-semibold text-navy">{t('socialLinksSectionTitle')}</h2>
+          <p className="text-xs text-mist">{t('socialLinksIntro')}</p>
+          <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {socialLinkItems.map((item) => (
+              <Card key={item.slotKey}>
+                {canWrite ? (
+                  <div className="space-y-3">
+                    <form action={updateSocialLinkAction.bind(null, item.slotKey)} className="space-y-2">
+                      <FormField label={t('platformLabel')} htmlFor={`platform-${item.slotKey}`}>
+                        <Select name="platform" required defaultValue={item.platform ?? ''}>
+                          <option value="" disabled>
+                            {t('platformLabel')}
+                          </option>
+                          {CMS_SOCIAL_PLATFORMS.map((platform) => (
+                            <option key={platform} value={platform}>
+                              {CMS_SOCIAL_PLATFORM_LABELS[platform]}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormField>
+                      <FormField label={t('urlLabel')} htmlFor={`url-${item.slotKey}`}>
+                        <input
+                          name="url"
+                          type="url"
+                          placeholder="https://…"
+                          defaultValue={item.url ?? ''}
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                        />
+                      </FormField>
+                      <div className="flex items-end gap-3">
+                        <FormField label={t('order')} htmlFor={`sortOrder-${item.slotKey}`}>
+                          <input
+                            name="sortOrder"
+                            type="number"
+                            defaultValue={item.sortOrder}
+                            className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                          />
+                        </FormField>
+                        <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                          {t('save')}
+                        </SubmitButton>
+                      </div>
+                    </form>
+
+                    <DeleteButton
+                      action={deleteSocialLinkAction.bind(null, item.slotKey)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removeSocialLinkConfirm')}
+                      removeLabel={t('removeSocialLink')}
+                    />
+                  </div>
+                ) : (
+                  <p className="font-semibold text-navy">
+                    {item.platform ? CMS_SOCIAL_PLATFORM_LABELS[item.platform] : t('platformLabel')}
+                  </p>
+                )}
+              </Card>
+            ))}
+          </RevealGroup>
+          {canWrite && (
+            <form action={createSocialLinkAction}>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('addSocialLink')}
               </SubmitButton>
             </form>
           )}

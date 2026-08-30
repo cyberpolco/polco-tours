@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import {
   cmsService,
+  CMS_SOCIAL_PLATFORMS,
   CreateCmsFaqEntryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
@@ -44,6 +45,14 @@ const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {
 };
 
 function revalidateMediaPage(page: string): void {
+  if (page === 'social-links') {
+    // The footer renders on every guest page via the shared (guest)
+    // layout (DR-200) -- 'layout' revalidates every route sharing that
+    // layout, not just '/' the way a single-page section's revalidatePath
+    // call above does.
+    revalidatePath('/', 'layout');
+    return;
+  }
   for (const path of GUEST_PATHS_BY_MEDIA_PAGE[page] ?? []) revalidatePath(path);
 }
 
@@ -290,4 +299,44 @@ export async function deletePartnerAction(slotKey: string): Promise<void> {
   await cmsService.deleteMediaItem(ctx, PARTNERS_PAGE, slotKey);
   revalidatePath('/staff/cms');
   revalidateMediaPage(PARTNERS_PAGE);
+}
+
+// ------------------------------------------------------- Social links (DR-200)
+const SOCIAL_LINKS_PAGE = 'social-links';
+
+/** Creates a bare social link (no platform/URL yet) at the end of the
+ * current order -- same "add blank, edit in place" convention as
+ * createPartnerAction/createGallerySiteAction. Filtered out of the footer
+ * read until staff sets both a platform and a URL. */
+export async function createSocialLinkAction(): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const existing = await cmsService.listMediaItems(ctx, SOCIAL_LINKS_PAGE);
+  const nextSortOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1;
+  await cmsService.createMediaItem(ctx, SOCIAL_LINKS_PAGE, { sortOrder: nextSortOrder });
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(SOCIAL_LINKS_PAGE);
+}
+
+/** platform + url + sortOrder only -- no image/logo upload, unlike every
+ * other CmsMediaItem page, since the icon is a fixed hand-drawn SVG keyed
+ * off `platform` (src/app/(guest)/footer.tsx), not staff-supplied media. */
+export async function updateSocialLinkAction(slotKey: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const rawPlatform = String(formData.get('platform') ?? '');
+  const rawUrl = String(formData.get('url') ?? '').trim();
+  const input = UpdateCmsMediaItemInput.parse({
+    platform: (CMS_SOCIAL_PLATFORMS as readonly string[]).includes(rawPlatform) ? rawPlatform : null,
+    url: rawUrl || null,
+    sortOrder: Number(formData.get('sortOrder') ?? 0),
+  });
+  await cmsService.updateMediaItem(ctx, SOCIAL_LINKS_PAGE, slotKey, input);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(SOCIAL_LINKS_PAGE);
+}
+
+export async function deleteSocialLinkAction(slotKey: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteMediaItem(ctx, SOCIAL_LINKS_PAGE, slotKey);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(SOCIAL_LINKS_PAGE);
 }
