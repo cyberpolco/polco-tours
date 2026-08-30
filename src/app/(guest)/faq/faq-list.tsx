@@ -55,7 +55,7 @@ export function FaqList({ faqs }: Props) {
         // column break; mb-4 handles item spacing (a multi-column layout's
         // own `gap` is the space between columns, not between stacked
         // items within one).
-        <dl className="mt-6 columns-1 gap-4 sm:columns-2">
+        <dl className="mt-6 columns-1 gap-4 sm:columns-2 lg:columns-3">
           {filtered.map(({ id, question, answer }) => (
             <Card as="div" key={id} className="mb-4 break-inside-avoid">
               <dt className="font-semibold text-navy">{question}</dt>

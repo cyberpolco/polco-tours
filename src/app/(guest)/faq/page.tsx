@@ -20,11 +20,11 @@ export default async function FaqPage() {
 
   return (
     <Reveal>
-      <div className="max-w-3xl">
+      <div>
         <p className="eyebrow text-mist">{t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
         {faqs.length === 0 ? <p className="mt-6 text-mist">{t('noQuestions')}</p> : <FaqList faqs={faqs} />}
-        <p className="mt-6 text-sm text-mist">
+        <p className="mt-6 max-w-3xl text-sm text-mist">
           {t('stillHaveQuestion')}{' '}
           <Link href="/contact" className="text-forest hover:underline">
             {t('getInTouch')}
