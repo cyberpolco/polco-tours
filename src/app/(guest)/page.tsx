@@ -221,7 +221,7 @@ export default async function HomePage() {
           {STEPS.map((step) => (
             <Card as="li" key={step.mark}>
               <p className="font-display text-3xl text-amber">{step.mark}</p>
-              <h3 className="mt-2 font-semibold text-navy">{step.title}</h3>
+              <h3 className="mt-2 text-lg font-semibold text-navy">{step.title}</h3>
               <p className="mt-2 text-sm text-mist">{step.body}</p>
             </Card>
           ))}
