@@ -10,9 +10,11 @@ interface PackageCardProps {
   /** 'div' when a caller (e.g. RevealGroup) already supplies the `<li>` a
    * card grid needs -- defaults to 'li' for every other caller, unchanged. */
   as?: 'li' | 'div';
-  /** 'large' bumps the title's font size -- explicit user request, scoped to
-   * the homepage's 3-card featured grid only; the denser /packages listing
-   * grid and quiz results keep the original size by leaving this unset. */
+  /** 'large' bumps the title's font size -- explicit user request (DR-192),
+   * originally scoped to the homepage's 3-card featured grid only. Also on
+   * for the /packages listing grid since (explicit follow-up request) its
+   * titles read too small; quiz results keeps the original size by leaving
+   * this unset. */
   titleSize?: 'default' | 'large';
 }
 
