@@ -92,3 +92,23 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* DR-201, real reported bug: StickyMobileCta (the homepage's mobile-only
+   "Browse packages" bar, src/components/StickyMobileCta.tsx) is `fixed` to
+   the viewport bottom, so once a guest scrolls to the true end of the page
+   it sits on top of the footer's last row (Terms / Admin access links) --
+   nothing had reserved room for it there (the homepage's own `pb-24` only
+   pads content *inside* <main>, and the footer is a sibling rendered after
+   it, see (guest)/layout.tsx). Scoped via :has() to only the page(s) that
+   actually render the bar in their <main>, and to the same sub-640px width
+   where Tailwind's sm:hidden on the bar itself makes it visible, so no
+   other guest page's footer gets padding it doesn't need. */
+@media (max-width: 639px) {
+  main:has(.sticky-mobile-cta) + footer {
+    /* 3.75rem covers the bar's own pt-3 + its Button's py-3/text-sm content
+       height + its 1px border; the max(...) term mirrors the bar's inline
+       paddingBottom exactly (StickyMobileCta.tsx) so this stays correct on
+       a notched phone's taller safe-area inset too, not just a flat guess. */
+    padding-bottom: calc(3.75rem + max(0.75rem, env(safe-area-inset-bottom)));
+  }
+}
