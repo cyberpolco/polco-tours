@@ -53,7 +53,7 @@ export default async function ContactPage() {
 
   return (
     <Reveal>
-      <div className="mx-auto max-w-3xl">
+      <div>
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-4 max-w-2xl text-mist">{cms?.body ?? t('intro')}</p>
@@ -80,7 +80,7 @@ export default async function ContactPage() {
         </RevealGroup>
 
         <h2 className="eyebrow mt-10 text-forest">{t('officesEyebrow')}</h2>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {OFFICES.map((office) => (
             <Card as="div" key={office.key} interactive className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export default async function ContactPage() {
           ))}
 
           {general?.title && general.body && (
-            <Card as="div" interactive className="flex flex-col gap-3 sm:col-span-2">
+            <Card as="div" interactive className="flex flex-col gap-3 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-forest/10 text-forest">
                   <MailIcon />
