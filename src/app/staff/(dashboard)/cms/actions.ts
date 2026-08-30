@@ -29,6 +29,7 @@ const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
   contact: '/contact',
   'contact.office.namibia': '/contact',
   'contact.office.drc': '/contact',
+  'contact.general': '/contact',
   rate: '/rate',
   weather: '/weather',
   terms: '/terms',

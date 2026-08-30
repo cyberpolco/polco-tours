@@ -101,6 +101,7 @@ export default async function CmsPage({ searchParams }: Props) {
     contactText,
     officeNamibiaText,
     officeDrcText,
+    generalContactText,
     rateText,
     weatherText,
     termsText,
@@ -116,6 +117,7 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'contact', locale),
     cmsService.getTextBlock(ctx, 'contact.office.namibia', locale),
     cmsService.getTextBlock(ctx, 'contact.office.drc', locale),
+    cmsService.getTextBlock(ctx, 'contact.general', locale),
     cmsService.getTextBlock(ctx, 'rate', locale),
     cmsService.getTextBlock(ctx, 'weather', locale),
     cmsService.getTextBlock(ctx, 'terms', locale),
@@ -636,6 +638,20 @@ export default async function CmsPage({ searchParams }: Props) {
           showEyebrow={false}
           titleLabel={t('officeLabelFieldLabel')}
           bodyLabel={t('officeDetailsFieldLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
+        <PageTextEditor
+          cmsKey="contact.general"
+          locale={locale}
+          current={generalContactText}
+          canWrite={canWrite}
+          sectionTitle={t('contactGeneralSectionTitle')}
+          eyebrowLabel=""
+          showEyebrow={false}
+          titleLabel={t('contactGeneralHeadingLabel')}
+          bodyLabel={t('contactGeneralDetailsLabel')}
           savingLabel={t('saving')}
           saveLabel={t('save')}
         />
