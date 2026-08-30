@@ -37,6 +37,7 @@ const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
   weather: '/weather',
   terms: '/terms',
   'home-map': '/',
+  gallery: '/gallery',
 };
 
 const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {

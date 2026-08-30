@@ -115,6 +115,7 @@ export default async function CmsPage({ searchParams }: Props) {
     rateText,
     weatherText,
     termsText,
+    galleryText,
     galleryItems,
     partnerItems,
     socialLinkItems,
@@ -134,6 +135,7 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'rate', locale),
     cmsService.getTextBlock(ctx, 'weather', locale),
     cmsService.getTextBlock(ctx, 'terms', locale),
+    cmsService.getTextBlock(ctx, 'gallery', locale),
     cmsService.listMediaItems(ctx, 'gallery'),
     cmsService.listMediaItems(ctx, 'partners'),
     cmsService.listMediaItems(ctx, 'social-links'),
@@ -583,8 +585,22 @@ export default async function CmsPage({ searchParams }: Props) {
         )}
 
         {activeTab === 'gallery' && (
+        <>
+        <PageTextEditor
+          cmsKey="gallery"
+          locale={locale}
+          current={galleryText}
+          canWrite={canWrite}
+          sectionTitle={t('gallerySectionTitle')}
+          eyebrowLabel={t('eyebrowLabel')}
+          titleLabel={t('pageTitleLabel')}
+          bodyLabel={t('pageBodyLabel')}
+          savingLabel={t('saving')}
+          saveLabel={t('save')}
+        />
+
         <section className="space-y-3">
-          <h2 className="font-semibold text-navy">{t('gallerySectionTitle')}</h2>
+          <h2 className="font-semibold text-navy">{t('gallerySitesSectionTitle')}</h2>
           <p className="text-xs text-mist">{t('galleryIntro')}</p>
           <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {galleryItems.map((item) => (
@@ -680,6 +696,7 @@ export default async function CmsPage({ searchParams }: Props) {
             </form>
           )}
         </section>
+        </>
         )}
 
         {activeTab === 'find-booking' && (

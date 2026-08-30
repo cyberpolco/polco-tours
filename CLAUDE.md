@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-202** (2026-08-30). This file used to carry a running
+Current through **DR-203** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -452,7 +452,15 @@ src/
                    #   booking/visa/tax eligibility list. Degrades to a
                    #   4-country fallback (the original NA/DRC/ZM/ZW facts)
                    #   until staff configures a real row, same convention as
-                   #   partners/social-links.
+                   #   partners/social-links. DR-203: the `/staff/cms` Gallery
+                   #   tab gains a `PageTextEditor` (eyebrow/title/body) above
+                   #   its existing site grid, using the `gallery`
+                   #   `CmsTextBlock` key the guest `/gallery` page was
+                   #   already reading (`cms?.eyebrow/title/body`, with an
+                   #   i18n-string fallback) since DR-164 shipped it with no
+                   #   staff-side way to write it — same shape as every other
+                   #   "thin" page's editor, no new permission/table/module
+                   #   boundary change.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
