@@ -6,11 +6,18 @@
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
+import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
+import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import { locationFreshness, resolveTripProgress } from './domain';
 import type { ActiveTripView, FleetLocationView, FleetSnapshot } from './domain';
+
+function requireOrg(ctx: AuthContext): string {
+  if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+  return ctx.organizationId;
+}
 
 export const trackingService = {
   // Sequential throughout, not Promise.all -- this sandbox's Neon connection
@@ -21,6 +28,7 @@ export const trackingService = {
   // low-traffic admin dashboard, not a hot path.
   async getFleetSnapshot(ctx: AuthContext): Promise<FleetSnapshot> {
     assertCan(ctx, 'tracking.read');
+    const organizationId = requireOrg(ctx);
     const now = new Date();
 
     // ---- Fleet locations: the whole org's kits, independent of trip
@@ -69,6 +77,19 @@ export const trackingService = {
 
     const activeTrips: ActiveTripView[] = [];
     for (const departureId of departureIds) {
+      // A deleted (or cancelled/refunded) booking leaves its Assignment/
+      // Departure rows behind -- neither has a live link back to Booking,
+      // and Departure's own dates don't change when its last booking goes
+      // away. Without this check a departure whose only booking was just
+      // deleted keeps reading as an in-progress "ghost" trip, with a
+      // vehicle/driver/guide still shown against it, until its endDate
+      // finally passes. Same hasActiveBookingForDeparture check
+      // syncFleetAvailabilityForDeparture already uses to resync fleet
+      // resources on the same event (src/lib/fleet-availability.ts) --
+      // this page is never cached (see file header), so the fix is simply
+      // to stop counting the trip as active on the very next read.
+      if (!(await bookingService.hasActiveBookingForDeparture(organizationId, departureId))) continue;
+
       let detail;
       try {
         detail = await catalogService.getDepartureDetail(ctx, departureId);

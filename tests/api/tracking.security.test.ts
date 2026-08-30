@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { generateBookingReference } from '@modules/booking';
 import { testPackageReference } from '../helpers/package-reference';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
@@ -29,14 +30,16 @@ beforeAll(async () => {
   orgAId = orgA.id;
   orgBId = orgB.id;
 
-  const [operatorA, operatorB, driverA] = await Promise.all([
+  const [operatorA, operatorB, driverA, touristA] = await Promise.all([
     admin.user.create({ data: { email: `op-a-tracking-sec-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgAId } }),
     admin.user.create({ data: { email: `op-b-tracking-sec-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgBId } }),
     admin.user.create({ data: { email: `driver-a-tracking-sec-${suffix}@example.test`, role: 'DRIVER', organizationId: orgAId } }),
+    admin.user.create({ data: { email: `tourist-a-tracking-sec-${suffix}@example.test`, role: 'TOURIST', organizationId: orgAId } }),
   ]);
   operatorAId = operatorA.id;
   operatorBId = operatorB.id;
   driverAId = driverA.id;
+  const touristAId = touristA.id;
 
   await withOrg(orgAId, async (tx) => {
     const vehicle = await tx.vehicle.create({
@@ -66,6 +69,18 @@ beforeAll(async () => {
     await tx.assignment.create({
       data: { organizationId: orgAId, departureId: departure.id, vehicleId: vehicle.id, driverProfileId: driverProfile.id },
     });
+    await tx.booking.create({
+      data: {
+        organizationId: orgAId,
+        departureId: departure.id,
+        touristUserId: touristAId,
+        bookingReference: generateBookingReference(),
+        seats: 2,
+        priceMinor: 100000,
+        currency: 'USD',
+        status: 'CONFIRMED',
+      },
+    });
   });
 });
 
@@ -80,6 +95,7 @@ afterAll(async () => {
     return;
   }
   await withOrg(orgAId, async (tx) => {
+    await tx.booking.deleteMany({ where: { organizationId: orgAId } });
     await tx.assignment.deleteMany({ where: { organizationId: orgAId } });
     await tx.departure.deleteMany({ where: { organizationId: orgAId } });
     await tx.tourPackage.deleteMany({ where: { organizationId: orgAId } });

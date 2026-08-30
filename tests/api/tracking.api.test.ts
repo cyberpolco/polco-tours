@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { generateBookingReference } from '@modules/booking';
 import { testPackageReference } from '../helpers/package-reference';
 import { prisma, withOrg } from '../../src/lib/db';
 import { loginAs } from '../helpers/test-auth';
@@ -9,22 +10,26 @@ import { GET as getTracking } from '../../src/app/api/v1/tracking/route';
 /**
  * Tracking (DR-041) -- drives the real route end to end against a small,
  * deterministic fixture: one active departure (started yesterday, ends
- * tomorrow) with an assigned vehicle/driver/guide and a located Starlink
- * kit, plus one NOT-YET-STARTED departure+assignment to confirm it's
- * excluded from activeTrips (a future trip must not show as "active" just
- * because an operations-utilization definition would count it).
+ * tomorrow) with an assigned vehicle/driver/guide, a located Starlink kit,
+ * and a live CONFIRMED booking, plus one NOT-YET-STARTED departure+
+ * assignment+booking to confirm it's excluded from activeTrips (a future
+ * trip must not show as "active" just because an operations-utilization
+ * definition would count it).
  */
 const admin = new PrismaClient();
 const suffix = `${Date.now()}`;
 
 let orgId: string;
 let operatorId: string;
+let touristUserId: string;
 let driverUserId: string;
 let driverProfileId: string;
 let guideUserId: string;
 let vehicleId: string;
 let futureVehicleId: string;
 let starlinkKitId: string;
+let activeDepartureId: string;
+let activeBookingId: string;
 
 const now = new Date();
 
@@ -34,12 +39,14 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
-  const [operator, driverUser, guideUser] = await Promise.all([
+  const [operator, tourist, driverUser, guideUser] = await Promise.all([
     admin.user.create({ data: { email: `op-tracking-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: orgId } }),
+    admin.user.create({ data: { email: `tourist-tracking-${suffix}@example.test`, role: 'TOURIST', organizationId: orgId } }),
     admin.user.create({ data: { email: `driver-tracking-${suffix}@example.test`, role: 'DRIVER', organizationId: orgId } }),
     admin.user.create({ data: { email: `guide-tracking-${suffix}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId } }),
   ]);
   operatorId = operator.id;
+  touristUserId = tourist.id;
   driverUserId = driverUser.id;
   guideUserId = guideUser.id;
 
@@ -92,9 +99,26 @@ beforeAll(async () => {
         capacity: 10,
       },
     });
+    activeDepartureId = activeDeparture.id;
     await tx.assignment.create({
       data: { organizationId: orgId, departureId: activeDeparture.id, vehicleId, driverProfileId, guideUserId },
     });
+    // A live booking behind the trip -- without one, hasActiveBookingForDeparture
+    // excludes the departure from activeTrips regardless of its dates (see the
+    // "disappears once its booking is soft-deleted" test below).
+    const activeBooking = await tx.booking.create({
+      data: {
+        organizationId: orgId,
+        departureId: activeDeparture.id,
+        touristUserId,
+        bookingReference: generateBookingReference(),
+        seats: 2,
+        priceMinor: 100000,
+        currency: 'USD',
+        status: 'CONFIRMED',
+      },
+    });
+    activeBookingId = activeBooking.id;
 
     // A future departure -- must NOT appear in activeTrips.
     const futureDeparture = await tx.departure.create({
@@ -108,6 +132,18 @@ beforeAll(async () => {
     });
     await tx.assignment.create({
       data: { organizationId: orgId, departureId: futureDeparture.id, vehicleId: futureVehicleId, driverProfileId },
+    });
+    await tx.booking.create({
+      data: {
+        organizationId: orgId,
+        departureId: futureDeparture.id,
+        touristUserId,
+        bookingReference: generateBookingReference(),
+        seats: 2,
+        priceMinor: 100000,
+        currency: 'USD',
+        status: 'CONFIRMED',
+      },
     });
   });
 });
@@ -123,6 +159,7 @@ afterAll(async () => {
     return;
   }
   await withOrg(orgId, async (tx) => {
+    await tx.booking.deleteMany({ where: { organizationId: orgId } });
     await tx.assignment.deleteMany({ where: { organizationId: orgId } });
     await tx.departure.deleteMany({ where: { organizationId: orgId } });
     await tx.tourPackage.deleteMany({ where: { organizationId: orgId } });
@@ -167,6 +204,28 @@ describe('GET /api/v1/tracking', () => {
       expect(trip.progress.status).toBe('IN_PROGRESS');
       expect(trip.progress.dayNumber).toBe(2);
       expect(trip.progress.totalDays).toBe(3);
+    },
+    60_000,
+  );
+
+  it(
+    'drops a trip from activeTrips as soon as its booking is deleted, even though its Assignment/Departure survive',
+    async () => {
+      // Reproduces the "ghost trip" gap: deleteBooking only soft-deletes the
+      // Booking row -- it never touches the Departure or Assignment (neither
+      // has a bookingId to cascade from), so without a live-booking check
+      // this trip would otherwise keep reading IN_PROGRESS by date alone
+      // until the departure's own endDate finally passes. The page itself
+      // is never cached, so the very next read must reflect the deletion.
+      await withOrg(orgId, (tx) => tx.booking.update({ where: { id: activeBookingId }, data: { deletedAt: new Date() } }));
+
+      const headers = await loginAs(operatorId);
+      const req = new NextRequest('http://localhost/api/v1/tracking', { headers });
+      const res = await getTracking(req, { params: Promise.resolve({}) });
+      expect(res.status).toBe(200);
+      const { snapshot } = await res.json();
+
+      expect(snapshot.activeTrips.find((t: { departureId: string }) => t.departureId === activeDepartureId)).toBeUndefined();
     },
     60_000,
   );

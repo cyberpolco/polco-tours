@@ -341,7 +341,13 @@ src/
                    #   per country (computeBlendedTaxRate/blendedTaxRateBp),
                    #   not taxed at a single flat country rate; exposed
                    #   cross-module as financeService.resolveEffectiveTaxRateBp
-    tracking/      # Fleet location + trip-progress composition, no repository.ts
+    tracking/      # Fleet location + trip-progress composition, no repository.ts.
+                   #   DR-197: "Active Trips" only counts a departure whose
+                   #   Assignment(s) also have a live (non-deleted, CONFIRMED/
+                   #   IN_PROGRESS) booking behind them (bookingService
+                   #   .hasActiveBookingForDeparture) — new tracking ->
+                   #   booking dependency, since neither Assignment nor
+                   #   Departure carries a bookingId to check that otherwise
     settings/      # TaxRate + PlatformRate + Coupon CRUD (DR-104: system-
                    #   generated discount codes, SUPERADMIN-only writes) —
                    #   DR-146: TaxRate/PlatformRate gain an in-place Update
@@ -447,7 +453,13 @@ Since DR-187, `visa` also depends on `immigration` (to snapshot a
 destination country's government fee via a new no-ctx
 `immigrationService.getPublicFee`, mirroring `cms`'s/`weather`'s public-read
 convention) — confirmed acyclic: `immigration` had zero inbound module
-dependencies before this and still imports nothing from `visa`.
+dependencies before this and still imports nothing from `visa`. Since
+DR-197, `tracking` also depends on `booking` (to skip a departure from
+"Active Trips" once it has no live booking left, via the existing
+`bookingService.hasActiveBookingForDeparture`, the same check
+`syncFleetAvailabilityForDeparture`/DR-082 already uses to resync fleet
+resources on the same event) — confirmed acyclic: `booking` itself only
+imports `{auth, catalog, notifications}`, never `tracking`.
 
 ---
 
