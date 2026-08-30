@@ -10,30 +10,38 @@ POLCO TOURS is a **Tourism Operating System** for **Namibia** and the
 **Democratic Republic of Congo (DRC)** (also operating in **Zambia** and
 **Zimbabwe**) — tour package sales plus operations management (tourists,
 operators, guides, drivers, vehicle owners, hotels, restaurants, visa
-facilitators). Web platform first; native apps later. Brand: **polcotours**
-(`polcotours.com`) — **but `polcotours.com` itself does not resolve yet**
-(OI-02, trademark clearance still open). Production is currently reachable
-on two real domains instead: the Vercel default
-(`polco-tours.vercel.app`) and a second custom domain, `mufasasafaris.com`
-/ `www.mufasasafaris.com` (added DR-072). This was, until DR-168, a
-domain/infra state only, not a rebrand — the caution against renaming the
-brand or module names off "Mufasa" without an explicit decision still
-holds for everything **except** guest-facing display text: DR-168 (explicit
-user request) renders every guest-site occurrence of "POLCO Tours" as
-**"Mufasa Safaris & Tours"** (header brand link, footer eyebrow/copyright,
-the homepage partner strip's placeholder fallback rows — DR-185 made the
-list itself staff-editable, so this is now only the text shown until staff
-adds a real partner — package-page `opengraph-image`,
+facilitators). Web platform first; native apps later. Internal/engineering
+brand: **polcotours** (`polcotours.com`) — the domain itself still does not
+resolve (nobody has registered/pointed it; not currently blocking anything).
+Production is currently reachable on two real domains instead: the Vercel
+default (`polco-tours.vercel.app`) and a second custom domain,
+`mufasasafaris.com` / `www.mufasasafaris.com` (added DR-072). DR-168
+(explicit user request) renders every guest-site occurrence of "POLCO
+Tours" as **"Mufasa Safaris & Tours"** (header brand link, footer eyebrow/
+copyright, the homepage partner strip's placeholder fallback rows — DR-185
+made the list itself staff-editable, so this is now only the text shown
+until staff adds a real partner — package-page `opengraph-image`,
 `Footer.tagline`/`AboutPage.defaultTitle` in `en.json`/`fr.json`, and the
 guest route group's own `metadata` title/description, scoped via a
 `(guest)/layout.tsx` export so it doesn't touch the root layout). The
 staff dashboard, transactional notification copy, the root `layout.tsx`
 app metadata, the `polcotours.com` brand/domain itself, and every module/
-internal identifier are unaffected and still say POLCO TOURS/polcotours —
-this remains display-text-only, not a rename of the underlying brand.
+internal identifier are unaffected and still say POLCO TOURS/polcotours.
+**DR-199 (explicit user confirmation, resolves OI-02):** this guest-public/
+staff-internal name split is confirmed **permanent** — not a placeholder
+pending trademark clearance, as it read before this DR. The public brand is
+"Mufasa Safaris & Tours"; "POLCO Tours" is confirmed internal-only (staff
+dashboard + every module/internal identifier), never launched under
+publicly. Since the public-facing brand was never actually "polcotours"/
+"POLCO TOURS" once DR-168 shipped, the original NA/DRC trademark-collision
+concern OI-02 encoded (an existing Greek tourism brand + a US "Polco")
+doesn't apply to what actually launches publicly — this is **not** a claim
+that "Mufasa Safaris & Tours" itself has undergone its own trademark
+clearance; nobody has raised that as a separate concern, so no new open
+item was created for it.
 
 
-Current through **DR-198** (2026-08-30). This file used to carry a running
+Current through **DR-199** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -863,10 +871,20 @@ Surface these to the human — don't invent answers.
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia
   mobile money, settlement SLA, rolling-reserve %). Blocks real payment
   processing; DPO stays stubbed behind `PaymentGateway`.
-- **OI-02** Trademark clearance for "polcotours"/"POLCO TOURS" in NA + DRC
-  (existing Greek tourism brand + US "Polco"). Blocks public launch.
-- **OI-03** Lam per-market legal registrations (Namibia NTB/BIPA/NamRA; DRC
-  DARA/DGI/Ministry of Tourism). Blocks go-live.
+- **OI-02 — RESOLVED 2026-08-30 (DR-199).** Explicit user confirmation: the
+  guest-facing "Mufasa Safaris & Tours" / staff-portal "POLCO Tours" name
+  split (DR-168) is the permanent brand structure, not a placeholder pending
+  trademark clearance — resolves the original NA/DRC collision concern
+  (existing Greek tourism brand + US "Polco") for a *public* launch under
+  "polcotours"/"POLCO TOURS", since the public brand was never actually
+  that name once DR-168 shipped. Not a claim that "Mufasa Safaris & Tours"
+  itself has been trademark-cleared — nobody's raised that as a separate
+  concern. `polcotours.com` itself still doesn't resolve as a domain
+  (unrelated DNS/registration fact, no longer gated on this).
+- **OI-03 — RESOLVED 2026-08-30 (DR-199).** Explicit user confirmation: Lam
+  has obtained all necessary per-market legal registration documents
+  (Namibia NTB/BIPA/NamRA; DRC DARA/DGI/Ministry of Tourism). No longer
+  blocks go-live.
 - **OI-05** Resend email: API key is real and live, but **the account has no
   verified sending domain** — Resend sandboxes delivery to only the account
   owner's own address (`cyberpolco@gmail.com`). Any other recipient 403s.
@@ -924,12 +942,15 @@ Surface these to the human — don't invent answers.
   "Something went wrong uploading the image" error until someone with
   dashboard access adds Development to that same connection.
 
-**Resolved:** OI-04 (object storage → Vercel Blob), OI-08
-(`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash Redis — real
-credentials live in production since 2026-07-22), OI-11 (Upstash QStash —
-real credentials + registered schedule live in production since 2026-07-22),
-OI-13 (Google Maps browser + server keys provisioned and live since
-2026-08-08). See `docs/decisions/DECISION_LOG.md` for how each was closed.
+**Resolved:** OI-02 (brand-naming split confirmed permanent, not pending
+trademark clearance — 2026-08-30), OI-03 (Lam's per-market legal
+registration documents obtained — 2026-08-30), OI-04 (object storage →
+Vercel Blob), OI-08 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash
+Redis — real credentials live in production since 2026-07-22), OI-11
+(Upstash QStash — real credentials + registered schedule live in production
+since 2026-07-22), OI-13 (Google Maps browser + server keys provisioned and
+live since 2026-08-08). See `docs/decisions/DECISION_LOG.md` for how each
+was closed.
 
 ---
 

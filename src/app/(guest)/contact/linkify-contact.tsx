@@ -6,12 +6,13 @@ const TOKEN_SRC = `(${EMAIL_SRC})|(${PHONE_SRC})`;
 
 // Office/general-inquiries bodies are one staff-entered free-text block
 // (see (guest)/contact/page.tsx's own comment on why -- no structured
-// address/email/phone fields exist, since real business registration
-// wasn't cleared when that call was made). A real email or phone number
-// typed into that free text would otherwise render as inert plain text.
-// This scans each line for an email- or phone-shaped token and turns just
-// that token into a real mailto:/tel: link (with a small matching icon),
-// leaving every other character -- the address line included -- untouched.
+// address/email/phone fields exist, kept that way for flexibility rather
+// than any remaining legal gating, OI-02/03 resolved DR-199). A real email
+// or phone number typed into that free text would otherwise render as inert
+// plain text. This scans each line for an email- or phone-shaped token and
+// turns just that token into a real mailto:/tel: link (with a small
+// matching icon), leaving every other character -- the address line
+// included -- untouched.
 export function ContactBody({ text }: { text: string }) {
   return (
     <div className="space-y-1.5 text-sm text-mist">

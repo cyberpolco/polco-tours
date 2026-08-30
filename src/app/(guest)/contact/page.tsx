@@ -13,19 +13,21 @@ async function resolveLocale(): Promise<CmsLocale> {
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
-// Structurally real (two offices, address/email/phone/social rows) but the
-// actual values are honest placeholders -- no cleared trademark/business
-// registration yet (OI-02/03 in CLAUDE.md), so no fabricated specifics.
-// Staff-editable at /staff/cms (SUPERADMIN-only writes, PageTextEditor):
-// intro text (key='contact'), each office's label + free-text
-// address/email/phone (keys='contact.office.{namibia,drc}') -- an office's
-// body is one free-text block rather than 3 structured fields, since real
-// registration still isn't cleared -- and, added alongside this redesign, a
-// third optional free-text block (key='contact.general') for a catch-all
-// channel (e.g. a general email/WhatsApp number/hours) that isn't tied to
-// either office; hidden entirely until staff actually fills it in, same
-// "nothing to fabricate" reasoning as the rest of this page. The quick-links
-// row below routes guests to the app's other self-serve pages instead of
+// Two offices, real staff-entered address/email/phone (OI-02/03 resolved
+// DR-199 -- Lam's per-market legal registration documents are in hand, and
+// the guest-facing "Mufasa Safaris & Tours" / staff-portal "POLCO Tours"
+// name split is confirmed permanent, so there's no more trademark/
+// registration gating on publishing real specifics here). Staff-editable at
+// /staff/cms (SUPERADMIN-only writes, PageTextEditor): intro text
+// (key='contact'), each office's label + free-text address/email/phone
+// (keys='contact.office.{namibia,drc}') -- an office's body stays one
+// free-text block rather than 3 structured fields for flexibility (hours,
+// a second phone line, etc.), not because there's anything left to avoid
+// fabricating -- and, added alongside this redesign, a third optional
+// free-text block (key='contact.general') for a catch-all channel (e.g. a
+// general email/WhatsApp number/hours) that isn't tied to either office;
+// hidden entirely until staff actually fills it in. The quick-links row
+// below routes guests to the app's other self-serve pages instead of
 // waiting on a reply -- pure navigation, no CMS involvement, same idea as
 // the existing closing-line link to /find-booking.
 export default async function ContactPage() {
