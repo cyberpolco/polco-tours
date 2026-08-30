@@ -605,12 +605,12 @@ async function main() {
       sortOrder: 0,
       en: {
         eyebrow: 'Namibia · Sossusvlei',
-        headline: 'Chase the tallest dunes on Earth at first light.',
+        headline: "Chase some of the world's tallest dunes at first light.",
         lede: 'Book a real trip in minutes — no account, no hold music. A person on our end plans it with you.',
       },
       fr: {
         eyebrow: 'Namibie · Sossusvlei',
-        headline: 'Défiez les dunes les plus hautes du monde au lever du jour.',
+        headline: 'Défiez certaines des plus hautes dunes du monde au lever du jour.',
         lede: "Réservez un vrai voyage en quelques minutes -- sans compte, sans attente au téléphone. Une vraie personne planifie votre voyage avec vous.",
       },
     },
