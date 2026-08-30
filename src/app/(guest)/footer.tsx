@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { Logo } from '@/components/Logo';
 
 // Minimal currentColor glyphs, same hand-drawn convention as BrandMark --
-// avoids adding an icon-library dependency for four social links. Empty
+// avoids adding an icon-library dependency for these social links. Empty
 // href for now (no accounts set up yet); update in place once they exist.
 const SOCIAL_LINKS: { label: string; href: string; path: string }[] = [
   {
@@ -25,6 +25,11 @@ const SOCIAL_LINKS: { label: string; href: string; path: string }[] = [
     label: 'WhatsApp',
     href: '#',
     path: 'M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3zm5.2 12.9c-.2.6-1.2 1.2-1.7 1.3-.4.1-1 .1-1.6-.1-.4-.1-.9-.3-1.5-.6-2.6-1.1-4.3-3.8-4.4-4-.1-.2-1-1.3-1-2.5s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5.2.5.7 1.8.8 1.9.1.2.1.3 0 .5-.1.2-.2.3-.3.5-.2.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1.2-.2.7-.8.9-1.1.2-.3.4-.2.6-.1l1.7.8c.2.1.3.2.4.3.1.2.1.7-.1 1.3z',
+  },
+  {
+    label: 'TikTok',
+    href: '#',
+    path: 'M16.6 3h-3v12.2a2.8 2.8 0 1 1-2-2.7v-3.1a5.9 5.9 0 1 0 5 5.8V9.3a7.7 7.7 0 0 0 4.4 1.4V7.6a4.6 4.6 0 0 1-4.4-4.6z',
   },
 ];
 
