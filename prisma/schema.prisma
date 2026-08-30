@@ -345,6 +345,25 @@ model PlatformRate {
   @@map("platform_rates")
 }
 
+// Settings module (DR-198): a guest whose travel date is under
+// thresholdDays away pays in full only (no deposit option) with a
+// surchargeRateBp increase on top -- see Booking.lateBookingSurchargeBp/
+// Invoice.lateBookingSurchargeMinor/depositAllowed for where this gets
+// snapshotted and applied. Platform-wide, effective-dated, same
+// no-organizationId/no-RLS precedent as TaxRate/PlatformRate above.
+model LateBookingRate {
+  id              String    @id @default(uuid()) @db.Uuid
+  thresholdDays   Int
+  surchargeRateBp Int // 500 = 5.00%
+  validFrom       DateTime  @default(now())
+  validTo         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([validFrom])
+  @@map("late_booking_rates")
+}
+
 // CMS module (DR-071): staff-editable guest-site content, replacing what
 // used to be hardcoded JSX/TS literals in src/app/(guest)/{about,faq}. Added
 // as an unused scaffold in DR-042 (the "(DR-043)" citation this comment used
@@ -436,19 +455,19 @@ model CmsFaqEntry {
 // more naturally as "description" than "caption" once it's describing the
 // place itself, not just annotating a photo.
 model CmsMediaItem {
-  id               String   @id @default(uuid()) @db.Uuid
-  page             String // e.g. "home-hero", "gallery"
-  slotKey          String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
-  mediaType        String? // 'image' | 'video', null until media is chosen
-  url              String?
-  description      String?  @map("caption")
-  overlayGradient  String? // e.g. "linear-gradient(100deg, rgba(...) 0%, ...)"
-  name             String? // gallery sites only -- staff-editable display name
-  country          String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
-  sortOrder        Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  updatedByUserId  String?  @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  page            String // e.g. "home-hero", "gallery"
+  slotKey         String // e.g. "slide-1", or a stable per-item id for a free list like Gallery
+  mediaType       String? // 'image' | 'video', null until media is chosen
+  url             String?
+  description     String?  @map("caption")
+  overlayGradient String? // e.g. "linear-gradient(100deg, rgba(...) 0%, ...)"
+  name            String? // gallery sites only -- staff-editable display name
+  country         String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
 
   @@unique([page, slotKey])
   @@index([page, sortOrder])
@@ -780,6 +799,14 @@ model Booking {
   priceSubtotalMinor     Int?
   priceTaxRateBp         Int?
   pricePlatformFeeRateBp Int?
+  // DR-198: snapshotted LateBookingRate.surchargeRateBp, at hold-creation
+  // time (PREDEFINED_PACKAGE, against the Departure's startDate) or
+  // tailor-made-request time (TAILOR_MADE, against customTravelStart) --
+  // never re-evaluated later. Null = this booking's travel date was far
+  // enough out that the surcharge doesn't apply; invoicingService reads
+  // this snapshot rather than resolving the rate live, same "trust the
+  // snapshot" convention as priceTaxRateBp/pricePlatformFeeRateBp above.
+  lateBookingSurchargeBp Int?
   // Set when the add-ons wizard step is submitted, even choosing none --
   // gates invoice creation so the invoice's subtotal always reflects the
   // final add-on selection (see bookingService.getBillableTotal).
@@ -945,19 +972,19 @@ enum VisaFeePaymentStatus {
 // role was removed in DR-032, but the snapshot stays since
 // VISA_FACILITATOR's own queue (DR-031) also benefits from it.
 model VisaApplication {
-  id                         String     @id @default(uuid()) @db.Uuid
-  organizationId             String     @db.Uuid
-  travelerId                 String     @unique @db.Uuid
+  id                         String               @id @default(uuid()) @db.Uuid
+  organizationId             String               @db.Uuid
+  travelerId                 String               @unique @db.Uuid
   country                    String // ISO-3166 alpha-2, destination -- snapshotted from the departure's package at submit time
   travelerFirstName          String
   travelerLastName           String
   travelerNationality        String
   travelerIdOrPassportNumber String
-  status                     VisaStatus @default(SUBMITTED)
-  rejectionReason            String?    @db.VarChar(500) // set when status becomes REJECTED; cleared on resubmit and on a later APPROVED decision -- durable history of a past rejection lives in audit_logs, not here (DR-025)
-  resubmissionCount          Int        @default(0) // display-only counter, bumped by repository.resubmit -- not itself a business rule
-  documentId                 String?    @unique @db.Uuid // the granted visa doc
-  submittedAt                DateTime   @default(now())
+  status                     VisaStatus           @default(SUBMITTED)
+  rejectionReason            String?              @db.VarChar(500) // set when status becomes REJECTED; cleared on resubmit and on a later APPROVED decision -- durable history of a past rejection lives in audit_logs, not here (DR-025)
+  resubmissionCount          Int                  @default(0) // display-only counter, bumped by repository.resubmit -- not itself a business rule
+  documentId                 String?              @unique @db.Uuid // the granted visa doc
+  submittedAt                DateTime             @default(now())
   decidedAt                  DateTime?
   // DR-184: the destination country's government/immigration fee, snapshotted
   // from CountryRegulation at (re)submission time -- frozen once set, never
@@ -970,8 +997,8 @@ model VisaApplication {
   feePaymentStatus           VisaFeePaymentStatus @default(NOT_REQUESTED)
   feeRequestedAt             DateTime?
   feePaidAt                  DateTime?
-  createdAt                  DateTime   @default(now())
-  updatedAt                  DateTime   @updatedAt
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   traveler     Traveler     @relation(fields: [travelerId], references: [id], onDelete: Cascade)
@@ -1567,34 +1594,51 @@ model BookingAddon {
 // change never mutates an already-issued invoice. DPO payments are stubbed
 // this increment (OI-01 commercial terms still open) -- see Payment/gateway.ts.
 model Invoice {
-  id                String        @id @default(uuid()) @db.Uuid
-  organizationId    String        @db.Uuid
-  bookingId         String        @unique @db.Uuid
-  currency          Currency
-  subtotalMinor     Int // = Booking.priceMinor at invoice-creation time
+  id                         String        @id @default(uuid()) @db.Uuid
+  organizationId             String        @db.Uuid
+  bookingId                  String        @unique @db.Uuid
+  currency                   Currency
+  subtotalMinor              Int // = Booking.priceMinor at invoice-creation time
   // Coupons (DR-104): couponCode/discountBp are a snapshot of whichever
   // Coupon was applied at the time (same "snapshot onto the row, not a
   // live FK" convention as taxRateBp below) -- null on every invoice that
   // never had a coupon applied. discountMinor defaults to 0 (always a
   // valid number in the amount math below, coupon or not).
-  couponCode        String?
-  discountBp        Int?
-  discountMinor     Int           @default(0)
-  taxRateBp         Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
-  taxMinor          Int // tax on (subtotalMinor - discountMinor), not subtotalMinor
-  totalMinor        Int // (subtotalMinor - discountMinor) + taxMinor
-  depositMinor      Int // 40% of totalMinor, half-up (DR-012)
-  balanceMinor      Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
+  couponCode                 String?
+  discountBp                 Int?
+  discountMinor              Int           @default(0)
+  taxRateBp                  Int // snapshotted TaxRate.rateBp (BR-01/DR-006)
+  taxMinor                   Int // tax on (subtotalMinor - discountMinor), not subtotalMinor
+  totalMinor                 Int // (subtotalMinor - discountMinor) + taxMinor
+  depositMinor               Int // 40% of totalMinor, half-up (DR-012)
+  balanceMinor               Int // totalMinor - depositMinor (never independently rounded -- avoids drift)
   // Settings module (DR-042): the platform's commission, computed as an
   // informational split of totalMinor -- NEVER added to it. depositMinor/
   // balanceMinor/totalMinor are the customer's real amounts, unaffected by
   // this. Nullable: existing (pre-DR-042) invoices predate the feature and
   // are grandfathered, same precedent as TourPackage.priceMinor (DR-039).
-  platformFeeMinor  Int?
-  platformFeeRateBp Int? // snapshotted PlatformRate.rateBp at invoice-creation time
-  status            InvoiceStatus @default(DRAFT)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  platformFeeMinor           Int?
+  platformFeeRateBp          Int? // snapshotted PlatformRate.rateBp at invoice-creation time
+  // DR-198: itemized late-booking surcharge, added on top of subtotal+tax+
+  // platform fee (already folded into totalMinor/depositMinor above, not a
+  // side split of them -- same "included, not added separately" convention
+  // as platformFeeMinor). 0 on every invoice the surcharge doesn't apply to.
+  lateBookingSurchargeMinor  Int           @default(0)
+  // Snapshotted Booking.lateBookingSurchargeBp -- stored separately from the
+  // computed lateBookingSurchargeMinor above (same "rate + amount, both
+  // persisted" convention as taxRateBp/platformFeeRateBp) so applyCoupon/
+  // removeCoupon can recompute amounts from the invoice row alone, without
+  // needing the booking back in hand. Null = unaffected.
+  lateBookingSurchargeRateBp Int?
+  // False forces depositMinor = totalMinor / balanceMinor = 0 (full payment
+  // only) -- set from Booking.lateBookingSurchargeBp at invoice-creation
+  // time, checked server-side by invoicing/domain.ts's canInitiatePayment
+  // (the real gate; the guest UI hiding the deposit button is only a
+  // convenience).
+  depositAllowed             Boolean       @default(true)
+  status                     InvoiceStatus @default(DRAFT)
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
 
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booking           Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)

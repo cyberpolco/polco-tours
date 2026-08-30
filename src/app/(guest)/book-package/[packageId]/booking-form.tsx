@@ -14,6 +14,10 @@ import { createGuestPackageBookingAction } from './actions';
 interface Props {
   packageId: string;
   durationDays: number;
+  // DR-198: null when no rate is configured yet -- the live warning below
+  // just doesn't render in that case (real enforcement is server-side
+  // regardless, see bookingService.createHoldWithDates).
+  lateBookingRate: { thresholdDays: number; surchargeRateBp: number } | null;
 }
 
 // Mirrors (guest)/book/[departureId]/booking-form.tsx -- same anonymous-
@@ -26,7 +30,7 @@ interface Props {
 // not a guest choice, so there's no end-date input -- the real end date is
 // computed server-side (catalogService.createDepartureForBooking); this
 // component only echoes it back for the guest's own planning.
-export default function BookingForm({ packageId, durationDays }: Props) {
+export default function BookingForm({ packageId, durationDays, lateBookingRate }: Props) {
   const router = useRouter();
   const t = useTranslations('BookingStart');
   const [pending, setPending] = useState(false);
@@ -38,6 +42,10 @@ export default function BookingForm({ packageId, durationDays }: Props) {
   // echoes the same trivial "start + (durationDays - 1)" arithmetic back so
   // the guest can see their expected return date before submitting.
   const previewReturnDate = startDate ? addDaysToDateString(startDate, durationDays - 1) : null;
+  // DR-198: preview only -- the real decision is made server-side against
+  // the actual booking-creation moment (bookingService.createHoldWithDates),
+  // this just warns the guest before they submit.
+  const isLateBooking = lateBookingRate ? daysUntil(startDate) < lateBookingRate.thresholdDays : false;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -86,6 +94,14 @@ export default function BookingForm({ packageId, durationDays }: Props) {
         {t('tripLengthNotice', { days: durationDays })}
         {previewReturnDate && t('returnDateNotice', { date: previewReturnDate })}
       </p>
+      {isLateBooking && lateBookingRate && (
+        <Alert tone="info">
+          {t('lateBookingNotice', {
+            days: lateBookingRate.thresholdDays,
+            percent: (lateBookingRate.surchargeRateBp / 100).toFixed(0),
+          })}
+        </Alert>
+      )}
 
       <FormField label={t('seats')} htmlFor="seats">
         <input
@@ -143,4 +159,15 @@ function addDaysToDateString(dateString: string, extraDays: number): string {
   const d = new Date(`${dateString}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + extraDays);
   return d.toISOString().slice(0, 10);
+}
+
+// DR-198: preview-only mirror of computeLateBookingSurchargeBp's day-diff
+// math (src/lib/late-booking-rate.ts) -- an empty/unset dateString reads as
+// "infinitely far out" (never late), same as the return-date preview above
+// staying blank until a date is picked.
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+function daysUntil(dateString: string): number {
+  if (!dateString) return Infinity;
+  const target = new Date(`${dateString}T00:00:00Z`).getTime();
+  return (target - Date.now()) / MS_PER_DAY;
 }

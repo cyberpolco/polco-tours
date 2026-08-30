@@ -53,6 +53,36 @@ export type CreatePlatformRateInput = z.infer<typeof CreatePlatformRateInput>;
 export const UpdatePlatformRateInput = CreatePlatformRateInput;
 export type UpdatePlatformRateInput = CreatePlatformRateInput;
 
+// ---------------------------------------------------------- LateBookingRate
+// DR-198: a guest whose travel date is under thresholdDays away pays in
+// full only (no deposit), with a surchargeRateBp increase. Platform-wide,
+// effective-dated, same precedent as TaxRate/PlatformRate above --
+// deliberately NOT wired into financeService.reapplyRatesToAllCostBreakdowns
+// like TaxRate/PlatformRate updates are: the whole point of this rate is a
+// frozen-at-booking-creation-time snapshot (Booking.lateBookingSurchargeBp),
+// so a later rate change must never retroactively touch an existing
+// booking/invoice.
+
+export interface LateBookingRateView {
+  id: string;
+  thresholdDays: number;
+  surchargeRateBp: number;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
+export const CreateLateBookingRateInput = z.object({
+  thresholdDays: z.number().int().positive(),
+  surchargeRateBp: z.number().int().nonnegative(),
+  ...EFFECTIVE_DATING,
+});
+export type CreateLateBookingRateInput = z.infer<typeof CreateLateBookingRateInput>;
+
+// Same as UpdateTaxRateInput/UpdatePlatformRateInput above -- an in-place
+// update, not just add-a-new-row/delete.
+export const UpdateLateBookingRateInput = CreateLateBookingRateInput;
+export type UpdateLateBookingRateInput = CreateLateBookingRateInput;
+
 // -------------------------------------------------------------- Coupon
 // DR-104: a percentage-discount code, platform-wide like TaxRate/
 // PlatformRate above. code is system-generated (generateCouponCode below),

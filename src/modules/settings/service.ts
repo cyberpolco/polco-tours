@@ -15,11 +15,14 @@ import { assertCan } from '@lib/rbac';
 import type {
   CouponView,
   CreateCouponInput,
+  CreateLateBookingRateInput,
   CreatePlatformRateInput,
   CreateTaxRateInput,
+  LateBookingRateView,
   PlatformRateView,
   TaxRateView,
   UpdateCouponInput,
+  UpdateLateBookingRateInput,
   UpdatePlatformRateInput,
   UpdateTaxRateInput,
 } from './domain';
@@ -97,6 +100,35 @@ export const settingsService = {
     const deleted = await settingsRepository.deletePlatformRate(id);
     if (!deleted) throw Errors.notFound('Platform rate not found');
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.platform_rate_deleted', resourceType: 'PlatformRate', resourceId: id });
+  },
+
+  // --------------------------------------------------------- LateBookingRate
+  async listLateBookingRates(ctx: AuthContext): Promise<LateBookingRateView[]> {
+    assertCan(ctx, 'platform_settings.read');
+    return settingsRepository.listLateBookingRates();
+  },
+  async createLateBookingRate(ctx: AuthContext, input: CreateLateBookingRateInput): Promise<LateBookingRateView> {
+    requireSettingsWriter(ctx);
+    const rate = await settingsRepository.createLateBookingRate(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.late_booking_rate_created', resourceType: 'LateBookingRate', resourceId: rate.id });
+    return rate;
+  },
+  /** Deliberately no reapply sweep, unlike updateTaxRate/updatePlatformRate
+   * above -- see LateBookingRateView's own domain.ts comment: this rate is
+   * only ever snapshotted onto a Booking at creation time, so a later
+   * change here must never retroactively touch an existing booking/invoice. */
+  async updateLateBookingRate(ctx: AuthContext, id: string, input: UpdateLateBookingRateInput): Promise<LateBookingRateView> {
+    requireSettingsWriter(ctx);
+    const rate = await settingsRepository.updateLateBookingRate(id, input);
+    if (!rate) throw Errors.notFound('Late booking rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.late_booking_rate_updated', resourceType: 'LateBookingRate', resourceId: id });
+    return rate;
+  },
+  async deleteLateBookingRate(ctx: AuthContext, id: string): Promise<void> {
+    requireSettingsWriter(ctx);
+    const deleted = await settingsRepository.deleteLateBookingRate(id);
+    if (!deleted) throw Errors.notFound('Late booking rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'settings.late_booking_rate_deleted', resourceType: 'LateBookingRate', resourceId: id });
   },
 
   // -------------------------------------------------------------- Coupon

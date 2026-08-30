@@ -7,6 +7,7 @@ import { notificationsService } from '@modules/notifications';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { computeLateBookingSurchargeBp, getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import { add, money, scale, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
@@ -124,6 +125,21 @@ async function transition<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** DR-198: resolves the currently-effective LateBookingRate and applies it
+ * against `travelDate` -- shared by finalizeHold (PREDEFINED_PACKAGE) and
+ * createTailorMadeRequest (TAILOR_MADE) so both origins snapshot the
+ * decision the same way, at the same "date is now known" moment. Missing
+ * config is an operator gap, not a caller error -- same "no effective rate"
+ * -> Errors.conflict treatment invoicingService gives getEffectivePlatformRate. */
+async function resolveLateBookingSurchargeBp(travelDate: Date): Promise<number | null> {
+  try {
+    const rate = await getEffectiveLateBookingRate();
+    return computeLateBookingSurchargeBp(travelDate, rate);
+  } catch {
+    throw Errors.conflict('No late-booking rate configured');
+  }
+}
+
 /** Shared by createHold and createHoldWithDates -- prices, capacity-checks,
  * and persists the hold once a real (either pre-existing or just-created)
  * Departure id is known. */
@@ -147,6 +163,7 @@ async function finalizeHold(
   // composition, if any -- see DepartureDetail's own doc comment for when
   // this is null.
   const priceSubtotalMinor = detail.priceSubtotalMinor != null ? detail.priceSubtotalMinor * seats : null;
+  const lateBookingSurchargeBp = await resolveLateBookingSurchargeBp(detail.departure.startDate);
 
   let booking: BookingView;
   try {
@@ -161,6 +178,7 @@ async function finalizeHold(
       priceSubtotalMinor,
       priceTaxRateBp: detail.priceTaxRateBp,
       pricePlatformFeeRateBp: detail.pricePlatformFeeRateBp,
+      lateBookingSurchargeBp,
     });
   } catch (err) {
     if (err instanceof SoldOutError) throw Errors.conflict(err.message);
@@ -256,6 +274,10 @@ export const bookingService = {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
     const touristUserId = isStaff(ctx) && input.touristUserId ? input.touristUserId : ctx.userId;
+    // DR-198: locked in at wizard-submission time, not re-evaluated later
+    // when staff sends the quote (see resolveLateBookingSurchargeBp's own
+    // comment).
+    const lateBookingSurchargeBp = await resolveLateBookingSurchargeBp(input.customTravelStart);
 
     const booking = await bookingRepository.createTailorMadeRequest(organizationId, {
       touristUserId,
@@ -263,6 +285,7 @@ export const bookingService = {
       countries: input.countries,
       customTravelStart: input.customTravelStart,
       customTravelEnd: input.customTravelEnd,
+      lateBookingSurchargeBp,
       customDescription: input.customDescription,
       specialRequests: input.specialRequests,
       preferredTags: input.preferredTags,

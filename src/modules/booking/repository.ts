@@ -28,11 +28,16 @@ export interface CreateHoldParams {
   priceSubtotalMinor: number | null;
   priceTaxRateBp: number | null;
   pricePlatformFeeRateBp: number | null;
+  // DR-198: null = this booking's travel date is unaffected by the
+  // lead-time surcharge.
+  lateBookingSurchargeBp: number | null;
 }
 
 export interface CreateTailorMadeParams {
   touristUserId: string;
   seats: number;
+  // DR-198: same as CreateHoldParams.lateBookingSurchargeBp above.
+  lateBookingSurchargeBp: number | null;
   // DR-047: one or more, selection order preserved -- countries[0] is the
   // sole driver of tax/visa lookups (stored as customCountry), the full
   // list is kept as preferredCountries for staff context.
@@ -71,6 +76,7 @@ function toBookingView(b: Booking): BookingView {
     priceSubtotalMinor: b.priceSubtotalMinor,
     priceTaxRateBp: b.priceTaxRateBp,
     pricePlatformFeeRateBp: b.pricePlatformFeeRateBp,
+    lateBookingSurchargeBp: b.lateBookingSurchargeBp,
     addonsFinalizedAt: b.addonsFinalizedAt,
     requiresPassportUpload: b.requiresPassportUpload,
     bookingReference: b.bookingReference,
@@ -321,6 +327,7 @@ export const bookingRepository = {
             priceSubtotalMinor: params.priceSubtotalMinor,
             priceTaxRateBp: params.priceTaxRateBp,
             pricePlatformFeeRateBp: params.pricePlatformFeeRateBp,
+            lateBookingSurchargeBp: params.lateBookingSurchargeBp,
             bookingReference,
             specialRequests: params.specialRequests,
           },
@@ -349,6 +356,7 @@ export const bookingRepository = {
             customCountry: primaryCountry,
             customTravelStart: params.customTravelStart,
             customTravelEnd: params.customTravelEnd,
+            lateBookingSurchargeBp: params.lateBookingSurchargeBp,
             customDescription: params.customDescription,
             preferredTags: params.preferredTags ?? [],
             preferredSites: params.preferredSites ?? [],

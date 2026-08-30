@@ -74,6 +74,14 @@ async function main() {
     await prisma.platformRate.create({ data: { rateBp: 500 } });
   }
 
+  // --- Late booking rate (Settings module, DR-198) -- a guest whose travel
+  // date is under 21 days away pays in full only, with a 5% surcharge on
+  // top (explicit user figures). A single global rate, not per-country.
+  const existingLateBookingRate = await prisma.lateBookingRate.findFirst({ where: { validTo: null } });
+  if (!existingLateBookingRate) {
+    await prisma.lateBookingRate.create({ data: { thresholdDays: 21, surchargeRateBp: 500 } });
+  }
+
   // --- Country regulations (Immigration Module, DR-034) -- initially
   // supported countries per the spec. Content below is general,
   // reasonably-current-as-of-writing knowledge, NOT verified against each
@@ -677,6 +685,7 @@ async function main() {
     superadmin: admin.email,
     taxRates: taxes.length,
     platformRate: existingPlatformRate ? 'already configured' : '5% seeded',
+    lateBookingRate: existingLateBookingRate ? 'already configured' : '21 days / 5% seeded',
     countryRegulations: countryRegulations.length,
     addonServices: addons.length,
     packages: packages.length,

@@ -373,7 +373,10 @@
     "visaInProgress": "Your visa application is in progress.",
     "visaNeedsAttention": "A visa application needs your attention.",
     "viewVisaDetails": "View details",
-    "governmentFeeDisclaimer": "The destination country's own government/immigration fee is separate from what you've paid so far — it isn't charged today. We'll let you know when it's due. Paying for visa assistance doesn't guarantee a visa will be granted."
+    "governmentFeeDisclaimer": "The destination country's own government/immigration fee is separate from what you've paid so far — it isn't charged today. We'll let you know when it's due. Paying for visa assistance doesn't guarantee a visa will be granted.",
+    "lateBookingSurcharge": "Late booking surcharge",
+    "fullPaymentRequired": "Full payment required",
+    "lateBookingExplainer": "Your travel date is close enough that only full payment is available for this booking, at the surcharged total above."
   },
   "AddonsPage": {
     "backToBooking": "back to your booking",
@@ -513,7 +516,8 @@
     "back": "Back",
     "next": "Next",
     "submitting": "Submitting…",
-    "requestQuotation": "Request my quotation"
+    "requestQuotation": "Request my quotation",
+    "lateBookingNotice": "Travel dates within {days} days require full payment, with a {percent}% increase."
   },
   "FindBookingPage": {
     "eyebrow": "Find my booking",
@@ -1355,7 +1359,9 @@
     "couponsTitle": "Coupons",
     "couponsDesc": "Percentage-discount codes applied to an invoice before payment.",
     "operationalRatesTitle": "Operational Rates",
-    "operationalRatesDesc": "Cost-plus rates feeding every package's cost breakdown."
+    "operationalRatesDesc": "Cost-plus rates feeding every package's cost breakdown.",
+    "lateBookingRateTitle": "Late Booking Rate",
+    "lateBookingRateDesc": "The lead-time threshold and surcharge applied when a guest books close to their travel date."
   },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
@@ -1885,7 +1891,8 @@
     "startingBooking": "Starting your booking…",
     "startMyBooking": "Start my booking",
     "errorCouldNotStart": "Could not start your booking — try again.",
-    "errorGeneric": "Something went wrong starting your booking — please try again."
+    "errorGeneric": "Something went wrong starting your booking — please try again.",
+    "lateBookingNotice": "Departures within {days} days require full payment, with a {percent}% increase."
   },
   "PackageDetail": {
     "allPackages": "all packages",
@@ -2036,5 +2043,26 @@
     "expiresAtLabel": "Expires on (optional)",
     "add": "Create coupon",
     "adding": "Creating…"
+  },
+  "StaffLateBookingRate": {
+    "eyebrow": "Finance",
+    "title": "Late Booking Rate",
+    "backToFinance": "back to finance",
+    "intro": "When a guest's travel date is within the threshold, only full payment is available, with a surcharge added on top. Add a new row for a new rate, or edit the existing one in place -- unlike Tax/Platform Rate, editing here never retroactively changes an existing booking or invoice.",
+    "noneYet": "No late booking rate configured yet.",
+    "threshold": "Threshold",
+    "thresholdValue": "Within {days} days",
+    "surcharge": "Surcharge",
+    "validFrom": "Valid from",
+    "removing": "Removing…",
+    "removeConfirm": "Remove this late booking rate? This cannot be undone.",
+    "remove": "Remove",
+    "edit": "Edit",
+    "saveChanges": "Save changes",
+    "savingChanges": "Saving…",
+    "thresholdDays": "Threshold (days)",
+    "surchargePercent": "Surcharge (%)",
+    "adding": "Adding…",
+    "add": "Add"
   }
 }

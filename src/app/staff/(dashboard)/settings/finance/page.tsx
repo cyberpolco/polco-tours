@@ -45,6 +45,11 @@ export default async function FinanceHubPage() {
       title: t('couponsTitle'),
       description: t('couponsDesc'),
     },
+    canReadSettings && {
+      href: '/staff/settings/late-booking-rate',
+      title: t('lateBookingRateTitle'),
+      description: t('lateBookingRateDesc'),
+    },
     canReadFinanceConfig && {
       href: '/staff/finance/rates',
       title: t('operationalRatesTitle'),

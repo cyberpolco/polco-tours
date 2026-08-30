@@ -90,6 +90,10 @@ CREATE POLICY tenant_isolation ON payments
 -- No policy for tax_rates: it is platform-wide reference data with no
 -- organizationId column (DR-006) -- not tenant-scoped, intentionally.
 
+-- No policy for late_booking_rates either (DR-198), same reasoning as
+-- tax_rates/platform_rates: platform-wide reference data, no
+-- organizationId column.
+
 -- No policy for site_content/faq_entries (Prisma models CmsTextBlock/
 -- CmsFaqEntry, renamed from SiteContent/FaqEntry in DR-162 -- table names
 -- unchanged) or cms_media_items (new in DR-162) either, same reasoning

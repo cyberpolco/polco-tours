@@ -202,6 +202,7 @@ export const invoicingService = {
       currency: subtotal.currency,
       taxRateBp: rateBp,
       platformFeeRateBp,
+      lateBookingSurchargeBp: booking.lateBookingSurchargeBp,
     });
 
     const invoice = await invoicingRepository.create(organizationId, {
@@ -213,6 +214,7 @@ export const invoicingService = {
       taxRateBp: rateBp,
       ...amounts,
       platformFeeRateBp,
+      lateBookingSurchargeRateBp: booking.lateBookingSurchargeBp,
     });
 
     await audit({

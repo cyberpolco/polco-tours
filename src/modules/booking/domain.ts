@@ -78,6 +78,10 @@ export interface BookingView {
   priceSubtotalMinor: number | null;
   priceTaxRateBp: number | null;
   pricePlatformFeeRateBp: number | null;
+  // DR-198: snapshotted LateBookingRate.surchargeRateBp at hold-creation
+  // (PREDEFINED_PACKAGE) or tailor-made-request (TAILOR_MADE) time -- see
+  // this column's own schema.prisma comment. Null = unaffected.
+  lateBookingSurchargeBp: number | null;
   addonsFinalizedAt: Date | null;
   // Snapshotted when add-ons are finalized (setAddons) -- true only if the
   // selection included Visa Assistance. Drives whether the Passport wizard

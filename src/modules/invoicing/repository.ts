@@ -21,6 +21,9 @@ export interface CreateInvoiceParams {
   balanceMinor: number;
   platformFeeMinor: number;
   platformFeeRateBp: number;
+  lateBookingSurchargeMinor: number;
+  lateBookingSurchargeRateBp: number | null;
+  depositAllowed: boolean;
 }
 
 interface CouponRow {
@@ -62,6 +65,9 @@ function toInvoiceView(i: Invoice): InvoiceView {
     balanceMinor: i.balanceMinor,
     platformFeeMinor: i.platformFeeMinor,
     platformFeeRateBp: i.platformFeeRateBp,
+    lateBookingSurchargeMinor: i.lateBookingSurchargeMinor,
+    lateBookingSurchargeRateBp: i.lateBookingSurchargeRateBp,
+    depositAllowed: i.depositAllowed,
     status: i.status,
     createdAt: i.createdAt,
     updatedAt: i.updatedAt,
@@ -200,6 +206,7 @@ export const invoicingRepository = {
         taxRateBp: invoice.taxRateBp,
         platformFeeRateBp: invoice.platformFeeRateBp ?? 0,
         discountBp: coupon.discountBp,
+        lateBookingSurchargeBp: invoice.lateBookingSurchargeRateBp,
       });
 
       await tx.couponRedemption.create({
@@ -229,6 +236,7 @@ export const invoicingRepository = {
         currency: invoice.currency,
         taxRateBp: invoice.taxRateBp,
         platformFeeRateBp: invoice.platformFeeRateBp ?? 0,
+        lateBookingSurchargeBp: invoice.lateBookingSurchargeRateBp,
       });
       const updated = await tx.invoice.update({
         where: { id: invoiceId },

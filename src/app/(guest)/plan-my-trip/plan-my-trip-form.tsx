@@ -54,9 +54,23 @@ interface PlanMyTripFormProps {
    * Gallery page reads (DR-167) -- already filtered to entries with a
    * name+country set. */
   sites: PlanMyTripSite[];
+  /** DR-198: null when no rate is configured yet -- the live warning below
+   * just doesn't render in that case (real enforcement is server-side
+   * regardless, see bookingService.createTailorMadeRequest). */
+  lateBookingRate: { thresholdDays: number; surchargeRateBp: number } | null;
 }
 
-export default function PlanMyTripForm({ initialDestination, sites: allSites }: PlanMyTripFormProps) {
+// DR-198: preview-only mirror of computeLateBookingSurchargeBp's day-diff
+// math (src/lib/late-booking-rate.ts) -- an empty dateString reads as
+// "infinitely far out" (never late).
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+function daysUntil(dateString: string): number {
+  if (!dateString) return Infinity;
+  const target = new Date(`${dateString}T00:00:00Z`).getTime();
+  return (target - Date.now()) / MS_PER_DAY;
+}
+
+export default function PlanMyTripForm({ initialDestination, sites: allSites, lateBookingRate }: PlanMyTripFormProps) {
   const router = useRouter();
   const t = useTranslations('PlanMyTripForm');
   const tSteps = useTranslations('PlanMyTripSteps');
@@ -106,6 +120,9 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites }: 
   const availableSites = useMemo(() => allSites.filter((s) => countries.includes(s.country)), [allSites, countries]);
 
   const datesValid = customTravelStart !== '' && customTravelEnd !== '' && customTravelEnd >= customTravelStart;
+  // DR-198: preview only -- the real decision is made server-side against
+  // the actual submission moment (bookingService.createTailorMadeRequest).
+  const isLateBooking = lateBookingRate ? daysUntil(customTravelStart) < lateBookingRate.thresholdDays : false;
   const canAdvance = [
     countries.length > 0,
     datesValid,
@@ -222,6 +239,16 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites }: 
           </FormField>
           {customTravelStart && customTravelEnd && !datesValid && (
             <p className="col-span-2 text-xs text-amber">{t('endBeforeStartError')}</p>
+          )}
+          {isLateBooking && lateBookingRate && (
+            <div className="col-span-2">
+              <Alert tone="info">
+                {t('lateBookingNotice', {
+                  days: lateBookingRate.thresholdDays,
+                  percent: (lateBookingRate.surchargeRateBp / 100).toFixed(0),
+                })}
+              </Alert>
+            </div>
           )}
         </div>
       )}

@@ -2,16 +2,19 @@
 // prisma.taxRate/platformRate/coupon for this module. All three tables are
 // platform-wide (no organizationId, no RLS -- same precedent as the finance
 // module's rate tables), uses the plain global `prisma` client, no withOrg.
-import { Prisma, type Coupon, type PlatformRate, type TaxRate } from '@prisma/client';
+import { Prisma, type Coupon, type LateBookingRate, type PlatformRate, type TaxRate } from '@prisma/client';
 import { prisma } from '@lib/db';
 import { generateCouponCode } from './domain';
 import type {
   CouponView,
   CreateCouponInput,
+  CreateLateBookingRateInput,
   CreatePlatformRateInput,
   CreateTaxRateInput,
+  LateBookingRateView,
   PlatformRateView,
   TaxRateView,
+  UpdateLateBookingRateInput,
   UpdatePlatformRateInput,
   UpdateTaxRateInput,
 } from './domain';
@@ -21,6 +24,9 @@ function toTaxRateView(r: TaxRate): TaxRateView {
 }
 function toPlatformRateView(r: PlatformRate): PlatformRateView {
   return { id: r.id, rateBp: r.rateBp, validFrom: r.validFrom, validTo: r.validTo };
+}
+function toLateBookingRateView(r: LateBookingRate): LateBookingRateView {
+  return { id: r.id, thresholdDays: r.thresholdDays, surchargeRateBp: r.surchargeRateBp, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toCouponView(c: Coupon, redemptionCount: number): CouponView {
   return {
@@ -100,6 +106,35 @@ export const settingsRepository = {
     if (!existing) return null;
     await prisma.platformRate.delete({ where: { id } });
     return toPlatformRateView(existing);
+  },
+
+  // --------------------------------------------------------- LateBookingRate
+  async listLateBookingRates(): Promise<LateBookingRateView[]> {
+    const rows = await prisma.lateBookingRate.findMany({ orderBy: { validFrom: 'desc' } });
+    return rows.map(toLateBookingRateView);
+  },
+  async createLateBookingRate(input: CreateLateBookingRateInput): Promise<LateBookingRateView> {
+    const r = await prisma.lateBookingRate.create({ data: input });
+    return toLateBookingRateView(r);
+  },
+  /** Same as updateTaxRate/updatePlatformRate above -- explicit user
+   * request, in-place update. Deliberately no reapply sweep (see this
+   * table's own domain.ts comment): unlike Tax/PlatformRate, a change here
+   * must never retroactively touch an already-created booking/invoice. */
+  async updateLateBookingRate(id: string, input: UpdateLateBookingRateInput): Promise<LateBookingRateView | null> {
+    const existing = await prisma.lateBookingRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const updated = await prisma.lateBookingRate.update({
+      where: { id },
+      data: { thresholdDays: input.thresholdDays, surchargeRateBp: input.surchargeRateBp },
+    });
+    return toLateBookingRateView(updated);
+  },
+  async deleteLateBookingRate(id: string): Promise<LateBookingRateView | null> {
+    const existing = await prisma.lateBookingRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.lateBookingRate.delete({ where: { id } });
+    return toLateBookingRateView(existing);
   },
 
   // -------------------------------------------------------------- Coupon

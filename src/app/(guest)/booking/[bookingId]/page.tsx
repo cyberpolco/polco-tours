@@ -255,19 +255,35 @@ export default async function BookingHomePage({ params }: Props) {
               <p className="text-sm">{format(money(invoice.platformFeeMinor, invoice.currency))}</p>
             </div>
           )}
+          {invoice.lateBookingSurchargeMinor > 0 && (
+            <div>
+              <p className="text-xs text-mist">{t('lateBookingSurcharge')}</p>
+              <p className="text-sm">{format(money(invoice.lateBookingSurchargeMinor, invoice.currency))}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-mist">{t('total')}</p>
             <p className="text-lg font-semibold text-navy">{format(money(invoice.totalMinor, invoice.currency))}</p>
           </div>
-          <div>
-            <p className="text-xs text-mist">{t('depositPct')}</p>
-            <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
-          </div>
-          <div>
-            <p className="text-xs text-mist">{t('balancePct')}</p>
-            <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
-          </div>
+          {invoice.depositAllowed ? (
+            <>
+              <div>
+                <p className="text-xs text-mist">{t('depositPct')}</p>
+                <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
+              </div>
+              <div>
+                <p className="text-xs text-mist">{t('balancePct')}</p>
+                <p className="text-lg font-semibold text-navy">{format(money(invoice.balanceMinor, invoice.currency))}</p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-xs text-mist">{t('fullPaymentRequired')}</p>
+              <p className="text-lg font-semibold text-navy">{format(money(invoice.depositMinor, invoice.currency))}</p>
+            </div>
+          )}
         </Card>
+        {!invoice.depositAllowed && <p className="mt-2 text-xs text-mist">{t('lateBookingExplainer')}</p>}
         <CouponForm
           appliedCode={invoice.couponCode}
           editable={couponEditable}
@@ -312,11 +328,13 @@ export default async function BookingHomePage({ params }: Props) {
         <div className="mt-4 flex flex-wrap gap-3">
           {booking.status === 'AWAITING_DEPOSIT' && !pendingPayment && (
             <>
-              <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
-                <SubmitButton pendingLabel={t('starting')}>{t('payDeposit')}</SubmitButton>
-              </form>
+              {invoice.depositAllowed && (
+                <form action={initiatePaymentAction.bind(null, invoice.id, 'DEPOSIT', booking.id)}>
+                  <SubmitButton pendingLabel={t('starting')}>{t('payDeposit')}</SubmitButton>
+                </form>
+              )}
               <form action={initiatePaymentAction.bind(null, invoice.id, 'FULL', booking.id)}>
-                <SubmitButton pendingLabel={t('starting')} variant="secondary">
+                <SubmitButton pendingLabel={t('starting')} variant={invoice.depositAllowed ? 'secondary' : 'primary'}>
                   {t('payInFull')}
                 </SubmitButton>
               </form>

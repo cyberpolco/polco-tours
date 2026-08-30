@@ -33,7 +33,7 @@ internal identifier are unaffected and still say POLCO TOURS/polcotours —
 this remains display-text-only, not a rename of the underlying brand.
 
 
-Current through **DR-195** (2026-08-24). This file used to carry a running
+Current through **DR-198** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -174,7 +174,8 @@ src/
         fleet/, schedule/, visa-queue/, country-regulations/,
         finance/, insights/, tracking/, ratings/, packages/, profile/,
         map/ (DR-089: booking-reference lookup -> whole-circuit map + PDF, DR-150),
-        settings/ (finance hub -> tax-rates, platform-rate, coupons; DR-123),
+        settings/ (finance hub -> tax-rates, platform-rate, coupons,
+          late-booking-rate (DR-198); DR-123),
         admin/ (users, clients)
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
@@ -192,7 +193,12 @@ src/
                               #   directory-filters (DR-091: shared search/filter/
                               #   pagination helpers for the admin Users/Clients pages),
                               #   weather-towns (DR-113 static town config),
-                              #   weather-cache (DR-113 Redis cache helper)
+                              #   weather-cache (DR-113 Redis cache helper),
+                              #   late-booking-rate (DR-198: effective-dated
+                              #   LateBookingRate lookup + the day-diff calc,
+                              #   used directly by booking/ and the guest
+                              #   date-picker pages — not a settings module
+                              #   import, see booking/'s own comment)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
@@ -205,10 +211,26 @@ src/
                    #   plain scalars, no FK into itinerary's
                    #   Activity/Hotel/Restaurant)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
-                   #   bookingReference is the sole guest-facing lookup key
+                   #   bookingReference is the sole guest-facing lookup key.
+                   #   DR-198: Booking.lateBookingSurchargeBp — snapshotted
+                   #   at hold-creation time (finalizeHold, shared by
+                   #   createHold/createHoldWithDates, against the
+                   #   Departure's startDate) or tailor-made-request time
+                   #   (createTailorMadeRequest, against customTravelStart),
+                   #   via the shared src/lib/late-booking-rate.ts helper —
+                   #   not a settings module import (would be circular, see
+                   #   "Module dependency direction matters" below)
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
                    #   applied via a shared computeInvoiceAmounts helper);
+                   #   DR-198: Invoice.lateBookingSurchargeMinor/
+                   #   lateBookingSurchargeRateBp/depositAllowed —
+                   #   Booking.lateBookingSurchargeBp's snapshot, itemized on
+                   #   top of subtotal+tax+platform fee (not itself taxed);
+                   #   when set, splitDeposit is skipped entirely (full
+                   #   payment only) and invoicing/domain.ts's
+                   #   canInitiatePayment rejects a DEPOSIT payment
+                   #   server-side regardless of what the guest UI shows;
                    #   DR-145: a TAILOR_MADE booking's tax rate is blended
                    #   across its linked customized package's Day Template
                    #   countries via financeService.resolveEffectiveTaxRateBp
@@ -355,7 +377,15 @@ src/
                    #   Coupon's own Update (DR-144); an update reapplies
                    #   every existing package/booking cost breakdown via
                    #   financeService.reapplyRatesToAllCostBreakdowns (new
-                   #   settings -> finance module dependency)
+                   #   settings -> finance module dependency). DR-198 adds
+                   #   LateBookingRate (thresholdDays/surchargeRateBp) CRUD,
+                   #   same platform-wide/no-RLS shape as TaxRate/
+                   #   PlatformRate, gated by the same platform_settings.*
+                   #   permissions — deliberately NOT wired into the reapply
+                   #   sweep above, since this rate is only ever snapshotted
+                   #   onto a Booking at creation time (see booking/'s own
+                   #   comment); a later change here must never retroactively
+                   #   touch an existing booking/invoice
     cms/           # CmsTextBlock (About page) + CmsFaqEntry CRUD (DR-071),
                    #   SUPERADMIN-only; public no-ctx read path powers the
                    #   guest /about and /faq pages, mirroring catalog's

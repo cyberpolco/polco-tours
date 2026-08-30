@@ -25,6 +25,18 @@ export interface InvoiceView {
   // (grandfathered).
   platformFeeMinor: number | null;
   platformFeeRateBp: number | null;
+  // DR-198: itemized on top of subtotal+tax+platform fee, already folded
+  // into totalMinor/depositMinor (not a side split of them, same convention
+  // as platformFeeMinor). 0 on every invoice the surcharge doesn't apply to.
+  lateBookingSurchargeMinor: number;
+  // Snapshotted rate behind lateBookingSurchargeMinor above -- stored
+  // separately (same "rate + amount" convention as taxRateBp/
+  // platformFeeRateBp) so applyCoupon/removeCoupon can recompute amounts
+  // from the invoice row alone. Null = unaffected.
+  lateBookingSurchargeRateBp: number | null;
+  // False forces depositMinor === totalMinor / balanceMinor === 0 (full
+  // payment only) -- see canInitiatePayment below for the actual gate.
+  depositAllowed: boolean;
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
@@ -69,24 +81,32 @@ export interface InvoiceAmountsInput {
   taxRateBp: number;
   platformFeeRateBp: number;
   discountBp?: number; // omitted/0 = no coupon
+  // DR-198: Booking.lateBookingSurchargeBp's snapshot -- null/omitted = this
+  // booking's travel date is unaffected.
+  lateBookingSurchargeBp?: number | null;
 }
 
 export interface InvoiceAmounts {
   discountMinor: number;
   taxMinor: number;
   platformFeeMinor: number;
+  lateBookingSurchargeMinor: number;
+  depositAllowed: boolean;
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
 }
 
-/** DR-104/DR-127: subtotal -> discount -> discounted subtotal -> tax (on the
- * DISCOUNTED subtotal, not the original) -> platform fee (on subtotal + tax,
- * charged to the customer, not absorbed by the platform) -> total ->
- * deposit/balance split. The ONE place this math is written -- used by both
- * getOrCreateInvoiceForBooking (discountBp omitted) and applyCoupon/
- * removeCoupon (set/omitted respectively), so the ordering can never drift
- * between the no-discount and with-discount paths. */
+/** DR-104/DR-127/DR-198: subtotal -> discount -> discounted subtotal -> tax
+ * (on the DISCOUNTED subtotal, not the original) -> platform fee (on
+ * subtotal + tax, charged to the customer, not absorbed by the platform) ->
+ * late-booking surcharge (on top of subtotal+tax+fee, itemized, only when
+ * lateBookingSurchargeBp is set) -> total -> deposit/balance split (skipped
+ * entirely -- full payment only -- when the surcharge applies). The ONE
+ * place this math is written -- used by both getOrCreateInvoiceForBooking
+ * (discountBp omitted) and applyCoupon/removeCoupon (set/omitted
+ * respectively), so the ordering can never drift between the no-discount
+ * and with-discount paths. */
 export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmounts {
   const subtotal = money(input.subtotalMinor, input.currency);
   const discountBp = input.discountBp ?? 0;
@@ -95,9 +115,22 @@ export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmount
   const tax = taxOf(discountedSubtotal, input.taxRateBp);
   const preFeeTotal = money(discountedSubtotal.minor + tax.minor, input.currency);
   const platformFee = taxOf(preFeeTotal, input.platformFeeRateBp);
-  const totalMinor = preFeeTotal.minor + platformFee.minor;
-  const { depositMinor, balanceMinor } = splitDeposit(totalMinor);
-  return { discountMinor, taxMinor: tax.minor, platformFeeMinor: platformFee.minor, totalMinor, depositMinor, balanceMinor };
+  const preSurchargeTotal = money(preFeeTotal.minor + platformFee.minor, input.currency);
+  const lateBookingSurchargeBp = input.lateBookingSurchargeBp ?? 0;
+  const lateBookingSurchargeMinor = lateBookingSurchargeBp > 0 ? taxOf(preSurchargeTotal, lateBookingSurchargeBp).minor : 0;
+  const totalMinor = preSurchargeTotal.minor + lateBookingSurchargeMinor;
+  const depositAllowed = lateBookingSurchargeBp === 0;
+  const { depositMinor, balanceMinor } = depositAllowed ? splitDeposit(totalMinor) : { depositMinor: totalMinor, balanceMinor: 0 };
+  return {
+    discountMinor,
+    taxMinor: tax.minor,
+    platformFeeMinor: platformFee.minor,
+    lateBookingSurchargeMinor,
+    depositAllowed,
+    totalMinor,
+    depositMinor,
+    balanceMinor,
+  };
 }
 
 const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
@@ -139,13 +172,19 @@ export function nextInvoiceStatusAfterPayment(
  * FULL (DR-024) is a mutually exclusive alternative to the deposit/balance
  * split -- blocked once either leg has an active/succeeded attempt, and
  * blocks DEPOSIT in turn once it has one of its own (a FAILED attempt on
- * either side doesn't count, so switching paths after a failure is fine). */
+ * either side doesn't count, so switching paths after a failure is fine).
+ * DR-198: DEPOSIT is also blocked outright once depositAllowed is false
+ * (this booking's travel date is under the configured lead-time threshold)
+ * -- this is the real server-side gate, not just the guest UI hiding the
+ * button; BALANCE needs no extra check since it already requires a prior
+ * succeeded DEPOSIT, which can then never exist. */
 export function canInitiatePayment(
-  invoice: Pick<InvoiceView, 'status'>,
+  invoice: Pick<InvoiceView, 'status' | 'depositAllowed'>,
   payments: Pick<PaymentView, 'kind' | 'status'>[],
   kind: PaymentKind,
 ): boolean {
   if (invoice.status === 'PAID' || invoice.status === 'VOID') return false;
+  if (kind === 'DEPOSIT' && !invoice.depositAllowed) return false;
   const activeOrSucceeded = (k: PaymentKind) => payments.some((p) => p.kind === k && p.status !== 'FAILED');
   if (activeOrSucceeded(kind)) return false;
   if (kind === 'BALANCE') {

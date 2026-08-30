@@ -2,10 +2,12 @@
 export { settingsService } from './service';
 export {
   CreateCouponInput,
+  CreateLateBookingRateInput,
   CreatePlatformRateInput,
   CreateTaxRateInput,
   UpdateCouponInput,
+  UpdateLateBookingRateInput,
   UpdatePlatformRateInput,
   UpdateTaxRateInput,
 } from './domain';
-export type { CouponView, PlatformRateView, TaxRateView } from './domain';
+export type { CouponView, LateBookingRateView, PlatformRateView, TaxRateView } from './domain';

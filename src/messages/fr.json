@@ -373,7 +373,10 @@
     "visaInProgress": "Votre demande de visa est en cours.",
     "visaNeedsAttention": "Une demande de visa nécessite votre attention.",
     "viewVisaDetails": "Voir les détails",
-    "governmentFeeDisclaimer": "Les frais gouvernementaux/d'immigration du pays de destination sont distincts de ce que vous avez payé jusqu'ici — ils ne sont pas facturés aujourd'hui. Nous vous informerons lorsqu'ils seront dus. Payer l'assistance visa ne garantit pas l'obtention du visa."
+    "governmentFeeDisclaimer": "Les frais gouvernementaux/d'immigration du pays de destination sont distincts de ce que vous avez payé jusqu'ici — ils ne sont pas facturés aujourd'hui. Nous vous informerons lorsqu'ils seront dus. Payer l'assistance visa ne garantit pas l'obtention du visa.",
+    "lateBookingSurcharge": "Majoration pour réservation tardive",
+    "fullPaymentRequired": "Paiement intégral requis",
+    "lateBookingExplainer": "Votre date de voyage est suffisamment proche pour que seul le paiement intégral soit disponible pour cette réservation, au montant total majoré ci-dessus."
   },
   "AddonsPage": {
     "backToBooking": "retour à votre réservation",
@@ -513,7 +516,8 @@
     "back": "Retour",
     "next": "Suivant",
     "submitting": "Envoi…",
-    "requestQuotation": "Demander mon devis"
+    "requestQuotation": "Demander mon devis",
+    "lateBookingNotice": "Les dates de voyage dans les {days} jours nécessitent un paiement intégral, avec une augmentation de {percent}%."
   },
   "FindBookingPage": {
     "eyebrow": "Retrouver ma réservation",
@@ -1355,7 +1359,9 @@
     "couponsTitle": "Coupons",
     "couponsDesc": "Codes de réduction en pourcentage appliqués à une facture avant paiement.",
     "operationalRatesTitle": "Tarifs opérationnels",
-    "operationalRatesDesc": "Tarifs de type coût majoré alimentant la répartition des coûts de chaque circuit."
+    "operationalRatesDesc": "Tarifs de type coût majoré alimentant la répartition des coûts de chaque circuit.",
+    "lateBookingRateTitle": "Taux de réservation tardive",
+    "lateBookingRateDesc": "Le délai seuil et la majoration appliqués lorsqu'un client réserve proche de sa date de voyage."
   },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
@@ -1885,7 +1891,8 @@
     "startingBooking": "Démarrage de votre réservation…",
     "startMyBooking": "Démarrer ma réservation",
     "errorCouldNotStart": "Impossible de démarrer votre réservation — veuillez réessayer.",
-    "errorGeneric": "Un problème est survenu au démarrage de votre réservation — veuillez réessayer."
+    "errorGeneric": "Un problème est survenu au démarrage de votre réservation — veuillez réessayer.",
+    "lateBookingNotice": "Les départs dans les {days} jours nécessitent un paiement intégral, avec une augmentation de {percent}%."
   },
   "PackageDetail": {
     "allPackages": "tous les circuits",
@@ -2036,5 +2043,26 @@
     "expiresAtLabel": "Expire le (optionnel)",
     "add": "Créer un coupon",
     "adding": "Création…"
+  },
+  "StaffLateBookingRate": {
+    "eyebrow": "Finance",
+    "title": "Taux de réservation tardive",
+    "backToFinance": "retour à finance",
+    "intro": "Lorsque la date de voyage d'un client est dans le seuil, seul le paiement intégral est disponible, avec une majoration ajoutée. Ajoutez une nouvelle ligne pour un nouveau taux, ou modifiez celui existant directement -- contrairement aux taux de taxe/plateforme, une modification ici ne change jamais rétroactivement une réservation ou une facture existante.",
+    "noneYet": "Aucun taux de réservation tardive configuré pour le moment.",
+    "threshold": "Seuil",
+    "thresholdValue": "Dans les {days} jours",
+    "surcharge": "Majoration",
+    "validFrom": "Valide à partir de",
+    "removing": "Suppression…",
+    "removeConfirm": "Supprimer ce taux de réservation tardive ? Cette action est irréversible.",
+    "remove": "Supprimer",
+    "edit": "Modifier",
+    "saveChanges": "Enregistrer",
+    "savingChanges": "Enregistrement…",
+    "thresholdDays": "Seuil (jours)",
+    "surchargePercent": "Majoration (%)",
+    "adding": "Ajout…",
+    "add": "Ajouter"
   }
 }

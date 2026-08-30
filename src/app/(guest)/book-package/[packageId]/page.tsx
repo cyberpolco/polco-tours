@@ -6,7 +6,21 @@ import { Card } from '@/components/ui/Card';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { formatOrPending } from '@lib/money';
+import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import BookingForm from './booking-form';
+
+// DR-198: best-effort -- an unconfigured rate (e.g. before seed.ts has run)
+// just means no live warning is shown, never a crashed booking-start page.
+// Real enforcement happens server-side regardless (bookingService's own
+// resolveLateBookingSurchargeBp), so this preview being unavailable never
+// affects what the guest is actually charged.
+async function tryGetLateBookingRate() {
+  try {
+    return await getEffectiveLateBookingRate();
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   params: Promise<{ packageId: string }>;
@@ -37,6 +51,7 @@ export default async function BookPackagePage({ params }: Props) {
   // for it, this is the defensive re-check for anyone hitting the URL directly.
   if (pkg.status !== 'PUBLISHED_AVAILABLE' || pkg.priceMinor == null || pkg.durationDays == null) notFound();
   const t = await getTranslations('BookingStart');
+  const lateBookingRate = await tryGetLateBookingRate();
 
   return (
     <div className="max-w-md">
@@ -52,7 +67,7 @@ export default async function BookPackagePage({ params }: Props) {
         <p className="mt-1 text-sm text-mist">{t('dayTrip', { days: pkg.durationDays })}</p>
       </Card>
 
-      <BookingForm packageId={packageId} durationDays={pkg.durationDays} />
+      <BookingForm packageId={packageId} durationDays={pkg.durationDays} lateBookingRate={lateBookingRate} />
     </div>
   );
 }

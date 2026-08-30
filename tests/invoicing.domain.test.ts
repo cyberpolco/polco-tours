@@ -90,20 +90,20 @@ describe('invoicing domain', () => {
 
   describe('canInitiatePayment', () => {
     it('allows initiating a DEPOSIT on a freshly issued invoice', () => {
-      expect(canInitiatePayment({ status: 'ISSUED' }, [], 'DEPOSIT')).toBe(true);
+      expect(canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [], 'DEPOSIT')).toBe(true);
     });
 
     it('blocks initiating BALANCE before the deposit has succeeded', () => {
-      expect(canInitiatePayment({ status: 'ISSUED' }, [], 'BALANCE')).toBe(false);
+      expect(canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [], 'BALANCE')).toBe(false);
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'BALANCE'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'BALANCE'),
       ).toBe(false);
     });
 
     it('allows initiating BALANCE once the deposit has succeeded', () => {
       expect(
         canInitiatePayment(
-          { status: 'PARTIALLY_PAID' },
+          { status: 'PARTIALLY_PAID', depositAllowed: true },
           [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }],
           'BALANCE',
         ),
@@ -112,47 +112,56 @@ describe('invoicing domain', () => {
 
     it('blocks re-initiating a leg that already has a non-failed attempt outstanding', () => {
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'DEPOSIT'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'DEPOSIT'),
       ).toBe(false);
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }], 'DEPOSIT'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }], 'DEPOSIT'),
       ).toBe(false);
     });
 
     it('allows retrying a leg whose previous attempt failed', () => {
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'DEPOSIT'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'DEPOSIT'),
       ).toBe(true);
     });
 
     it('blocks any new payment once the invoice is PAID or VOID', () => {
-      expect(canInitiatePayment({ status: 'PAID' }, [], 'DEPOSIT')).toBe(false);
-      expect(canInitiatePayment({ status: 'VOID' }, [], 'DEPOSIT')).toBe(false);
+      expect(canInitiatePayment({ status: 'PAID', depositAllowed: true }, [], 'DEPOSIT')).toBe(false);
+      expect(canInitiatePayment({ status: 'VOID', depositAllowed: true }, [], 'DEPOSIT')).toBe(false);
     });
 
     it('allows FULL on a freshly issued invoice with no other attempts (DR-024)', () => {
-      expect(canInitiatePayment({ status: 'ISSUED' }, [], 'FULL')).toBe(true);
+      expect(canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [], 'FULL')).toBe(true);
     });
 
     it('blocks FULL once a deposit/balance attempt is active or succeeded', () => {
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'FULL'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'PENDING' }], 'FULL'),
       ).toBe(false);
       expect(
-        canInitiatePayment({ status: 'PARTIALLY_PAID' }, [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }], 'FULL'),
+        canInitiatePayment({ status: 'PARTIALLY_PAID', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'SUCCEEDED' }], 'FULL'),
       ).toBe(false);
     });
 
     it('blocks DEPOSIT once a FULL attempt is active or succeeded, mirroring the reverse', () => {
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'FULL', status: 'PENDING' }], 'DEPOSIT'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'FULL', status: 'PENDING' }], 'DEPOSIT'),
       ).toBe(false);
     });
 
     it('allows retrying FULL after a failed deposit attempt on the other path', () => {
       expect(
-        canInitiatePayment({ status: 'ISSUED' }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'FULL'),
+        canInitiatePayment({ status: 'ISSUED', depositAllowed: true }, [{ kind: 'DEPOSIT', status: 'FAILED' }], 'FULL'),
       ).toBe(true);
+    });
+
+    // DR-198
+    it('blocks DEPOSIT outright once depositAllowed is false, even with no other attempts', () => {
+      expect(canInitiatePayment({ status: 'ISSUED', depositAllowed: false }, [], 'DEPOSIT')).toBe(false);
+    });
+
+    it('still allows FULL when depositAllowed is false', () => {
+      expect(canInitiatePayment({ status: 'ISSUED', depositAllowed: false }, [], 'FULL')).toBe(true);
     });
   });
 
@@ -195,6 +204,8 @@ describe('invoicing domain', () => {
         discountMinor: 0,
         taxMinor: 1000,
         platformFeeMinor: 0,
+        lateBookingSurchargeMinor: 0,
+        depositAllowed: true,
         totalMinor: 11000,
         depositMinor: 4400,
         balanceMinor: 6600,
@@ -257,6 +268,38 @@ describe('invoicing domain', () => {
       expect(amounts.discountMinor).toBe(5000);
       expect(amounts.taxMinor).toBe(500); // 10% of the remaining 5000
       expect(amounts.totalMinor).toBe(5500);
+    });
+
+    // DR-198
+    it('adds the late-booking surcharge on top of subtotal+tax+platform fee, and forces full payment', () => {
+      // subtotal 10000, 10% tax -> 1000, pre-fee total 11000, 5% platform
+      // fee -> 550, pre-surcharge total 11550; 5% surcharge on THAT (578,
+      // half-up), total 12128 -- deposit/balance split is skipped entirely.
+      const amounts = computeInvoiceAmounts({
+        subtotalMinor: 10000,
+        currency: 'USD',
+        taxRateBp: 1000,
+        platformFeeRateBp: 500,
+        lateBookingSurchargeBp: 500,
+      });
+      expect(amounts.lateBookingSurchargeMinor).toBe(578);
+      expect(amounts.totalMinor).toBe(12128);
+      expect(amounts.depositAllowed).toBe(false);
+      expect(amounts.depositMinor).toBe(amounts.totalMinor);
+      expect(amounts.balanceMinor).toBe(0);
+    });
+
+    it('omitting/nulling lateBookingSurchargeBp behaves identically to the pre-DR-198 shape', () => {
+      const omitted = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 0 });
+      const nulled = computeInvoiceAmounts({
+        subtotalMinor: 10000,
+        currency: 'USD',
+        taxRateBp: 1000,
+        platformFeeRateBp: 0,
+        lateBookingSurchargeBp: null,
+      });
+      expect(nulled).toEqual(omitted);
+      expect(omitted.depositAllowed).toBe(true);
     });
   });
 });
