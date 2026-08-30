@@ -15,8 +15,25 @@ import type { Feature, FeatureCollection, Geometry } from 'geojson';
 // of a hand-rolled CSS scale/translate trick.
 import { geoBounds, geoMercator } from '@visx/vendor/d3-geo';
 import worldTopology from 'world-atlas/countries-110m.json';
-import { AFRICA_COUNTRY_IDS, NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID, OPERATING_ID_TO_ALPHA2 } from '@lib/africa-country-ids';
-import { COUNTRY_FACTS, type CountryFact } from '@lib/country-facts';
+import { AFRICA_COUNTRY_IDS, ALPHA2_TO_NUMERIC_ID } from '@lib/africa-country-ids';
+
+// A staff-picked country from the CMS (DR-202, cmsService.listPublicOperatingCountries) --
+// which countries get a second highlight color + hover tooltip once the map
+// is zoomed in, replacing the old hardcoded Namibia/DRC/Zambia/Zimbabwe-only
+// set. `countryCode` is ISO 3166-1 alpha-2 (matches ALPHA2_TO_NUMERIC_ID).
+export interface OperatingCountryMapEntry {
+  countryCode: string;
+  name: string;
+  capital: string;
+  languages: string;
+  currency: string;
+  population: string;
+  areaKm2: string;
+}
+
+interface AfricaMapProps {
+  operatingCountries: OperatingCountryMapEntry[];
+}
 
 const ANTARCTICA_ID = '010';
 
@@ -68,29 +85,18 @@ function fitAfricaProjection(width: number, height: number, africa: FeatureColle
   return { scale: projection.scale(), translate: [centeredTx, ty] as [number, number] };
 }
 
-const OPERATING_IDS = new Set([NAMIBIA_ID, DRC_ID, ZAMBIA_ID, ZIMBABWE_ID]);
-
-function isOperatingCountry(id: string | number | undefined): boolean {
-  return OPERATING_IDS.has(String(id));
-}
-
-function fillFor(id: string | number | undefined, zoomedIn: boolean): string {
-  if (isOperatingCountry(id)) return zoomedIn ? 'fill-forest' : 'fill-amber';
-  if (AFRICA_COUNTRY_IDS.has(String(id))) return 'fill-amber';
-  return 'fill-mist/30';
-}
-
 // Homepage decorative map (between the Featured and How-it-works sections):
 // world map with Africa highlighted; a "zoom" toggle re-projects to just the
 // African continent (fitted to fill the box height, see fitAfricaProjection
-// above -- not the rest of the world) and distinctly re-colors Namibia/DRC/
-// Zambia/Zimbabwe (DR-034), with a hover tooltip on those four showing
-// capital/language/currency/population/area (src/lib/country-facts.ts).
-// Clicking one of those four now deep-links into Plan My Trip with that
-// destination pre-selected (see plan-my-trip/page.tsx and
-// plan-my-trip-form.tsx's initialDestination prop) -- the rest of Africa
-// stays decorative/non-interactive since we don't operate there yet.
-export function AfricaMap() {
+// above -- not the rest of the world) and distinctly re-colors whichever
+// countries staff has added via /staff/cms's "Where we operate" tab
+// (DR-202, previously a hardcoded Namibia/DRC/Zambia/Zimbabwe set, DR-034),
+// with a hover tooltip on those showing capital/language/currency/
+// population/area. Clicking a highlighted country deep-links into Plan My
+// Trip with that destination pre-selected (see plan-my-trip/page.tsx and
+// plan-my-trip-form.tsx's initialDestination prop) -- every other African
+// country stays decorative/non-interactive.
+export function AfricaMap({ operatingCountries }: AfricaMapProps) {
   const router = useRouter();
   const [zoomedIn, setZoomedIn] = useState(false);
   const features = useWorldFeatures();
@@ -100,7 +106,27 @@ export function AfricaMap() {
     [africaFeatures],
   );
   const mapHeight = useMapHeight();
-  const { tooltipOpen, tooltipLeft, tooltipTop, tooltipData, showTooltip, hideTooltip } = useTooltip<CountryFact>();
+  const { tooltipOpen, tooltipLeft, tooltipTop, tooltipData, showTooltip, hideTooltip } = useTooltip<OperatingCountryMapEntry>();
+
+  const operatingByNumericId = useMemo(() => {
+    const map = new Map<string, OperatingCountryMapEntry>();
+    for (const country of operatingCountries) {
+      const numericId = ALPHA2_TO_NUMERIC_ID[country.countryCode];
+      if (numericId) map.set(numericId, country);
+    }
+    return map;
+  }, [operatingCountries]);
+
+  function fillFor(id: string | number | undefined, zoomedIn: boolean): string {
+    if (operatingByNumericId.has(String(id))) return zoomedIn ? 'fill-forest' : 'fill-amber';
+    if (AFRICA_COUNTRY_IDS.has(String(id))) return 'fill-amber';
+    return 'fill-mist/30';
+  }
+
+  const mapAriaLabel =
+    operatingCountries.length > 0
+      ? `Map of Africa with ${operatingCountries.map((c) => c.name).join(', ')} highlighted`
+      : 'Map of Africa';
 
   return (
     <div className="relative">
@@ -117,15 +143,15 @@ export function AfricaMap() {
             : { scale: width / 6.3, translate: [width / 2, height / 1.7] as [number, number] };
 
           return (
-            <svg width={width} height={height} role="img" aria-label="Map of Africa with Namibia, DR Congo, Zambia, and Zimbabwe highlighted">
+            <svg width={width} height={height} role="img" aria-label={mapAriaLabel}>
               <Mercator data={zoomedIn ? africaFeatures : features} scale={scale} translate={translate}>
                 {(mercator) => (
                   <>
                     {mercator.features.map(({ feature: f, path, index }) => {
                       const id = String(f.id);
-                      const isHighlightCountry = isOperatingCountry(id);
-                      const fact = COUNTRY_FACTS[id];
-                      const destination = OPERATING_ID_TO_ALPHA2[id];
+                      const fact = operatingByNumericId.get(id);
+                      const isHighlightCountry = Boolean(fact);
+                      const destination = fact?.countryCode;
                       return (
                         <path
                           key={`map-feature-${index}`}

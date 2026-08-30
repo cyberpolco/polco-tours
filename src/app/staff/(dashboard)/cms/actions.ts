@@ -7,8 +7,10 @@ import {
   cmsService,
   CMS_SOCIAL_PLATFORMS,
   CreateCmsFaqEntryInput,
+  CreateCmsOperatingCountryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
+  UpdateCmsOperatingCountryInput,
   UpdateCmsTextBlockInput,
   type CmsLocale,
   type CmsMediaType,
@@ -34,6 +36,7 @@ const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
   rate: '/rate',
   weather: '/weather',
   terms: '/terms',
+  'home-map': '/',
 };
 
 const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {
@@ -332,6 +335,47 @@ export async function updateSocialLinkAction(slotKey: string, formData: FormData
   await cmsService.updateMediaItem(ctx, SOCIAL_LINKS_PAGE, slotKey, input);
   revalidatePath('/staff/cms');
   revalidateMediaPage(SOCIAL_LINKS_PAGE);
+}
+
+// ---------------------------------------------- Home map countries (DR-202)
+// "Where we operate": which African countries get highlighted/interactive
+// on the homepage map, plus their hover-tooltip snapshot facts. Unlike
+// partners/social-links' "add blank, edit in place" convention, a country
+// row's identity (countryCode) is chosen up front from a dropdown of every
+// not-yet-added African country -- there's nothing meaningful to add blank.
+export async function createOperatingCountryAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const existing = await cmsService.listOperatingCountries(ctx);
+  const nextSortOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder), -1) + 1;
+  const input = CreateCmsOperatingCountryInput.parse({
+    countryCode: String(formData.get('countryCode') ?? ''),
+    sortOrder: nextSortOrder,
+  });
+  await cmsService.createOperatingCountry(ctx, input);
+  revalidatePath('/staff/cms');
+  revalidatePath('/');
+}
+
+export async function updateOperatingCountryAction(id: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const input = UpdateCmsOperatingCountryInput.parse({
+    capital: String(formData.get('capital') ?? ''),
+    languages: String(formData.get('languages') ?? ''),
+    currency: String(formData.get('currency') ?? ''),
+    population: String(formData.get('population') ?? ''),
+    areaKm2: String(formData.get('areaKm2') ?? ''),
+    sortOrder: Number(formData.get('sortOrder') ?? 0),
+  });
+  await cmsService.updateOperatingCountry(ctx, id, input);
+  revalidatePath('/staff/cms');
+  revalidatePath('/');
+}
+
+export async function deleteOperatingCountryAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteOperatingCountry(ctx, id);
+  revalidatePath('/staff/cms');
+  revalidatePath('/');
 }
 
 export async function deleteSocialLinkAction(slotKey: string): Promise<void> {

@@ -1887,7 +1887,19 @@
     "urlLabel": "Profile URL",
     "addSocialLink": "Add social link",
     "removeSocialLink": "Remove social link",
-    "removeSocialLinkConfirm": "Remove this social link? This cannot be undone."
+    "removeSocialLinkConfirm": "Remove this social link? This cannot be undone.",
+    "mapSectionTitle": "Where we operate",
+    "mapCountriesSectionTitle": "Highlighted countries",
+    "mapCountriesIntro": "Which countries get their own highlight color and hover snapshot on the homepage map. Pick any African country, then fill in its capital, languages, currency, population, and area.",
+    "capitalLabel": "Capital",
+    "languagesLabel": "Languages",
+    "currencyLabel": "Currency",
+    "populationLabel": "Population",
+    "areaLabel": "Area",
+    "addCountryLabel": "Add a country",
+    "addCountry": "Add country",
+    "removeCountry": "Remove country",
+    "removeCountryConfirm": "Remove this country from the map? This cannot be undone."
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",

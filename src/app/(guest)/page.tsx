@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { cmsService, type CmsLocale } from '@modules/cms';
+import { AFRICA_COUNTRY_NAME_BY_ALPHA2 } from '@lib/africa-country-ids';
 import { AfricaMapLazy as AfricaMap } from '@/components/AfricaMapLazy';
+import type { OperatingCountryMapEntry } from '@/components/AfricaMap';
 import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
 import { PartnersMarquee, type Partner } from '@/components/PartnersMarquee';
 import { StickyMobileCta } from '@/components/StickyMobileCta';
@@ -48,6 +50,52 @@ const HERO_SLOT_FALLBACKS: Record<string, { image: string; gradient: string }> =
     gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
   },
 };
+
+// DR-202: staff-editable via /staff/cms's "Where we operate" tab
+// (cmsService.listPublicOperatingCountries) -- these 4 are the fallback
+// shown until staff configures at least one real row (or on a DB hiccup),
+// same "never a blank/broken decorative section" convention as
+// HERO_SLOT_FALLBACKS/PARTNERS above. Figures are recent public estimates
+// for orientation only, not live/official data -- same "verify before
+// treating as ground truth" spirit as the tax/visa figures elsewhere.
+const FALLBACK_OPERATING_COUNTRIES: OperatingCountryMapEntry[] = [
+  {
+    countryCode: 'NA',
+    name: 'Namibia',
+    capital: 'Windhoek',
+    languages: 'English (official); Afrikaans, German, Oshiwambo widely spoken',
+    currency: 'Namibian Dollar (NAD)',
+    population: '~2.6 million (est.)',
+    areaKm2: '~825,615 km²',
+  },
+  {
+    countryCode: 'CD',
+    name: 'Democratic Republic of the Congo',
+    capital: 'Kinshasa',
+    languages: 'French (official); Lingala, Kikongo, Swahili, Tshiluba',
+    currency: 'Congolese Franc (CDF)',
+    population: '~102 million (est.)',
+    areaKm2: '~2,345,410 km²',
+  },
+  {
+    countryCode: 'ZM',
+    name: 'Zambia',
+    capital: 'Lusaka',
+    languages: 'English (official); Bemba, Nyanja, Tonga, and other Bantu languages',
+    currency: 'Zambian Kwacha (ZMW)',
+    population: '~20 million (est.)',
+    areaKm2: '~752,618 km²',
+  },
+  {
+    countryCode: 'ZW',
+    name: 'Zimbabwe',
+    capital: 'Harare',
+    languages: 'English, Shona, Ndebele (official, among 16 recognized languages)',
+    currency: 'US Dollar (widely used); Zimbabwe Gold (ZWG)',
+    population: '~16 million (est.)',
+    areaKm2: '~390,757 km²',
+  },
+];
 
 // Same direct-cookie-read convention as (guest)/about/page.tsx and
 // (guest)/faq/page.tsx -- content isn't a next-intl namespace.
@@ -143,6 +191,31 @@ export default async function HomePage() {
     console.error('Failed to load partners for homepage', error);
   }
 
+  // DR-202: staff-managed via /staff/cms's "Where we operate" tab -- the
+  // section's own eyebrow/title/subhead plus which countries get
+  // highlighted/interactive on the map. Degrades to the pre-existing
+  // next-intl copy + the 4-country fallback above on any DB hiccup or until
+  // staff has configured a row.
+  let mapText: Awaited<ReturnType<typeof cmsService.getPublicTextBlock>> = null;
+  let operatingCountries: OperatingCountryMapEntry[] = FALLBACK_OPERATING_COUNTRIES;
+  try {
+    mapText = await cmsService.getPublicTextBlock('home-map', locale);
+    const rows = await cmsService.listPublicOperatingCountries();
+    if (rows.length > 0) {
+      operatingCountries = rows.map((row) => ({
+        countryCode: row.countryCode,
+        name: AFRICA_COUNTRY_NAME_BY_ALPHA2[row.countryCode] ?? row.countryCode,
+        capital: row.capital,
+        languages: row.languages,
+        currency: row.currency,
+        population: row.population,
+        areaKm2: row.areaKm2,
+      }));
+    }
+  } catch (error) {
+    console.error('Failed to load "Where we operate" map data for homepage', error);
+  }
+
   // "/" is the highest-traffic route on the site and, unlike every other
   // catalog-backed page, has no reason to fail the whole page over this one
   // decorative section -- a DB hiccup here should degrade to "no featured
@@ -204,12 +277,12 @@ export default async function HomePage() {
             tracking wrapper. Animate the surrounding copy only. */}
         <Reveal>
           <div className="survey-rule mb-8" />
-          <p className="eyebrow text-mist">{t('mapEyebrow')}</p>
-          <h2 className="mt-1 text-2xl font-bold text-navy">{t('mapTitle')}</h2>
-          <p className="mt-2 max-w-xl text-mist">{t('mapSubhead')}</p>
+          <p className="eyebrow text-mist">{mapText?.eyebrow ?? t('mapEyebrow')}</p>
+          <h2 className="mt-1 text-2xl font-bold text-navy">{mapText?.title ?? t('mapTitle')}</h2>
+          <p className="mt-2 max-w-xl text-mist">{mapText?.body ?? t('mapSubhead')}</p>
         </Reveal>
         <div className="mt-6">
-          <AfricaMap />
+          <AfricaMap operatingCountries={operatingCountries} />
         </div>
       </div>
 
@@ -221,7 +294,7 @@ export default async function HomePage() {
           {STEPS.map((step) => (
             <Card as="li" key={step.mark}>
               <p className="font-display text-3xl text-amber">{step.mark}</p>
-              <h3 className="mt-2 text-lg font-semibold text-navy">{step.title}</h3>
+              <h3 className="mt-2 text-xl font-semibold text-navy">{step.title}</h3>
               <p className="mt-2 text-sm text-mist">{step.body}</p>
             </Card>
           ))}

@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-201** (2026-08-30). This file used to carry a running
+Current through **DR-202** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -435,7 +435,24 @@ src/
                    #   upload, the icon itself stays a fixed hand-drawn SVG in
                    #   footer.tsx keyed by `platform`. Degrades to the same
                    #   5-icon/`href:'#'` placeholder set until staff configures
-                   #   a real link.
+                   #   a real link. DR-202: a fifth new table (not a fifth
+                   #   CmsMediaItem list — this one needs typed fact columns
+                   #   rather than name/image/url), `CmsOperatingCountry`,
+                   #   makes the homepage "Where we operate" map staff-editable
+                   #   — which of the full 55 AU member states
+                   #   (`AFRICA_COUNTRIES`, `src/lib/africa-country-ids.ts`)
+                   #   get a highlight color + hover-tooltip snapshot
+                   #   (capital/languages/currency/population/area), replacing
+                   #   the old hardcoded Namibia/DRC/Zambia/Zimbabwe-only set
+                   #   (DR-034) and its `src/lib/country-facts.ts` fact table
+                   #   (deleted, fully superseded). Deliberately validated
+                   #   against the full continent list, not the narrower
+                   #   4-country `OPERATING_COUNTRY_CODES` business-eligibility
+                   #   set — this is a decorative map highlight, not a
+                   #   booking/visa/tax eligibility list. Degrades to a
+                   #   4-country fallback (the original NA/DRC/ZM/ZW facts)
+                   #   until staff configures a real row, same convention as
+                   #   partners/social-links.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

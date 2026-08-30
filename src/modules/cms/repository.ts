@@ -5,19 +5,22 @@
 // names are unchanged (`site_content`/`faq_entries`, via @@map) even though
 // the Prisma model names were renamed in DR-162 -- a pure TS-facing rename,
 // not a migration, so no data was at risk.
-import type { CmsFaqEntry, CmsMediaItem, CmsTextBlock } from '@prisma/client';
+import type { CmsFaqEntry, CmsMediaItem, CmsOperatingCountry, CmsTextBlock } from '@prisma/client';
 import { prisma } from '@lib/db';
 import type {
   CmsFaqEntryView,
   CmsLocale,
   CmsMediaItemView,
   CmsMediaType,
+  CmsOperatingCountryView,
   CmsSocialPlatform,
   CmsTextBlockView,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
+  CreateCmsOperatingCountryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
+  UpdateCmsOperatingCountryInput,
   UpdateCmsTextBlockInput,
 } from './domain';
 
@@ -46,6 +49,22 @@ function toCmsMediaItemView(r: CmsMediaItem): CmsMediaItemView {
     name: r.name,
     country: r.country,
     platform: r.platform as CmsSocialPlatform | null,
+    sortOrder: r.sortOrder,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    updatedByUserId: r.updatedByUserId,
+  };
+}
+
+function toCmsOperatingCountryView(r: CmsOperatingCountry): CmsOperatingCountryView {
+  return {
+    id: r.id,
+    countryCode: r.countryCode,
+    capital: r.capital,
+    languages: r.languages,
+    currency: r.currency,
+    population: r.population,
+    areaKm2: r.areaKm2,
     sortOrder: r.sortOrder,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -153,5 +172,42 @@ export const cmsRepository = {
     if (!existing) return null;
     await prisma.cmsMediaItem.delete({ where: { page_slotKey: { page, slotKey } } });
     return toCmsMediaItemView(existing);
+  },
+
+  // --------------------------------------------- CmsOperatingCountry (DR-202)
+  async listOperatingCountries(): Promise<CmsOperatingCountryView[]> {
+    const rows = await prisma.cmsOperatingCountry.findMany({ orderBy: { sortOrder: 'asc' } });
+    return rows.map(toCmsOperatingCountryView);
+  },
+  async createOperatingCountry(input: CreateCmsOperatingCountryInput, updatedByUserId: string): Promise<CmsOperatingCountryView> {
+    const row = await prisma.cmsOperatingCountry.create({
+      data: {
+        countryCode: input.countryCode,
+        capital: input.capital ?? '',
+        languages: input.languages ?? '',
+        currency: input.currency ?? '',
+        population: input.population ?? '',
+        areaKm2: input.areaKm2 ?? '',
+        sortOrder: input.sortOrder,
+        updatedByUserId,
+      },
+    });
+    return toCmsOperatingCountryView(row);
+  },
+  async updateOperatingCountry(
+    id: string,
+    input: UpdateCmsOperatingCountryInput,
+    updatedByUserId: string,
+  ): Promise<CmsOperatingCountryView | null> {
+    const existing = await prisma.cmsOperatingCountry.findUnique({ where: { id } });
+    if (!existing) return null;
+    const row = await prisma.cmsOperatingCountry.update({ where: { id }, data: { ...input, updatedByUserId } });
+    return toCmsOperatingCountryView(row);
+  },
+  async deleteOperatingCountry(id: string): Promise<CmsOperatingCountryView | null> {
+    const existing = await prisma.cmsOperatingCountry.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.cmsOperatingCountry.delete({ where: { id } });
+    return toCmsOperatingCountryView(existing);
   },
 };

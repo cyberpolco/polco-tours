@@ -507,12 +507,77 @@ async function main() {
     { key: 'contact.office.namibia', locale: 'fr', title: 'Bureau de Namibie', body: 'Adresse — à venir\nE-mail — à venir\nTéléphone — à venir' },
     { key: 'contact.office.drc', locale: 'en', title: 'DR Congo office', body: 'Address — on its way\nEmail — on its way\nPhone — on its way' },
     { key: 'contact.office.drc', locale: 'fr', title: 'Bureau de RDC', body: 'Adresse — à venir\nE-mail — à venir\nTéléphone — à venir' },
+    // DR-202: homepage "Where we operate" map -- same fallback text
+    // (src/messages/{en,fr}.json's HomePage.map*) seeded as the starting
+    // CmsTextBlock row, same "current fallback becomes the first real edit"
+    // convention as the rows above.
+    { key: 'home-map', locale: 'en', eyebrow: 'Where we operate', title: 'Namibia & the DRC, on the map', body: "Hover Namibia or DR Congo once you've zoomed in for a quick snapshot of each country." },
+    { key: 'home-map', locale: 'fr', eyebrow: 'Où nous opérons', title: 'La Namibie et la RDC, sur la carte', body: 'Survolez la Namibie ou la RD Congo après avoir zoomé pour un aperçu rapide de chaque pays.' },
   ];
   for (const c of siteContent) {
     await prisma.cmsTextBlock.upsert({
       where: { key_locale: { key: c.key, locale: c.locale } },
       update: {},
       create: { key: c.key, locale: c.locale, title: c.title, body: c.body, eyebrow: c.eyebrow ?? null },
+    });
+  }
+
+  // CmsOperatingCountry (DR-202) -- the 4 countries the homepage map already
+  // highlighted (hardcoded, DR-034) become the starting staff-editable rows,
+  // same facts that used to live in the now-removed src/lib/country-facts.ts,
+  // so production keeps showing the exact same map the moment this ships.
+  // `update: {}` -- never clobbers a real staff edit already in place.
+  const operatingCountries: Array<{
+    countryCode: string;
+    capital: string;
+    languages: string;
+    currency: string;
+    population: string;
+    areaKm2: string;
+    sortOrder: number;
+  }> = [
+    {
+      countryCode: 'NA',
+      capital: 'Windhoek',
+      languages: 'English (official); Afrikaans, German, Oshiwambo widely spoken',
+      currency: 'Namibian Dollar (NAD)',
+      population: '~2.6 million (est.)',
+      areaKm2: '~825,615 km²',
+      sortOrder: 0,
+    },
+    {
+      countryCode: 'CD',
+      capital: 'Kinshasa',
+      languages: 'French (official); Lingala, Kikongo, Swahili, Tshiluba',
+      currency: 'Congolese Franc (CDF)',
+      population: '~102 million (est.)',
+      areaKm2: '~2,345,410 km²',
+      sortOrder: 1,
+    },
+    {
+      countryCode: 'ZM',
+      capital: 'Lusaka',
+      languages: 'English (official); Bemba, Nyanja, Tonga, and other Bantu languages',
+      currency: 'Zambian Kwacha (ZMW)',
+      population: '~20 million (est.)',
+      areaKm2: '~752,618 km²',
+      sortOrder: 2,
+    },
+    {
+      countryCode: 'ZW',
+      capital: 'Harare',
+      languages: 'English, Shona, Ndebele (official, among 16 recognized languages)',
+      currency: 'US Dollar (widely used); Zimbabwe Gold (ZWG)',
+      population: '~16 million (est.)',
+      areaKm2: '~390,757 km²',
+      sortOrder: 3,
+    },
+  ];
+  for (const c of operatingCountries) {
+    await prisma.cmsOperatingCountry.upsert({
+      where: { countryCode: c.countryCode },
+      update: {},
+      create: c,
     });
   }
 

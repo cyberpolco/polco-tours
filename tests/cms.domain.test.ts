@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
+  CreateCmsOperatingCountryInput,
   isValidCmsImageUpload,
   isValidCmsVideoContentType,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
+  UpdateCmsOperatingCountryInput,
   UpdateCmsTextBlockInput,
 } from '../src/modules/cms/domain';
 
@@ -150,6 +152,37 @@ describe('cms domain', () => {
       const result = UpdateCmsMediaItemInput.parse({ platform: 'facebook', url: 'https://facebook.com/mufasasafaris' });
       expect(result.platform).toBe('facebook');
       expect(result.url).toBe('https://facebook.com/mufasasafaris');
+    });
+  });
+
+  describe('CreateCmsOperatingCountryInput (DR-202)', () => {
+    it('accepts a bare create with just a country code -- facts are left undefined for the repository to default', () => {
+      const result = CreateCmsOperatingCountryInput.parse({ countryCode: 'KE' });
+      expect(result.countryCode).toBe('KE');
+      expect(result.capital).toBeUndefined();
+      expect(result.sortOrder).toBe(0);
+    });
+
+    it('accepts any of the full 55-country African Union list, not just the 4 operating countries', () => {
+      expect(() => CreateCmsOperatingCountryInput.parse({ countryCode: 'BW' })).not.toThrow();
+    });
+
+    it('rejects a country code outside the African Union list', () => {
+      expect(() => CreateCmsOperatingCountryInput.parse({ countryCode: 'US' })).toThrow();
+      expect(() => CreateCmsOperatingCountryInput.parse({ countryCode: 'not-a-code' })).toThrow();
+    });
+  });
+
+  describe('UpdateCmsOperatingCountryInput (DR-202)', () => {
+    it('accepts a partial update of the snapshot facts', () => {
+      const result = UpdateCmsOperatingCountryInput.parse({ capital: 'Gaborone', population: '~2.6 million (est.)' });
+      expect(result.capital).toBe('Gaborone');
+      expect(result.languages).toBeUndefined();
+    });
+
+    it('has no countryCode field -- identity is fixed at create time', () => {
+      const result = UpdateCmsOperatingCountryInput.parse({ capital: 'Gaborone' });
+      expect('countryCode' in result).toBe(false);
     });
   });
 });

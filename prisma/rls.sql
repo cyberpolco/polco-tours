@@ -99,6 +99,9 @@ CREATE POLICY tenant_isolation ON payments
 -- unchanged) or cms_media_items (new in DR-162) either, same reasoning
 -- (DR-071): platform-wide guest-site content with no organizationId column.
 
+-- No policy for cms_operating_countries either (DR-202), same reasoning:
+-- platform-wide homepage-map content, no organizationId column.
+
 -- ------------------------------------------------------------------- travelers
 ALTER TABLE travelers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE travelers FORCE ROW LEVEL SECURITY;

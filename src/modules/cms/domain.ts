@@ -11,6 +11,7 @@
 // since nothing calls them until that page is actually built.
 import { z } from 'zod';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
 
 // Only the two locales the guest site itself supports (src/i18n/request.ts).
 export const SUPPORTED_LOCALES = ['en', 'fr'] as const;
@@ -159,3 +160,55 @@ export const UpdateCmsMediaItemInput = z.object({
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type UpdateCmsMediaItemInput = z.infer<typeof UpdateCmsMediaItemInput>;
+
+// CmsOperatingCountry (DR-202, homepage "Where we operate" map) -- which of
+// the full 55 AU member states (AFRICA_COUNTRIES) get individually
+// highlighted/interactive on the homepage map, plus their hover-tooltip
+// snapshot facts. Deliberately a *separate* table/vocabulary from
+// GALLERY_COUNTRY_CODES/OPERATING_COUNTRY_CODES above -- this is a
+// decorative map highlight, not the platform's real booking/visa/tax
+// operating footprint, so it's validated against the full continent list,
+// not the narrower 4-country business set.
+const AFRICA_ALPHA2_CODES = new Set(AFRICA_COUNTRIES.map((c) => c.alpha2));
+
+export interface CmsOperatingCountryView {
+  id: string;
+  countryCode: string;
+  capital: string;
+  languages: string;
+  currency: string;
+  population: string;
+  areaKm2: string;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedByUserId: string | null;
+}
+
+/** Facts default to '' (blank) -- staff picks a country from the dropdown
+ * first (add-blank-then-edit, same convention as createPartnerAction/
+ * createSocialLinkAction), then fills in the snapshot facts afterward via
+ * UpdateCmsOperatingCountryInput. */
+export const CreateCmsOperatingCountryInput = z.object({
+  countryCode: z.string().refine((v) => AFRICA_ALPHA2_CODES.has(v), 'Must be a valid African country code'),
+  capital: z.string().max(200).optional(),
+  languages: z.string().max(300).optional(),
+  currency: z.string().max(200).optional(),
+  population: z.string().max(100).optional(),
+  areaKm2: z.string().max(100).optional(),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+export type CreateCmsOperatingCountryInput = z.infer<typeof CreateCmsOperatingCountryInput>;
+
+/** `countryCode` isn't editable -- same "identity is fixed at create time"
+ * convention as CmsMediaItem's (page, slotKey). Removing a country and
+ * re-adding it is how staff would ever need a different code. */
+export const UpdateCmsOperatingCountryInput = z.object({
+  capital: z.string().max(200).optional(),
+  languages: z.string().max(300).optional(),
+  currency: z.string().max(200).optional(),
+  population: z.string().max(100).optional(),
+  areaKm2: z.string().max(100).optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+});
+export type UpdateCmsOperatingCountryInput = z.infer<typeof UpdateCmsOperatingCountryInput>;

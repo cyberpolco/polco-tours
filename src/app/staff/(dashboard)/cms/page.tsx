@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, CMS_SOCIAL_PLATFORMS, GALLERY_COUNTRY_CODES, type CmsLocale } from '@modules/cms';
+import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,17 +15,20 @@ import {
   createFaqEntryAction,
   createGallerySiteAction,
   createHeroSlideAction,
+  createOperatingCountryAction,
   createPartnerAction,
   createSocialLinkAction,
   deleteFaqEntryAction,
   deleteGallerySiteAction,
   deleteHeroSlideAction,
+  deleteOperatingCountryAction,
   deletePartnerAction,
   deleteSocialLinkAction,
   updateFaqEntryAction,
   updateGallerySiteAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
+  updateOperatingCountryAction,
   updatePartnerAction,
   updateSocialLinkAction,
   updateTextBlockAction,
@@ -46,6 +50,7 @@ interface Props {
 // existing section heading key).
 const CMS_TABS = [
   { key: 'home-hero', labelKey: 'heroSectionTitle' },
+  { key: 'home-map', labelKey: 'mapSectionTitle' },
   { key: 'partners', labelKey: 'partnersSectionTitle' },
   { key: 'social-links', labelKey: 'socialLinksSectionTitle' },
   { key: 'packages', labelKey: 'packagesSectionTitle' },
@@ -113,6 +118,8 @@ export default async function CmsPage({ searchParams }: Props) {
     galleryItems,
     partnerItems,
     socialLinkItems,
+    mapText,
+    operatingCountries,
   ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
@@ -130,7 +137,12 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.listMediaItems(ctx, 'gallery'),
     cmsService.listMediaItems(ctx, 'partners'),
     cmsService.listMediaItems(ctx, 'social-links'),
+    cmsService.getTextBlock(ctx, 'home-map', locale),
+    cmsService.listOperatingCountries(ctx),
   ]);
+  const availableCountriesToAdd = AFRICA_COUNTRIES.filter(
+    (country) => !operatingCountries.some((c) => c.countryCode === country.alpha2),
+  );
   const heroTexts = await Promise.all(heroItems.map((item) => cmsService.getTextBlock(ctx, `home-hero.${item.slotKey}`, locale)));
   const t = await getTranslations('StaffCms');
   const tCountries = await getTranslations('Countries');
@@ -278,6 +290,119 @@ export default async function CmsPage({ searchParams }: Props) {
               </SubmitButton>
             </form>
           )}
+        </section>
+        )}
+
+        {activeTab === 'home-map' && (
+        <section className="space-y-6">
+          <PageTextEditor
+            cmsKey="home-map"
+            locale={locale}
+            current={mapText}
+            canWrite={canWrite}
+            sectionTitle={t('mapSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+          />
+
+          <div className="space-y-3">
+            <h3 className="font-semibold text-navy">{t('mapCountriesSectionTitle')}</h3>
+            <p className="text-xs text-mist">{t('mapCountriesIntro')}</p>
+            <RevealGroup as="div" itemAs="div" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {operatingCountries.map((item) => {
+                const countryName = AFRICA_COUNTRIES.find((c) => c.alpha2 === item.countryCode)?.name ?? item.countryCode;
+                return (
+                  <Card key={item.id}>
+                    <p className="font-semibold text-navy">{countryName}</p>
+                    {canWrite ? (
+                      <div className="mt-2 space-y-3">
+                        <form action={updateOperatingCountryAction.bind(null, item.id)} className="space-y-2">
+                          <FormField label={t('capitalLabel')} htmlFor={`capital-${item.id}`}>
+                            <input
+                              name="capital"
+                              defaultValue={item.capital}
+                              className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                            />
+                          </FormField>
+                          <FormField label={t('languagesLabel')} htmlFor={`languages-${item.id}`}>
+                            <input
+                              name="languages"
+                              defaultValue={item.languages}
+                              className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                            />
+                          </FormField>
+                          <FormField label={t('currencyLabel')} htmlFor={`currency-${item.id}`}>
+                            <input
+                              name="currency"
+                              defaultValue={item.currency}
+                              className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                            />
+                          </FormField>
+                          <FormField label={t('populationLabel')} htmlFor={`population-${item.id}`}>
+                            <input
+                              name="population"
+                              defaultValue={item.population}
+                              className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                            />
+                          </FormField>
+                          <FormField label={t('areaLabel')} htmlFor={`areaKm2-${item.id}`}>
+                            <input
+                              name="areaKm2"
+                              defaultValue={item.areaKm2}
+                              className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
+                            />
+                          </FormField>
+                          <div className="flex items-end gap-3">
+                            <FormField label={t('order')} htmlFor={`sortOrder-${item.id}`}>
+                              <input
+                                name="sortOrder"
+                                type="number"
+                                defaultValue={item.sortOrder}
+                                className="w-20 rounded-survey border border-rule px-2 py-1 text-sm"
+                              />
+                            </FormField>
+                            <SubmitButton variant="secondary" size="compact" pendingLabel={t('saving')}>
+                              {t('save')}
+                            </SubmitButton>
+                          </div>
+                        </form>
+                        <DeleteButton
+                          action={deleteOperatingCountryAction.bind(null, item.id)}
+                          removingLabel={t('removing')}
+                          removeConfirm={t('removeCountryConfirm')}
+                          removeLabel={t('removeCountry')}
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-mist">{item.capital}</p>
+                    )}
+                  </Card>
+                );
+              })}
+            </RevealGroup>
+            {canWrite && availableCountriesToAdd.length > 0 && (
+              <form action={createOperatingCountryAction} className="flex items-end gap-3">
+                <FormField label={t('addCountryLabel')} htmlFor="new-operating-country">
+                  <Select name="countryCode" required defaultValue="" id="new-operating-country">
+                    <option value="" disabled>
+                      {t('addCountryLabel')}
+                    </option>
+                    {availableCountriesToAdd.map((country) => (
+                      <option key={country.alpha2} value={country.alpha2}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <SubmitButton size="compact" pendingLabel={t('adding')}>
+                  {t('addCountry')}
+                </SubmitButton>
+              </form>
+            )}
+          </div>
         </section>
         )}
 

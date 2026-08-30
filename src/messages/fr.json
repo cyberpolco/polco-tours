@@ -1887,7 +1887,19 @@
     "urlLabel": "URL du profil",
     "addSocialLink": "Ajouter un lien",
     "removeSocialLink": "Supprimer le lien",
-    "removeSocialLinkConfirm": "Supprimer ce lien ? Cette action est irréversible."
+    "removeSocialLinkConfirm": "Supprimer ce lien ? Cette action est irréversible.",
+    "mapSectionTitle": "Où nous opérons",
+    "mapCountriesSectionTitle": "Pays mis en évidence",
+    "mapCountriesIntro": "Quels pays reçoivent leur propre couleur de surbrillance et leur aperçu au survol sur la carte de la page d'accueil. Choisissez n'importe quel pays africain, puis renseignez sa capitale, ses langues, sa devise, sa population et sa superficie.",
+    "capitalLabel": "Capitale",
+    "languagesLabel": "Langues",
+    "currencyLabel": "Devise",
+    "populationLabel": "Population",
+    "areaLabel": "Superficie",
+    "addCountryLabel": "Ajouter un pays",
+    "addCountry": "Ajouter le pays",
+    "removeCountry": "Supprimer le pays",
+    "removeCountryConfirm": "Supprimer ce pays de la carte ? Cette action est irréversible."
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",

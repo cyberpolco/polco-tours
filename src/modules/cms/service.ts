@@ -10,11 +10,14 @@ import {
   type CmsFaqEntryView,
   type CmsLocale,
   type CmsMediaItemView,
+  type CmsOperatingCountryView,
   type CmsTextBlockView,
   type CreateCmsFaqEntryInput,
   type CreateCmsMediaItemInput,
+  type CreateCmsOperatingCountryInput,
   type UpdateCmsFaqEntryInput,
   type UpdateCmsMediaItemInput,
+  type UpdateCmsOperatingCountryInput,
   type UpdateCmsTextBlockInput,
 } from './domain';
 import { CmsBlobGatewayError, CmsImageCompressionError, cmsBlobGateway } from './gateway';
@@ -183,6 +186,62 @@ export const cmsService = {
     });
   },
 
+  // --------------------------------------------- CmsOperatingCountry (DR-202)
+  // Homepage "Where we operate" map: which countries (of the full 55 AU
+  // member states, src/lib/africa-country-ids.ts) get individually
+  // highlighted/interactive, plus their hover-tooltip snapshot facts.
+  async listOperatingCountries(ctx: AuthContext): Promise<CmsOperatingCountryView[]> {
+    assertCan(ctx, 'cms.read');
+    return cmsRepository.listOperatingCountries();
+  },
+  /** Rejects a country already on the list before writing -- a plain SELECT
+   * is reliable here (unlike the RLS-`withOrg`-scoped anti-pattern
+   * documented in CLAUDE.md's Gotchas) since this table carries no
+   * organizationId/RLS at all, same as CmsTextBlock/CmsFaqEntry. */
+  async createOperatingCountry(ctx: AuthContext, input: CreateCmsOperatingCountryInput): Promise<CmsOperatingCountryView> {
+    requireCmsWriter(ctx);
+    const existing = await cmsRepository.listOperatingCountries();
+    if (existing.some((c) => c.countryCode === input.countryCode)) {
+      throw Errors.validation('That country is already highlighted on the map');
+    }
+    const country = await cmsRepository.createOperatingCountry(input, ctx.userId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.operating_country_created',
+      resourceType: 'CmsOperatingCountry',
+      resourceId: country.id,
+      metadata: { countryCode: input.countryCode },
+    });
+    return country;
+  },
+  async updateOperatingCountry(ctx: AuthContext, id: string, input: UpdateCmsOperatingCountryInput): Promise<CmsOperatingCountryView> {
+    requireCmsWriter(ctx);
+    const country = await cmsRepository.updateOperatingCountry(id, input, ctx.userId);
+    if (!country) throw Errors.notFound('Operating country not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.operating_country_updated',
+      resourceType: 'CmsOperatingCountry',
+      resourceId: id,
+    });
+    return country;
+  },
+  async deleteOperatingCountry(ctx: AuthContext, id: string): Promise<void> {
+    requireCmsWriter(ctx);
+    const deleted = await cmsRepository.deleteOperatingCountry(id);
+    if (!deleted) throw Errors.notFound('Operating country not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.operating_country_deleted',
+      resourceType: 'CmsOperatingCountry',
+      resourceId: id,
+      metadata: { countryCode: deleted.countryCode },
+    });
+  },
+
   // ---------------------------------------------------------- public (DR-071)
   // No ctx/session exists for these callers -- the public /about, /faq, and
   // (DR-163) homepage hero. Mirrors catalogService's listPublicPackages/etc:
@@ -199,5 +258,9 @@ export const cmsService = {
 
   async listPublicMediaItems(page: string): Promise<CmsMediaItemView[]> {
     return cmsRepository.listMediaItems(page);
+  },
+
+  async listPublicOperatingCountries(): Promise<CmsOperatingCountryView[]> {
+    return cmsRepository.listOperatingCountries();
   },
 };

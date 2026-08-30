@@ -485,6 +485,33 @@ model CmsMediaItem {
   @@map("cms_media_items")
 }
 
+// Homepage "Where we operate" map (DR-202) -- which African countries get
+// individually highlighted/interactive on the homepage map, plus their
+// hover-tooltip snapshot facts (capital/languages/currency/population/area).
+// Platform-wide, no organizationId/RLS -- same precedent as CmsTextBlock/
+// CmsFaqEntry. `countryCode` (ISO 3166-1 alpha-2) is validated in
+// cms/domain.ts against src/lib/africa-country-ids.ts's full 55-country
+// AFRICA_COUNTRIES list, not just the 4 countries this platform actually
+// operates in for booking/visa/tax purposes (OPERATING_COUNTRY_CODES) --
+// this table is a decorative map highlight, not a business-eligibility
+// list, so adding a row here does not open a country for real bookings.
+model CmsOperatingCountry {
+  id              String   @id @default(uuid()) @db.Uuid
+  countryCode     String   @unique
+  capital         String
+  languages       String
+  currency        String
+  population      String
+  areaKm2         String
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
+
+  @@index([sortOrder])
+  @@map("cms_operating_countries")
+}
+
 // Platform-wide reference data, one row per country (Immigration Module,
 // DR-034) -- NOT tenant-scoped (no organizationId), same "objective fact
 // about a country, not operator-owned data" reasoning as TaxRate above; no
