@@ -53,7 +53,7 @@ export default async function ContactPage() {
 
   return (
     <Reveal>
-      <div className="max-w-3xl">
+      <div className="mx-auto max-w-3xl">
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-4 max-w-2xl text-mist">{cms?.body ?? t('intro')}</p>
