@@ -292,10 +292,12 @@ export default async function HomePage() {
         <h2 className="mt-1 text-2xl font-bold text-navy">{t('howItWorksTitle')}</h2>
         <ul className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {STEPS.map((step) => (
-            <Card as="li" key={step.mark}>
+            <Card as="li" key={step.mark} className="group">
               <p className="font-display text-3xl text-amber">{step.mark}</p>
               <h3 className="mt-2 text-xl font-semibold text-navy">{step.title}</h3>
-              <p className="mt-2 text-sm text-mist">{step.body}</p>
+              <p className="mt-2 translate-y-1 text-sm text-mist opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                {step.body}
+              </p>
             </Card>
           ))}
         </ul>
