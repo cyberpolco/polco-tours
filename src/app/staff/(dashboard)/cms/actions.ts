@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
 import {
   cmsService,
@@ -384,4 +385,35 @@ export async function deleteSocialLinkAction(slotKey: string): Promise<void> {
   await cmsService.deleteMediaItem(ctx, SOCIAL_LINKS_PAGE, slotKey);
   revalidatePath('/staff/cms');
   revalidateMediaPage(SOCIAL_LINKS_PAGE);
+}
+
+// ----------------------------------------------------- Footer legal (DR-204)
+// The footer's closing "© {year} Mufasa Safaris & Tours, a Cyber PolCo
+// Product." line -- the year and brand name stay hardcoded (footer.tsx),
+// same "brand name is fixed everywhere" convention DR-168 already set, but
+// the "Cyber PolCo" link text/href is staff-editable. Reuses the
+// CmsTextBlock (key='footer.legal') PageTextEditor shape -- `title` holds
+// the link label, `body` holds its href -- rather than a dedicated table,
+// same "no schema change needed" reasoning as reusing CmsMediaItem.url
+// elsewhere; its own action (not the generic updatePageTextAction) so body
+// gets real server-side URL validation (charter rule 1 -- never trust the
+// form's client-side `type="url"` alone).
+export const FOOTER_LEGAL_KEY = 'footer.legal';
+const FooterLegalUrl = z.string().trim().url().max(300);
+
+export async function updateFooterLegalAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const locale = localeFromForm(formData);
+  const input = UpdateCmsTextBlockInput.parse({
+    key: FOOTER_LEGAL_KEY,
+    locale,
+    title: String(formData.get('title') ?? ''),
+    body: FooterLegalUrl.parse(String(formData.get('body') ?? '')),
+  });
+  await cmsService.updateTextBlock(ctx, input);
+  revalidatePath('/staff/cms');
+  // The footer renders on every guest page via the shared (guest) layout
+  // (same reasoning as social-links' revalidateMediaPage special case
+  // above) -- 'layout' revalidates every route sharing it, not just one path.
+  revalidatePath('/', 'layout');
 }

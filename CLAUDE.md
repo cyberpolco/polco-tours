@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-203** (2026-08-30). This file used to carry a running
+Current through **DR-204** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -460,7 +460,26 @@ src/
                    #   i18n-string fallback) since DR-164 shipped it with no
                    #   staff-side way to write it — same shape as every other
                    #   "thin" page's editor, no new permission/table/module
-                   #   boundary change.
+                   #   boundary change. DR-204: the guest footer's closing
+                   #   "© {year} Mufasa Safaris & Tours, a Cyber PolCo
+                   #   Product." line gets a new `/staff/cms` "Footer legal
+                   #   line" tab — year/brand name stay hardcoded
+                   #   (`footer.tsx`), only the "Cyber PolCo" link's text +
+                   #   href are staff-editable, via a sixth `CmsTextBlock`
+                   #   key (`footer.legal`: `title`=link label, `body`=href).
+                   #   `body` is saved through its own action
+                   #   (`updateFooterLegalAction`, not the generic
+                   #   `updatePageTextAction`) with server-side `.url()`
+                   #   validation; `PageTextEditor` gained two opt-in props
+                   #   to support this (`bodyType='url'` — a single-line
+                   #   `<input type="url">` instead of the default textarea
+                   #   — and `formAction` to override the default action per
+                   #   instance), both no-ops for every existing caller.
+                   #   Degrades to the original hardcoded label/href on any
+                   #   read failure or until staff configures a real row,
+                   #   same convention as partners/social-links; saving
+                   #   revalidates `'/', 'layout'` (footer renders on every
+                   #   guest page), same as social-links' own special case.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

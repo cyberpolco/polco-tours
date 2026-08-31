@@ -19,6 +19,16 @@ interface PageTextEditorProps {
   /** Body is a multi-line textarea by default; Contact's offices use it
    * for free-text address/email/phone, same control either way. */
   bodyRows?: number;
+  /** 'url' renders body as a single-line `<input type="url">` (native
+   * browser validation) instead of the default free-text textarea --
+   * footer.legal's link href, the one body value that must actually be a
+   * URL rather than arbitrary prose. */
+  bodyType?: 'text' | 'url';
+  /** Overrides the default updatePageTextAction.bind(null, cmsKey) --
+   * footer.legal uses its own action for stricter server-side URL
+   * validation on body (charter rule 1: never trust client-side
+   * `type="url"` alone). */
+  formAction?: (formData: FormData) => Promise<void>;
 }
 
 // Generic eyebrow/title/body editor reused across every "thin" guest page
@@ -40,12 +50,14 @@ export function PageTextEditor({
   saveLabel,
   showEyebrow = true,
   bodyRows = 3,
+  bodyType = 'text',
+  formAction,
 }: PageTextEditorProps) {
   return (
     <section className="space-y-3">
       <h2 className="font-semibold text-navy">{sectionTitle}</h2>
       {canWrite ? (
-        <form action={updatePageTextAction.bind(null, cmsKey)} className="space-y-3">
+        <form action={formAction ?? updatePageTextAction.bind(null, cmsKey)} className="space-y-3">
           <input type="hidden" name="locale" value={locale} />
           {showEyebrow && (
             <FormField label={eyebrowLabel} htmlFor={`eyebrow-${cmsKey}`}>
@@ -65,13 +77,23 @@ export function PageTextEditor({
             />
           </FormField>
           <FormField label={bodyLabel} htmlFor={`body-${cmsKey}`}>
-            <textarea
-              name="body"
-              required
-              rows={bodyRows}
-              defaultValue={current?.body ?? ''}
-              className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-            />
+            {bodyType === 'url' ? (
+              <input
+                type="url"
+                name="body"
+                required
+                defaultValue={current?.body ?? ''}
+                className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
+              />
+            ) : (
+              <textarea
+                name="body"
+                required
+                rows={bodyRows}
+                defaultValue={current?.body ?? ''}
+                className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
+              />
+            )}
           </FormField>
           <SubmitButton size="compact" pendingLabel={savingLabel}>
             {saveLabel}

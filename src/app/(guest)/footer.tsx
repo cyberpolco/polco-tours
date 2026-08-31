@@ -1,7 +1,31 @@
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, type CmsSocialPlatform } from '@modules/cms';
+import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, type CmsLocale, type CmsSocialPlatform } from '@modules/cms';
 import { Logo } from '@/components/Logo';
+
+// Same direct-cookie-read convention as (guest)/about/page.tsx and
+// (guest)/contact/page.tsx.
+async function resolveLocale(): Promise<CmsLocale> {
+  const store = await cookies();
+  return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Shown until staff sets a real link at /staff/cms's Footer legal tab
+// (DR-204) -- same "degrade to the original hardcoded value" convention as
+// FALLBACK_SOCIAL_LINKS below.
+const FALLBACK_FOOTER_LEGAL_LABEL = 'Cyber PolCo';
+const FALLBACK_FOOTER_LEGAL_URL = 'https://www.cyberpolco.com';
+
+async function getFooterLegalLink(locale: CmsLocale): Promise<{ label: string; url: string }> {
+  try {
+    const block = await cmsService.getPublicTextBlock('footer.legal', locale);
+    if (block?.title && block.body) return { label: block.title, url: block.body };
+    return { label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
+  } catch {
+    return { label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
+  }
+}
 
 // Minimal currentColor glyphs, same hand-drawn convention as BrandMark --
 // avoids adding an icon-library dependency for these social links. Keyed
@@ -46,7 +70,8 @@ async function getSocialLinks(): Promise<{ platform: CmsSocialPlatform; href: st
 export async function GuestFooter() {
   const year = new Date().getFullYear();
   const t = await getTranslations('Footer');
-  const socialLinks = await getSocialLinks();
+  const locale = await resolveLocale();
+  const [socialLinks, footerLegal] = await Promise.all([getSocialLinks(), getFooterLegalLink(locale)]);
 
   return (
     <footer className="border-t border-rule bg-navy text-bone">
@@ -101,12 +126,12 @@ export async function GuestFooter() {
           <p className="text-xs text-mist">
             &copy; {year} Mufasa Safaris & Tours, a{' '}
             <a
-              href="https://www.cyberpolco.com"
+              href={footerLegal.url}
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold text-mist no-underline transition-colors duration-200 hover:text-amber"
             >
-              Cyber PolCo
+              {footerLegal.label}
             </a>{' '}
             Product.
           </p>

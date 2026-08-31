@@ -25,6 +25,7 @@ import {
   deletePartnerAction,
   deleteSocialLinkAction,
   updateFaqEntryAction,
+  updateFooterLegalAction,
   updateGallerySiteAction,
   updateHeroSlideMetaAction,
   updateHeroSlideTextAction,
@@ -53,6 +54,7 @@ const CMS_TABS = [
   { key: 'home-map', labelKey: 'mapSectionTitle' },
   { key: 'partners', labelKey: 'partnersSectionTitle' },
   { key: 'social-links', labelKey: 'socialLinksSectionTitle' },
+  { key: 'footer-legal', labelKey: 'footerLegalSectionTitle' },
   { key: 'packages', labelKey: 'packagesSectionTitle' },
   { key: 'plan-my-trip', labelKey: 'planMyTripSectionTitle' },
   { key: 'gallery', labelKey: 'gallerySectionTitle' },
@@ -121,6 +123,7 @@ export default async function CmsPage({ searchParams }: Props) {
     socialLinkItems,
     mapText,
     operatingCountries,
+    footerLegalText,
   ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
@@ -141,6 +144,7 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.listMediaItems(ctx, 'social-links'),
     cmsService.getTextBlock(ctx, 'home-map', locale),
     cmsService.listOperatingCountries(ctx),
+    cmsService.getTextBlock(ctx, 'footer.legal', locale),
   ]);
   const availableCountriesToAdd = AFRICA_COUNTRIES.filter(
     (country) => !operatingCountries.some((c) => c.countryCode === country.alpha2),
@@ -551,6 +555,27 @@ export default async function CmsPage({ searchParams }: Props) {
               </SubmitButton>
             </form>
           )}
+        </section>
+        )}
+
+        {activeTab === 'footer-legal' && (
+        <section className="space-y-3">
+          <PageTextEditor
+            cmsKey="footer.legal"
+            locale={locale}
+            current={footerLegalText}
+            canWrite={canWrite}
+            sectionTitle={t('footerLegalSectionTitle')}
+            eyebrowLabel=""
+            showEyebrow={false}
+            titleLabel={t('footerLinkTextLabel')}
+            bodyLabel={t('footerLinkUrlLabel')}
+            bodyType="url"
+            formAction={updateFooterLegalAction}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+          />
+          <p className="text-xs text-mist">{t('footerLegalIntro')}</p>
         </section>
         )}
 
