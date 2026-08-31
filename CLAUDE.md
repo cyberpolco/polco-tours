@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-207** (2026-08-31). This file used to carry a running
+Current through **DR-208** (2026-08-31). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -326,7 +326,12 @@ src/
                    #   REQUESTED -> PAID entirely out-of-band (no Payment/
                    #   Invoice, no notification) — new visa -> immigration
                    #   module dependency (see "Module dependency direction
-                   #   matters" below)
+                   #   matters" below). DR-208: BookingLookupVisaView (the
+                   #   guest /find-booking projection) gains
+                   #   governmentFeeMinor/governmentFeeCurrency too — it had
+                   #   been the one visa projection missing them, unlike
+                   #   VisaApplicationView/GuestVisaApplicationView/
+                   #   PendingVisaApplicationView
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text

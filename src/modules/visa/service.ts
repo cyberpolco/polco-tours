@@ -422,7 +422,12 @@ export const visaService = {
   async getStatusForBookingLookup(organizationId: string, travelerId: string): Promise<BookingLookupVisaView | null> {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!application) return null;
-    return { status: application.status, feePaymentStatus: application.feePaymentStatus };
+    return {
+      status: application.status,
+      feePaymentStatus: application.feePaymentStatus,
+      governmentFeeMinor: application.governmentFeeMinor,
+      governmentFeeCurrency: application.governmentFeeCurrency,
+    };
   },
 
   async streamDocument(ctx: AuthContext, bookingId: string, travelerId: string): Promise<DocumentStream> {

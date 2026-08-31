@@ -495,6 +495,13 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                             {v.feePaymentStatus !== 'NOT_REQUESTED' && (
                               <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[v.feePaymentStatus]}>
                                 {t('feePaymentPrefix')} {tFeeStatus(v.feePaymentStatus)}
+                                {/* DR-208 (explicit user request): show the actual
+                                    amount alongside the status badge, not just the
+                                    word "Requested"/"Paid" -- null whenever the
+                                    destination country has no public fee configured. */}
+                                {v.governmentFeeMinor != null && v.governmentFeeCurrency && (
+                                  <> · {format(money(v.governmentFeeMinor, v.governmentFeeCurrency))}</>
+                                )}
                               </Badge>
                             )}
                           </div>

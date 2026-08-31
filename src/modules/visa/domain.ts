@@ -162,6 +162,13 @@ export function canResubmit(status: VisaStatus): boolean {
 export interface BookingLookupVisaView {
   status: VisaStatus;
   feePaymentStatus: VisaFeePaymentStatus;
+  // DR-208 (explicit user request): the guest could already see a
+  // "Government fee: Requested/Paid" badge on /find-booking with no amount
+  // next to it -- these two surface the actual snapshotted fee (DR-187)
+  // alongside it. Both null whenever the destination country has no public
+  // fee configured, same as the underlying VisaApplication columns.
+  governmentFeeMinor: number | null;
+  governmentFeeCurrency: Currency | null;
 }
 
 /** DR-184: forward-only fee-payment transitions, mirroring canDecide/
