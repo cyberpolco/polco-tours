@@ -1,5 +1,6 @@
 // auth module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
+import type { Role } from '@prisma/client';
 import { generateRandomString, hashPassword } from 'better-auth/crypto';
 import { assertCan, can, resolvePermissionsForRoles, type Permission } from '@lib/rbac';
 import { auth } from '@lib/auth';
@@ -18,6 +19,14 @@ export const authService = {
    * permission check; the caller gates first. */
   async getUserByEmail(email: string): Promise<PublicUser | null> {
     return authRepository.findUserByEmail(email);
+  },
+
+  /** DR-205: internal backend-to-backend lookup (mirrors getUserByEmail) --
+   * used by the visa module's new-application staff alert to notify every
+   * VISA_FACILITATOR in the org. No internal permission check; the caller
+   * gates first (same convention as getUser/getUserByEmail). */
+  async listUsersByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
+    return authRepository.findUsersByRole(organizationId, role);
   },
 
   /** Staff booking-on-behalf-of-a-client flows (DR-036): resolves a tourist

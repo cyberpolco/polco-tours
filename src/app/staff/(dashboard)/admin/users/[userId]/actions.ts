@@ -5,6 +5,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError } from '@lib/errors';
 import { provisionFleetProfilesForUser } from '@lib/provision-fleet-profiles-for-user';
 import { ASSIGNABLE_ROLES, UpdateUserInput, authService } from '@modules/auth';
+import { notificationsService } from '@modules/notifications';
 
 export interface UpdateUserState {
   error?: string;
@@ -56,6 +57,18 @@ export async function resetPasswordAction(userId: string, _prevState: ResetPassw
   const ctx = await requireStaffContext('admin.all');
   try {
     const { temporaryPassword } = await authService.resetPassword(ctx, userId);
+    // DR-205 (explicit user request): also email the new temporary password
+    // -- see createUserAction's own comment for why this must be called
+    // from here rather than from inside authService.resetPassword itself
+    // (auth -> notifications would be a real import cycle). resetPassword
+    // doesn't touch deletedAt, so the recipient lookup below still resolves
+    // fine regardless of call order.
+    const target = await authService.getUser(userId);
+    if (target) {
+      await notificationsService.notifyEmail('STAFF_PASSWORD_RESET', target.email, target.preferredLocale, target.organizationId ?? '', {
+        temporaryPassword,
+      });
+    }
     return { success: { temporaryPassword } };
   } catch (err) {
     if (err instanceof ApiError) return { error: err.detail ?? err.title };

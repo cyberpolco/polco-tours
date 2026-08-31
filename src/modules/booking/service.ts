@@ -388,6 +388,9 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
+    await notificationsService.notify('QUOTATION_ACCEPTED', updated.touristUserId, organizationId, {
+      bookingId: updated.bookingReference,
+    });
     return updated;
   },
 
@@ -464,6 +467,11 @@ export const bookingService = {
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
+    });
+    await notificationsService.notify('BOOKING_REFUNDED', updated.touristUserId, organizationId, {
+      bookingId: updated.bookingReference,
+      amountMinor: updated.priceMinor ?? undefined,
+      currency: updated.currency ?? undefined,
     });
     return updated;
   },

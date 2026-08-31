@@ -2,9 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { ApiError } from '@lib/errors';
+import { ApiError, Errors } from '@lib/errors';
 import { provisionFleetProfilesForUser } from '@lib/provision-fleet-profiles-for-user';
 import { ASSIGNABLE_ROLES, CreateUserInput, authService } from '@modules/auth';
+import { notificationsService } from '@modules/notifications';
 
 export interface CreateUserState {
   error?: string;
@@ -35,6 +36,19 @@ export async function createUserAction(_prevState: CreateUserState, formData: Fo
   try {
     const { user, temporaryPassword } = await authService.createUser(ctx, parsed.data);
     await provisionFleetProfilesForUser(ctx, user.id, user.roles);
+    // DR-205 (explicit user request): also email the temporary password --
+    // notifyEmail (email-only, no WhatsApp/SMS fallback), not notify(),
+    // since this must be called from here rather than from inside
+    // authService.createUser itself: notifications/service.ts already
+    // imports @modules/auth (to resolve a recipient's User row in notify()),
+    // so auth -> notifications would be a real import cycle. See CLAUDE.md's
+    // module-dependency notes -- this Server Action is the correct "one
+    // level up" place for cross-module orchestration.
+    if (!user.organizationId) throw Errors.internal();
+    await notificationsService.notifyEmail('STAFF_PASSWORD_ISSUED', user.email, user.preferredLocale, user.organizationId, {
+      email: user.email,
+      temporaryPassword,
+    });
     return { success: { email: user.email, temporaryPassword } };
   } catch (err) {
     if (err instanceof ApiError) return { error: err.detail ?? err.title };
@@ -48,6 +62,12 @@ export async function createUserAction(_prevState: CreateUserState, formData: Fo
 // unfiltered.
 export async function deactivateUserAction(userId: string, redirectQuery: string): Promise<void> {
   const ctx = await requireStaffContext('admin.all');
+  if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+  // DR-205: notify BEFORE deactivating -- notify()'s recipient lookup
+  // (authService.getUser -> findUserById) excludes any deletedAt-set row,
+  // so resolving the target's own account after deactivateUser has already
+  // set deletedAt would silently find nobody to notify.
+  await notificationsService.notify('STAFF_ACCOUNT_DEACTIVATED', userId, ctx.organizationId, {});
   await authService.deactivateUser(ctx, userId);
   redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }
@@ -57,7 +77,11 @@ export async function deactivateUserAction(userId: string, redirectQuery: string
 // (authService throws) for a permanently Deleted account.
 export async function reactivateUserAction(userId: string, redirectQuery: string): Promise<void> {
   const ctx = await requireStaffContext('admin.all');
+  if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   await authService.reactivateUser(ctx, userId);
+  // Reactivate first -- once deletedAt is cleared, notify()'s recipient
+  // lookup can resolve the account again (see the deactivate comment above).
+  await notificationsService.notify('STAFF_ACCOUNT_REACTIVATED', userId, ctx.organizationId, {});
   redirect(`/staff/admin/users${redirectQuery ? `?${redirectQuery}` : ''}`);
 }
 

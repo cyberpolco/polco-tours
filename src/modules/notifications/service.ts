@@ -5,7 +5,14 @@ import type { Locale } from '@prisma/client';
 import { authService } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { logger, newTraceId } from '@lib/logger';
-import { renderMessage, renderSmsMessage, resolveChannelOrder, type NotificationData, type NotificationEvent } from './domain';
+import {
+  renderMessage,
+  renderSmsMessage,
+  resolveChannelOrder,
+  type NotificationChannel,
+  type NotificationData,
+  type NotificationEvent,
+} from './domain';
 import { gateways } from './gateway';
 
 export const notificationsService = {
@@ -38,13 +45,31 @@ export const notificationsService = {
       return;
     }
 
-    const message = renderMessage(event, user.preferredLocale, data);
+    const locale = user.preferredLocale;
+    const message = renderMessage(event, locale, data);
     const order = resolveChannelOrder({ phone: user.phone, email: user.email });
 
+    // DR-205: EMAIL sends the full branded HTML body; WHATSAPP/SMS need
+    // renderSmsMessage's plain-text twin instead -- an event's HTML body is
+    // now a full document (branded shell), not a bare sentence, so sending
+    // it verbatim over WhatsApp/SMS would show raw markup as the message
+    // text. An event with no plain-text template for a given channel is
+    // treated as unavailable on that channel (skip to the next one in
+    // `order`), not an error.
+    function bodyFor(channel: NotificationChannel): string | null {
+      if (channel === 'EMAIL') return message.body;
+      return renderSmsMessage(event, locale, data);
+    }
+
     for (const channel of order) {
+      const body = bodyFor(channel);
+      if (body === null) {
+        log.warn('notify: no plain-text template for channel, skipping', { event, channel });
+        continue;
+      }
       const to = channel === 'EMAIL' ? user.email : (user.phone as string);
       try {
-        const { providerRef } = await gateways[channel].send({ to, subject: message.subject, body: message.body });
+        const { providerRef } = await gateways[channel].send({ to, subject: message.subject, body });
         await audit({
           action: 'notification.sent',
           resourceType: 'Notification',

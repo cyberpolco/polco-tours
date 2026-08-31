@@ -5,6 +5,7 @@ import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
 import { catalogService, hasDepartureEnded, type DepartureView } from '@modules/catalog';
 import { fleetService, maintenanceRecencyScore, type DriverProfileView, type GuideProfileView, type VehicleView } from '@modules/fleet';
+import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { ApiError, Errors } from '@lib/errors';
 import { haversineDistanceKm } from '@lib/geo';
@@ -84,7 +85,7 @@ export const assignmentService = {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
 
-    const { departure } = await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
+    const { departure, packageCountry } = await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
     if (hasDepartureEnded(departure.endDate, new Date())) {
       throw Errors.conflict('This departure has already ended -- assignments can no longer be changed');
     }
@@ -145,6 +146,33 @@ export const assignmentService = {
       resourceId: assignment.id,
       organizationId,
     });
+
+    // DR-205: let the driver/guide/vehicle-owner staff themselves know
+    // they've been scheduled -- best-effort/never-throws, same as every
+    // other notify() call, so a notification failure can't roll back an
+    // assignment that already succeeded.
+    const driverUser = await authService.getUser(driverProfile.userId);
+    const vehicleLabel = `${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})`;
+    await notificationsService.notify('ASSIGNMENT_NOTICE_DRIVER', driverProfile.userId, organizationId, {
+      startDate: departure.startDate,
+      country: packageCountry,
+      vehicleLabel,
+      guideName: guide.name ?? guide.email,
+    });
+    await notificationsService.notify('ASSIGNMENT_NOTICE_GUIDE', guide.id, organizationId, {
+      startDate: departure.startDate,
+      country: packageCountry,
+      vehicleLabel,
+      driverName: driverUser?.name ?? driverUser?.email,
+    });
+    if (vehicle.ownerId) {
+      await notificationsService.notify('ASSIGNMENT_NOTICE_VEHICLE_OWNER', vehicle.ownerId, organizationId, {
+        startDate: departure.startDate,
+        country: packageCountry,
+        vehicleLabel,
+        driverName: driverUser?.name ?? driverUser?.email,
+      });
+    }
 
     return assignment;
   },

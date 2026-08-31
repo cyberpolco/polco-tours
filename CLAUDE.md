@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-204** (2026-08-30). This file used to carry a running
+Current through **DR-205** (2026-08-30). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -146,7 +146,7 @@ gaps a fresh Postgres would hit).
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19) |
-| Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend + Africa's Talking have real, live credentials (see Open Items for delivery caveats); WhatsApp still unconfigured (OI-06) |
+| Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
@@ -245,7 +245,19 @@ src/
                    #   (new invoicing -> finance dependency); invoice-pdf.tsx
                    #   (DR-169: downloadable invoice/receipt PDF, guest +
                    #   staff, once an invoice has a succeeded payment)
-    notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts
+    notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
+                   #   DR-205: 26 NotificationEvent kinds (up from 11) across
+                   #   every guest booking/visa/rating/itinerary lifecycle
+                   #   event plus staff assignment/password/account-status
+                   #   events; every email renders through a shared branded
+                   #   HTML shell (email-template.ts, Horizon tokens + the
+                   #   real brand logo, wordmark/footer swapping "Mufasa
+                   #   Safaris & Tours" vs. "POLCO Tours" per event). notify()
+                   #   now sends renderMessage's HTML only over EMAIL and
+                   #   renderSmsMessage's plain-text twin over WHATSAPP/SMS
+                   #   (previously reused the same body for every channel --
+                   #   harmless only because every body used to be one plain
+                   #   sentence)
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -551,7 +563,23 @@ DR-197, `tracking` also depends on `booking` (to skip a departure from
 `bookingService.hasActiveBookingForDeparture`, the same check
 `syncFleetAvailabilityForDeparture`/DR-082 already uses to resync fleet
 resources on the same event) — confirmed acyclic: `booking` itself only
-imports `{auth, catalog, notifications}`, never `tracking`.
+imports `{auth, catalog, notifications}`, never `tracking`. Since DR-205,
+`itinerary` also depends on `notifications` (to notify the tourist once
+their itinerary is approved) and `assignment` also depends on
+`notifications` (to notify the driver/guide/vehicle-owner staff themselves
+once assigned to a departure) — both confirmed acyclic: `notifications`
+itself only imports `auth` (to resolve a recipient's `User` row in
+`notify()`), never `itinerary` or `assignment`. Also since DR-205, `visa`
+gained its first *runtime* (not just type-only) dependency on `auth` —
+`authService.listUsersByRole`, to alert every `VISA_FACILITATOR` in the org
+when a new application lands — still confirmed acyclic, same direction
+every module's existing type-only `AuthContext` import already implied.
+Staff account-lifecycle notifications (password issued/reset, deactivated/
+reactivated) are deliberately called from the admin/users Server Actions,
+not from inside `authService` itself: `notifications` already imports
+`auth`, so an `auth -> notifications` dependency would be a real cycle —
+the Server Action layer is the "one level up" place for that orchestration,
+same convention as every cross-module composition this section documents.
 
 ---
 
@@ -939,12 +967,12 @@ Surface these to the human — don't invent answers.
   has obtained all necessary per-market legal registration documents
   (Namibia NTB/BIPA/NamRA; DRC DARA/DGI/Ministry of Tourism). No longer
   blocks go-live.
-- **OI-05** Resend email: API key is real and live, but **the account has no
-  verified sending domain** — Resend sandboxes delivery to only the account
-  owner's own address (`cyberpolco@gmail.com`). Any other recipient 403s.
-  Real end-to-end email testing only works when the guest-typed contact
-  email IS `cyberpolco@gmail.com`. Fix requires verifying a domain (e.g.
-  `polcotours.com`) at resend.com/domains — an external DNS/account action.
+- **OI-05 — RESOLVED 2026-08-30 (DR-205).** Explicit user confirmation:
+  `mufasasafaris.com` is now a verified sending domain in Resend
+  (resend.com/domains). `RESEND_FROM_EMAIL="Mufasa Safaris & Tours
+  <info@mufasasafaris.com>"` is set locally and must also be set in Vercel
+  Production + Preview — real recipients no longer 403; the account is no
+  longer sandboxed to only `cyberpolco@gmail.com`.
 - **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
   number) — not yet configured. Blocks real WhatsApp notifications.
 - **OI-07** Africa's Talking SMS: confirmed live and working, but the
@@ -1003,8 +1031,9 @@ Vercel Blob), OI-08 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash
 Redis — real credentials live in production since 2026-07-22), OI-11
 (Upstash QStash — real credentials + registered schedule live in production
 since 2026-07-22), OI-13 (Google Maps browser + server keys provisioned and
-live since 2026-08-08). See `docs/decisions/DECISION_LOG.md` for how each
-was closed.
+live since 2026-08-08), OI-05 (`mufasasafaris.com` verified as a Resend
+sending domain — 2026-08-30). See `docs/decisions/DECISION_LOG.md` for how
+each was closed.
 
 ---
 

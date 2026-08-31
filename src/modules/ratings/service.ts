@@ -175,9 +175,25 @@ export const ratingsService = {
       organizationId,
     });
     await notificationsService.notify('RATING_CODE_ISSUED', booking.touristUserId, organizationId, {
-      bookingId: booking.id,
+      bookingId: booking.bookingReference,
       ratingCode: ratingCode.code,
     });
+    // DR-205 (explicit user request): guarantee a copy reaches the real
+    // tour-lead address too -- for an anonymous-checkout booking, the
+    // User.email notify() just resolved above can be a synthetic
+    // placeholder (same class of gap DR-055 already fixed for
+    // TAILOR_MADE_REQUEST_RECEIVED), while Booking.contactEmail is always
+    // the real address the tour lead actually typed.
+    if (booking.contactEmail) {
+      const tourist = await authService.getUser(booking.touristUserId);
+      await notificationsService.notifyEmail(
+        'RATING_CODE_ISSUED',
+        booking.contactEmail,
+        tourist?.preferredLocale ?? 'EN',
+        organizationId,
+        { bookingId: booking.bookingReference, ratingCode: ratingCode.code },
+      );
+    }
 
     return ratingCode;
   },
@@ -338,6 +354,9 @@ export const ratingsService = {
       resourceId: review.id,
       organizationId,
       ip,
+    });
+    await notificationsService.notify('RATING_THANK_YOU', booking.touristUserId, organizationId, {
+      bookingId: booking.bookingReference,
     });
   },
 };

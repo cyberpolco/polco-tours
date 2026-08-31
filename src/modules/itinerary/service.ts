@@ -5,6 +5,7 @@ import type { AuthContext } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { circuitColorAsCss, circuitColorForDayIndex } from '@lib/circuit-colors';
 import { Errors } from '@lib/errors';
@@ -289,6 +290,10 @@ export const itineraryService = {
       resourceType: 'Itinerary',
       resourceId: updated.id,
       organizationId,
+    });
+    const booking = await bookingService.getById(ctx, updated.bookingId);
+    await notificationsService.notify('ITINERARY_APPROVED', booking.touristUserId, organizationId, {
+      bookingId: booking.bookingReference,
     });
     return updated;
   },

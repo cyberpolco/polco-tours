@@ -1,13 +1,80 @@
 import { describe, it, expect } from 'vitest';
 import { resolveChannelOrder, renderMessage, renderSmsMessage, type NotificationEvent } from '../src/modules/notifications/domain';
 
-const EVENTS: NotificationEvent[] = [
+// Every event with a plain-text (WhatsApp/SMS) template -- kept in sync
+// manually with domain.ts's SMS_TEMPLATES map; the "no SMS template" test
+// below exercises an event deliberately left out of it.
+const SMS_EVENTS: NotificationEvent[] = [
   'BOOKING_CONFIRMED',
   'BOOKING_CANCELLED',
   'PAYMENT_SUCCEEDED',
   'PAYMENT_FAILED',
+  'QUOTATION_SENT',
+  'QUOTATION_ACCEPTED',
+  'BOOKING_REFUNDED',
+  'INVOICE_ISSUED',
+  'VISA_SUBMITTED',
+  'VISA_RESUBMITTED',
+  'RATING_THANK_YOU',
+  'ITINERARY_APPROVED',
+  'STAFF_ACCOUNT_DEACTIVATED',
+  'STAFF_ACCOUNT_REACTIVATED',
+  'ASSIGNMENT_NOTICE_DRIVER',
+  'ASSIGNMENT_NOTICE_GUIDE',
+  'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
 ];
-const DATA = { bookingId: 'bk_42', amountMinor: 4400, currency: 'USD' as const };
+
+const GUEST_EVENTS: NotificationEvent[] = [
+  'BOOKING_CONFIRMED',
+  'BOOKING_CANCELLED',
+  'PAYMENT_SUCCEEDED',
+  'PAYMENT_FAILED',
+  'QUOTATION_SENT',
+  'QUOTATION_ACCEPTED',
+  'BOOKING_REFUNDED',
+  'INVOICE_ISSUED',
+  'VISA_CONTACT_TRAVELER',
+  'VISA_MISSING_DOCUMENTS',
+  'VISA_APPROVED',
+  'VISA_REJECTED',
+  'VISA_SUBMITTED',
+  'VISA_RESUBMITTED',
+  'RATING_CODE_ISSUED',
+  'RATING_THANK_YOU',
+  'TAILOR_MADE_REQUEST_RECEIVED',
+  'ITINERARY_APPROVED',
+];
+
+const STAFF_EVENTS: NotificationEvent[] = [
+  'STAFF_PASSWORD_ISSUED',
+  'STAFF_PASSWORD_RESET',
+  'STAFF_ACCOUNT_DEACTIVATED',
+  'STAFF_ACCOUNT_REACTIVATED',
+  'ASSIGNMENT_NOTICE_DRIVER',
+  'ASSIGNMENT_NOTICE_GUIDE',
+  'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
+  'VISA_QUEUE_NEW_APPLICATION',
+];
+
+const ALL_EVENTS: NotificationEvent[] = [...GUEST_EVENTS, ...STAFF_EVENTS];
+
+// Deliberately minimal/generic -- every TEMPLATES entry defaults every
+// field it doesn't find here, so this exercises every event without
+// throwing regardless of which fields that particular event actually uses.
+const DATA = {
+  bookingId: 'bk_42',
+  amountMinor: 4400,
+  currency: 'USD' as const,
+  travelerName: 'Jane Doe',
+  country: 'Namibia',
+  ratingCode: 'RC-9',
+  temporaryPassword: 'Tmp-Password-123',
+  email: 'staff@example.test',
+  startDate: new Date('2027-03-10T00:00:00Z'),
+  vehicleLabel: 'Toyota Land Cruiser (NAM-1234)',
+  driverName: 'John Smith',
+  guideName: 'Alice Brown',
+};
 
 describe('notifications domain', () => {
   describe('resolveChannelOrder', () => {
@@ -25,12 +92,29 @@ describe('notifications domain', () => {
   });
 
   describe('renderMessage', () => {
-    it.each(EVENTS)('%s renders distinct, non-empty EN and FR bodies', (event) => {
+    it.each(ALL_EVENTS)('%s renders distinct, non-empty, branded EN and FR bodies', (event) => {
       const en = renderMessage(event, 'EN', DATA);
       const fr = renderMessage(event, 'FR', DATA);
       expect(en.body.length).toBeGreaterThan(0);
       expect(fr.body.length).toBeGreaterThan(0);
       expect(en.body).not.toBe(fr.body);
+      expect(en.body).toContain('<!doctype');
+      // DR-205: every email closes with the same automated-message notice,
+      // regardless of event -- guaranteed by the shared shell, not by each
+      // TEMPLATES entry remembering to pass one.
+      expect(en.body).toContain('do not reply');
+    });
+
+    it.each(GUEST_EVENTS)('%s uses the guest brand wordmark, not the staff one', (event) => {
+      const { body } = renderMessage(event, 'EN', DATA);
+      expect(body).toContain('Mufasa Safaris');
+      expect(body).not.toContain('POLCO TOURS');
+    });
+
+    it.each(STAFF_EVENTS)('%s uses the staff brand wordmark, not the guest one', (event) => {
+      const { body } = renderMessage(event, 'EN', DATA);
+      expect(body).toContain('POLCO TOURS');
+      expect(body).not.toContain('Mufasa Safaris');
     });
 
     it('interpolates the booking id for booking events', () => {
@@ -41,6 +125,22 @@ describe('notifications domain', () => {
     it('formats the amount for payment events', () => {
       expect(renderMessage('PAYMENT_SUCCEEDED', 'EN', DATA).body).toContain('44.00');
       expect(renderMessage('PAYMENT_FAILED', 'EN', DATA).body).toContain('44.00');
+    });
+
+    it('interpolates the amount for the new INVOICE_ISSUED/BOOKING_REFUNDED events', () => {
+      expect(renderMessage('INVOICE_ISSUED', 'EN', DATA).body).toContain('44.00');
+      expect(renderMessage('BOOKING_REFUNDED', 'EN', DATA).body).toContain('44.00');
+    });
+
+    it('interpolates the temporary password for the staff password events', () => {
+      expect(renderMessage('STAFF_PASSWORD_ISSUED', 'EN', DATA).body).toContain('Tmp-Password-123');
+      expect(renderMessage('STAFF_PASSWORD_RESET', 'EN', DATA).body).toContain('Tmp-Password-123');
+    });
+
+    it('interpolates driver/guide/vehicle details for assignment notices', () => {
+      expect(renderMessage('ASSIGNMENT_NOTICE_DRIVER', 'EN', DATA).body).toContain('Alice Brown');
+      expect(renderMessage('ASSIGNMENT_NOTICE_GUIDE', 'EN', DATA).body).toContain('John Smith');
+      expect(renderMessage('ASSIGNMENT_NOTICE_VEHICLE_OWNER', 'EN', DATA).body).toContain('Toyota Land Cruiser');
     });
   });
 
@@ -93,10 +193,29 @@ describe('notifications domain', () => {
         expect(renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData)).toContain('N9M0W8');
         expect(renderSmsMessage('TAILOR_MADE_REQUEST_RECEIVED', 'EN', tripData)).toContain('NA, ZM');
       });
+    });
+  });
 
-      it('returns null for an event with no SMS template', () => {
-        expect(renderSmsMessage('BOOKING_CONFIRMED', 'EN', { bookingId: 'bk_42' })).toBeNull();
-      });
+  describe('renderSmsMessage', () => {
+    it.each(SMS_EVENTS)('%s renders a distinct, non-empty EN and FR plain-text body with no HTML markup', (event) => {
+      const en = renderSmsMessage(event, 'EN', DATA);
+      const fr = renderSmsMessage(event, 'FR', DATA);
+      expect(en).toBeTruthy();
+      expect(fr).toBeTruthy();
+      expect(en).not.toBe(fr);
+      expect(en).not.toContain('<');
+    });
+
+    // DR-205: notify()'s channel-routing fix relies on this returning null
+    // (not a stringified HTML body) for any event with no plain-text
+    // template -- VISA_APPROVED is deliberately email-only today.
+    it('returns null for an event with no SMS template', () => {
+      expect(renderSmsMessage('VISA_APPROVED', 'EN', DATA)).toBeNull();
+    });
+
+    it('never renders a plain-text body for the email-only staff password events', () => {
+      expect(renderSmsMessage('STAFF_PASSWORD_ISSUED', 'EN', DATA)).toBeNull();
+      expect(renderSmsMessage('STAFF_PASSWORD_RESET', 'EN', DATA)).toBeNull();
     });
   });
 });

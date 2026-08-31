@@ -132,6 +132,20 @@ export const authRepository = {
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
 
+  /** DR-205: every active user holding `role` as their PRIMARY role in the
+   * org -- powers the visa-queue "new application" staff alert
+   * (VISA_FACILITATOR). Deliberately mirrors listStaff/listClients'
+   * `role` (User.role), not a Membership union -- a facilitator holding
+   * the role only as a secondary Membership is a real gap this doesn't
+   * cover, same scope limitation those two existing directory queries
+   * already accept. */
+  async findUsersByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
+    const users = await withOrg(organizationId, (tx) =>
+      tx.user.findMany({ where: { organizationId, role, deletedAt: null }, orderBy: { email: 'asc' } }),
+    );
+    return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
+  },
+
   /** DR-026: finishes what auth.api.signUpEmail can't set directly (role/
    * phone/organizationId aren't registered better-auth additionalFields, so
    * they must be written via a plain Prisma update, same pattern

@@ -225,6 +225,11 @@ export const invoicingService = {
       resourceId: invoice.id,
       organizationId,
     });
+    await notificationsService.notify('INVOICE_ISSUED', booking.touristUserId, organizationId, {
+      bookingId: booking.bookingReference,
+      amountMinor: invoice.totalMinor,
+      currency: invoice.currency,
+    });
     return invoice;
   },
 

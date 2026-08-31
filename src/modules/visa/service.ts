@@ -1,7 +1,7 @@
 // visa module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency } from '@prisma/client';
-import type { AuthContext } from '@modules/auth';
+import { authService, type AuthContext } from '@modules/auth';
 import { bookingService, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { documentsService, type DocumentSummary, type DocumentStream } from '@modules/documents';
@@ -39,6 +39,21 @@ async function resolveGovernmentFee(country: string): Promise<{ governmentFeeMin
 function requireOrg(ctx: AuthContext): string {
   if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
   return ctx.organizationId;
+}
+
+/** DR-205: shared by submitApplication/autoSubmitOnPassportUpload -- alerts
+ * every VISA_FACILITATOR in the org that a new application landed in their
+ * queue. Best-effort/sequential per facilitator, same as every other
+ * notify() call in this module -- never throws, so a facilitator alert
+ * failure can't block the application itself from being created. */
+async function notifyFacilitatorQueue(organizationId: string, travelerName: string, country: string): Promise<void> {
+  const facilitators = await authService.listUsersByRole(organizationId, 'VISA_FACILITATOR');
+  for (const facilitator of facilitators) {
+    await notificationsService.notify('VISA_QUEUE_NEW_APPLICATION', facilitator.id, organizationId, {
+      travelerName,
+      country,
+    });
+  }
 }
 
 /** Same findTraveler-by-bookingId+travelerId pattern as the existing
@@ -104,6 +119,9 @@ export const visaService = {
       resourceId: application.id,
       organizationId,
     });
+    const travelerName = `${traveler.firstName} ${traveler.lastName}`;
+    await notificationsService.notify('VISA_SUBMITTED', booking.touristUserId, organizationId, { travelerName, country });
+    await notifyFacilitatorQueue(organizationId, travelerName, country);
     return application;
   },
 
@@ -153,7 +171,7 @@ export const visaService = {
   async resubmitApplication(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
     assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
-    await findTraveler(ctx, bookingId, travelerId);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
 
     const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!existing) throw Errors.notFound('Visa application not found');
@@ -175,6 +193,12 @@ export const visaService = {
       // audit trail, since repository.resubmit nulls it on the live row.
       metadata: { previousRejectionReason: existing.rejectionReason, resubmissionCount: resubmitted.resubmissionCount },
     });
+    const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
+    if (booking) {
+      await notificationsService.notify('VISA_RESUBMITTED', booking.touristUserId, organizationId, {
+        travelerName: `${traveler.firstName} ${traveler.lastName}`,
+      });
+    }
     return resubmitted;
   },
 
@@ -190,7 +214,7 @@ export const visaService = {
    * same precedent as the initial passport-upload wizard. */
   async resubmitApplicationForGuest(ctx: AuthContext, bookingId: string, travelerId: string): Promise<VisaApplicationView> {
     const organizationId = requireOrg(ctx);
-    await findTraveler(ctx, bookingId, travelerId);
+    const traveler = await findTraveler(ctx, bookingId, travelerId);
 
     const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!existing) throw Errors.notFound('Visa application not found');
@@ -212,6 +236,12 @@ export const visaService = {
         trigger: 'guest_self_service',
       },
     });
+    const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
+    if (booking) {
+      await notificationsService.notify('VISA_RESUBMITTED', booking.touristUserId, organizationId, {
+        travelerName: `${traveler.firstName} ${traveler.lastName}`,
+      });
+    }
     return resubmitted;
   },
 
@@ -583,6 +613,9 @@ export const visaService = {
       organizationId,
       metadata: { trigger: 'passport_upload' },
     });
+    const travelerName = `${traveler.firstName} ${traveler.lastName}`;
+    await notificationsService.notify('VISA_SUBMITTED', booking.touristUserId, organizationId, { travelerName, country });
+    await notifyFacilitatorQueue(organizationId, travelerName, country);
   },
 
   /** DR-151 (explicit user request): SUPERADMIN-only genuine delete of an
