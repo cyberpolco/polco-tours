@@ -398,7 +398,7 @@ export async function deleteSocialLinkAction(slotKey: string): Promise<void> {
 // elsewhere; its own action (not the generic updatePageTextAction) so body
 // gets real server-side URL validation (charter rule 1 -- never trust the
 // form's client-side `type="url"` alone).
-export const FOOTER_LEGAL_KEY = 'footer.legal';
+const FOOTER_LEGAL_KEY = 'footer.legal';
 const FooterLegalUrl = z.string().trim().url().max(300);
 
 export async function updateFooterLegalAction(formData: FormData): Promise<void> {
