@@ -56,7 +56,7 @@ export default async function BookPackagePage({ params }: Props) {
   return (
     <div className="max-w-md">
       <BackLink href={`/packages/${packageId}`}>{t('backToPackage')}</BackLink>
-      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} />
+      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} variant="checklist" />
 
       <Card className="mt-4">
         <p className="eyebrow text-mist">{t('newBooking')}</p>

@@ -472,14 +472,23 @@
   },
   "PlanMyTripSteps": {
     "destination": "Destination",
+    "destinationDescription": "Pick which countries you'd like to explore.",
     "dates": "Dates",
+    "datesDescription": "Choose when your trip begins and ends.",
     "travelers": "Travelers",
+    "travelersDescription": "Tell us how many people are traveling.",
     "preferences": "Preferences",
+    "preferencesDescription": "Choose what matters most on this trip.",
     "sites": "Sites",
+    "sitesDescription": "Pick specific places you'd like to visit.",
     "yourTrip": "Your trip",
+    "yourTripDescription": "Add any extra detail about your dream trip.",
     "addOns": "Add-ons",
+    "addOnsDescription": "Choose extras like photography or a translator.",
     "specialRequests": "Special requests",
-    "contact": "Contact"
+    "specialRequestsDescription": "Anything else we should know before quoting?",
+    "contact": "Contact",
+    "contactDescription": "How can we reach you with a quotation?"
   },
   "TripTags": {
     "WILDLIFE": "Wildlife",
@@ -1905,10 +1914,15 @@
   },
   "BookingWizardSteps": {
     "yourDetails": "Your details",
+    "yourDetailsDescription": "Confirm who's traveling and how to reach you.",
     "addOns": "Add-ons",
+    "addOnsDescription": "Choose extras like photography or a translator.",
     "travelers": "Travelers",
+    "travelersDescription": "Add each traveler joining the trip.",
     "passport": "Passport",
-    "confirmAndPay": "Confirm & Pay"
+    "passportDescription": "Upload passport copies for visa processing.",
+    "confirmAndPay": "Confirm & Pay",
+    "confirmAndPayDescription": "Review your trip and complete payment."
   },
   "BookingStart": {
     "backToPackage": "back to package",

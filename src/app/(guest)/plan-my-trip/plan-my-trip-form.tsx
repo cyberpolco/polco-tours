@@ -9,10 +9,27 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
-import { StepIndicator } from '@/components/ui/StepIndicator';
+import { StepIndicator, type StepIndicatorStepDetail } from '@/components/ui/StepIndicator';
+import type { WizardStepIconKey } from '@/components/ui/wizard-step-icons';
 import { authClient } from '@lib/auth-client';
 import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
 import { createPlanMyTripRequestAction, recordWizardStepAction } from './actions';
+
+// Order-matched to STEPS below (destination -> contact) -- shares the
+// 'travelers'/'addOns' icon keys with the direct-booking wizard's own
+// checklist (booking-wizard-steps.ts), since those two concepts are the
+// same across both journeys.
+const STEP_ICON_KEYS: WizardStepIconKey[] = [
+  'destination',
+  'dates',
+  'travelers',
+  'preferences',
+  'sites',
+  'tripNotes',
+  'addOns',
+  'specialRequests',
+  'contact',
+];
 
 // DR-167: gallery sites are now staff-managed (name/country, add/remove)
 // from /staff/cms -- fetched server-side by plan-my-trip/page.tsx (the
@@ -77,17 +94,12 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
   const tTags = useTranslations('TripTags');
   const tAddons = useTranslations('TripAddons');
   const tCountries = useTranslations('Countries');
-  const STEPS = [
-    tSteps('destination'),
-    tSteps('dates'),
-    tSteps('travelers'),
-    tSteps('preferences'),
-    tSteps('sites'),
-    tSteps('yourTrip'),
-    tSteps('addOns'),
-    tSteps('specialRequests'),
-    tSteps('contact'),
-  ];
+  const STEP_KEYS = ['destination', 'dates', 'travelers', 'preferences', 'sites', 'yourTrip', 'addOns', 'specialRequests', 'contact'] as const;
+  const STEPS: StepIndicatorStepDetail[] = STEP_KEYS.map((key, i) => ({
+    label: tSteps(key),
+    description: tSteps(`${key}Description`),
+    iconKey: STEP_ICON_KEYS[i],
+  }));
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +211,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
           so it gets a real link out instead, same convention as the other
           wizards' entry-point back links. */}
       {step === 0 && <BackLink href="/">{t('backToHomepage')}</BackLink>}
-      <StepIndicator steps={STEPS} currentIndex={step} />
+      <StepIndicator steps={STEPS} currentIndex={step} variant="checklist" />
 
       {step === 0 && (
         <div>

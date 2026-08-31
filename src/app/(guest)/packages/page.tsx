@@ -5,6 +5,7 @@ import { catalogService } from '@modules/catalog';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
+import { TravelBackdrop } from '@/components/ui/TravelBackdrop';
 import { PackageCard } from '../package-card';
 
 interface Props {
@@ -34,7 +35,8 @@ export default async function PackagesPage({ searchParams }: Props) {
   }
 
   return (
-    <div>
+    <div className="relative">
+      <TravelBackdrop />
       <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
       {cms?.body && <p className="mt-1 text-sm text-mist">{cms.body}</p>}

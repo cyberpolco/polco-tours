@@ -38,7 +38,7 @@ export default async function AddonsPage({ params }: Props) {
       <Reveal>
         <div className="max-w-md">
           <BackLink href={`/booking/${bookingId}`}>{t('backToBooking')}</BackLink>
-          <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={1} />
+          <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={1} variant="checklist" />
           <p className="eyebrow mt-4 text-mist">{t('setupAddons')}</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">{t('waitingOnQuotation')}</h1>
           <div className="mt-3">
@@ -93,7 +93,7 @@ export default async function AddonsPage({ params }: Props) {
     <Reveal>
       <div className="max-w-md">
         <BackLink href={`/booking/${bookingId}`}>{t('backToBooking')}</BackLink>
-        <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} />
+        <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={1} variant="checklist" />
         <p className="eyebrow mt-4 text-mist">{t('setupAddons')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{t('optionalAddons')}</h1>
         <p className="mt-1 text-sm text-mist">{t('selectingNoneFine')}</p>

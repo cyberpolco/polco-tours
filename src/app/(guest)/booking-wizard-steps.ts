@@ -1,4 +1,4 @@
-// Shared step labels for the direct-package-browse journey (DR-024;
+// Shared step data for the direct-package-browse journey (DR-024;
 // shrunk from 7 to 5 steps in DR-046 when the quiz -- and its own two
 // steps, 'Tailor my trip'/'Matches' -- was merged into /plan-my-trip).
 // Reordered (add-ons now come right after "Your details", before
@@ -18,11 +18,20 @@
 // browse-without-a-plan visitors, so a progress bar there would
 // misrepresent non-wizard traffic.
 import { getTranslations } from 'next-intl/server';
+import type { StepIndicatorStepDetail } from '@/components/ui/StepIndicator';
 
-export async function getBookingWizardSteps(requiresPassportUpload: boolean): Promise<string[]> {
+// DR-205: each step now also carries a one-line description + themed icon
+// key, consumed by StepIndicator's 'checklist' variant -- plain strings
+// still worked before this (the 'compact' variant only ever read `label`),
+// so this is additive, not a breaking shape change for any other consumer.
+export async function getBookingWizardSteps(requiresPassportUpload: boolean): Promise<StepIndicatorStepDetail[]> {
   const t = await getTranslations('BookingWizardSteps');
-  const steps = [t('yourDetails'), t('addOns'), t('travelers')];
-  if (requiresPassportUpload) steps.push(t('passport'));
-  steps.push(t('confirmAndPay'));
+  const steps: StepIndicatorStepDetail[] = [
+    { label: t('yourDetails'), description: t('yourDetailsDescription'), iconKey: 'yourDetails' },
+    { label: t('addOns'), description: t('addOnsDescription'), iconKey: 'addOns' },
+    { label: t('travelers'), description: t('travelersDescription'), iconKey: 'travelers' },
+  ];
+  if (requiresPassportUpload) steps.push({ label: t('passport'), description: t('passportDescription'), iconKey: 'passport' });
+  steps.push({ label: t('confirmAndPay'), description: t('confirmAndPayDescription'), iconKey: 'confirmPay' });
   return steps;
 }

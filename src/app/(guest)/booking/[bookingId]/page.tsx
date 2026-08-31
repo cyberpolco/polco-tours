@@ -110,7 +110,7 @@ export default async function BookingHomePage({ params }: Props) {
     return (
       <Reveal>
         <div className="max-w-md space-y-6">
-          <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={currentStepIndex} />
+          <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={currentStepIndex} variant="checklist" />
           <div>
             <p className="eyebrow mt-4 text-mist">{t('bookingSetup')}</p>
             <p className="mt-1 text-xs text-mist">
@@ -178,6 +178,7 @@ export default async function BookingHomePage({ params }: Props) {
       <StepIndicator
         steps={await getBookingWizardSteps(booking.requiresPassportUpload)}
         currentIndex={booking.requiresPassportUpload ? 4 : 3}
+        variant="checklist"
       />
       <Reveal>
       <div>

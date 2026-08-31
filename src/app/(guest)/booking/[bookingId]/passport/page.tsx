@@ -48,7 +48,7 @@ export default async function PassportPage({ params, searchParams }: Props) {
     <Reveal>
       <div className="max-w-md">
         <BackLink href={`/booking/${bookingId}/travelers/new`}>{t('backToTravelers')}</BackLink>
-        <StepIndicator steps={await getBookingWizardSteps(true)} currentIndex={3} />
+        <StepIndicator steps={await getBookingWizardSteps(true)} currentIndex={3} variant="checklist" />
         <p className="eyebrow mt-4 text-mist">{t('setupPassport')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">
           {t('passportTitle', { firstName: nextTraveler.firstName, lastName: nextTraveler.lastName })}

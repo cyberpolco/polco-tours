@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
+import { TravelBackdrop } from '@/components/ui/TravelBackdrop';
 import PlanMyTripForm, { type PlanMyTripSite } from './plan-my-trip-form';
 
 // DR-198: same best-effort convention as book-package/[packageId]/page.tsx's
@@ -59,7 +60,8 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
     .map((item) => ({ name: item.name!, country: item.country! }));
 
   return (
-    <div>
+    <div className="relative">
+      <TravelBackdrop />
       <p className="eyebrow mt-4 text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
       <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>

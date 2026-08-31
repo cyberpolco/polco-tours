@@ -472,14 +472,23 @@
   },
   "PlanMyTripSteps": {
     "destination": "Destination",
+    "destinationDescription": "Choisissez les pays que vous aimeriez explorer.",
     "dates": "Dates",
+    "datesDescription": "Choisissez les dates de début et de fin de votre voyage.",
     "travelers": "Voyageurs",
+    "travelersDescription": "Indiquez le nombre de personnes qui voyagent.",
     "preferences": "Préférences",
+    "preferencesDescription": "Choisissez ce qui compte le plus pour ce voyage.",
     "sites": "Sites",
+    "sitesDescription": "Choisissez les lieux précis que vous aimeriez visiter.",
     "yourTrip": "Votre voyage",
+    "yourTripDescription": "Ajoutez tout détail supplémentaire sur le voyage de vos rêves.",
     "addOns": "Options",
+    "addOnsDescription": "Choisissez des options comme la photographie ou un traducteur.",
     "specialRequests": "Demandes spéciales",
-    "contact": "Contact"
+    "specialRequestsDescription": "Autre chose à nous signaler avant le devis ?",
+    "contact": "Contact",
+    "contactDescription": "Comment pouvons-nous vous joindre avec un devis ?"
   },
   "TripTags": {
     "WILDLIFE": "Faune",
@@ -1905,10 +1914,15 @@
   },
   "BookingWizardSteps": {
     "yourDetails": "Vos coordonnées",
+    "yourDetailsDescription": "Confirmez qui voyage et comment vous joindre.",
     "addOns": "Options",
+    "addOnsDescription": "Choisissez des options comme la photographie ou un traducteur.",
     "travelers": "Voyageurs",
+    "travelersDescription": "Ajoutez chaque voyageur participant au voyage.",
     "passport": "Passeport",
-    "confirmAndPay": "Confirmer et payer"
+    "passportDescription": "Téléversez les copies de passeport pour le traitement du visa.",
+    "confirmAndPay": "Confirmer et payer",
+    "confirmAndPayDescription": "Vérifiez votre voyage et finalisez le paiement."
   },
   "BookingStart": {
     "backToPackage": "retour au circuit",

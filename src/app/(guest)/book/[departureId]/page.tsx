@@ -30,7 +30,7 @@ export default async function BookDeparturePage({ params }: Props) {
       {detail.departure.tourPackageId && (
         <BackLink href={`/packages/${detail.departure.tourPackageId}`}>{t('backToPackage')}</BackLink>
       )}
-      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} />
+      <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} variant="checklist" />
 
       <Card className="mt-4">
         <div className="flex items-center justify-between gap-3">
