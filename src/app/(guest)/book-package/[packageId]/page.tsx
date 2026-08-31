@@ -54,7 +54,7 @@ export default async function BookPackagePage({ params }: Props) {
   const lateBookingRate = await tryGetLateBookingRate();
 
   return (
-    <div className="max-w-md">
+    <div className="mx-auto max-w-md">
       <BackLink href={`/packages/${packageId}`}>{t('backToPackage')}</BackLink>
       <StepIndicator steps={await getBookingWizardSteps(false)} currentIndex={0} variant="checklist" />
 
@@ -67,7 +67,10 @@ export default async function BookPackagePage({ params }: Props) {
         <p className="mt-1 text-sm text-mist">{t('dayTrip', { days: pkg.durationDays })}</p>
       </Card>
 
-      <BookingForm packageId={packageId} durationDays={pkg.durationDays} lateBookingRate={lateBookingRate} />
+      {/* pkg.id (real uuid), not the raw route param -- the URL segment may now be
+          the package's slug (see packages/[packageId]/page.tsx's own link), but
+          CreateBookingWithDatesInput.packageId is a strict z.string().uuid(). */}
+      <BookingForm packageId={pkg.id} durationDays={pkg.durationDays} lateBookingRate={lateBookingRate} />
     </div>
   );
 }

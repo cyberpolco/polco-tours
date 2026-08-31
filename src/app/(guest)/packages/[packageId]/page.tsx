@@ -112,7 +112,8 @@ export default async function PackageDetailPage({ params }: Props) {
               {t('chooseOwnStartDate')}
             </p>
           </div>
-          {bookable && <LinkButton href={`/book-package/${pkg.id}`}>{t('bookThisTrip')}</LinkButton>}
+          {/* DR-118: same slug-preferred convention as package-card.tsx's own link into this page. */}
+          {bookable && <LinkButton href={`/book-package/${pkg.slug ?? pkg.id}`}>{t('bookThisTrip')}</LinkButton>}
         </Card>
       </div>
     </div>
