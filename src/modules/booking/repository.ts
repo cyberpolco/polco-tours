@@ -1,5 +1,15 @@
 // booking module — repository. The only place that touches the DB for this module.
-import { Prisma, type AddonCode, type Booking, type BookingAddon, type BookingStatus, type Currency, type PackageTag, type Traveler } from '@prisma/client';
+import {
+  Prisma,
+  type AddonCode,
+  type Booking,
+  type BookingAddon,
+  type BookingStatus,
+  type CancellationRefundTier,
+  type Currency,
+  type PackageTag,
+  type Traveler,
+} from '@prisma/client';
 import { prisma, withOrg, type TenantTx } from '@lib/db';
 import { BOOKING_DELETION_RETENTION_DAYS, canTransition, generateBookingReference, holdExpiryFrom } from './domain';
 import type { AddTravelerInput, BookingAddonView, BookingView, TravelerView, VisaCandidateTravelerView } from './domain';
@@ -95,6 +105,9 @@ function toBookingView(b: Booking): BookingView {
     countryOfResidence: b.countryOfResidence,
     citizenship: b.citizenship,
     customizedPackageId: b.customizedPackageId,
+    cancellationReason: b.cancellationReason,
+    cancellationContactEmail: b.cancellationContactEmail,
+    cancellationRefundTier: b.cancellationRefundTier,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
   };
@@ -527,6 +540,11 @@ export const bookingRepository = {
   async cancelAndReleaseReference(
     organizationId: string,
     id: string,
+    // DR-207: only set by bookingService.cancelForBookingLookup -- the
+    // guest self-service path collects and persists these; every other
+    // caller of this method (staff cancel, the guest's own 30s-grace-window
+    // buttons) leaves them null, same as before this param existed.
+    guestCancellation?: { reason: string; contactEmail: string; refundTier: CancellationRefundTier },
   ): Promise<{ booking: BookingView; previousReference: string } | null> {
     for (let attempt = 1; attempt <= MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
       try {
@@ -539,7 +557,16 @@ export const bookingRepository = {
           }
           const b = await tx.booking.update({
             where: { id },
-            data: { status: 'CANCELLED', holdExpiresAt: null, bookingReference: generateBookingReference() },
+            data: {
+              status: 'CANCELLED',
+              holdExpiresAt: null,
+              bookingReference: generateBookingReference(),
+              ...(guestCancellation && {
+                cancellationReason: guestCancellation.reason,
+                cancellationContactEmail: guestCancellation.contactEmail,
+                cancellationRefundTier: guestCancellation.refundTier,
+              }),
+            },
           });
           return { booking: toBookingView(b), previousReference: existing.bookingReference };
         });

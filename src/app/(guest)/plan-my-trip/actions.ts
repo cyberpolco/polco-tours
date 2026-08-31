@@ -6,6 +6,7 @@ import { analyticsService } from '@modules/analytics';
 import { authService } from '@modules/auth';
 import { CreateTailorMadeInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
+import { COOKIE_CONSENT_COOKIE, isAnalyticsConsentGiven } from '@lib/cookie-consent';
 import { ApiError } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
 import { isStaffRole } from '@lib/rbac';
@@ -18,10 +19,17 @@ const WIZARD_SESSION_COOKIE = 'wizard_session';
  * never throws: this must never block or visibly affect the wizard. No
  * account/session is created here -- just an opaque cookie id, distinct
  * from better-auth's own session cookie.
+ *
+ * DR-207: gated behind the cookie-consent banner's choice -- this is the
+ * one non-essential cookie on the guest site (see CLAUDE.md's cookie
+ * inventory / the Cookie Policy tab on /terms). No consent yet, or an
+ * explicit reject, means this is a silent no-op -- never sets the cookie,
+ * never records the step.
  */
 export async function recordWizardStepAction(step: number): Promise<void> {
   try {
     const cookieStore = await cookies();
+    if (!isAnalyticsConsentGiven(cookieStore.get(COOKIE_CONSENT_COOKIE)?.value)) return;
     let sessionToken = cookieStore.get(WIZARD_SESSION_COOKIE)?.value;
     if (!sessionToken) {
       sessionToken = randomUUID();

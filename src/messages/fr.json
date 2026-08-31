@@ -158,9 +158,32 @@
   "Terms": {
     "eyebrow": "Conditions et politiques",
     "title": "Conditions d'utilisation et politiques",
-    "body": "Nous mettons encore la dernière main à nos conditions d'utilisation ainsi qu'à nos politiques de confidentialité, d'annulation et de remboursement — repassez bientôt.",
-    "questionsLead": "Une question avant ça ?",
-    "linkLabel": "Contactez-nous"
+    "questionsLead": "Une question sur tout ceci ?",
+    "linkLabel": "Contactez-nous",
+    "tabs": {
+      "tos": "Conditions générales",
+      "privacy": "Confidentialité et données collectées",
+      "cookies": "Politique de cookies",
+      "cancellation": "Politique d'annulation et de remboursement"
+    },
+    "sections": {
+      "tos": {
+        "title": "Conditions générales",
+        "body": "Mufasa Safaris & Tours est exploité par Cyber PolCo, basé à Windhoek, en Namibie, et opère des circuits en Namibie, en République démocratique du Congo, en Zambie et au Zimbabwe.\n\nComment fonctionnent les réservations : il n'y a pas de compte client. Parcourez un forfait et choisissez une date de départ, ou décrivez-nous votre projet via Planifier mon voyage et nous reviendrons vers vous avec un devis. Votre référence de réservation, associée au nom de famille du chef de groupe, est le seul moyen de retrouver votre réservation — conservez-la précieusement.\n\nTarification et paiement : chaque prix est calculé par nos soins et affiché avant que vous ne payiez. Les paiements par carte sont traités entièrement sur la page sécurisée de notre prestataire de paiement — nous ne voyons ni ne conservons jamais vos coordonnées bancaires. Le paiement se fait par un acompte de 40 % puis le solde, sauf si un paiement intégral est requis (une réservation proche du départ entraîne une majoration, toujours indiquée avant le paiement).\n\nVos responsabilités : fournissez des noms et des données de passeport/pièce d'identité exacts pour chaque voyageur, et assurez-vous que chacun est apte aux activités incluses (par exemple, le trekking des gorilles a ses propres règles de santé). Vous êtes responsable du respect des conditions d'entrée de chaque pays de votre itinéraire.\n\nAssistance visa : il s'agit d'un service payant en option par lequel nous vous aidons à préparer et soumettre votre demande — nous ne contrôlons pas le résultat, et les frais d'assistance visa ainsi que tout frais gouvernemental de visa ne sont jamais remboursables, quelle que soit l'issue de votre demande.\n\nResponsabilité [À FAIRE VALIDER PAR UN JURISTE] : les voyages dans les destinations où nous opérons comportent des risques inhérents, liés notamment au terrain, à la faune et aux conditions de sécurité régionales. En réservant, vous acceptez ces risques ; nous respectons les assurances et pratiques de sécurité exigées d'un opérateur agréé, mais cette section doit être validée par un juriste qualifié avant d'être considérée comme définitive.\n\nDroit applicable [À FAIRE VALIDER PAR UN JURISTE] : ces conditions sont destinées à être régies par le droit namibien, sous réserve de confirmation par un juriste qualifié.\n\nNous pouvons mettre à jour ces conditions de temps à autre ; la version affichée sur cette page est toujours la version en vigueur."
+      },
+      "privacy": {
+        "title": "Confidentialité et données collectées",
+        "body": "Ce site ne propose aucun compte client — rien n'est associé à une connexion. Ce que nous détenons vous concernant est associé à votre réservation.\n\nCe que nous collectons : les coordonnées du chef de groupe (nom, e-mail, téléphone) ; pour chaque voyageur, le nom, l'âge, la nationalité et le numéro de passeport/pièce d'identité ; les informations de santé que vous choisissez de nous communiquer, comme des allergies ou un handicap, afin que nous et votre guide puissions organiser le voyage en toute sécurité ; un contact d'urgence ; et le statut de votre paiement (jamais votre numéro de carte — celui-ci ne nous parvient jamais).\n\nPourquoi nous les collectons : pour organiser et mener à bien votre voyage, pour effectuer une demande de visa en votre nom lorsque vous nous l'avez demandé, pour respecter les réglementations d'entrée et de voyage des pays que vous visitez, et pour vous contacter au sujet de votre réservation.\n\nAvec qui nous les partageons : notre prestataire de paiement, pour traiter le paiement ; les facilitateurs de visa ainsi que les hôtels, guides et chauffeurs locaux qui assurent votre voyage, dans la seule mesure nécessaire à chacun ; et nos prestataires de messagerie, pour vous envoyer des mises à jour de réservation par WhatsApp, SMS ou e-mail.\n\nOù ces données sont stockées : sur des serveurs situés dans l'UE.\n\nCombien de temps nous les conservons : les réservations sont conservées tant qu'elles sont pertinentes pour votre voyage, puis supprimées automatiquement quelque temps après leur clôture. Certains documents, comme les copies de passeport, n'ont pas encore de calendrier de suppression automatique — contactez-nous et nous les supprimerons manuellement.\n\nVos droits : vous pouvez à tout moment nous demander d'accéder aux données que nous détenons à votre sujet, de les corriger ou de les supprimer, en nous contactant — il n'existe pas encore d'option en libre-service pour cela, une personne traite donc chaque demande directement.\n\nUne remarque sur les données sensibles : tout ce que vous nous indiquez concernant des allergies ou un handicap n'est utilisé que pour assurer votre sécurité pendant le voyage, et n'est jamais partagé qu'avec les personnes qui assurent réellement votre circuit."
+      },
+      "cookies": {
+        "title": "Politique de cookies",
+        "body": "Nous restons simples : ce site utilise trois cookies, et aucun cookie publicitaire ou de traçage tiers.\n\nL'un vous garde connecté pendant que vous effectuez une réservation (nécessaire — c'est ce qui permet à une réservation en plusieurs étapes de se souvenir de vous d'une page à l'autre).\n\nL'un mémorise votre choix de langue, français ou anglais (nécessaire).\n\nL'un est optionnel, et n'est déposé que si vous l'acceptez depuis la bannière en bas de page : un identifiant anonyme que nous utilisons pour voir à quel moment les visiteurs abandonnent l'assistant Planifier mon voyage, afin de l'améliorer. Il n'est jamais associé à votre nom, et il est automatiquement supprimé de nos systèmes après 30 jours.\n\nVous pouvez accepter ou refuser le cookie optionnel depuis la bannière à tout moment, ou effacer les cookies depuis les paramètres de votre navigateur quand vous le souhaitez."
+      },
+      "cancellation": {
+        "title": "Politique d'annulation et de remboursement",
+        "body": "Vous pouvez annuler une réservation vous-même, à tout moment, depuis Retrouver ma réservation — recherchez votre réservation, confirmez votre e-mail et indiquez le motif, et votre remboursement est calculé automatiquement selon le tableau ci-dessous.\n\n60 jours ou plus avant le départ : remboursement intégral de ce que vous avez payé, moins votre acompte.\nEntre 30 et 59 jours avant le départ : 50 % de ce que vous avez payé.\nEntre 14 et 29 jours avant le départ : 25 % de ce que vous avez payé.\nMoins de 14 jours avant le départ, ou absence au départ : aucun remboursement.\n\nVotre acompte représente 40 % du prix total. Il correspond à des frais que nous engageons à l'avance en votre nom auprès des hôtels, véhicules et guides ; c'est donc la seule partie de votre paiement qui n'est jamais remboursée une fois versée.\n\nSi c'est nous qui devons annuler votre voyage — par exemple en raison d'une alerte sécurité dans la région visitée — vous recevez un remboursement intégral, sans déduction.\n\nLes frais d'assistance visa et tout frais gouvernemental de visa ne sont jamais remboursables, quelle que soit l'issue de votre demande de visa.\n\nUne fois votre annulation confirmée, notre équipe procède au remboursement sur votre moyen de paiement d'origine."
+      }
+    }
   },
   "Gallery": {
     "eyebrow": "Galerie",
@@ -588,7 +611,40 @@
     "feePaymentPrefix": "Frais gouvernementaux :",
     "feedback": "Retour d'expérience",
     "ratingCodeAvailable": "Un code d'évaluation a été émis pour votre voyage — consultez votre e-mail de confirmation ou contactez notre équipe pour l'obtenir.",
-    "ratingCodeUnavailable": "Votre code d'évaluation a déjà été utilisé ou a expiré."
+    "ratingCodeUnavailable": "Votre code d'évaluation a déjà été utilisé ou a expiré.",
+    "cancelSectionTitle": "Annuler cette réservation"
+  },
+  "CookieConsent": {
+    "message": "Nous utilisons quelques cookies pour vous garder connecté pendant la réservation et pour voir où les visiteurs abandonnent l'assistant Planifier mon voyage. Aucun traceur tiers.",
+    "learnMore": "En savoir plus",
+    "reject": "Nécessaires uniquement",
+    "accept": "Accepter"
+  },
+  "CancelAndRefundSection": {
+    "policyIntro": "Vous pouvez annuler cette réservation vous-même ci-dessous. Les remboursements suivent notre politique d'annulation et de remboursement.",
+    "currentTierLead": "Si vous annulez aujourd'hui, vous avez droit à :",
+    "startCancellation": "Annuler cette réservation",
+    "emailLabel": "Votre e-mail (doit correspondre à celui enregistré)",
+    "reasonLabel": "Motif de l'annulation",
+    "understandCheckbox": "Je comprends le montant du remboursement ci-dessus et souhaite annuler cette réservation.",
+    "cancelling": "Annulation…",
+    "confirmCancellation": "Confirmer l'annulation",
+    "successMessage": "Votre réservation a été annulée. Votre remboursement sera versé sur votre moyen de paiement d'origine par notre équipe.",
+    "refundAmountLabel": "Montant du remboursement",
+    "downloadRefundNote": "Télécharger votre avis d'annulation et de remboursement (PDF)",
+    "error": {
+      "confirmRequired": "Veuillez cocher la case pour confirmer.",
+      "emailRequired": "L'e-mail est requis.",
+      "reasonRequired": "Veuillez indiquer la raison de votre annulation.",
+      "tooManyAttempts": "Trop de tentatives — veuillez réessayer plus tard.",
+      "notFound": "Nous n'avons pas pu vérifier cette réservation — vérifiez votre e-mail et votre nom de famille, ou contactez-nous."
+    },
+    "tierLabel": {
+      "FULL_MINUS_DEPOSIT": "un remboursement intégral de ce que vous avez payé, moins l'acompte",
+      "FIFTY_PERCENT": "un remboursement de 50 % de ce que vous avez payé",
+      "TWENTY_FIVE_PERCENT": "un remboursement de 25 % de ce que vous avez payé",
+      "NONE": "aucun remboursement (selon notre politique à ce stade avant le départ)"
+    }
   },
   "RatePage": {
     "eyebrow": "Évaluer mon voyage",
@@ -704,6 +760,18 @@
     "cancel": "Annuler",
     "refunding": "Remboursement…",
     "markRefunded": "Marquer comme remboursée",
+    "cancellationDetailsTitle": "Demande d'annulation du client",
+    "cancellationReason": "Motif indiqué",
+    "cancellationContactEmail": "E-mail de contact",
+    "cancellationTier": "Palier de politique",
+    "refundAmount": "Montant du remboursement",
+    "downloadRefundNote": "Télécharger l'avis de remboursement (PDF)",
+    "cancellationTierLabel": {
+      "FULL_MINUS_DEPOSIT": "Remboursement intégral, moins l'acompte",
+      "FIFTY_PERCENT": "50 % du montant payé",
+      "TWENTY_FIVE_PERCENT": "25 % du montant payé",
+      "NONE": "Aucun remboursement"
+    },
     "deleting": "Suppression…",
     "deleteBookingConfirm": "Supprimer cette réservation ? Cette action est irréversible.",
     "deleteBooking": "Supprimer la réservation",
@@ -1502,6 +1570,7 @@
     "fullPath": "Payé intégralement",
     "totalDiscountGiven": "Remises totales accordées",
     "couponRedemptionCount": "Coupons utilisés",
+    "pendingRefunds": "Remboursements en attente ({count})",
     "guestStats": "Statistiques clients",
     "newGuests": "Nouveaux clients",
     "returningGuests": "Clients de retour",
@@ -1881,6 +1950,10 @@
     "rateSectionTitle": "Page Évaluer mon voyage",
     "weatherSectionTitle": "Page Météo",
     "termsSectionTitle": "Page Conditions",
+    "termsTosSectionTitle": "Conditions générales",
+    "termsPrivacySectionTitle": "Confidentialité et données collectées",
+    "termsCookiesSectionTitle": "Politique de cookies",
+    "termsCancellationSectionTitle": "Politique d'annulation et de remboursement",
     "partnersSectionTitle": "Partenaires et clients",
     "partnersIntro": "Le bandeau défilant des partenaires/clients de la page d'accueil. Un partenaire sans logo téléchargé affiche notre propre symbole et son nom à la place.",
     "partnerNameLabel": "Nom du partenaire ou client",

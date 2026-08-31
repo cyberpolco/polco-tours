@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Logo } from '@/components/Logo';
+import { CookieConsentBanner } from './CookieConsentBanner';
 import { GuestFooter } from './footer';
 import { MaintenanceBanner } from './maintenance-banner';
 import { GuestNav } from './nav';
@@ -44,6 +45,7 @@ export default function GuestLayout({ children }: { children: React.ReactNode })
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-8">{children}</main>
       <GuestFooter />
+      <CookieConsentBanner />
     </div>
   );
 }

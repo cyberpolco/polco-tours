@@ -12,6 +12,8 @@ import {
   isTravelerManifestComplete,
   generateBookingReference,
   lastNameMatches,
+  emailMatches,
+  resolveCancellationRefundTier,
   toTravelerDutyView,
   CreateTailorMadeInput,
   CreateBookingWithDatesInput,
@@ -526,6 +528,45 @@ describe('booking domain', () => {
   describe('BOOKING_DELETION_RETENTION_DAYS', () => {
     it('is 90 (explicit user choice, DR-058)', () => {
       expect(BOOKING_DELETION_RETENTION_DAYS).toBe(90);
+    });
+  });
+
+  describe('emailMatches', () => {
+    it('matches case-insensitively, trimmed', () => {
+      expect(emailMatches('Guest@Example.com', ' guest@example.com ')).toBe(true);
+    });
+
+    it('rejects a different address', () => {
+      expect(emailMatches('guest@example.com', 'someone-else@example.com')).toBe(false);
+    });
+  });
+
+  describe('resolveCancellationRefundTier (DR-207)', () => {
+    const now = new Date('2026-01-01T00:00:00Z');
+    const daysOut = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    it('returns FULL_MINUS_DEPOSIT when no reference date is pinned yet', () => {
+      expect(resolveCancellationRefundTier(null, now)).toBe('FULL_MINUS_DEPOSIT');
+    });
+
+    it('returns FULL_MINUS_DEPOSIT at exactly 60 days out', () => {
+      expect(resolveCancellationRefundTier(daysOut(60), now)).toBe('FULL_MINUS_DEPOSIT');
+    });
+
+    it('returns FIFTY_PERCENT just under 60 days and at exactly 30', () => {
+      expect(resolveCancellationRefundTier(daysOut(59), now)).toBe('FIFTY_PERCENT');
+      expect(resolveCancellationRefundTier(daysOut(30), now)).toBe('FIFTY_PERCENT');
+    });
+
+    it('returns TWENTY_FIVE_PERCENT just under 30 days and at exactly 14', () => {
+      expect(resolveCancellationRefundTier(daysOut(29), now)).toBe('TWENTY_FIVE_PERCENT');
+      expect(resolveCancellationRefundTier(daysOut(14), now)).toBe('TWENTY_FIVE_PERCENT');
+    });
+
+    it('returns NONE under 14 days out, including a past/same-day date', () => {
+      expect(resolveCancellationRefundTier(daysOut(13), now)).toBe('NONE');
+      expect(resolveCancellationRefundTier(daysOut(0), now)).toBe('NONE');
+      expect(resolveCancellationRefundTier(daysOut(-5), now)).toBe('NONE');
     });
   });
 });

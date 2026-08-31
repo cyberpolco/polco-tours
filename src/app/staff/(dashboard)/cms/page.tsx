@@ -116,7 +116,10 @@ export default async function CmsPage({ searchParams }: Props) {
     generalContactText,
     rateText,
     weatherText,
-    termsText,
+    termsTosText,
+    termsPrivacyText,
+    termsCookiesText,
+    termsCancellationText,
     galleryText,
     galleryItems,
     partnerItems,
@@ -137,7 +140,14 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'contact.general', locale),
     cmsService.getTextBlock(ctx, 'rate', locale),
     cmsService.getTextBlock(ctx, 'weather', locale),
-    cmsService.getTextBlock(ctx, 'terms', locale),
+    // DR-207: /terms is now a 4-section tabbed page (ToS/Privacy/Cookies/
+    // Cancellation), replacing the old single flat 'terms' key -- each
+    // section is its own CmsTextBlock, same PageTextEditor pattern as
+    // Contact's two office blocks.
+    cmsService.getTextBlock(ctx, 'terms.tos', locale),
+    cmsService.getTextBlock(ctx, 'terms.privacy', locale),
+    cmsService.getTextBlock(ctx, 'terms.cookies', locale),
+    cmsService.getTextBlock(ctx, 'terms.cancellation', locale),
     cmsService.getTextBlock(ctx, 'gallery', locale),
     cmsService.listMediaItems(ctx, 'gallery'),
     cmsService.listMediaItems(ctx, 'partners'),
@@ -934,19 +944,60 @@ export default async function CmsPage({ searchParams }: Props) {
         )}
 
         {activeTab === 'terms' && (
-        <PageTextEditor
-          cmsKey="terms"
-          locale={locale}
-          current={termsText}
-          canWrite={canWrite}
-          sectionTitle={t('termsSectionTitle')}
-          eyebrowLabel={t('eyebrowLabel')}
-          titleLabel={t('pageTitleLabel')}
-          bodyLabel={t('pageBodyLabel')}
-          savingLabel={t('saving')}
-          saveLabel={t('save')}
-          bodyRows={6}
-        />
+        <div className="space-y-8">
+          <PageTextEditor
+            cmsKey="terms.tos"
+            locale={locale}
+            current={termsTosText}
+            canWrite={canWrite}
+            sectionTitle={t('termsTosSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={12}
+          />
+          <PageTextEditor
+            cmsKey="terms.privacy"
+            locale={locale}
+            current={termsPrivacyText}
+            canWrite={canWrite}
+            sectionTitle={t('termsPrivacySectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={12}
+          />
+          <PageTextEditor
+            cmsKey="terms.cookies"
+            locale={locale}
+            current={termsCookiesText}
+            canWrite={canWrite}
+            sectionTitle={t('termsCookiesSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={8}
+          />
+          <PageTextEditor
+            cmsKey="terms.cancellation"
+            locale={locale}
+            current={termsCancellationText}
+            canWrite={canWrite}
+            sectionTitle={t('termsCancellationSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={12}
+          />
+        </div>
         )}
 
         {activeTab === 'media' && canWrite && (

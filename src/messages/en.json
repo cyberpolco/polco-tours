@@ -158,9 +158,32 @@
   "Terms": {
     "eyebrow": "Terms & Policies",
     "title": "Terms of service & policies",
-    "body": "We're still putting the finishing touches on our terms of service and our privacy, cancellation, and refund policies — check back soon.",
-    "questionsLead": "Got a question before then?",
-    "linkLabel": "Get in touch"
+    "questionsLead": "Got a question about any of this?",
+    "linkLabel": "Get in touch",
+    "tabs": {
+      "tos": "Terms of Service",
+      "privacy": "Privacy & What We Collect",
+      "cookies": "Cookie Policy",
+      "cancellation": "Cancellation & Refund Policy"
+    },
+    "sections": {
+      "tos": {
+        "title": "Terms of Service",
+        "body": "Mufasa Safaris & Tours is operated by Cyber PolCo, based in Windhoek, Namibia, running tours in Namibia, the Democratic Republic of Congo, Zambia and Zimbabwe.\n\nHow bookings work: there are no guest accounts. Browse a package and pick a departure date, or tell us what you have in mind through Plan My Trip and we'll follow up with a quotation. Your booking reference, paired with the tour lead's last name, is the only way to look up your booking again — keep it somewhere safe.\n\nPricing & payment: every price is computed by us and shown to you before you pay. Card payments are handled entirely on our payment provider's own secure hosted page — we never see or store your card details. Payment is a 40% deposit and the balance later, unless full payment upfront is required (booking close to departure carries a lead-time surcharge, always shown before you pay).\n\nYour responsibilities: give us accurate names and passport/ID details for every traveler, and make sure everyone booked is fit for the activities included (for example, gorilla trekking has its own health rules). You're responsible for meeting the entry requirements of every country on your itinerary.\n\nVisa assistance: this is a paid add-on where we help you prepare and submit your application — we don't control the outcome, and visa assistance fees and any government visa fee are never refundable, whatever happens to your application.\n\nLiability [NEEDS LEGAL REVIEW]: travel in the destinations we operate in carries inherent risk, including from terrain, wildlife, and regional security conditions. By booking, you accept these risks; we carry the insurance and safety practices required of a licensed operator, but this section needs a qualified legal review before it should be treated as final.\n\nGoverning law [NEEDS LEGAL REVIEW]: these terms are intended to be governed by the laws of Namibia — pending confirmation from a qualified lawyer.\n\nWe may update these terms from time to time; the version on this page is always the current one."
+      },
+      "privacy": {
+        "title": "Privacy & What We Collect",
+        "body": "There are no tourist accounts on this site — nothing is tied to a login. What we hold about you is tied to your booking.\n\nWhat we collect: the tour lead's contact details (name, email, phone); for every traveler, name, age, nationality and passport/ID number; health-related information you choose to share with us, like allergies or disabilities, so we and your guide can plan safely; an emergency contact; and your payment status (never your card number — that never reaches us).\n\nWhy we collect it: to plan and run your trip, to apply for a visa on your behalf when you've asked us to, to meet the entry and travel regulations of the countries you're visiting, and to reach you about your booking.\n\nWho we share it with: our payment provider, to process payment; visa facilitators and the local hotels, guides and drivers actually running your trip, only as far as each of them needs to know; and our messaging providers, to send you booking updates by WhatsApp, SMS or email.\n\nWhere it's stored: on servers based in the EU.\n\nHow long we keep it: bookings are kept while relevant to your trip and automatically removed some time after they close. Some records, like passport copies, don't yet have an automatic deletion schedule — contact us and we'll remove them by hand.\n\nYour rights: you can ask us to access, correct or delete what we hold about you at any time by getting in touch — there's no self-service option for this yet, so a real person handles every request directly.\n\nA note on sensitive information: anything you tell us about allergies or disabilities is used only to keep you safe on tour, and is only ever shared with the people actually running your trip."
+      },
+      "cookies": {
+        "title": "Cookie Policy",
+        "body": "We keep this simple — there are three cookies on this site, and no third-party advertising or tracking cookies at all.\n\nOne keeps you signed in while you're making a booking (necessary — this is what lets a multi-step booking remember who you are between pages).\n\nOne remembers your language choice, English or French (necessary).\n\nOne is optional, and only set if you agree to it from the banner at the bottom of the page: an anonymous id we use to see where guests drop off partway through Plan My Trip, so we can improve it. It's never linked to your name, and it's automatically deleted from our systems after 30 days.\n\nYou can accept or decline the optional cookie from the banner at any time, or clear cookies from your browser's own settings whenever you like."
+      },
+      "cancellation": {
+        "title": "Cancellation & Refund Policy",
+        "body": "You can cancel a booking yourself at any time from Find My Booking — look up your booking, confirm your email and tell us why, and your refund is calculated automatically using the table below.\n\n60 or more days before departure: full refund of what you've paid, minus your deposit.\n30 to 59 days before departure: 50% of what you've paid.\n14 to 29 days before departure: 25% of what you've paid.\nFewer than 14 days before departure, or a no-show: no refund.\n\nYour deposit is 40% of the total price. It reflects costs we commit to hotels, vehicles and guides on your behalf in advance, so it's the one part of your payment that's never refunded once paid.\n\nIf we're the ones who have to cancel your trip — for example because of a safety advisory in the area you're visiting — you get a full refund with no deductions.\n\nVisa assistance fees and any government visa fee are never refundable, whatever the outcome of your visa application.\n\nOnce your cancellation is confirmed, our team processes your refund back to your original payment method."
+      }
+    }
   },
   "Gallery": {
     "eyebrow": "Gallery",
@@ -588,7 +611,40 @@
     "feePaymentPrefix": "Government fee:",
     "feedback": "Feedback",
     "ratingCodeAvailable": "A rating code has been issued for your trip — check your confirmation email or contact our team for it.",
-    "ratingCodeUnavailable": "Your rating code has already been used or has expired."
+    "ratingCodeUnavailable": "Your rating code has already been used or has expired.",
+    "cancelSectionTitle": "Cancel this booking"
+  },
+  "CookieConsent": {
+    "message": "We use a few cookies to keep you signed in during booking and to see where guests drop off in Plan My Trip. No third-party trackers.",
+    "learnMore": "Learn more",
+    "reject": "Necessary only",
+    "accept": "Accept"
+  },
+  "CancelAndRefundSection": {
+    "policyIntro": "You can cancel this booking yourself below. Refunds follow our Cancellation & Refund Policy.",
+    "currentTierLead": "If you cancel today, you are eligible for:",
+    "startCancellation": "Cancel this booking",
+    "emailLabel": "Your email (must match the one on file)",
+    "reasonLabel": "Reason for cancellation",
+    "understandCheckbox": "I understand the refund amount above and want to cancel this booking.",
+    "cancelling": "Cancelling…",
+    "confirmCancellation": "Confirm cancellation",
+    "successMessage": "Your booking has been cancelled. Your refund will be processed to your original payment method by our team.",
+    "refundAmountLabel": "Refund amount",
+    "downloadRefundNote": "Download your cancellation & refund note (PDF)",
+    "error": {
+      "confirmRequired": "Please tick the checkbox to confirm.",
+      "emailRequired": "Email is required.",
+      "reasonRequired": "Please tell us why you're cancelling.",
+      "tooManyAttempts": "Too many attempts — please try again later.",
+      "notFound": "We couldn't verify this booking — check your email and last name and try again, or contact us."
+    },
+    "tierLabel": {
+      "FULL_MINUS_DEPOSIT": "a full refund of what you've paid, minus the deposit",
+      "FIFTY_PERCENT": "a 50% refund of what you've paid",
+      "TWENTY_FIVE_PERCENT": "a 25% refund of what you've paid",
+      "NONE": "no refund (per our policy at this point before departure)"
+    }
   },
   "RatePage": {
     "eyebrow": "Rate your trip",
@@ -704,6 +760,18 @@
     "cancel": "Cancel",
     "refunding": "Refunding…",
     "markRefunded": "Mark refunded",
+    "cancellationDetailsTitle": "Guest cancellation request",
+    "cancellationReason": "Reason given",
+    "cancellationContactEmail": "Contact email",
+    "cancellationTier": "Policy tier",
+    "refundAmount": "Refund amount",
+    "downloadRefundNote": "Download refund note (PDF)",
+    "cancellationTierLabel": {
+      "FULL_MINUS_DEPOSIT": "Full refund of amount paid, minus deposit",
+      "FIFTY_PERCENT": "50% of amount paid",
+      "TWENTY_FIVE_PERCENT": "25% of amount paid",
+      "NONE": "No refund"
+    },
     "deleting": "Deleting…",
     "deleteBookingConfirm": "Delete this booking? This cannot be undone.",
     "deleteBooking": "Delete booking",
@@ -1502,6 +1570,7 @@
     "fullPath": "Paid in full",
     "totalDiscountGiven": "Total discount given",
     "couponRedemptionCount": "Coupon redemptions",
+    "pendingRefunds": "Pending Refunds ({count})",
     "guestStats": "Guest Stats",
     "newGuests": "New guests",
     "returningGuests": "Returning guests",
@@ -1881,6 +1950,10 @@
     "rateSectionTitle": "Rate my trip page",
     "weatherSectionTitle": "Weather page",
     "termsSectionTitle": "Terms page",
+    "termsTosSectionTitle": "Terms of Service",
+    "termsPrivacySectionTitle": "Privacy & What We Collect",
+    "termsCookiesSectionTitle": "Cookie Policy",
+    "termsCancellationSectionTitle": "Cancellation & Refund Policy",
     "partnersSectionTitle": "Partners & clients",
     "partnersIntro": "The homepage's scrolling partner/client strip. A partner with no logo uploaded yet shows our own mark and its name instead.",
     "partnerNameLabel": "Partner or client name",

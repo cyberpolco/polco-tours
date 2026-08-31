@@ -5,6 +5,7 @@ import {
   canInitiatePayment,
   canTransitionInvoice,
   canTransitionPayment,
+  computeCancellationRefundAmountMinor,
   computeInvoiceAmounts,
   nextInvoiceStatusAfterPayment,
   splitDeposit,
@@ -300,6 +301,37 @@ describe('invoicing domain', () => {
       });
       expect(nulled).toEqual(omitted);
       expect(omitted.depositAllowed).toBe(true);
+    });
+  });
+
+  describe('computeCancellationRefundAmountMinor (DR-207)', () => {
+    // 100000 paid, 40000 deposit -- same 40% split splitDeposit itself uses.
+    const paidMinor = 100_000;
+    const depositMinor = 40_000;
+
+    it('FULL_MINUS_DEPOSIT refunds everything except the deposit', () => {
+      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', paidMinor, depositMinor)).toBe(60_000);
+    });
+
+    it('FULL_MINUS_DEPOSIT never goes negative when only the deposit itself was paid', () => {
+      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', depositMinor, depositMinor)).toBe(0);
+    });
+
+    it('FIFTY_PERCENT is half of what was actually paid, not of the total', () => {
+      expect(computeCancellationRefundAmountMinor('FIFTY_PERCENT', paidMinor, depositMinor)).toBe(50_000);
+    });
+
+    it('TWENTY_FIVE_PERCENT is a quarter of what was actually paid', () => {
+      expect(computeCancellationRefundAmountMinor('TWENTY_FIVE_PERCENT', paidMinor, depositMinor)).toBe(25_000);
+    });
+
+    it('NONE refunds nothing regardless of what was paid', () => {
+      expect(computeCancellationRefundAmountMinor('NONE', paidMinor, depositMinor)).toBe(0);
+    });
+
+    it('never refunds more than nothing when nothing was paid', () => {
+      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', 0, depositMinor)).toBe(0);
+      expect(computeCancellationRefundAmountMinor('FIFTY_PERCENT', 0, depositMinor)).toBe(0);
     });
   });
 });

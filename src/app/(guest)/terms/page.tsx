@@ -10,26 +10,57 @@ async function resolveLocale(): Promise<CmsLocale> {
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
-// Honest placeholder -- no trademark/business registration cleared yet
-// (OI-02/03 in CLAUDE.md), so no real terms-of-service/policy text is
-// fabricated here, same convention as the Contact page. Merged with the
-// former standalone /policies page (privacy/cancellation/refund) into one
-// page, since both were placeholders with nothing to actually keep separate
-// yet -- /policies is removed entirely, not redirected (nothing else in the
-// app linked to it besides the footer, updated in the same change). Now
-// staff-editable (key='terms') once real terms text exists to enter.
-export default async function TermsPage() {
+const TABS = ['tos', 'privacy', 'cookies', 'cancellation'] as const;
+type TabKey = (typeof TABS)[number];
+
+interface Props {
+  searchParams: Promise<{ tab?: string }>;
+}
+
+// DR-207: real content, in 4 sections tabbed via a plain ?tab= query param
+// -- same real-navigation, no-client-JS convention as /staff/cms (DR-165).
+// Each tab is its own CmsTextBlock (terms.tos/terms.privacy/terms.cookies/
+// terms.cancellation, staff-editable from /staff/cms's Terms tab), with a
+// coded EN/FR default in messages/en.json+fr.json as the fallback -- same
+// "CMS override, i18n default" convention every other guest page already
+// uses. Replaces the old single flat 'terms' key, which was a deliberate
+// empty placeholder (no trademark/business registration cleared yet,
+// OI-02/03) -- DR-199 (2026-08-30) resolved both, so real content is
+// written directly into the message catalogs below rather than left empty.
+export default async function TermsPage({ searchParams }: Props) {
+  const { tab } = await searchParams;
+  const activeTab: TabKey = (TABS as readonly string[]).includes(tab ?? '') ? (tab as TabKey) : 'tos';
   const t = await getTranslations('Terms');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock('terms', locale);
+  const cms = await cmsService.getPublicTextBlock(`terms.${activeTab}`, locale);
 
   return (
     <Reveal>
       <div>
-        <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
-        <p className="mt-4 text-mist">{cms?.body ?? t('body')}</p>
-        <p className="mt-4 text-mist">
+        <p className="eyebrow text-mist">{t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
+
+        <nav className="mt-6 flex flex-wrap gap-2 border-b border-rule pb-3">
+          {TABS.map((key) => (
+            <Link
+              key={key}
+              href={`/terms?tab=${key}`}
+              prefetch={false}
+              className={`rounded-pill px-4 py-2 text-sm font-semibold transition-colors ${
+                activeTab === key ? 'bg-navy text-bone' : 'text-mist hover:bg-rule/40 hover:text-navy'
+              }`}
+            >
+              {t(`tabs.${key}`)}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="mt-6 max-w-3xl">
+          <h2 className="text-xl font-bold text-navy">{cms?.title ?? t(`sections.${activeTab}.title`)}</h2>
+          <p className="mt-4 whitespace-pre-line text-mist">{cms?.body ?? t(`sections.${activeTab}.body`)}</p>
+        </div>
+
+        <p className="mt-8 text-mist">
           {t('questionsLead')}{' '}
           <Link href="/contact" className="text-forest hover:underline">
             {t('linkLabel')}

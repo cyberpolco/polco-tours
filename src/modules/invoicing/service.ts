@@ -2,7 +2,7 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
-import { bookingService, isBookingLocked, type TravelerView } from '@modules/booking';
+import { bookingService, isBookingLocked, type BookingView, type CancellationRefundTier, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 // New invoicing -> finance dependency (confirmed acyclic -- finance depends
 // on {auth, catalog, booking, itinerary}, never invoicing) so a TAILOR_MADE
@@ -21,12 +21,14 @@ import {
   amountForPaymentKind,
   canDownloadInvoicePdf,
   canInitiatePayment,
+  computeCancellationRefundAmountMinor,
   computeInvoiceAmounts,
   type InvoiceView,
   type PaymentView,
 } from './domain';
 import { paymentGateway } from './gateway';
 import { renderInvoicePdf, type InvoicePdfTourLead, type PdfLocale } from './invoice-pdf';
+import { renderRefundNotePdf } from './refund-note-pdf';
 import { invoicingRepository } from './repository';
 
 /** DR-176 (explicit user request): the invoice/receipt PDF names the tour
@@ -69,6 +71,37 @@ function requireOrg(ctx: AuthContext): string {
 // TOURIST is the only "customer" role, same convention as booking/service.ts.
 function isStaff(ctx: AuthContext): boolean {
   return !ctx.roles.includes('TOURIST');
+}
+
+/** DR-207: shared by streamRefundNotePdf (staff, ctx-authenticated) and
+ * generateRefundNotePdfForBookingLookup (guest, one-shot post-cancellation)
+ * below -- returns null (never throws) whenever there's nothing to render,
+ * same "let the caller decide 404 vs. quiet omission" shape as
+ * getBillingSummaryForBookingLookup. */
+async function buildRefundNotePdf(
+  organizationId: string,
+  booking: Pick<BookingView, 'id' | 'bookingReference' | 'cancellationReason' | 'cancellationRefundTier' | 'updatedAt'>,
+  locale: PdfLocale,
+): Promise<{ body: Buffer; contentType: string; filename: string } | null> {
+  if (!booking.cancellationRefundTier) return null;
+  const invoice = await invoicingRepository.findByBookingId(organizationId, booking.id);
+  if (!invoice || invoice.refundAmountMinor == null) return null;
+  const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+  const paidMinor = (detail?.payments ?? [])
+    .filter((p) => p.status === 'SUCCEEDED')
+    .reduce((sum, p) => sum + p.amountMinor, 0);
+
+  const body = await renderRefundNotePdf({
+    locale,
+    bookingReference: booking.bookingReference,
+    cancelledAt: booking.updatedAt,
+    reason: booking.cancellationReason ?? '',
+    currency: invoice.currency,
+    paidMinor,
+    tier: booking.cancellationRefundTier,
+    refundAmountMinor: invoice.refundAmountMinor,
+  });
+  return { body, contentType: 'application/pdf', filename: `refund-note-${booking.bookingReference}.pdf` };
 }
 
 /** Shared by `initiatePayment`'s auto-succeed step and `resolvePayment` --
@@ -392,6 +425,68 @@ export const invoicingService = {
       status: invoice.status,
       payments,
     };
+  },
+
+  /** DR-207: computes and persists Invoice.refundAmountMinor once a guest
+   * cancels via /find-booking -- called right after
+   * bookingService.cancelForBookingLookup by the Server Action that
+   * orchestrates both (this module already depends on booking; the reverse
+   * would be circular, so that composition can't live inside
+   * bookingService itself -- see CLAUDE.md's "module dependency direction"
+   * section). No-ctx, same guest-lookup trust boundary as
+   * getBillingSummaryForBookingLookup -- the caller has already re-verified
+   * the booking via cancelForBookingLookup's own email+lastName check.
+   * Returns null when there's no invoice yet (an inquiry-stage TAILOR_MADE
+   * booking never had one created) -- nothing to refund. */
+  async recordCancellationRefund(
+    organizationId: string,
+    bookingId: string,
+    tier: CancellationRefundTier,
+  ): Promise<{ refundAmountMinor: number; currency: Currency } | null> {
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    if (!invoice) return null;
+    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+    const paidMinor = (detail?.payments ?? [])
+      .filter((p) => p.status === 'SUCCEEDED')
+      .reduce((sum, p) => sum + p.amountMinor, 0);
+
+    const refundAmountMinor = computeCancellationRefundAmountMinor(tier, paidMinor, invoice.depositMinor);
+    await invoicingRepository.setRefundAmount(organizationId, bookingId, refundAmountMinor);
+    return { refundAmountMinor, currency: invoice.currency };
+  },
+
+  /** DR-207: staff-authenticated download of a booking's cancellation &
+   * refund note from the booking detail page -- regenerable any time,
+   * unlike the guest's own one-shot download below. 404s (via the shared
+   * buildRefundNotePdf helper) if the booking was never cancelled through
+   * the guest self-service flow (cancellationRefundTier null) or has no
+   * invoice/refund amount recorded. */
+  async streamRefundNotePdf(
+    ctx: AuthContext,
+    bookingId: string,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string }> {
+    const organizationId = requireOrg(ctx);
+    const booking = await bookingService.getById(ctx, bookingId);
+    const pdf = await buildRefundNotePdf(organizationId, booking, locale);
+    if (!pdf) throw Errors.notFound('No refund note available for this booking');
+    return pdf;
+  },
+
+  /** DR-207: called once, right after bookingService.cancelForBookingLookup,
+   * by the find-booking Server Action -- generates the guest's one-time
+   * download of their own cancellation & refund note. No separate lookup
+   * route exists for this later: lookupByBookingReference deliberately
+   * treats a CANCELLED booking as a dead end (see its own comment), so a
+   * guest gets exactly this one chance to download it, right on the
+   * confirmation screen. Staff can always regenerate it from the booking
+   * detail page instead (streamRefundNotePdf above). */
+  async generateRefundNotePdfForBookingLookup(
+    organizationId: string,
+    booking: Pick<BookingView, 'id' | 'bookingReference' | 'cancellationReason' | 'cancellationRefundTier' | 'updatedAt'>,
+    locale: PdfLocale,
+  ): Promise<{ body: Buffer; contentType: string; filename: string } | null> {
+    return buildRefundNotePdf(organizationId, booking, locale);
   },
 
   /** Insights & Decision Making (DR-038): every invoice+payments in the org,

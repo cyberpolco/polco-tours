@@ -30,6 +30,7 @@ vi.mock('@lib/audit', () => ({
 import {
   isUpstashConfigured,
   assertLookupNotRateLimited,
+  assertWriteNotRateLimited,
   recordLookupFailure,
   getAuthRateLimitStorage,
 } from '../../src/lib/rate-limit';
@@ -90,6 +91,24 @@ describe('rate-limit (DR-066)', () => {
         ip: '1.2.3.4',
         windowMinutes: 15,
       });
+      expect(redisMock.incr).not.toHaveBeenCalled();
+    });
+
+    // DR-207: bookingService.cancelForBookingLookup's own rate limit --
+    // silently never blocks without Upstash configured (OI-10), same
+    // graceful-degradation posture as every function above, just with no
+    // audit-log fallback (this guards call volume, not a guessing surface,
+    // see this function's own doc comment in rate-limit.ts).
+    it('assertWriteNotRateLimited is a no-op, never touching Redis or throwing', async () => {
+      await expect(
+        assertWriteNotRateLimited({
+          organizationId: 'org-1',
+          action: 'booking.cancel_via_lookup',
+          ip: '1.2.3.4',
+          windowMinutes: 60,
+          maxAttempts: 5,
+        }),
+      ).resolves.toBeUndefined();
       expect(redisMock.incr).not.toHaveBeenCalled();
     });
 
@@ -160,6 +179,45 @@ describe('rate-limit (DR-066)', () => {
           ip: '1.2.3.4',
           windowMinutes: 15,
           maxAttempts: 10,
+        }),
+      ).rejects.toBeInstanceOf(ApiError);
+    });
+
+    it('assertWriteNotRateLimited increments and sets an expiry only on the first call', async () => {
+      redisMock.incr.mockResolvedValue(1);
+
+      await assertWriteNotRateLimited({
+        organizationId: 'org-1',
+        action: 'booking.cancel_via_lookup',
+        ip: '1.2.3.4',
+        windowMinutes: 60,
+        maxAttempts: 5,
+      });
+
+      expect(redisMock.incr).toHaveBeenCalledWith('polco:rl:org-1:booking.cancel_via_lookup:1.2.3.4');
+      expect(redisMock.expire).toHaveBeenCalledWith('polco:rl:org-1:booking.cancel_via_lookup:1.2.3.4', 60 * 60);
+    });
+
+    it('assertWriteNotRateLimited allows a call exactly at maxAttempts, then throws on the next one', async () => {
+      redisMock.incr.mockResolvedValueOnce(5);
+      await expect(
+        assertWriteNotRateLimited({
+          organizationId: 'org-1',
+          action: 'booking.cancel_via_lookup',
+          ip: '1.2.3.4',
+          windowMinutes: 60,
+          maxAttempts: 5,
+        }),
+      ).resolves.toBeUndefined();
+
+      redisMock.incr.mockResolvedValueOnce(6);
+      await expect(
+        assertWriteNotRateLimited({
+          organizationId: 'org-1',
+          action: 'booking.cancel_via_lookup',
+          ip: '1.2.3.4',
+          windowMinutes: 60,
+          maxAttempts: 5,
         }),
       ).rejects.toBeInstanceOf(ApiError);
     });

@@ -17,13 +17,17 @@ interface SubmitButtonProps {
   // blocks submission entirely; confirming programmatically re-submits the
   // same form the button belongs to.
   confirmMessage?: string;
+  // DR-207: an extra caller-supplied gate on top of the pending state below
+  // -- e.g. CancelAndRefundSection's "I understand" checkbox. ORed with
+  // `pending`, never overrides it.
+  disabled?: boolean;
 }
 
 // Wraps useFormStatus so every server-action form gets a pending/disabled
 // state for free -- before this, only BookingForm (which manages its own
 // useState) had any pending feedback; every other form in the guest flow
 // gave no indication a submit was in flight.
-export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage }: SubmitButtonProps) {
+export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage, disabled }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   const t = useTranslations('Common');
   const [pendingForm, setPendingForm] = useState<HTMLFormElement | null>(null);
@@ -34,7 +38,7 @@ export function SubmitButton({ children, pendingLabel, variant, size, confirmMes
         type="submit"
         variant={variant}
         size={size}
-        disabled={pending}
+        disabled={pending || disabled}
         onClick={
           confirmMessage
             ? (e) => {

@@ -4,7 +4,7 @@
 // directly) to validate Booking.preferredTags against the same tag
 // vocabulary TourPackage.tags uses, rather than hand-duplicating that
 // 7-value tuple in a second module where it could silently drift.
-import type { AddonCode, BookingOrigin, BookingStatus, Currency, PackageTag, Role, Sex } from '@prisma/client';
+import type { AddonCode, BookingOrigin, BookingStatus, CancellationRefundTier, Currency, PackageTag, Role, Sex } from '@prisma/client';
 import { z } from 'zod';
 import { PACKAGE_TAGS } from '@modules/catalog';
 
@@ -121,6 +121,12 @@ export interface BookingView {
   // DR-108: the DRAFT TourPackage staff created from this TAILOR_MADE
   // request's plan-my-trip answers, if any -- set once, never reassigned.
   customizedPackageId: string | null;
+  // DR-207: guest self-service cancellation via /find-booking -- all three
+  // null unless bookingService.cancelForBookingLookup set them. See this
+  // module's own schema.prisma comment on Booking.cancellationRefundTier.
+  cancellationReason: string | null;
+  cancellationContactEmail: string | null;
+  cancellationRefundTier: CancellationRefundTier | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -406,6 +412,20 @@ export function isBookingLocked(status: BookingStatus): boolean {
   return TERMINAL_BOOKING_STATUSES.includes(status);
 }
 
+// DR-207: server-side canonical version of the CANCELLABLE_STATUSES arrays
+// hand-copied across the guest/staff booking-detail pages (see CLAUDE.md's
+// roadmap "deliberately deferred" note on deduplicating those) -- this is
+// the one bookingService.cancelForBookingLookup gates on, since that write
+// path has no page-level UI gate to lean on.
+export const CANCELLABLE_BOOKING_STATUSES: readonly BookingStatus[] = [
+  'AWAITING_QUOTATION',
+  'QUOTATION_SENT',
+  'AWAITING_DEPOSIT',
+  'DEPOSIT_PAID',
+  'FULLY_PAID',
+  'CONFIRMED',
+];
+
 // -------------------------------------------------------------- travelers
 
 export interface TravelerView {
@@ -597,4 +617,34 @@ export interface BookingLookupResult {
  * not have to match capitalization exactly. */
 export function lastNameMatches(traveler: Pick<TravelerView, 'lastName'>, candidate: string): boolean {
   return traveler.lastName.trim().toLowerCase() === candidate.trim().toLowerCase();
+}
+
+/** Same case-insensitive-trim posture as lastNameMatches -- the second
+ * verification factor bookingService.cancelForBookingLookup adds on top of
+ * it (DR-207). Email is a real match against the tour lead's own on-file
+ * address, not just accepted as typed. */
+export function emailMatches(onFile: string, candidate: string): boolean {
+  return onFile.trim().toLowerCase() === candidate.trim().toLowerCase();
+}
+
+// -------------------------------------------------------------- cancellation & refund (DR-207)
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/** Cancellation & Refund Policy (see /terms) -- pure day-diff rule against
+ * the booking's known travel-start date. `referenceDate` is
+ * Departure.startDate for a PREDEFINED_PACKAGE booking, or
+ * Booking.customTravelStart for TAILOR_MADE; null (no date pinned yet --
+ * e.g. an unquoted TAILOR_MADE inquiry) resolves to the most generous
+ * tier, since there's no departure to be "close to" yet. Same MS_PER_DAY
+ * day-diff convention as computeLateBookingSurchargeBp/fleet's
+ * daysUntilExpiry. >=60 days out: full refund of whatever was paid, minus
+ * the deposit. 30-59: half. 14-29: a quarter. Under 14: nothing. */
+export function resolveCancellationRefundTier(referenceDate: Date | null, now: Date = new Date()): CancellationRefundTier {
+  if (!referenceDate) return 'FULL_MINUS_DEPOSIT';
+  const daysUntilTravel = (referenceDate.getTime() - now.getTime()) / MS_PER_DAY;
+  if (daysUntilTravel >= 60) return 'FULL_MINUS_DEPOSIT';
+  if (daysUntilTravel >= 30) return 'FIFTY_PERCENT';
+  if (daysUntilTravel >= 14) return 'TWENTY_FIVE_PERCENT';
+  return 'NONE';
 }

@@ -2,10 +2,10 @@ import { headers } from 'next/headers';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { assignmentService } from '@modules/assignment';
 import { authService } from '@modules/auth';
-import { bookingService } from '@modules/booking';
+import { bookingService, CANCELLABLE_BOOKING_STATUSES, resolveCancellationRefundTier } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
-import { canDownloadInvoicePdf, invoicingService } from '@modules/invoicing';
+import { canDownloadInvoicePdf, computeCancellationRefundAmountMinor, invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
 import { visaService, type BookingLookupVisaView } from '@modules/visa';
@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { PackageImage } from '@/components/ui/PackageImage';
 import { Reveal } from '@/components/ui/Reveal';
+import { CancelAndRefundSection } from './CancelAndRefundSection';
 import { COUNTRY_CODES_BY_ALPHA2, flagEmoji } from '@lib/country-codes';
 import { format, formatOrPending, money } from '@lib/money';
 import {
@@ -176,6 +177,27 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   const ratingCodeStatus = isTailorMadeInquiry
     ? null
     : await ratingsService.getRatingCodeStatusForBookingLookup(booking.organizationId, booking.id);
+
+  // DR-207: the live tier preview shown above the "Cancel this booking"
+  // reveal -- the actual cancel/refund write re-derives its own tier
+  // server-side at submit time (bookingService.cancelForBookingLookup),
+  // this is purely informational. referenceDate mirrors that method's own
+  // resolution: a real Departure.startDate when one exists, else the
+  // booking's own customTravelStart (null pre-quotation TAILOR_MADE).
+  const cancellable = CANCELLABLE_BOOKING_STATUSES.includes(booking.status);
+  let cancelTierLabel: string | null = null;
+  let cancelAmountLabel: string | null = null;
+  if (cancellable) {
+    const referenceDate = tripSummary?.startDate ?? booking.customTravelStart ?? null;
+    const tier = resolveCancellationRefundTier(referenceDate);
+    const tCancel = await getTranslations('CancelAndRefundSection');
+    cancelTierLabel = tCancel(`tierLabel.${tier}`);
+    if (billingSummary) {
+      const paidMinor = billingSummary.payments.filter((p) => p.status === 'SUCCEEDED').reduce((sum, p) => sum + p.amountMinor, 0);
+      const previewAmountMinor = computeCancellationRefundAmountMinor(tier, paidMinor, billingSummary.depositMinor);
+      cancelAmountLabel = format(money(previewAmountMinor, billingSummary.currency));
+    }
+  }
 
   const hasTripStatus =
     itineraryStatus !== null ||
@@ -489,6 +511,22 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
               )}
             </dl>
             </Card>
+          </div>
+        </Reveal>
+      )}
+
+      {cancellable && cancelTierLabel && (
+        <Reveal delay={0.4}>
+          <div className="survey-rule mt-6" />
+          <div className="pt-6">
+            <p className="eyebrow text-mist">{t('cancelSectionTitle')}</p>
+            <CancelAndRefundSection
+              bookingReference={booking.bookingReference}
+              lastName={lastName}
+              locale={locale === 'fr' ? 'fr' : 'en'}
+              tierLabel={cancelTierLabel}
+              previewAmountLabel={cancelAmountLabel}
+            />
           </div>
         </Reveal>
       )}

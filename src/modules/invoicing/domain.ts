@@ -3,6 +3,7 @@
 // hold-folded-into-Booking precedent).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
 import { z } from 'zod';
+import type { CancellationRefundTier } from '@modules/booking';
 import { discountOf, money, taxOf } from '@lib/money';
 
 export interface InvoiceView {
@@ -37,6 +38,11 @@ export interface InvoiceView {
   // False forces depositMinor === totalMinor / balanceMinor === 0 (full
   // payment only) -- see canInitiatePayment below for the actual gate.
   depositAllowed: boolean;
+  // DR-207: the actual minor-unit amount computed from Booking.
+  // cancellationRefundTier once the guest cancels via /find-booking --
+  // see computeCancellationRefundAmountMinor below. Null until that
+  // happens (the vast majority of invoices).
+  refundAmountMinor: number | null;
   totalMinor: number;
   depositMinor: number;
   balanceMinor: number;
@@ -73,6 +79,34 @@ export type ResolvePaymentInput = z.infer<typeof ResolvePaymentInput>;
 export function splitDeposit(totalMinor: number): { depositMinor: number; balanceMinor: number } {
   const depositMinor = Math.round(totalMinor * 0.4);
   return { depositMinor, balanceMinor: totalMinor - depositMinor };
+}
+
+/** Cancellation & Refund Policy (DR-207, see /terms): turns a
+ * CancellationRefundTier (snapshotted onto Booking.cancellationRefundTier
+ * at cancel time -- resolveCancellationRefundTier in the booking module)
+ * into a real minor-unit refund amount. `paidMinor` is the sum of this
+ * invoice's SUCCEEDED payments, `depositMinor` is the invoice's own
+ * snapshot field -- both already in hand from InvoiceView/PaymentView, no
+ * new query. FULL_MINUS_DEPOSIT keeps the deposit and refunds the rest of
+ * whatever was actually paid; the other tiers are a straight percentage of
+ * what was actually paid, not of totalMinor -- a guest can never be
+ * refunded more than they paid (e.g. a booking cancelled before any
+ * payment succeeded refunds 0 regardless of tier). */
+export function computeCancellationRefundAmountMinor(
+  tier: CancellationRefundTier,
+  paidMinor: number,
+  depositMinor: number,
+): number {
+  switch (tier) {
+    case 'FULL_MINUS_DEPOSIT':
+      return Math.max(0, paidMinor - depositMinor);
+    case 'FIFTY_PERCENT':
+      return Math.round(paidMinor * 0.5);
+    case 'TWENTY_FIVE_PERCENT':
+      return Math.round(paidMinor * 0.25);
+    case 'NONE':
+      return 0;
+  }
 }
 
 export interface InvoiceAmountsInput {

@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-205** (2026-08-30). This file used to carry a running
+Current through **DR-207** (2026-08-31). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -206,7 +206,11 @@ src/
                               #   LateBookingRate lookup + the day-diff calc,
                               #   used directly by booking/ and the guest
                               #   date-picker pages — not a settings module
-                              #   import, see booking/'s own comment)
+                              #   import, see booking/'s own comment),
+                              #   cookie-consent + set-cookie-consent-action
+                              #   (DR-207: the `cookie_consent` cookie/banner
+                              #   choice gating the one non-essential guest
+                              #   cookie, wizard_session)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
@@ -227,7 +231,25 @@ src/
                    #   (createTailorMadeRequest, against customTravelStart),
                    #   via the shared src/lib/late-booking-rate.ts helper —
                    #   not a settings module import (would be circular, see
-                   #   "Module dependency direction matters" below)
+                   #   "Module dependency direction matters" below).
+                   #   DR-207: Booking.cancellationReason/
+                   #   cancellationContactEmail/cancellationRefundTier —
+                   #   only set by the new cancelForBookingLookup (no-ctx,
+                   #   heavily-gated guest self-service cancel/refund from
+                   #   /find-booking's result page, its own
+                   #   booking.cancel_via_lookup rate-limit bucket, verifies
+                   #   bookingReference+lastName+the tour lead's on-file
+                   #   email — a real second factor over
+                   #   lookupByBookingReference's own reference+lastName
+                   #   read-only trust boundary, since this is a write);
+                   #   cancellationRefundTier is the Cancellation & Refund
+                   #   Policy tier (60+/30-59/14-29/under-14-days-before-
+                   #   departure, see resolveCancellationRefundTier)
+                   #   snapshotted at cancel time, same precedent as
+                   #   lateBookingSurchargeBp above — null for a
+                   #   staff-initiated cancel or the guest's own existing
+                   #   30s-grace-window cancel buttons, neither of which
+                   #   collects this
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
                    #   applied via a shared computeInvoiceAmounts helper);
@@ -244,7 +266,23 @@ src/
                    #   countries via financeService.resolveEffectiveTaxRateBp
                    #   (new invoicing -> finance dependency); invoice-pdf.tsx
                    #   (DR-169: downloadable invoice/receipt PDF, guest +
-                   #   staff, once an invoice has a succeeded payment)
+                   #   staff, once an invoice has a succeeded payment).
+                   #   DR-207: Invoice.refundAmountMinor — the actual
+                   #   minor-unit amount (recordCancellationRefund),
+                   #   computed from Booking.cancellationRefundTier via
+                   #   computeCancellationRefundAmountMinor once a guest
+                   #   cancels via /find-booking, same "rate on Booking,
+                   #   money on Invoice" split as lateBookingSurchargeBp/
+                   #   lateBookingSurchargeMinor above; refund-note-pdf.tsx
+                   #   (mirrors invoice-pdf.tsx's shape) is generated inline
+                   #   and handed to the guest as a one-time base64
+                   #   download right on the confirmation screen — no
+                   #   separate download route exists for this later, since
+                   #   lookupByBookingReference deliberately treats a
+                   #   just-cancelled booking as a dead end — while staff
+                   #   can always regenerate the same PDF on demand
+                   #   (streamRefundNotePdf, /api/v1/bookings/[bookingId]/
+                   #   refund-note-pdf) from the booking detail page
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
                    #   DR-205: 26 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
@@ -341,7 +379,12 @@ src/
                    #   staff "Export PDF" action -- reuses getDashboardSummary
                    #   (same cached figures the live page polls) rather than
                    #   a separate re-derivation, with a caller-chosen subset
-                   #   of DASHBOARD_SECTION_KEYS
+                   #   of DASHBOARD_SECTION_KEYS. DR-207: RevenueSummary
+                   #   gains pendingRefunds/pendingRefundsCount -- every
+                   #   CANCELLED booking with a guest-self-service-snapshotted
+                   #   Invoice.refundAmountMinor that staff hasn't yet marked
+                   #   REFUNDED, a current-state snapshot (same framing as
+                   #   the existing `outstanding` figure), not a period total
     finance/       # Cost-plus pricing engine — 7 rate tables feed the cost
                    #   breakdown itself (StaffRate; HotelRate/ActivityFee
                    #   reference itinerary's Hotel/Activity by id, DR-116;
@@ -492,6 +535,21 @@ src/
                    #   same convention as partners/social-links; saving
                    #   revalidates `'/', 'layout'` (footer renders on every
                    #   guest page), same as social-links' own special case.
+                   #   DR-207: /terms gets real content for the first time —
+                   #   OI-02/03 (both resolved by DR-199) were the only
+                   #   reason it stayed an honest placeholder. Restructured
+                   #   from one flat `terms` `CmsTextBlock` into 4 tabbed
+                   #   sections (`?tab=tos|privacy|cookies|cancellation`,
+                   #   plain `<Link>`s, same real-nav convention as
+                   #   `/staff/cms` itself, DR-165), each its own
+                   #   `CmsTextBlock` key (`terms.tos`/`terms.privacy`/
+                   #   `terms.cookies`/`terms.cancellation`) with a coded
+                   #   EN/FR default and an optional staff override — the
+                   #   `/staff/cms` Terms tab is now 4 stacked
+                   #   `PageTextEditor`s instead of 1, no schema change
+                   #   (`key` was already free-form). The Terms of Service
+                   #   section's liability/governing-law paragraphs are
+                   #   marked `[NEEDS LEGAL REVIEW]` in the copy itself.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
@@ -724,8 +782,10 @@ timed out, and degrades gracefully.
   (404-not-403 convention) + private Blob; problem+json leaks no internals.
 - **Denial of service** → the public guest lookups (find-booking,
   rating-code) are rate-limited via `src/lib/rate-limit.ts`, real
-  Redis-backed in production. Per-class rate limiting beyond these two
-  lookups and the auth endpoints above is still not built.
+  Redis-backed in production. DR-207's `bookingService.cancelForBookingLookup`
+  (the guest self-service cancel/refund write, no-ctx) has its own tighter
+  write-rate-limit bucket via `assertWriteNotRateLimited`. Per-class rate
+  limiting beyond these and the auth endpoints above is still not built.
 - **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes
   denied; `SUPERADMIN`/`admin.all` actions are audited. The permission
   matrix itself is a runtime-editable, SUPERADMIN-only attack surface — a

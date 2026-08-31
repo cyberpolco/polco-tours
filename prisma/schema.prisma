@@ -81,6 +81,19 @@ enum BookingOrigin {
   TAILOR_MADE
 }
 
+// DR-207: the guest-facing Cancellation & Refund Policy tier, snapshotted
+// onto Booking.cancellationRefundTier at the moment a guest cancels via
+// /find-booking. FULL_MINUS_DEPOSIT/FIFTY_PERCENT/TWENTY_FIVE_PERCENT/NONE
+// mirror the 60+/30-59/14-29/under-14-days-before-departure tiers; there is
+// no operator-cancellation (force-majeure) value here since that path is
+// staff-initiated, not this guest self-service one.
+enum CancellationRefundTier {
+  FULL_MINUS_DEPOSIT
+  FIFTY_PERCENT
+  TWENTY_FIVE_PERCENT
+  NONE
+}
+
 enum InvoiceStatus {
   DRAFT
   ISSUED
@@ -909,6 +922,18 @@ model Booking {
   // already legitimately depends on catalog (the reverse would be
   // circular).
   customizedPackageId    String?       @unique @db.Uuid
+  // DR-207: guest self-service cancellation via /find-booking (heavily
+  // regulated -- see bookingService.cancelForBookingLookup). reason/
+  // contactEmail are guest-typed at cancellation time; refundTier is the
+  // Cancellation & Refund Policy tier snapshotted at that moment (days-to-
+  // departure obviously changes meaning after the fact) -- same "snapshot
+  // the rate onto the row" precedent as lateBookingSurchargeBp above. All
+  // three stay null for a staff-initiated cancellation (the existing
+  // bookingService.cancel path) or the guest's own 30s-grace-window cancel
+  // buttons -- neither collects this.
+  cancellationReason        String?                 @db.VarChar(1000)
+  cancellationContactEmail  String?                 @db.VarChar(320)
+  cancellationRefundTier    CancellationRefundTier?
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   // DR-058: see this model's own doc comment above -- a deliberate,
@@ -1668,6 +1693,12 @@ model Invoice {
   // removeCoupon can recompute amounts from the invoice row alone, without
   // needing the booking back in hand. Null = unaffected.
   lateBookingSurchargeRateBp Int?
+  // DR-207: actual minor-unit amount computed from Booking.
+  // cancellationRefundTier once the guest cancels via /find-booking -- same
+  // "rate lives on Booking, money lives on Invoice" split as
+  // lateBookingSurchargeMinor/lateBookingSurchargeRateBp above. Null until
+  // that happens.
+  refundAmountMinor         Int?
   // False forces depositMinor = totalMinor / balanceMinor = 0 (full payment
   // only) -- set from Booking.lateBookingSurchargeBp at invoice-creation
   // time, checked server-side by invoicing/domain.ts's canInitiatePayment

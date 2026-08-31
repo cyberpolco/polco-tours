@@ -68,6 +68,7 @@ function toInvoiceView(i: Invoice): InvoiceView {
     lateBookingSurchargeMinor: i.lateBookingSurchargeMinor,
     lateBookingSurchargeRateBp: i.lateBookingSurchargeRateBp,
     depositAllowed: i.depositAllowed,
+    refundAmountMinor: i.refundAmountMinor,
     status: i.status,
     createdAt: i.createdAt,
     updatedAt: i.updatedAt,
@@ -242,6 +243,20 @@ export const invoicingRepository = {
         where: { id: invoiceId },
         data: { couponCode: null, discountBp: null, ...amounts },
       });
+      return toInvoiceView(updated);
+    });
+  },
+
+  /** DR-207: snapshots the computed cancellation refund amount onto the
+   * invoice -- called once, right after bookingService.cancelForBookingLookup
+   * cancels the booking. A no-op (still returns the current view) if the
+   * booking has no invoice yet, same "nothing to refund" reasoning as an
+   * unpaid TAILOR_MADE inquiry. */
+  async setRefundAmount(organizationId: string, bookingId: string, refundAmountMinor: number): Promise<InvoiceView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const invoice = await tx.invoice.findUnique({ where: { bookingId } });
+      if (!invoice) return null;
+      const updated = await tx.invoice.update({ where: { id: invoice.id }, data: { refundAmountMinor } });
       return toInvoiceView(updated);
     });
   },

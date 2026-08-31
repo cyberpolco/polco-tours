@@ -1,6 +1,6 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { BookingStatus, Locale, PaymentKind } from '@prisma/client';
+import type { BookingStatus, CancellationRefundTier, Locale, PaymentKind } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
@@ -10,17 +10,20 @@ import { Errors } from '@lib/errors';
 import { computeLateBookingSurchargeBp, getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import { add, money, scale, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
-import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
+import { assertLookupNotRateLimited, assertWriteNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
 import { assertCan, can } from '@lib/rbac';
 import {
+  CANCELLABLE_BOOKING_STATUSES,
   canAddTraveler,
   computeAvailability,
+  emailMatches,
   isBookingConfirmer,
   isBookingDeleter,
   isBookingLocked,
   isTravelerManifestComplete,
   lastNameMatches,
   requiresFullTravelerDetails,
+  resolveCancellationRefundTier,
   toTravelerDutyView,
   type AddTravelerInput,
   type BookingAddonView,
@@ -40,6 +43,11 @@ import { bookingRepository, InvalidTransitionError, SoldOutError, type Transitio
 
 const LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 15;
 const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
+
+// DR-207: tighter than the read-only lookup above -- this is a real write
+// (cancels a booking), so a much lower ceiling.
+const CANCEL_LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 60;
+const CANCEL_LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 // A cancelled or refunded booking is done -- a dead end for the guest
 // lookup flow and hidden from the staff dashboard's default list (see
@@ -1004,6 +1012,95 @@ export const bookingService = {
     }
 
     return { booking, travelers };
+  },
+
+  /** Guest self-service cancellation via /find-booking (DR-207) -- no ctx,
+   * same two-factor-no-session trust boundary as lookupByBookingReference
+   * above, but a real write this time, so the second factor is tightened:
+   * the guest must also supply the tour lead's own on-file email, not just
+   * their last name (last name alone is comparatively guessable/public
+   * knowledge). Never reveals which factor was wrong -- same
+   * anti-enumeration posture as the lookup, and its own tighter
+   * rate-limit bucket (this is a write, not a read). Returns the cancelled
+   * booking plus the refund tier just snapshotted; turning that into an
+   * actual currency amount needs invoicing data this module may not depend
+   * on (see CLAUDE.md's "module dependency direction" section) -- that
+   * composition happens one level up, in the find-booking Server Action. */
+  async cancelForBookingLookup(input: {
+    bookingReference: string;
+    lastName: string;
+    email: string;
+    reason: string;
+    ip: string | undefined;
+  }): Promise<{ booking: BookingView; refundTier: CancellationRefundTier }> {
+    const organizationId = await getPrimaryOrgId();
+
+    if (input.ip) {
+      await assertWriteNotRateLimited({
+        organizationId,
+        action: 'booking.cancel_via_lookup',
+        ip: input.ip,
+        windowMinutes: CANCEL_LOOKUP_RATE_LIMIT_WINDOW_MINUTES,
+        maxAttempts: CANCEL_LOOKUP_RATE_LIMIT_MAX_ATTEMPTS,
+      });
+    }
+
+    const found = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
+    const booking = found && CANCELLABLE_BOOKING_STATUSES.includes(found.status) ? found : null;
+    const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
+    const lead = travelers.find((t) => t.isTourLead);
+    // Same DR-057 fallback as lookupByBookingReference: a TAILOR_MADE
+    // inquiry still AWAITING_QUOTATION/QUOTATION_SENT has no Traveler
+    // manifest yet, so name/email fall back to the booking's own
+    // guest-typed contact fields.
+    const nameSource = lead ?? (booking?.contactLastName ? { lastName: booking.contactLastName } : null);
+    const emailSource = lead?.email ?? booking?.contactEmail ?? null;
+
+    const verified =
+      !!booking &&
+      !!nameSource &&
+      lastNameMatches(nameSource, input.lastName) &&
+      !!emailSource &&
+      emailMatches(emailSource, input.email);
+
+    if (!booking || !verified) {
+      throw Errors.notFound('No matching booking found');
+    }
+
+    // The reference date to weigh the refund tier against: a real
+    // Departure.startDate for PREDEFINED_PACKAGE, or the booking's own
+    // customTravelStart for TAILOR_MADE (null until quoted -- resolves to
+    // the most generous tier via resolveCancellationRefundTier).
+    let referenceDate: Date | null = booking.customTravelStart;
+    if (booking.origin === 'PREDEFINED_PACKAGE' && booking.departureId) {
+      const tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId);
+      referenceDate = tripSummary?.startDate ?? null;
+    }
+    const refundTier = resolveCancellationRefundTier(referenceDate);
+
+    const result = await transition(() =>
+      bookingRepository.cancelAndReleaseReference(organizationId, booking.id, {
+        reason: input.reason.trim().slice(0, 1000),
+        contactEmail: input.email.trim(),
+        refundTier,
+      }),
+    );
+    if (!result) throw Errors.notFound('Booking not found');
+    const { booking: updated, previousReference } = result;
+
+    await audit({
+      action: 'booking.cancelled',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+      ip: input.ip,
+      metadata: { previousBookingReference: previousReference, channel: 'guest_self_service', refundTier },
+    });
+    await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
+      bookingId: previousReference,
+    });
+
+    return { booking: updated, refundTier };
   },
 
   /** Ratings module (DR-037): resolves a booking by its bookingReference for

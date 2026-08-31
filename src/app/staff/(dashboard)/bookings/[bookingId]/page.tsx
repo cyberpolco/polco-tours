@@ -418,6 +418,40 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
               </form>
             )}
           </div>
+          {/* DR-207: only set by bookingService.cancelForBookingLookup --
+              null for a staff-initiated cancel or the guest's own 30s-
+              grace-window buttons, both of which collect none of this. */}
+          {booking.cancellationRefundTier && (
+            <Card className="mt-4 space-y-2 text-sm">
+              <p className="eyebrow text-mist">{t('cancellationDetailsTitle')}</p>
+              {booking.cancellationReason && (
+                <p>
+                  <span className="text-mist">{t('cancellationReason')}:</span> {booking.cancellationReason}
+                </p>
+              )}
+              {booking.cancellationContactEmail && (
+                <p>
+                  <span className="text-mist">{t('cancellationContactEmail')}:</span> {booking.cancellationContactEmail}
+                </p>
+              )}
+              <p>
+                <span className="text-mist">{t('cancellationTier')}:</span>{' '}
+                {t(`cancellationTierLabel.${booking.cancellationRefundTier}`)}
+              </p>
+              {invoice?.refundAmountMinor != null && (
+                <p>
+                  <span className="text-mist">{t('refundAmount')}:</span>{' '}
+                  <span className="font-semibold text-navy">{format(money(invoice.refundAmountMinor, invoice.currency))}</span>
+                </p>
+              )}
+              <a
+                href={`/api/v1/bookings/${booking.id}/refund-note-pdf?locale=en`}
+                className="inline-block font-semibold text-amber underline"
+              >
+                {t('downloadRefundNote')}
+              </a>
+            </Card>
+          )}
           {/* DR-058: SUPERADMIN-only, any status -- the write control itself
               renders only for SUPERADMIN (same convention as
               country-regulations' canWrite) since PLATFORM_ADMIN would pass

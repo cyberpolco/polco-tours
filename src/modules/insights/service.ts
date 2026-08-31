@@ -235,6 +235,8 @@ async function computeDashboardSummary(ctx: AuthContext, range: DateRange): Prom
   const outstanding: MoneyByCurrency = {};
   const revenueByCountry: Record<string, MoneyByCurrency> = {};
   const revenueByPackage: Record<string, MoneyByCurrency> = {};
+  const pendingRefunds: MoneyByCurrency = {};
+  let pendingRefundsCount = 0;
   const bookingById = new Map(allBookings.map((b) => [b.id, b]));
 
   for (const { invoice, bookingId, payments } of invoiceRows) {
@@ -244,9 +246,18 @@ async function computeDashboardSummary(ctx: AuthContext, range: DateRange): Prom
     if (invoice.status !== 'PAID' && invoice.status !== 'VOID') {
       addToBucket(outstanding, invoice.currency, Math.max(0, invoice.totalMinor - succeededMinor));
     }
-    if (succeededMinor <= 0) continue;
 
     const booking = bookingById.get(bookingId);
+    // DR-207: a guest self-service cancellation snapshots refundAmountMinor
+    // regardless of succeededMinor (0 for the NONE tier) -- checked before
+    // the succeededMinor-gated `continue` below so a since-refunded booking
+    // (status no longer CANCELLED) correctly drops out on its own.
+    if (invoice.refundAmountMinor != null && invoice.refundAmountMinor > 0 && booking?.status === 'CANCELLED') {
+      addToBucket(pendingRefunds, invoice.currency, invoice.refundAmountMinor);
+      pendingRefundsCount++;
+    }
+    if (succeededMinor <= 0) continue;
+
     const departureCountry = booking?.departureId ? departureInfo.get(booking.departureId)?.country : undefined;
     const country = resolveBookingCountry(booking?.customCountry ?? null, departureCountry);
     const packageLabel = (booking?.departureId && departureInfo.get(booking.departureId)?.packageLabel) || 'Tailor-made';
@@ -379,7 +390,7 @@ async function computeDashboardSummary(ctx: AuthContext, range: DateRange): Prom
 
   return {
     bookings: bookingsSummary,
-    revenue: { revenue, revenueByCountry, revenueByPackage, outstanding, ...financeExtras },
+    revenue: { revenue, revenueByCountry, revenueByPackage, outstanding, pendingRefunds, pendingRefundsCount, ...financeExtras },
     operations: {
       fleetUtilization: utilizationRatio(activeVehicleIds.size, vehicles.filter((v) => v.status === 'ACTIVE').length),
       driverUtilization: utilizationRatio(

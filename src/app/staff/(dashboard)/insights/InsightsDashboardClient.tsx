@@ -168,6 +168,14 @@ export function InsightsDashboardClient({ initialSummary }: Props) {
                 <StatTile key="outstanding" label={t('outstanding')} value={formatMoneyByCurrency(summary.revenue.outstanding)} />,
                 <StatTile key="avgBooking" label={t('averageBookingValue')} value={formatMoneyByCurrency(summary.revenue.averageBookingValue)} />,
                 <StatTile key="discount" label={t('totalDiscountGiven')} value={formatMoneyByCurrency(summary.revenue.totalDiscountGiven)} />,
+                // DR-207: guest self-service cancellations (via
+                // /find-booking) awaiting a staff "Mark Refunded" -- see
+                // this stat's own comment on RevenueSummary.pendingRefunds.
+                <StatTile
+                  key="pendingRefunds"
+                  label={t('pendingRefunds', { count: summary.revenue.pendingRefundsCount })}
+                  value={formatMoneyByCurrency(summary.revenue.pendingRefunds)}
+                />,
               ]}
             </RevealGroup>
           </Card>

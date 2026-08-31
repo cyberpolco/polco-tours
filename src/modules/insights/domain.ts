@@ -35,6 +35,13 @@ export interface RevenueSummary {
   depositVsFullPaid: { depositPathCount: number; fullPathCount: number };
   totalDiscountGiven: MoneyByCurrency; // sum of Invoice.discountMinor
   couponRedemptionCount: number; // count of invoices with a non-null couponCode and discountMinor > 0
+  // DR-207: bookings CANCELLED via the guest self-service /find-booking
+  // flow (Invoice.refundAmountMinor set) that staff hasn't yet marked
+  // REFUNDED -- clears the moment bookingService.refund runs. Not a
+  // period-total ("refunds issued"), a current-state snapshot of what's
+  // still owed back, same "outstanding" framing as the field above.
+  pendingRefunds: MoneyByCurrency;
+  pendingRefundsCount: number;
 }
 
 export interface OperationsSummary {

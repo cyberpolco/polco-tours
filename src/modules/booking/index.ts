@@ -4,6 +4,7 @@ export type { Availability, BillableTotal } from './service';
 export {
   AddTravelerInput,
   BOOKING_DELETION_RETENTION_DAYS,
+  CANCELLABLE_BOOKING_STATUSES,
   CreateBookingInput,
   CreateBookingWithDatesInput,
   CreateTailorMadeInput,
@@ -14,6 +15,7 @@ export {
   generateBookingReference,
   isBookingLocked,
   requiresFullTravelerDetails,
+  resolveCancellationRefundTier,
 } from './domain';
 export type {
   BookingAddonView,
@@ -24,3 +26,4 @@ export type {
   TravelerView,
   VisaCandidateTravelerView,
 } from './domain';
+export type { CancellationRefundTier } from '@prisma/client';
