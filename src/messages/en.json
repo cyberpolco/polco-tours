@@ -153,10 +153,7 @@
     "drcOffice": "DR Congo office",
     "addressPending": "Address — on its way",
     "emailPending": "Email — on its way",
-    "phonePending": "Phone — on its way",
-    "closingLead": "We'll have social channels up soon too. Got a question about an existing booking? Try",
-    "closingLinkLabel": "Find my booking",
-    "closingTrail": " instead."
+    "phonePending": "Phone — on its way"
   },
   "Terms": {
     "eyebrow": "Terms & Policies",

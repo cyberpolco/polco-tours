@@ -122,16 +122,6 @@ export default async function ContactPage() {
             </Card>
           )}
         </div>
-
-        <Card as="div" className="mt-10 bg-navy/5">
-          <p className="text-mist">
-            {t('closingLead')}{' '}
-            <Link href="/find-booking" className="font-semibold text-forest hover:underline">
-              {t('closingLinkLabel')}
-            </Link>
-            {t('closingTrail')}
-          </p>
-        </Card>
       </div>
     </Reveal>
   );
