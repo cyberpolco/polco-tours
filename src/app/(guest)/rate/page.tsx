@@ -28,7 +28,7 @@ export default async function RatePage({ searchParams }: Props) {
 
   return (
     <Reveal>
-      <div className="max-w-sm">
+      <div>
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
 

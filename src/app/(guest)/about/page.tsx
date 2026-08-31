@@ -20,7 +20,7 @@ export default async function AboutPage() {
 
   return (
     <Reveal>
-      <div className="max-w-3xl">
+      <div>
         <p className="eyebrow text-mist">{t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{about?.title ?? t('defaultTitle')}</h1>
         {about

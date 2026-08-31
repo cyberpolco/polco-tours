@@ -59,7 +59,7 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
     .map((item) => ({ name: item.name!, country: item.country! }));
 
   return (
-    <div className="max-w-lg">
+    <div>
       <p className="eyebrow mt-4 text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
       <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>

@@ -25,7 +25,7 @@ export default async function TermsPage() {
 
   return (
     <Reveal>
-      <div className="max-w-2xl">
+      <div>
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-4 text-mist">{cms?.body ?? t('body')}</p>

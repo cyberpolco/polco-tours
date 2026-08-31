@@ -27,7 +27,7 @@ export default async function WeatherTownPage({ params }: Props) {
 
   return (
     <Reveal>
-      <div className="max-w-3xl">
+      <div>
         <BackLink href="/weather">{t('backToWeather')}</BackLink>
         <p className="mt-4 eyebrow text-mist">{tCountries(town.country)}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{town.name}</h1>
