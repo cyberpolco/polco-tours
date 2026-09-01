@@ -236,11 +236,15 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       {/* Every card below lays out in rows and columns (not one long
           vertical stack), same width as the rest of the guest site's
           content (no extra max-w wrapper here, matching /faq) -- explicit
-          user request. `items-start` keeps a short card from being
-          stretched to match a taller neighbor in the same row. */}
-      <div className="mt-8 grid grid-cols-1 items-start gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          user request. CSS multi-column (not `grid`) so a short card packs
+          in wherever there's room instead of every row being pinned to the
+          tallest card in it, which left large dead gaps under short
+          neighbors of a tall card like Trip Details (explicit user
+          feedback, with a screenshot) -- `break-inside-avoid` on each card
+          keeps it from being split across two columns. */}
+      <div className="mt-8 columns-1 gap-6 sm:columns-2 lg:columns-3">
         {isTailorMadeInquiry && (
-          <Reveal delay={0.15}>
+          <Reveal delay={0.15} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('requestSummary')}</p>
               <Card className="mt-2">
@@ -272,7 +276,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         )}
 
         {(tripSummary || showCustomTripFallback) && (
-          <Reveal delay={0.2}>
+          <Reveal delay={0.2} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('tripDetails')}</p>
               {tripSummary ? (
@@ -325,7 +329,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         )}
 
         {travelers.length > 0 && (
-          <Reveal delay={0.25}>
+          <Reveal delay={0.25} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('travelers')}</p>
               <Card className="mt-2">
@@ -346,7 +350,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         )}
 
         {addons.length > 0 && (
-          <Reveal delay={0.3}>
+          <Reveal delay={0.3} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('addOns')}</p>
               <Card className="mt-2">
@@ -363,7 +367,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         )}
 
         {billingSummary && (
-          <Reveal delay={0.35}>
+          <Reveal delay={0.35} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('priceAndPayment')}</p>
               <Card className="mt-2 space-y-3 text-sm">
@@ -438,7 +442,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
         )}
 
         {hasTripStatus && (
-          <Reveal delay={0.4}>
+          <Reveal delay={0.4} className="mb-6 break-inside-avoid">
             <div>
               <p className="eyebrow text-mist">{t('tripStatus')}</p>
               <Card className="mt-2">
