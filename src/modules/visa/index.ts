@@ -1,7 +1,7 @@
 // visa module — public interface. Other modules import ONLY from here.
 export { visaService } from './service';
 export type { UploadVisaDocumentInput } from './service';
-export { ContactTravelerInput, DecideVisaInput } from './domain';
+export { ContactTravelerInput, DecideVisaInput, UpdateDocumentStatusInput } from './domain';
 export type {
   BookingLookupVisaView,
   FacilitatorVisaView,
@@ -9,4 +9,4 @@ export type {
   PendingVisaApplicationView,
   VisaApplicationView,
 } from './domain';
-export type { VisaFeePaymentStatus, VisaStatus } from '@prisma/client';
+export type { VisaDocumentStatus, VisaFeePaymentStatus, VisaStatus } from '@prisma/client';

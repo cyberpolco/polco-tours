@@ -11,15 +11,16 @@ import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { formatOrPending } from '@lib/money';
-import { VISA_FEE_PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
+import { VISA_DOCUMENT_STATUS_TONE, VISA_FEE_PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
+import { PrefillMessageButton } from './PrefillMessageButton';
 import {
   contactTravelerAction,
   decideApplicationAction,
   deleteApplicationAction,
   markFeePaidAction,
   requestFeePaymentAction,
-  requestMissingDocumentsAction,
   startApplicationAction,
+  updateDocumentStatusAction,
   uploadVisaDocumentAction,
 } from './actions';
 
@@ -50,6 +51,7 @@ export default async function VisaQueuePage({ searchParams }: Props) {
   const t = await getTranslations('StaffVisaQueue');
   const tVisaStatus = await getTranslations('VisaStatusLabel');
   const tFeeStatus = await getTranslations('VisaFeePaymentStatusLabel');
+  const tDocStatus = await getTranslations('VisaDocumentStatusLabel');
   const tCountries = await getTranslations('Countries');
   const ORIGIN_LABEL: Record<string, string> = {
     PREDEFINED_PACKAGE: t('packageLabel'),
@@ -63,7 +65,10 @@ export default async function VisaQueuePage({ searchParams }: Props) {
 
   const applications = origin ? allApplications.filter((a) => a.origin === origin) : allApplications;
   const pendingCount = applications.filter((a) => a.status === 'SUBMITTED').length;
-  const missingDocCount = applications.filter((a) => !a.hasDocument).length;
+  // DR-210: reflects the facilitator's manual documentStatus now, same
+  // field "Request documents" below gates on -- not the raw hasDocument
+  // file-presence flag.
+  const missingDocCount = applications.filter((a) => a.documentStatus === 'MISSING').length;
 
   // Country Regulations, linked in to help assess an application -- per
   // explicit user direction. Sequential awaits over the small distinct-
@@ -268,16 +273,46 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                     )}
                   </Td>
                   <Td>
-                    {/* DR-209 (explicit user request): the "Missing"/"On
-                        file" status here isn't a free-standing flag -- it's
-                        literally whether uploadVisaDocumentAction has set
-                        VisaApplication.documentId (a.hasDocument) -- so the
-                        upload control that changes it lives right here
-                        instead of buried in the Actions column, and
-                        Actions' "Request documents" button only appears
-                        while this reads Missing. */}
-                    <div className="w-36 space-y-1.5">
-                      {a.hasDocument ? <Badge tone="success">{t('onFile')}</Badge> : <Badge tone="warning">{t('missing')}</Badge>}
+                    {/* DR-210 (explicit user request): documentStatus is a
+                        facilitator-set flag (Missing/Received/Not required),
+                        independent of hasDocument (whether a real file is
+                        actually attached) -- previously this badge was just
+                        derived from hasDocument, which meant it could only
+                        ever read Missing until a file was uploaded, with no
+                        way to mark "handled outside the system" or "not
+                        needed for this traveler." Actions' "Request
+                        documents" button gates on this status now. The
+                        upload/replace control and the "View" link (only
+                        when a real file exists) stay here too, next to the
+                        status they relate to. */}
+                    <div className="w-40 space-y-1.5">
+                      <Badge tone={VISA_DOCUMENT_STATUS_TONE[a.documentStatus]}>{tDocStatus(a.documentStatus)}</Badge>
+                      {a.bookingId && (
+                        <form action={updateDocumentStatusAction.bind(null, a.bookingId, a.travelerId)} className="flex items-center gap-1">
+                          <select
+                            name="status"
+                            defaultValue={a.documentStatus}
+                            className="w-full rounded-survey border border-rule px-1.5 py-1 text-[11px]"
+                          >
+                            <option value="MISSING">{tDocStatus('MISSING')}</option>
+                            <option value="RECEIVED">{tDocStatus('RECEIVED')}</option>
+                            <option value="NOT_REQUIRED">{tDocStatus('NOT_REQUIRED')}</option>
+                          </select>
+                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('updating')}>
+                            {t('update')}
+                          </SubmitButton>
+                        </form>
+                      )}
+                      {a.hasDocument && a.bookingId && (
+                        <a
+                          href={`/api/v1/bookings/${a.bookingId}/travelers/${a.travelerId}/visa/document`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs text-forest hover:underline"
+                        >
+                          {t('view')}
+                        </a>
+                      )}
                       {a.bookingId && (
                         <form action={uploadVisaDocumentAction.bind(null, a.bookingId, a.travelerId)} className="space-y-1">
                           <input type="file" name="document" required className="block w-full text-[11px]" />
@@ -309,10 +344,18 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                         instead of five forms stacked with no separation.
                         Message/Decision collapse behind <details> (pure
                         CSS/HTML, no client JS) so a row only takes up the
-                        vertical space its currently-relevant actions need. */}
+                        vertical space its currently-relevant actions need.
+                        DR-211 (explicit user request): "Request documents"
+                        no longer sends its own separate notification through
+                        a different channel -- it's a one-click shortcut
+                        (PrefillMessageButton, the page's one bit of client
+                        JS) that opens the Message panel below with a canned
+                        request already typed in, so both actions end up
+                        going through the exact same contactTraveler/email
+                        path instead of two parallel ones. */}
                     {a.bookingId && (
-                      <div className="w-64 space-y-2">
-                        <details className="group rounded-card border border-rule open:bg-bone/50">
+                      <div className="w-64 space-y-2" data-visa-actions-panel>
+                        <details className="group rounded-card border border-rule open:bg-bone/50" data-message-panel>
                           <summary className="flex cursor-pointer list-none items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-navy [&::-webkit-details-marker]:hidden">
                             {t('messageTourLead')}
                             <span className="text-mist transition-transform duration-200 group-open:rotate-180">⌄</span>
@@ -336,12 +379,11 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                           </form>
                         </details>
 
-                        {!a.hasDocument && (
-                          <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
-                            <SubmitButton size="compact" variant="secondary" pendingLabel={t('sending')} className="w-full">
-                              {t('requestDocuments')}
-                            </SubmitButton>
-                          </form>
+                        {a.documentStatus === 'MISSING' && (
+                          <PrefillMessageButton
+                            label={t('requestDocuments')}
+                            prefillText={t('requestDocumentsPrefill', { country: tCountries(a.country) })}
+                          />
                         )}
 
                         {a.status === 'SUBMITTED' && (

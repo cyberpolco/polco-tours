@@ -350,6 +350,11 @@
     "REQUESTED": "Demandé",
     "PAID": "Payé"
   },
+  "VisaDocumentStatusLabel": {
+    "MISSING": "Manquant",
+    "RECEIVED": "Reçu",
+    "NOT_REQUIRED": "Non requis"
+  },
   "ItineraryStatusLabel": {
     "DRAFT": "Brouillon",
     "IN_REVIEW": "En révision",
@@ -609,6 +614,8 @@
     "starlinkAssigned": "{count, plural, one {Un kit Starlink est affecté à votre véhicule.} other {Un kit Starlink est affecté à vos véhicules.}}",
     "visaStatus": "Statut du visa",
     "feePaymentPrefix": "Frais gouvernementaux :",
+    "visaRequirements": "Exigences de visa",
+    "visaRequirementsNationalities": "Votre groupe comprend des voyageurs de : {nationalities}. Les exigences peuvent varier selon la nationalité — vérifiez auprès de l'ambassade ou de l'autorité d'immigration de la destination avant le départ.",
     "feedback": "Retour d'expérience",
     "ratingCodeAvailable": "Un code d'évaluation a été émis pour votre voyage — consultez votre e-mail de confirmation ou contactez notre équipe pour l'obtenir.",
     "ratingCodeUnavailable": "Votre code d'évaluation a déjà été utilisé ou a expiré.",
@@ -1378,7 +1385,6 @@
     "addRequirements": "Ajouter des exigences",
     "daysSuffix": "({days} j)",
     "yes": "Oui",
-    "missing": "Manquant",
     "notUploaded": "Non téléchargé",
     "messagePlaceholder": "Message…",
     "sending": "Envoi…",
@@ -1400,11 +1406,13 @@
     "requestingFee": "Demande en cours…",
     "markFeePaid": "Marquer comme payé",
     "markingFeePaid": "Marquage en cours…",
-    "onFile": "Reçu",
     "replaceDocument": "Remplacer le document",
     "messageTourLead": "Message au chef de groupe",
     "emailNotice": "Envoyé par e-mail à l'adresse du chef de groupe enregistrée.",
-    "decision": "Décision"
+    "decision": "Décision",
+    "update": "Mettre à jour",
+    "updating": "Mise à jour…",
+    "requestDocumentsPrefill": "Il nous manque toujours un document requis pour votre demande de visa pour {country}. Pourriez-vous nous l'envoyer dès que possible ?"
   },
   "StaffCountryRegulations": {
     "backToCountryRegulations": "retour aux réglementations par pays",

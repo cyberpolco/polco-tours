@@ -30,6 +30,16 @@ export interface CountryRegulationPublicFee {
   feeCurrency: Currency | null;
 }
 
+// DR-212 (explicit user request): same minimal, no-ctx-safe shape as
+// CountryRegulationPublicFee above -- just the one staff-authored summary
+// paragraph, never the embassy contact/health/advisories/fee fields. Lets
+// the guest /find-booking lookup show a brief, purely informational visa
+// note regardless of whether Visa Assistance was purchased as an add-on
+// (unlike VisaApplication tracking status, which only exists once it was).
+export interface CountryRegulationPublicVisaInfo {
+  visaRequirements: string;
+}
+
 export const CreateCountryRegulationInput = z.object({
   country: z.string().length(2),
   visaRequirements: z.string().min(1),

@@ -1,5 +1,5 @@
 // visa module — domain types & rules. Pure; no framework or DB imports.
-import type { BookingOrigin, Currency, Role, VisaFeePaymentStatus, VisaStatus } from '@prisma/client';
+import type { BookingOrigin, Currency, Role, VisaDocumentStatus, VisaFeePaymentStatus, VisaStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export interface VisaApplicationView {
@@ -11,6 +11,9 @@ export interface VisaApplicationView {
   rejectionReason: string | null;
   resubmissionCount: number;
   documentId: string | null;
+  // DR-210: facilitator-set, independent of whether documentId is actually
+  // set -- see the VisaDocumentStatus enum's own schema.prisma comment.
+  documentStatus: VisaDocumentStatus;
   submittedAt: Date;
   decidedAt: Date | null;
   // DR-184: the destination country's government/immigration fee, snapshotted
@@ -57,6 +60,11 @@ export interface FacilitatorVisaView {
   rejectionReason: string | null;
   resubmissionCount: number;
   hasDocument: boolean;
+  // DR-210: the facilitator-set Missing/Received/Not required status --
+  // independent of hasDocument above, which stays tied to whether a real
+  // file (documentId) exists. /staff/visa-queue's "Request documents"
+  // button gates on this now, not on hasDocument.
+  documentStatus: VisaDocumentStatus;
   submittedAt: Date;
   decidedAt: Date | null;
   // DR-184
@@ -131,6 +139,14 @@ export const ContactTravelerInput = z.object({
   message: z.string().trim().min(1).max(1000),
 });
 export type ContactTravelerInput = z.infer<typeof ContactTravelerInput>;
+
+// DR-210: staff-set document status, independent of the actual file
+// (documentId) -- same "manual toggle, own action" shape as
+// canRequestFeePayment/canMarkFeePaid's fee-status pair below.
+export const UpdateDocumentStatusInput = z.object({
+  status: z.enum(['MISSING', 'RECEIVED', 'NOT_REQUIRED']),
+});
+export type UpdateDocumentStatusInput = z.infer<typeof UpdateDocumentStatusInput>;
 
 export const DecideVisaInput = z.object({
   outcome: z.enum(['APPROVED', 'REJECTED']),

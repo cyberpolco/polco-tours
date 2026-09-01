@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-209** (2026-09-01). This file used to carry a running
+Current through **DR-212** (2026-09-01). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -339,7 +339,22 @@ src/
                    #   same resolution order as booking's
                    #   cancelForBookingLookup, DR-207) instead of notify()'s
                    #   usual fallback chain — /staff/visa-queue's Actions
-                   #   column restructure, same DR
+                   #   column restructure, same DR. DR-210: VisaApplication
+                   #   gains documentStatus (VisaDocumentStatus: MISSING/
+                   #   RECEIVED/NOT_REQUIRED, @default(MISSING)) — a
+                   #   facilitator-set flag independent of documentId/
+                   #   hasDocument, same "staff-toggled, not derived" shape
+                   #   as feePaymentStatus (DR-184); new
+                   #   visaService.updateDocumentStatus, surfaced on
+                   #   /staff/visa-queue's Document column. DR-211:
+                   #   requestMissingDocuments' /staff/visa-queue button was
+                   #   removed in favor of a client-side prefill shortcut
+                   #   (PrefillMessageButton) that fills the Message panel's
+                   #   textarea and sends through the same contactTraveler
+                   #   path — the service method + its own REST route +
+                   #   VISA_MISSING_DOCUMENTS event are untouched, still
+                   #   reachable via the API, just no longer this page's own
+                   #   button
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -375,7 +390,12 @@ src/
                    #   dependency (visa) via a new no-ctx public
                    #   getPublicFee(country) — a minimal fee-only
                    #   projection, still nothing else in CountryRegulation
-                   #   is read cross-module
+                   #   is read cross-module. DR-212: a sibling no-ctx public
+                   #   getPublicVisaRequirements(country) (just the
+                   #   visaRequirements text) — this one's read directly
+                   #   from a guest page ((guest)/find-booking/result), not
+                   #   from another module's service, so it isn't a new
+                   #   module-to-module dependency
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings; DR-148: SUPERADMIN

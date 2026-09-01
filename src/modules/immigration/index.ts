@@ -2,4 +2,4 @@
 // import from here, never from domain/repository/service directly.
 export { immigrationService } from './service';
 export { CreateCountryRegulationInput, UpdateCountryRegulationInput } from './domain';
-export type { CountryRegulationPublicFee, CountryRegulationView } from './domain';
+export type { CountryRegulationPublicFee, CountryRegulationPublicVisaInfo, CountryRegulationView } from './domain';

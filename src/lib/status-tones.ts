@@ -10,6 +10,7 @@ import type {
   PaymentStatus,
   StarlinkStatus,
   VehicleStatus,
+  VisaDocumentStatus,
   VisaFeePaymentStatus,
   VisaStatus,
 } from '@prisma/client';
@@ -116,6 +117,14 @@ export const VISA_FEE_PAYMENT_STATUS_TONE: Record<VisaFeePaymentStatus, BadgeTon
   NOT_REQUESTED: 'neutral',
   REQUESTED: 'warning',
   PAID: 'success',
+};
+
+// DR-210: the facilitator's manual Missing/Received/Not required toggle --
+// independent of whether a real file is actually on record.
+export const VISA_DOCUMENT_STATUS_TONE: Record<VisaDocumentStatus, BadgeTone> = {
+  MISSING: 'warning',
+  RECEIVED: 'success',
+  NOT_REQUIRED: 'neutral',
 };
 
 export const ITINERARY_STATUS_TONE: Record<ItineraryStatus, BadgeTone> = {

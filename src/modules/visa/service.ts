@@ -22,6 +22,7 @@ import {
   type FacilitatorVisaView,
   type GuestVisaApplicationView,
   type PendingVisaApplicationView,
+  type UpdateDocumentStatusInput,
   type VisaApplicationView,
 } from './domain';
 import { visaRepository } from './repository';
@@ -318,6 +319,40 @@ export const visaService = {
       resourceId: travelerId,
       organizationId,
     });
+  },
+
+  /** DR-210 (explicit user request): a facilitator's manual Missing/
+   * Received/Not required toggle -- independent of whether a real file
+   * (documentId) is on record, same "staff-set flag, no system inference"
+   * shape as requestFeePayment/markFeePaid below. Any direction is valid at
+   * any time (unlike the fee-status pair's forward-only NOT_REQUESTED ->
+   * REQUESTED -> PAID) -- a facilitator can freely correct a wrong pick or
+   * revert NOT_REQUIRED back to MISSING if a country's rules turn out to
+   * apply after all. */
+  async updateDocumentStatus(
+    ctx: AuthContext,
+    bookingId: string,
+    travelerId: string,
+    input: UpdateDocumentStatusInput,
+  ): Promise<VisaApplicationView> {
+    assertCan(ctx, 'visa.process');
+    const organizationId = requireOrg(ctx);
+    await findTraveler(ctx, bookingId, travelerId);
+
+    const existing = await visaRepository.findByTravelerId(organizationId, travelerId);
+    if (!existing) throw Errors.notFound('Visa application not found');
+
+    const updated = await visaRepository.updateDocumentStatus(organizationId, existing.id, input.status);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'visa.document_status_updated',
+      resourceType: 'VisaApplication',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { from: existing.documentStatus, to: updated.documentStatus },
+    });
+    return updated;
   },
 
   /** DR-184: staff marks the destination country's government fee as

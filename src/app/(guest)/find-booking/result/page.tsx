@@ -5,6 +5,7 @@ import { authService } from '@modules/auth';
 import { bookingService, CANCELLABLE_BOOKING_STATUSES, resolveCancellationRefundTier } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
+import { immigrationService } from '@modules/immigration';
 import { canDownloadInvoicePdf, computeCancellationRefundAmountMinor, invoicingService } from '@modules/invoicing';
 import { itineraryService } from '@modules/itinerary';
 import { ratingsService } from '@modules/ratings';
@@ -161,9 +162,12 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
     }
   }
 
-  // Explicit user scoping: visa status only surfaces when the finalized
-  // add-ons included Visa Assistance in the first place -- never a bare
-  // country-regulation dump.
+  // Explicit user scoping: the per-traveler VisaApplication *tracking*
+  // status below only surfaces when the finalized add-ons included Visa
+  // Assistance in the first place (that's the only case a VisaApplication
+  // row exists at all) -- distinct from the purely informational
+  // visaRequirementsInfo block further down (DR-212), which is deliberately
+  // NOT gated on the add-on.
   const visaStatuses = new Map<string, BookingLookupVisaView>();
   if (!isTailorMadeInquiry && booking.requiresPassportUpload) {
     for (const traveler of travelers) {
@@ -171,6 +175,21 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
       if (status) visaStatuses.set(traveler.id, status);
     }
   }
+
+  // DR-212 (explicit user request, reversing the "never a bare
+  // country-regulation dump" scoping above for this one purpose): a brief,
+  // purely informational visa-requirements note -- shown regardless of
+  // whether Visa Assistance was purchased as an add-on, unlike the
+  // VisaApplication tracking status above. destinationCountry mirrors the
+  // same PREDEFINED_PACKAGE-tripSummary / TAILOR_MADE-customCountry
+  // resolution already used for the cancellation-tier date lookup above;
+  // nationalities are every distinct, non-null Traveler.nationality already
+  // on `travelers` (no extra query -- DR-207's cancelForBookingLookup
+  // precedent already established fetching the full traveler manifest for
+  // this same no-ctx lookup is safe).
+  const destinationCountry = tripSummary?.country ?? booking.customCountry ?? null;
+  const travelerNationalities = [...new Set(travelers.map((tv) => tv.nationality).filter((n): n is string => n !== null))];
+  const visaRequirementsInfo = destinationCountry ? await immigrationService.getPublicVisaRequirements(destinationCountry) : null;
 
   // Deliberately redacted -- never the raw RatingCode.code (see
   // ratingsService.getRatingCodeStatusForBookingLookup's own comment).
@@ -206,6 +225,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
     guideNames.length > 0 ||
     starlinkKits.size > 0 ||
     visaStatuses.size > 0 ||
+    visaRequirementsInfo !== null ||
     ratingCodeStatus !== null;
 
   return (
@@ -516,6 +536,26 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                             </div>
                           );
                         })}
+                    </dd>
+                  </div>
+                )}
+                {visaRequirementsInfo && (
+                  <div>
+                    {/* DR-212 (explicit user request): purely informational,
+                        shown regardless of whether Visa Assistance was
+                        purchased -- distinct from visaStatus above, which
+                        tracks an actual VisaApplication and only exists
+                        once that add-on was bought. */}
+                    <dt className="text-xs text-mist">{t('visaRequirements')}</dt>
+                    <dd className="space-y-1">
+                      <p>{visaRequirementsInfo.visaRequirements}</p>
+                      {travelerNationalities.length > 0 && (
+                        <p className="text-xs text-mist">
+                          {t('visaRequirementsNationalities', {
+                            nationalities: travelerNationalities.map((n) => countryLabel(n, tCountries)).join(', '),
+                          })}
+                        </p>
+                      )}
                     </dd>
                   </div>
                 )}

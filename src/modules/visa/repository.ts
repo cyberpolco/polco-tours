@@ -1,5 +1,5 @@
 // visa module — repository. The only place that touches the DB for this module.
-import type { Currency, VisaApplication, VisaStatus } from '@prisma/client';
+import type { Currency, VisaApplication, VisaDocumentStatus, VisaStatus } from '@prisma/client';
 import { withOrg } from '@lib/db';
 import type { FacilitatorVisaView, VisaApplicationView } from './domain';
 
@@ -39,6 +39,7 @@ function toView(a: VisaApplication): VisaApplicationView {
     rejectionReason: a.rejectionReason,
     resubmissionCount: a.resubmissionCount,
     documentId: a.documentId,
+    documentStatus: a.documentStatus,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
     governmentFeeMinor: a.governmentFeeMinor,
@@ -64,6 +65,7 @@ function toFacilitatorRow(a: VisaApplication): FacilitatorVisaRow {
     rejectionReason: a.rejectionReason,
     resubmissionCount: a.resubmissionCount,
     hasDocument: a.documentId !== null,
+    documentStatus: a.documentStatus,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
     governmentFeeMinor: a.governmentFeeMinor,
@@ -157,6 +159,16 @@ export const visaRepository = {
   async setDocument(organizationId: string, id: string, documentId: string): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
       const a = await tx.visaApplication.update({ where: { id }, data: { documentId } });
+      return toView(a);
+    });
+  },
+
+  /** DR-210: the facilitator's manual Missing/Received/Not required
+   * toggle -- deliberately independent of documentId, see the
+   * VisaDocumentStatus enum's own schema.prisma comment. */
+  async updateDocumentStatus(organizationId: string, id: string, documentStatus: VisaDocumentStatus): Promise<VisaApplicationView> {
+    return withOrg(organizationId, async (tx) => {
+      const a = await tx.visaApplication.update({ where: { id }, data: { documentStatus } });
       return toView(a);
     });
   },

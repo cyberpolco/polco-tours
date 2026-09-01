@@ -3,18 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { ContactTravelerInput, DecideVisaInput, visaService } from '@modules/visa';
+import { ContactTravelerInput, DecideVisaInput, UpdateDocumentStatusInput, visaService } from '@modules/visa';
 
 export async function contactTravelerAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('visa.process');
   const input = ContactTravelerInput.parse({ message: String(formData.get('message') ?? '') });
   await visaService.contactTraveler(ctx, bookingId, travelerId, input);
-  revalidatePath('/staff/visa-queue');
-}
-
-export async function requestMissingDocumentsAction(bookingId: string, travelerId: string): Promise<void> {
-  const ctx = await requireStaffContext('visa.process');
-  await visaService.requestMissingDocuments(ctx, bookingId, travelerId);
   revalidatePath('/staff/visa-queue');
 }
 
@@ -56,6 +50,16 @@ export async function uploadVisaDocumentAction(bookingId: string, travelerId: st
     sizeBytes: file.size,
     bytes,
   });
+  revalidatePath('/staff/visa-queue');
+}
+
+// DR-210 (explicit user request): a facilitator's manual Missing/Received/
+// Not required toggle for the granted visa document, independent of
+// whether a real file has actually been uploaded.
+export async function updateDocumentStatusAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('visa.process');
+  const input = UpdateDocumentStatusInput.parse({ status: String(formData.get('status') ?? '') });
+  await visaService.updateDocumentStatus(ctx, bookingId, travelerId, input);
   revalidatePath('/staff/visa-queue');
 }
 

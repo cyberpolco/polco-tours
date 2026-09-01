@@ -7,6 +7,7 @@ import { assertCan } from '@lib/rbac';
 import {
   isCountryRegulationWriter,
   type CountryRegulationPublicFee,
+  type CountryRegulationPublicVisaInfo,
   type CountryRegulationView,
   type CreateCountryRegulationInput,
   type UpdateCountryRegulationInput,
@@ -44,6 +45,16 @@ export const immigrationService = {
       governmentFeeMinor: regulation?.immigrationFeeMinor ?? null,
       feeCurrency: regulation?.feeCurrency ?? null,
     };
+  },
+
+  // DR-212 (explicit user request): same no-ctx public shape as
+  // getPublicFee above. Returns null (never throws) when no regulation is
+  // on file for the country yet -- the caller simply omits the section
+  // rather than showing a broken one, same graceful-degradation convention
+  // as getPublicFee/weather's gateway.
+  async getPublicVisaRequirements(country: string): Promise<CountryRegulationPublicVisaInfo | null> {
+    const regulation = await immigrationRepository.findByCountry(country.toUpperCase());
+    return regulation ? { visaRequirements: regulation.visaRequirements } : null;
   },
 
   async createRegulation(ctx: AuthContext, input: CreateCountryRegulationInput): Promise<CountryRegulationView> {

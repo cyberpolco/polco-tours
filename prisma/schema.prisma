@@ -1028,6 +1028,23 @@ enum VisaFeePaymentStatus {
   PAID
 }
 
+// DR-210 (explicit user request): a manual, facilitator-set status for the
+// granted visa document, independent of whether `documentId` is actually
+// set -- same "staff-toggled, not system-derived" shape as
+// VisaFeePaymentStatus above. Lets a facilitator mark a document RECEIVED
+// (handled outside the system -- in person, by a separate email thread --
+// with nothing to upload here) or NOT_REQUIRED (this country/traveler never
+// needed one), not just MISSING/uploaded. "Request documents" on
+// /staff/visa-queue gates on this field now, not on `documentId !== null`;
+// the "View" link there still gates on `documentId !== null` regardless of
+// this status, since that's the only thing that determines whether a real
+// file exists to view.
+enum VisaDocumentStatus {
+  MISSING
+  RECEIVED
+  NOT_REQUIRED
+}
+
 // A per-traveler visa workflow, staged SUBMITTED -> APPROVED/REJECTED, with a
 // REJECTED application resubmittable back to SUBMITTED (DR-025). Traveler
 // identity fields are snapshotted here (not joined live) -- originally so
@@ -1047,6 +1064,7 @@ model VisaApplication {
   rejectionReason            String?              @db.VarChar(500) // set when status becomes REJECTED; cleared on resubmit and on a later APPROVED decision -- durable history of a past rejection lives in audit_logs, not here (DR-025)
   resubmissionCount          Int                  @default(0) // display-only counter, bumped by repository.resubmit -- not itself a business rule
   documentId                 String?              @unique @db.Uuid // the granted visa doc
+  documentStatus             VisaDocumentStatus   @default(MISSING) // DR-210: facilitator-set, independent of documentId -- see enum comment
   submittedAt                DateTime             @default(now())
   decidedAt                  DateTime?
   // DR-184: the destination country's government/immigration fee, snapshotted
