@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
@@ -11,20 +12,63 @@ async function resolveLocale(): Promise<CmsLocale> {
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
 }
 
-// Shown until staff sets a real link at /staff/cms's Footer legal tab
-// (DR-204) -- same "degrade to the original hardcoded value" convention as
-// FALLBACK_SOCIAL_LINKS below.
+// Shown until staff sets a real line at /staff/cms's Footer legal tab
+// (DR-204, whole-line template since DR-214) -- same "degrade to the
+// original hardcoded value" convention as FALLBACK_SOCIAL_LINKS below.
+// `{year}`/`{link}` are the two live placeholders `renderFooterLegalLine`
+// substitutes at render time -- `{year}` is never stored, always the real
+// current year, so the line can never go stale even though staff can edit
+// every word around it (including the brand name, deliberately, per
+// explicit user direction -- a one-line, scoped exception to DR-168's
+// otherwise-fixed brand text, not a reversal of it elsewhere).
+const FALLBACK_FOOTER_LEGAL_TEMPLATE = '© {year} Mufasa Safaris & Tours, a {link} Product.';
 const FALLBACK_FOOTER_LEGAL_LABEL = 'Cyber PolCo';
 const FALLBACK_FOOTER_LEGAL_URL = 'https://www.cyberpolco.com';
 
-async function getFooterLegalLink(locale: CmsLocale): Promise<{ label: string; url: string }> {
+interface FooterLegalContent {
+  template: string;
+  label: string;
+  url: string;
+}
+
+async function getFooterLegalContent(locale: CmsLocale): Promise<FooterLegalContent> {
   try {
     const block = await cmsService.getPublicTextBlock('footer.legal', locale);
-    if (block?.title && block.body) return { label: block.title, url: block.body };
-    return { label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
+    if (block?.title && block.body) {
+      return {
+        template: block.eyebrow?.trim() || FALLBACK_FOOTER_LEGAL_TEMPLATE,
+        label: block.title,
+        url: block.body,
+      };
+    }
+    return { template: FALLBACK_FOOTER_LEGAL_TEMPLATE, label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
   } catch {
-    return { label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
+    return { template: FALLBACK_FOOTER_LEGAL_TEMPLATE, label: FALLBACK_FOOTER_LEGAL_LABEL, url: FALLBACK_FOOTER_LEGAL_URL };
   }
+}
+
+// Splits the staff-authored template on its two placeholder tokens and
+// interleaves the live year + the actual link element -- plain text nodes
+// (React-escaped, never dangerouslySetInnerHTML) so a staff typo can't
+// inject markup.
+function renderFooterLegalLine(content: FooterLegalContent, year: number) {
+  const parts = content.template.split(/(\{year\}|\{link\})/g).filter((part) => part !== '');
+  return parts.map((part, index) => {
+    if (part === '{link}') {
+      return (
+        <a
+          key={`link-${index}`}
+          href={content.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-bold text-mist no-underline transition-colors duration-200 hover:text-amber"
+        >
+          {content.label}
+        </a>
+      );
+    }
+    return <Fragment key={`text-${index}`}>{part === '{year}' ? year : part}</Fragment>;
+  });
 }
 
 // Minimal currentColor glyphs, same hand-drawn convention as BrandMark --
@@ -71,7 +115,7 @@ export async function GuestFooter() {
   const year = new Date().getFullYear();
   const t = await getTranslations('Footer');
   const locale = await resolveLocale();
-  const [socialLinks, footerLegal] = await Promise.all([getSocialLinks(), getFooterLegalLink(locale)]);
+  const [socialLinks, footerLegal] = await Promise.all([getSocialLinks(), getFooterLegalContent(locale)]);
 
   return (
     <footer className="border-t border-rule bg-navy text-bone">
@@ -123,18 +167,7 @@ export async function GuestFooter() {
         </div>
         <div className="survey-rule mt-8 opacity-20" />
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-xs text-mist">
-            &copy; {year} Mufasa Safaris & Tours, a{' '}
-            <a
-              href={footerLegal.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-bold text-mist no-underline transition-colors duration-200 hover:text-amber"
-            >
-              {footerLegal.label}
-            </a>{' '}
-            Product.
-          </p>
+          <p className="text-xs text-mist">{renderFooterLegalLine(footerLegal, year)}</p>
           <div className="flex items-center gap-4 text-xs text-mist">
             <Link href="/terms" prefetch={false} className="hover:text-amber">
               {t('terms')}

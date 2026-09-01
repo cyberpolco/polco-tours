@@ -387,28 +387,43 @@ export async function deleteSocialLinkAction(slotKey: string): Promise<void> {
   revalidateMediaPage(SOCIAL_LINKS_PAGE);
 }
 
-// ----------------------------------------------------- Footer legal (DR-204)
+// ----------------------------------------------------- Footer legal (DR-204,
+// whole-line template since DR-214)
 // The footer's closing "© {year} Mufasa Safaris & Tours, a Cyber PolCo
-// Product." line -- the year and brand name stay hardcoded (footer.tsx),
-// same "brand name is fixed everywhere" convention DR-168 already set, but
-// the "Cyber PolCo" link text/href is staff-editable. Reuses the
-// CmsTextBlock (key='footer.legal') PageTextEditor shape -- `title` holds
-// the link label, `body` holds its href -- rather than a dedicated table,
-// same "no schema change needed" reasoning as reusing CmsMediaItem.url
-// elsewhere; its own action (not the generic updatePageTextAction) so body
-// gets real server-side URL validation (charter rule 1 -- never trust the
-// form's client-side `type="url"` alone).
+// Product." line is now a fully staff-editable template (explicit user
+// request to make "everything under Footer legal line" editable, including
+// the previously-hardcoded year/brand text) -- reuses the CmsTextBlock
+// (key='footer.legal') PageTextEditor shape: `eyebrow` holds the line
+// template (with the two live placeholders `{year}`/`{link}`,
+// footer.tsx's renderFooterLegalLine substitutes both at render time so the
+// year itself is never stored/frozen), `title` holds the link label, `body`
+// holds its href -- rather than a dedicated table, same "no schema change
+// needed" reasoning as reusing CmsMediaItem.url elsewhere. Its own action
+// (not the generic updatePageTextAction) so body gets real server-side URL
+// validation (charter rule 1 -- never trust the form's client-side
+// `type="url"` alone) and the template is guaranteed to actually render its
+// link.
 const FOOTER_LEGAL_KEY = 'footer.legal';
 const FooterLegalUrl = z.string().trim().url().max(300);
+const FooterLegalTemplate = z
+  .string()
+  .max(100)
+  .refine((value) => value.includes('{link}'), 'Template must include {link}');
 
 export async function updateFooterLegalAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
   const locale = localeFromForm(formData);
+  // Blank template -> null, so footer.tsx's own FALLBACK_FOOTER_LEGAL_TEMPLATE
+  // keeps rendering (same "degrade to the default" convention as leaving
+  // title/body unset) rather than forcing every install to type the default
+  // sentence back in verbatim.
+  const rawTemplate = String(formData.get('eyebrow') ?? '').trim();
   const input = UpdateCmsTextBlockInput.parse({
     key: FOOTER_LEGAL_KEY,
     locale,
     title: String(formData.get('title') ?? ''),
     body: FooterLegalUrl.parse(String(formData.get('body') ?? '')),
+    eyebrow: rawTemplate === '' ? null : FooterLegalTemplate.parse(rawTemplate),
   });
   await cmsService.updateTextBlock(ctx, input);
   revalidatePath('/staff/cms');

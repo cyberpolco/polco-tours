@@ -576,8 +576,7 @@ export default async function CmsPage({ searchParams }: Props) {
             current={footerLegalText}
             canWrite={canWrite}
             sectionTitle={t('footerLegalSectionTitle')}
-            eyebrowLabel=""
-            showEyebrow={false}
+            eyebrowLabel={t('footerLineTemplateLabel')}
             titleLabel={t('footerLinkTextLabel')}
             bodyLabel={t('footerLinkUrlLabel')}
             bodyType="url"

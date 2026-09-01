@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-213** (2026-09-01). This file used to carry a running
+Current through **DR-214** (2026-09-01). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -552,26 +552,37 @@ src/
                    #   i18n-string fallback) since DR-164 shipped it with no
                    #   staff-side way to write it — same shape as every other
                    #   "thin" page's editor, no new permission/table/module
-                   #   boundary change. DR-204: the guest footer's closing
-                   #   "© {year} Mufasa Safaris & Tours, a Cyber PolCo
-                   #   Product." line gets a new `/staff/cms` "Footer legal
-                   #   line" tab — year/brand name stay hardcoded
-                   #   (`footer.tsx`), only the "Cyber PolCo" link's text +
-                   #   href are staff-editable, via a sixth `CmsTextBlock`
-                   #   key (`footer.legal`: `title`=link label, `body`=href).
+                   #   boundary change. DR-204/DR-214: the guest footer's
+                   #   closing "© {year} Mufasa Safaris & Tours, a Cyber
+                   #   PolCo Product." line is a fully staff-editable
+                   #   template via a sixth `CmsTextBlock` key
+                   #   (`footer.legal`) — `eyebrow` holds the whole-line
+                   #   template (with two live placeholders, `{year}`/
+                   #   `{link}`, substituted at render time by `footer.tsx`'s
+                   #   `renderFooterLegalLine`; `{year}` is never persisted,
+                   #   always the real current year, so it can't go stale),
+                   #   `title`/`body` still hold the link label/href as
+                   #   DR-204 set them. This is a deliberate, one-line
+                   #   exception to DR-168's "brand name is fixed everywhere"
+                   #   rule (explicit user request) — every other guest-facing
+                   #   "Mufasa Safaris & Tours" occurrence stays hardcoded.
                    #   `body` is saved through its own action
                    #   (`updateFooterLegalAction`, not the generic
                    #   `updatePageTextAction`) with server-side `.url()`
-                   #   validation; `PageTextEditor` gained two opt-in props
-                   #   to support this (`bodyType='url'` — a single-line
-                   #   `<input type="url">` instead of the default textarea
-                   #   — and `formAction` to override the default action per
-                   #   instance), both no-ops for every existing caller.
-                   #   Degrades to the original hardcoded label/href on any
-                   #   read failure or until staff configures a real row,
-                   #   same convention as partners/social-links; saving
-                   #   revalidates `'/', 'layout'` (footer renders on every
-                   #   guest page), same as social-links' own special case.
+                   #   validation on the href and a check that the template
+                   #   actually contains `{link}` (so an edit can't make the
+                   #   link disappear); a blank template saves as `null` and
+                   #   falls back to the default sentence. `PageTextEditor`
+                   #   gained two opt-in props to support this tab
+                   #   (`bodyType='url'` — a single-line `<input type="url">`
+                   #   instead of the default textarea — and `formAction` to
+                   #   override the default action per instance), both no-ops
+                   #   for every existing caller. Degrades to the original
+                   #   hardcoded template/label/href on any read failure or
+                   #   until staff configures a real row, same convention as
+                   #   partners/social-links; saving revalidates `'/',
+                   #   'layout'` (footer renders on every guest page), same
+                   #   as social-links' own special case.
                    #   DR-207: /terms gets real content for the first time —
                    #   OI-02/03 (both resolved by DR-199) were the only
                    #   reason it stayed an honest placeholder. Restructured
