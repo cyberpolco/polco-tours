@@ -21,13 +21,16 @@ interface SubmitButtonProps {
   // -- e.g. CancelAndRefundSection's "I understand" checkbox. ORed with
   // `pending`, never overrides it.
   disabled?: boolean;
+  // Passed straight through to the underlying Button -- e.g. `w-full` for a
+  // button inside a fixed-width stacked action panel (visa-queue's redesign).
+  className?: string;
 }
 
 // Wraps useFormStatus so every server-action form gets a pending/disabled
 // state for free -- before this, only BookingForm (which manages its own
 // useState) had any pending feedback; every other form in the guest flow
 // gave no indication a submit was in flight.
-export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage, disabled }: SubmitButtonProps) {
+export function SubmitButton({ children, pendingLabel, variant, size, confirmMessage, disabled, className }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   const t = useTranslations('Common');
   const [pendingForm, setPendingForm] = useState<HTMLFormElement | null>(null);
@@ -38,6 +41,7 @@ export function SubmitButton({ children, pendingLabel, variant, size, confirmMes
         type="submit"
         variant={variant}
         size={size}
+        className={className}
         disabled={pending || disabled}
         onClick={
           confirmMessage

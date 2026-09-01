@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { DecideVisaInput, visaService } from '@modules/visa';
+import { ContactTravelerInput, DecideVisaInput, visaService } from '@modules/visa';
 
 export async function contactTravelerAction(bookingId: string, travelerId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('visa.process');
-  const message = String(formData.get('message') ?? '').trim();
-  await visaService.contactTraveler(ctx, bookingId, travelerId, { message });
+  const input = ContactTravelerInput.parse({ message: String(formData.get('message') ?? '') });
+  await visaService.contactTraveler(ctx, bookingId, travelerId, input);
   revalidatePath('/staff/visa-queue');
 }
 

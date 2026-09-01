@@ -268,7 +268,25 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                     )}
                   </Td>
                   <Td>
-                    {a.hasDocument ? t('yes') : <Badge tone="warning">{t('missing')}</Badge>}
+                    {/* DR-209 (explicit user request): the "Missing"/"On
+                        file" status here isn't a free-standing flag -- it's
+                        literally whether uploadVisaDocumentAction has set
+                        VisaApplication.documentId (a.hasDocument) -- so the
+                        upload control that changes it lives right here
+                        instead of buried in the Actions column, and
+                        Actions' "Request documents" button only appears
+                        while this reads Missing. */}
+                    <div className="w-36 space-y-1.5">
+                      {a.hasDocument ? <Badge tone="success">{t('onFile')}</Badge> : <Badge tone="warning">{t('missing')}</Badge>}
+                      {a.bookingId && (
+                        <form action={uploadVisaDocumentAction.bind(null, a.bookingId, a.travelerId)} className="space-y-1">
+                          <input type="file" name="document" required className="block w-full text-[11px]" />
+                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('uploading')} className="w-full">
+                            {a.hasDocument ? t('replaceDocument') : t('uploadDocument')}
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
                   </Td>
                   <Td>
                     {a.bookingId && a.hasPassport ? (
@@ -286,48 +304,71 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                   </Td>
                   <Td>{a.rejectionReason ?? '—'}</Td>
                   <Td>
+                    {/* DR-209 (explicit user request) restructure: each
+                        action group is its own labeled, bordered panel
+                        instead of five forms stacked with no separation.
+                        Message/Decision collapse behind <details> (pure
+                        CSS/HTML, no client JS) so a row only takes up the
+                        vertical space its currently-relevant actions need. */}
                     {a.bookingId && (
-                      <div className="space-y-2">
-                        <form action={contactTravelerAction.bind(null, a.bookingId, a.travelerId)} className="flex gap-2">
-                          <input
-                            name="message"
-                            required
-                            placeholder={t('messagePlaceholder')}
-                            className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
-                          />
-                          <SubmitButton size="compact" pendingLabel={t('sending')}>
-                            {t('contact')}
-                          </SubmitButton>
-                        </form>
+                      <div className="w-64 space-y-2">
+                        <details className="group rounded-card border border-rule open:bg-bone/50">
+                          <summary className="flex cursor-pointer list-none items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-navy [&::-webkit-details-marker]:hidden">
+                            {t('messageTourLead')}
+                            <span className="text-mist transition-transform duration-200 group-open:rotate-180">⌄</span>
+                          </summary>
+                          <form
+                            action={contactTravelerAction.bind(null, a.bookingId, a.travelerId)}
+                            className="space-y-1.5 border-t border-rule p-2.5"
+                          >
+                            <textarea
+                              name="message"
+                              required
+                              maxLength={1000}
+                              rows={2}
+                              placeholder={t('messagePlaceholder')}
+                              className="min-h-[3.5rem] w-full resize-y rounded-survey border border-rule px-2 py-1.5 text-xs transition-[min-height] duration-200 focus:min-h-[7rem]"
+                            />
+                            <p className="text-[11px] text-mist">{t('emailNotice')}</p>
+                            <SubmitButton size="compact" pendingLabel={t('sending')} className="w-full">
+                              {t('contact')}
+                            </SubmitButton>
+                          </form>
+                        </details>
+
                         {!a.hasDocument && (
                           <form action={requestMissingDocumentsAction.bind(null, a.bookingId, a.travelerId)}>
-                            <SubmitButton size="compact" variant="secondary" pendingLabel={t('sending')}>
+                            <SubmitButton size="compact" variant="secondary" pendingLabel={t('sending')} className="w-full">
                               {t('requestDocuments')}
                             </SubmitButton>
                           </form>
                         )}
+
                         {a.status === 'SUBMITTED' && (
-                          <form action={decideApplicationAction.bind(null, a.bookingId, a.travelerId)} className="flex flex-wrap items-center gap-2">
-                            <select name="outcome" required className="rounded-survey border border-rule px-2 py-1 text-xs">
-                              <option value="APPROVED">{t('approve')}</option>
-                              <option value="REJECTED">{t('reject')}</option>
-                            </select>
-                            <input
-                              name="reason"
-                              placeholder={t('rejectionReasonPlaceholder')}
-                              className="w-40 rounded-survey border border-rule px-2 py-1 text-xs"
-                            />
-                            <SubmitButton size="compact" pendingLabel={t('deciding')}>
-                              {t('decide')}
-                            </SubmitButton>
-                          </form>
+                          <details className="group rounded-card border border-rule open:bg-bone/50">
+                            <summary className="flex cursor-pointer list-none items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-navy [&::-webkit-details-marker]:hidden">
+                              {t('decision')}
+                              <span className="text-mist transition-transform duration-200 group-open:rotate-180">⌄</span>
+                            </summary>
+                            <form
+                              action={decideApplicationAction.bind(null, a.bookingId, a.travelerId)}
+                              className="space-y-1.5 border-t border-rule p-2.5"
+                            >
+                              <select name="outcome" required className="w-full rounded-survey border border-rule px-2 py-1 text-xs">
+                                <option value="APPROVED">{t('approve')}</option>
+                                <option value="REJECTED">{t('reject')}</option>
+                              </select>
+                              <input
+                                name="reason"
+                                placeholder={t('rejectionReasonPlaceholder')}
+                                className="w-full rounded-survey border border-rule px-2 py-1 text-xs"
+                              />
+                              <SubmitButton size="compact" pendingLabel={t('deciding')} className="w-full">
+                                {t('decide')}
+                              </SubmitButton>
+                            </form>
+                          </details>
                         )}
-                        <form action={uploadVisaDocumentAction.bind(null, a.bookingId, a.travelerId)} className="flex items-center gap-2">
-                          <input type="file" name="document" required className="w-40 text-xs" />
-                          <SubmitButton size="compact" variant="secondary" pendingLabel={t('uploading')}>
-                            {t('uploadDocument')}
-                          </SubmitButton>
-                        </form>
                       </div>
                     )}
                   </Td>

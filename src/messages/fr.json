@@ -1399,7 +1399,12 @@
     "requestFee": "Demander le paiement",
     "requestingFee": "Demande en cours…",
     "markFeePaid": "Marquer comme payé",
-    "markingFeePaid": "Marquage en cours…"
+    "markingFeePaid": "Marquage en cours…",
+    "onFile": "Reçu",
+    "replaceDocument": "Remplacer le document",
+    "messageTourLead": "Message au chef de groupe",
+    "emailNotice": "Envoyé par e-mail à l'adresse du chef de groupe enregistrée.",
+    "decision": "Décision"
   },
   "StaffCountryRegulations": {
     "backToCountryRegulations": "retour aux réglementations par pays",

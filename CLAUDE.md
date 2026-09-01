@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-208** (2026-08-31). This file used to carry a running
+Current through **DR-209** (2026-09-01). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -331,7 +331,15 @@ src/
                    #   governmentFeeMinor/governmentFeeCurrency too — it had
                    #   been the one visa projection missing them, unlike
                    #   VisaApplicationView/GuestVisaApplicationView/
-                   #   PendingVisaApplicationView
+                   #   PendingVisaApplicationView. DR-209: contactTraveler
+                   #   sends via notificationsService.notifyEmail (Resend
+                   #   only, no WhatsApp/SMS fallback) straight to the tour
+                   #   lead's on-file email (Traveler.email -> Booking
+                   #   .contactEmail -> the touristUserId's own User.email,
+                   #   same resolution order as booking's
+                   #   cancelForBookingLookup, DR-207) instead of notify()'s
+                   #   usual fallback chain — /staff/visa-queue's Actions
+                   #   column restructure, same DR
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text

@@ -247,17 +247,40 @@ export const visaService = {
 
   /** Immigration Module (DR-034): "contact travellers." A Traveler isn't
    * itself a User account (only the booking's tour lead is), so this
-   * notifies the booking's touristUserId -- the person actually responsible
-   * for that traveler's paperwork -- via the existing notifications module
-   * (WhatsApp -> SMS -> email fallback, charter rule 8). */
+   * reaches the booking's tour lead directly.
+   *
+   * DR-209 (explicit user request): unlike every other visa notification in
+   * this module, this one deliberately bypasses notify()'s
+   * WhatsApp -> SMS -> email fallback chain (charter rule 8) and sends
+   * straight over EMAIL via Resend (notificationsService.notifyEmail,
+   * RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>",
+   * DR-205) -- a facilitator's free-text message is meant to land in the
+   * tour lead's inbox specifically, not wherever the fallback chain happens
+   * to land first. Resolves the recipient address the same way
+   * bookingService.cancelForBookingLookup does (the tour lead Traveler's own
+   * `email`, falling back to the booking's guest-typed `contactEmail`) --
+   * both are "the tour lead's on-file email," just reached from a staff
+   * session instead of a guest lookup. Falls back once more to the
+   * touristUserId's own User.email (non-nullable) on the rare booking with
+   * neither -- same graceful-degradation posture as charter rule 8, never a
+   * hard failure just because neither of the two more-specific fields was
+   * ever collected (e.g. a PREDEFINED_PACKAGE booking with no
+   * contactEmail whose tour lead skipped the optional email field). */
   async contactTraveler(ctx: AuthContext, bookingId: string, travelerId: string, input: ContactTravelerInput): Promise<void> {
     assertCan(ctx, 'visa.process');
     const organizationId = requireOrg(ctx);
-    const traveler = await findTraveler(ctx, bookingId, travelerId);
+    const travelers = await bookingService.listTravelers(ctx, bookingId);
+    const traveler = travelers.find((t) => t.id === travelerId);
+    if (!traveler) throw Errors.notFound('Traveler not found');
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
     if (!booking) throw Errors.notFound('Booking not found for this traveler');
+    const tourist = await authService.getUser(booking.touristUserId);
 
-    await notificationsService.notify('VISA_CONTACT_TRAVELER', booking.touristUserId, organizationId, {
+    const lead = travelers.find((t) => t.isTourLead);
+    const email = lead?.email ?? booking.contactEmail ?? tourist?.email;
+    if (!email) throw Errors.validation('No email on file for this booking’s tour lead');
+
+    await notificationsService.notifyEmail('VISA_CONTACT_TRAVELER', email, tourist?.preferredLocale ?? 'EN', organizationId, {
       travelerName: `${traveler.firstName} ${traveler.lastName}`,
       message: input.message,
     });
@@ -268,7 +291,7 @@ export const visaService = {
       resourceType: 'Traveler',
       resourceId: travelerId,
       organizationId,
-      metadata: { message: input.message },
+      metadata: { message: input.message, channel: 'EMAIL', to: email },
     });
   },
 

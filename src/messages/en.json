@@ -1399,7 +1399,12 @@
     "requestFee": "Request payment",
     "requestingFee": "Requesting…",
     "markFeePaid": "Mark paid",
-    "markingFeePaid": "Marking paid…"
+    "markingFeePaid": "Marking paid…",
+    "onFile": "On file",
+    "replaceDocument": "Replace document",
+    "messageTourLead": "Message tour lead",
+    "emailNotice": "Sent by email to the tour lead's address on file.",
+    "decision": "Decision"
   },
   "StaffCountryRegulations": {
     "backToCountryRegulations": "back to country regulations",
