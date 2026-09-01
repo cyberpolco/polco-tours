@@ -304,14 +304,26 @@ export default async function VisaQueuePage({ searchParams }: Props) {
                         </form>
                       )}
                       {a.hasDocument && a.bookingId && (
-                        <a
-                          href={`/api/v1/bookings/${a.bookingId}/travelers/${a.travelerId}/visa/document`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block text-xs text-forest hover:underline"
-                        >
-                          {t('view')}
-                        </a>
+                        // DR-213 (explicit user request): the original
+                        // uploaded filename shown next to "View" so staff
+                        // can tell what was actually uploaded without
+                        // opening it -- title attr carries the full name
+                        // when it's too long to fit and gets truncated.
+                        <div className="flex min-w-0 items-baseline gap-1 text-xs">
+                          <a
+                            href={`/api/v1/bookings/${a.bookingId}/travelers/${a.travelerId}/visa/document`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-forest hover:underline"
+                          >
+                            {t('view')}
+                          </a>
+                          {a.documentFileName && (
+                            <span className="min-w-0 flex-1 truncate text-mist" title={a.documentFileName}>
+                              {a.documentFileName}
+                            </span>
+                          )}
+                        </div>
                       )}
                       {a.bookingId && (
                         <form action={uploadVisaDocumentAction.bind(null, a.bookingId, a.travelerId)} className="space-y-1">

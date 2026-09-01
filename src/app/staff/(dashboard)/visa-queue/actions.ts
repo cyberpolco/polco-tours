@@ -49,6 +49,7 @@ export async function uploadVisaDocumentAction(bookingId: string, travelerId: st
     contentType: file.type,
     sizeBytes: file.size,
     bytes,
+    fileName: file.name,
   });
   revalidatePath('/staff/visa-queue');
 }

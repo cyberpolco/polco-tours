@@ -36,6 +36,7 @@ export const POST = withAuth<Params>('visa.process', async (ctx, req: NextReques
     contentType: file.type,
     sizeBytes: file.size,
     bytes,
+    fileName: file.name,
   });
   return NextResponse.json({ document }, { status: 201 });
 });

@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-212** (2026-09-01). This file used to carry a running
+Current through **DR-213** (2026-09-01). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -354,7 +354,11 @@ src/
                    #   path — the service method + its own REST route +
                    #   VISA_MISSING_DOCUMENTS event are untouched, still
                    #   reachable via the API, just no longer this page's own
-                   #   button
+                   #   button. DR-213: VisaApplication also gains
+                   #   documentFileName (nullable, the original uploaded
+                   #   filename) — set alongside documentId in
+                   #   uploadDocument, cleared alongside it on resubmit;
+                   #   shown next to the Document column's "View" link
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text

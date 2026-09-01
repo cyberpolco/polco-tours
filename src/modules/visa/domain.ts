@@ -11,6 +11,8 @@ export interface VisaApplicationView {
   rejectionReason: string | null;
   resubmissionCount: number;
   documentId: string | null;
+  // DR-213: the original uploaded filename, set alongside documentId.
+  documentFileName: string | null;
   // DR-210: facilitator-set, independent of whether documentId is actually
   // set -- see the VisaDocumentStatus enum's own schema.prisma comment.
   documentStatus: VisaDocumentStatus;
@@ -60,6 +62,9 @@ export interface FacilitatorVisaView {
   rejectionReason: string | null;
   resubmissionCount: number;
   hasDocument: boolean;
+  // DR-213: the original uploaded filename, shown next to the "View" link
+  // on /staff/visa-queue -- null whenever hasDocument is false.
+  documentFileName: string | null;
   // DR-210: the facilitator-set Missing/Received/Not required status --
   // independent of hasDocument above, which stays tied to whether a real
   // file (documentId) exists. /staff/visa-queue's "Request documents"

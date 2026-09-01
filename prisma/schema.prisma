@@ -1064,6 +1064,7 @@ model VisaApplication {
   rejectionReason            String?              @db.VarChar(500) // set when status becomes REJECTED; cleared on resubmit and on a later APPROVED decision -- durable history of a past rejection lives in audit_logs, not here (DR-025)
   resubmissionCount          Int                  @default(0) // display-only counter, bumped by repository.resubmit -- not itself a business rule
   documentId                 String?              @unique @db.Uuid // the granted visa doc
+  documentFileName           String?              @db.VarChar(255) // DR-213: the original uploaded filename (e.g. "visa_approval.pdf"), shown next to the "View" link on /staff/visa-queue -- set alongside documentId on upload, cleared alongside it on resubmit
   documentStatus             VisaDocumentStatus   @default(MISSING) // DR-210: facilitator-set, independent of documentId -- see enum comment
   submittedAt                DateTime             @default(now())
   decidedAt                  DateTime?

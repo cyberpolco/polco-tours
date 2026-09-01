@@ -39,6 +39,7 @@ function toView(a: VisaApplication): VisaApplicationView {
     rejectionReason: a.rejectionReason,
     resubmissionCount: a.resubmissionCount,
     documentId: a.documentId,
+    documentFileName: a.documentFileName,
     documentStatus: a.documentStatus,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
@@ -65,6 +66,7 @@ function toFacilitatorRow(a: VisaApplication): FacilitatorVisaRow {
     rejectionReason: a.rejectionReason,
     resubmissionCount: a.resubmissionCount,
     hasDocument: a.documentId !== null,
+    documentFileName: a.documentFileName,
     documentStatus: a.documentStatus,
     submittedAt: a.submittedAt,
     decidedAt: a.decidedAt,
@@ -107,11 +109,11 @@ export const visaRepository = {
     });
   },
 
-  /** DR-025: resets the SAME row REJECTED -> SUBMITTED. Nulls documentId so
-   * a stale rejected document stops 200'ing from streamDocument; nulls
-   * rejectionReason/decidedAt to reflect a fresh, undecided cycle; bumps
-   * submittedAt so the facilitator queue (ordered by submittedAt desc)
-   * actually resurfaces it for review. */
+  /** DR-025: resets the SAME row REJECTED -> SUBMITTED. Nulls documentId (and
+   * DR-213's documentFileName alongside it) so a stale rejected document
+   * stops 200'ing from streamDocument; nulls rejectionReason/decidedAt to
+   * reflect a fresh, undecided cycle; bumps submittedAt so the facilitator
+   * queue (ordered by submittedAt desc) actually resurfaces it for review. */
   async resubmit(organizationId: string, id: string, feeRefresh?: ResubmitFeeRefresh): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
       const a = await tx.visaApplication.update({
@@ -121,6 +123,7 @@ export const visaRepository = {
           submittedAt: new Date(),
           decidedAt: null,
           documentId: null,
+          documentFileName: null,
           rejectionReason: null,
           resubmissionCount: { increment: 1 },
           ...(feeRefresh
@@ -156,9 +159,13 @@ export const visaRepository = {
     });
   },
 
-  async setDocument(organizationId: string, id: string, documentId: string): Promise<VisaApplicationView> {
+  // DR-213: fileName is the original uploaded filename, shown next to the
+  // "View" link on /staff/visa-queue -- optional only because a handful of
+  // pre-DR-213 callers (none left after this change, but kept defensive)
+  // might not have one to pass.
+  async setDocument(organizationId: string, id: string, documentId: string, fileName: string | null): Promise<VisaApplicationView> {
     return withOrg(organizationId, async (tx) => {
-      const a = await tx.visaApplication.update({ where: { id }, data: { documentId } });
+      const a = await tx.visaApplication.update({ where: { id }, data: { documentId, documentFileName: fileName } });
       return toView(a);
     });
   },

@@ -71,6 +71,10 @@ export interface UploadVisaDocumentInput {
   contentType: string;
   sizeBytes: number;
   bytes: Buffer;
+  // DR-213: the original uploaded filename, shown next to the "View" link
+  // on /staff/visa-queue -- not persisted by the documents module itself
+  // (Document has no filename column), just snapshotted onto VisaApplication.
+  fileName: string;
 }
 
 export const visaService = {
@@ -424,8 +428,9 @@ export const visaService = {
     const application = await visaRepository.findByTravelerId(organizationId, travelerId);
     if (!application) throw Errors.notFound('Visa application not found');
 
-    const doc = await documentsService.uploadDocument(ctx, { ...input, kind: 'VISA' });
-    await visaRepository.setDocument(organizationId, application.id, doc.id);
+    const { fileName, ...uploadInput } = input;
+    const doc = await documentsService.uploadDocument(ctx, { ...uploadInput, kind: 'VISA' });
+    await visaRepository.setDocument(organizationId, application.id, doc.id, fileName);
     return doc;
   },
 
