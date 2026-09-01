@@ -209,7 +209,7 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
     ratingCodeStatus !== null;
 
   return (
-    <div className="max-w-md">
+    <div>
       <Reveal>
         <p className="eyebrow text-mist">{isTailorMadeInquiry ? t('yourTripRequest') : t('yourBooking')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{booking.bookingReference}</h1>
@@ -222,76 +222,33 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
 
       {isTailorMadeInquiry && (
         <Reveal delay={0.1}>
-        <div className="pt-4">
-          {booking.status === 'AWAITING_QUOTATION' && <Alert tone="success">{t('receivedTripRequest')}</Alert>}
-          {booking.status === 'QUOTATION_SENT' && (
-            <Alert tone="success">
-              {t('quotationReadySignIn', { price: formatOrPending(booking.priceMinor, booking.currency) })}
-            </Alert>
-          )}
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('requestSummary')}</p>
-            <Card className="mt-2">
-              <dl className="space-y-2 text-sm">
-                {booking.preferredCountries.length > 0 && (
-                  <div>
-                    <dt className="text-xs text-mist">{t('destinations')}</dt>
-                    <dd>{booking.preferredCountries.map((c) => countryLabel(c, tCountries)).join(', ')}</dd>
-                  </div>
-                )}
-                {booking.customTravelStart && booking.customTravelEnd && (
-                  <div>
-                    <dt className="text-xs text-mist">{t('travelDates')}</dt>
-                    <dd>
-                      {formatDate(booking.customTravelStart, locale)} – {formatDate(booking.customTravelEnd, locale)}
-                    </dd>
-                  </div>
-                )}
-                {booking.customDescription && (
-                  <div>
-                    <dt className="text-xs text-mist">{t('tripDescription')}</dt>
-                    <dd>{booking.customDescription}</dd>
-                  </div>
-                )}
-              </dl>
-            </Card>
+          <div className="mt-4 space-y-3">
+            {booking.status === 'AWAITING_QUOTATION' && <Alert tone="success">{t('receivedTripRequest')}</Alert>}
+            {booking.status === 'QUOTATION_SENT' && (
+              <Alert tone="success">
+                {t('quotationReadySignIn', { price: formatOrPending(booking.priceMinor, booking.currency) })}
+              </Alert>
+            )}
           </div>
-        </div>
         </Reveal>
       )}
 
-      {(tripSummary || showCustomTripFallback) && (
-        <Reveal delay={0.15}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('tripDetails')}</p>
-            {tripSummary ? (
-              <Card className="mt-2">
-                <PackageImage
-                  imageUrl={tripSummary.imageUrl}
-                  alt={tripSummary.title}
-                  seed={booking.departureId ?? tripSummary.title}
-                  className="mb-4"
-                />
-                <p className="font-semibold text-navy">{tripSummary.title}</p>
-                <p className="mt-1 text-sm text-mist">
-                  {countryLabel(tripSummary.country, tCountries)}
-                  {tripSummary.durationDays != null && ` · ${t('dayTrip', { days: tripSummary.durationDays })}`}
-                </p>
-                <p className="mt-2 text-sm">
-                  {formatDate(tripSummary.startDate, locale)}
-                  {tripSummary.endDate && <> – {formatDate(tripSummary.endDate, locale)}</>}
-                </p>
-                <p className="mt-2 text-sm text-mist">{tripSummary.description}</p>
-              </Card>
-            ) : (
+      {/* Every card below lays out in rows and columns (not one long
+          vertical stack), same width as the rest of the guest site's
+          content (no extra max-w wrapper here, matching /faq) -- explicit
+          user request. `items-start` keeps a short card from being
+          stretched to match a taller neighbor in the same row. */}
+      <div className="mt-8 grid grid-cols-1 items-start gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {isTailorMadeInquiry && (
+          <Reveal delay={0.15}>
+            <div>
+              <p className="eyebrow text-mist">{t('requestSummary')}</p>
               <Card className="mt-2">
                 <dl className="space-y-2 text-sm">
-                  {booking.customCountry && (
+                  {booking.preferredCountries.length > 0 && (
                     <div>
-                      <dt className="text-xs text-mist">{t('destination')}</dt>
-                      <dd>{countryLabel(booking.customCountry, tCountries)}</dd>
+                      <dt className="text-xs text-mist">{t('destinations')}</dt>
+                      <dd>{booking.preferredCountries.map((c) => countryLabel(c, tCountries)).join(', ')}</dd>
                     </div>
                   )}
                   {booking.customTravelStart && booking.customTravelEnd && (
@@ -310,222 +267,276 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
                   )}
                 </dl>
               </Card>
-            )}
-          </div>
-        </Reveal>
-      )}
+            </div>
+          </Reveal>
+        )}
 
-      {travelers.length > 0 && (
-        <Reveal delay={0.2}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('travelers')}</p>
-            <Card className="mt-2">
-              <ul className="space-y-1 text-sm">
-                {travelers.map((tv) => (
-                  <li key={tv.id}>
-                    {tv.firstName} {tv.lastName}{' '}
-                    {tv.isTourLead && <span className="text-forest">{t('tourLeadParenthetical')}</span>}
-                    {tv.isTourLead && (tv.phone || tv.email) && (
-                      <div className="text-xs text-mist">{[tv.phone, tv.email].filter(Boolean).join(' · ')}</div>
+        {(tripSummary || showCustomTripFallback) && (
+          <Reveal delay={0.2}>
+            <div>
+              <p className="eyebrow text-mist">{t('tripDetails')}</p>
+              {tripSummary ? (
+                <Card className="mt-2">
+                  <PackageImage
+                    imageUrl={tripSummary.imageUrl}
+                    alt={tripSummary.title}
+                    seed={booking.departureId ?? tripSummary.title}
+                    className="mb-4"
+                  />
+                  <p className="font-semibold text-navy">{tripSummary.title}</p>
+                  <p className="mt-1 text-sm text-mist">
+                    {countryLabel(tripSummary.country, tCountries)}
+                    {tripSummary.durationDays != null && ` · ${t('dayTrip', { days: tripSummary.durationDays })}`}
+                  </p>
+                  <p className="mt-2 text-sm">
+                    {formatDate(tripSummary.startDate, locale)}
+                    {tripSummary.endDate && <> – {formatDate(tripSummary.endDate, locale)}</>}
+                  </p>
+                  <p className="mt-2 text-sm text-mist">{tripSummary.description}</p>
+                </Card>
+              ) : (
+                <Card className="mt-2">
+                  <dl className="space-y-2 text-sm">
+                    {booking.customCountry && (
+                      <div>
+                        <dt className="text-xs text-mist">{t('destination')}</dt>
+                        <dd>{countryLabel(booking.customCountry, tCountries)}</dd>
+                      </div>
                     )}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </div>
-        </Reveal>
-      )}
+                    {booking.customTravelStart && booking.customTravelEnd && (
+                      <div>
+                        <dt className="text-xs text-mist">{t('travelDates')}</dt>
+                        <dd>
+                          {formatDate(booking.customTravelStart, locale)} – {formatDate(booking.customTravelEnd, locale)}
+                        </dd>
+                      </div>
+                    )}
+                    {booking.customDescription && (
+                      <div>
+                        <dt className="text-xs text-mist">{t('tripDescription')}</dt>
+                        <dd>{booking.customDescription}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </Card>
+              )}
+            </div>
+          </Reveal>
+        )}
 
-      {addons.length > 0 && (
-        <Reveal delay={0.25}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('addOns')}</p>
-            <Card className="mt-2">
-              <ul className="space-y-1 text-sm">
-                {addons.map((a) => (
-                  <li key={a.id}>
-                    {addonNames.get(a.addonServiceId) ?? t('addonFallbackName')} · {format(money(a.priceMinor, a.currency))}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </div>
-        </Reveal>
-      )}
+        {travelers.length > 0 && (
+          <Reveal delay={0.25}>
+            <div>
+              <p className="eyebrow text-mist">{t('travelers')}</p>
+              <Card className="mt-2">
+                <ul className="space-y-1 text-sm">
+                  {travelers.map((tv) => (
+                    <li key={tv.id}>
+                      {tv.firstName} {tv.lastName}{' '}
+                      {tv.isTourLead && <span className="text-forest">{t('tourLeadParenthetical')}</span>}
+                      {tv.isTourLead && (tv.phone || tv.email) && (
+                        <div className="text-xs text-mist">{[tv.phone, tv.email].filter(Boolean).join(' · ')}</div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          </Reveal>
+        )}
 
-      {billingSummary && (
-        <Reveal delay={0.28}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('priceAndPayment')}</p>
-            <Card className="mt-2 space-y-3 text-sm">
-              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs text-mist">{t('subtotal')}</dt>
-                  <dd>{format(money(billingSummary.subtotalMinor, billingSummary.currency))}</dd>
-                </div>
-                {billingSummary.discountMinor > 0 && (
+        {addons.length > 0 && (
+          <Reveal delay={0.3}>
+            <div>
+              <p className="eyebrow text-mist">{t('addOns')}</p>
+              <Card className="mt-2">
+                <ul className="space-y-1 text-sm">
+                  {addons.map((a) => (
+                    <li key={a.id}>
+                      {addonNames.get(a.addonServiceId) ?? t('addonFallbackName')} · {format(money(a.priceMinor, a.currency))}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </div>
+          </Reveal>
+        )}
+
+        {billingSummary && (
+          <Reveal delay={0.35}>
+            <div>
+              <p className="eyebrow text-mist">{t('priceAndPayment')}</p>
+              <Card className="mt-2 space-y-3 text-sm">
+                <dl className="grid grid-cols-2 gap-3">
                   <div>
-                    <dt className="text-xs text-mist">{t('discount')}</dt>
-                    <dd>−{format(money(billingSummary.discountMinor, billingSummary.currency))}</dd>
+                    <dt className="text-xs text-mist">{t('subtotal')}</dt>
+                    <dd>{format(money(billingSummary.subtotalMinor, billingSummary.currency))}</dd>
+                  </div>
+                  {billingSummary.discountMinor > 0 && (
+                    <div>
+                      <dt className="text-xs text-mist">{t('discount')}</dt>
+                      <dd>−{format(money(billingSummary.discountMinor, billingSummary.currency))}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs text-mist">{t('tax')}</dt>
+                    <dd>{format(money(billingSummary.taxMinor, billingSummary.currency))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-mist">{t('deposit')}</dt>
+                    <dd>{format(money(billingSummary.depositMinor, billingSummary.currency))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-mist">{t('balance')}</dt>
+                    <dd>{format(money(billingSummary.balanceMinor, billingSummary.currency))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-mist">{t('total')}</dt>
+                    <dd className="font-semibold text-navy">{format(money(billingSummary.totalMinor, billingSummary.currency))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-mist">{t('status')}</dt>
+                    <dd>
+                      <Badge tone={INVOICE_STATUS_TONE[billingSummary.status]}>{tInvoiceStatus(billingSummary.status)}</Badge>
+                    </dd>
+                  </div>
+                </dl>
+                {billingSummary.payments.length > 0 && (
+                  <div>
+                    <p className="text-xs text-mist">{t('payments')}</p>
+                    <ul className="mt-1 space-y-1">
+                      {billingSummary.payments.map((p) => (
+                        <li key={p.id}>
+                          {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))} ·{' '}
+                          <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
-                <div>
-                  <dt className="text-xs text-mist">{t('tax')}</dt>
-                  <dd>{format(money(billingSummary.taxMinor, billingSummary.currency))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-mist">{t('deposit')}</dt>
-                  <dd>{format(money(billingSummary.depositMinor, billingSummary.currency))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-mist">{t('balance')}</dt>
-                  <dd>{format(money(billingSummary.balanceMinor, billingSummary.currency))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-mist">{t('total')}</dt>
-                  <dd className="font-semibold text-navy">{format(money(billingSummary.totalMinor, billingSummary.currency))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-mist">{t('status')}</dt>
-                  <dd>
-                    <Badge tone={INVOICE_STATUS_TONE[billingSummary.status]}>{tInvoiceStatus(billingSummary.status)}</Badge>
-                  </dd>
-                </div>
+                {canDownloadInvoicePdf(billingSummary.status) && (
+                  <p className="text-xs text-mist">
+                    {t('downloadInvoicePdf')}{' '}
+                    <a
+                      href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=en`}
+                      className="font-semibold text-amber underline"
+                    >
+                      {t('downloadInvoiceEn')}
+                    </a>{' '}
+                    ·{' '}
+                    <a
+                      href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=fr`}
+                      className="font-semibold text-amber underline"
+                    >
+                      {t('downloadInvoiceFr')}
+                    </a>
+                  </p>
+                )}
+              </Card>
+            </div>
+          </Reveal>
+        )}
+
+        {hasTripStatus && (
+          <Reveal delay={0.4}>
+            <div>
+              <p className="eyebrow text-mist">{t('tripStatus')}</p>
+              <Card className="mt-2">
+              <dl className="space-y-3 text-sm">
+                {itineraryStatus && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('itinerary')}</dt>
+                    <dd>
+                      <Badge tone={ITINERARY_STATUS_TONE[itineraryStatus]}>{tItineraryStatus(itineraryStatus)}</Badge>
+                    </dd>
+                  </div>
+                )}
+                {vehicles.length > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('vehicleCount', { count: vehicles.length })}</dt>
+                    <dd>
+                      {vehicles
+                        .map((v) => `${v.make} ${v.model} (${v.plateNumber})`)
+                        .join(', ')}
+                    </dd>
+                  </div>
+                )}
+                {driverNames.length > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('driverCount', { count: driverNames.length })}</dt>
+                    <dd>{driverNames.join(', ')}</dd>
+                  </div>
+                )}
+                {guideNames.length > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('guideCount', { count: guideNames.length })}</dt>
+                    <dd>{guideNames.join(', ')}</dd>
+                  </div>
+                )}
+                {starlinkKits.size > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('vehicleTracking')}</dt>
+                    <dd>{t('starlinkAssigned', { count: starlinkKits.size })}</dd>
+                  </div>
+                )}
+                {visaStatuses.size > 0 && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('visaStatus')}</dt>
+                    <dd className="space-y-1">
+                      {travelers
+                        .filter((tv) => visaStatuses.has(tv.id))
+                        .map((tv) => {
+                          const v = visaStatuses.get(tv.id)!;
+                          return (
+                            <div key={tv.id} className="flex flex-wrap items-center gap-2">
+                              <span>
+                                {tv.firstName} {tv.lastName}
+                              </span>
+                              <Badge tone={VISA_STATUS_TONE[v.status]}>{tVisaStatus(v.status)}</Badge>
+                              {/* DR-184: the government-fee status is only worth
+                                  showing once staff has actually acted on it --
+                                  NOT_REQUESTED is a non-actionable "nothing has
+                                  happened yet" state, per explicit user scoping. */}
+                              {v.feePaymentStatus !== 'NOT_REQUESTED' && (
+                                <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[v.feePaymentStatus]}>
+                                  {t('feePaymentPrefix')} {tFeeStatus(v.feePaymentStatus)}
+                                  {/* DR-208 (explicit user request): show the actual
+                                      amount alongside the status badge, not just the
+                                      word "Requested"/"Paid" -- null whenever the
+                                      destination country has no public fee configured. */}
+                                  {v.governmentFeeMinor != null && v.governmentFeeCurrency && (
+                                    <> · {format(money(v.governmentFeeMinor, v.governmentFeeCurrency))}</>
+                                  )}
+                                </Badge>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </dd>
+                  </div>
+                )}
+                {ratingCodeStatus && (
+                  <div>
+                    <dt className="text-xs text-mist">{t('feedback')}</dt>
+                    <dd>{ratingCodeStatus.available ? t('ratingCodeAvailable') : t('ratingCodeUnavailable')}</dd>
+                  </div>
+                )}
               </dl>
-              {billingSummary.payments.length > 0 && (
-                <div>
-                  <p className="text-xs text-mist">{t('payments')}</p>
-                  <ul className="mt-1 space-y-1">
-                    {billingSummary.payments.map((p) => (
-                      <li key={p.id}>
-                        {tPaymentKind(p.kind)} · {format(money(p.amountMinor, p.currency))} ·{' '}
-                        <Badge tone={PAYMENT_STATUS_TONE[p.status]}>{tPaymentStatus(p.status)}</Badge>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {canDownloadInvoicePdf(billingSummary.status) && (
-                <p className="text-xs text-mist">
-                  {t('downloadInvoicePdf')}{' '}
-                  <a
-                    href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=en`}
-                    className="font-semibold text-amber underline"
-                  >
-                    {t('downloadInvoiceEn')}
-                  </a>{' '}
-                  ·{' '}
-                  <a
-                    href={`/api/v1/find-booking/invoice-pdf?bookingReference=${encodeURIComponent(bookingReference)}&lastName=${encodeURIComponent(lastName)}&locale=fr`}
-                    className="font-semibold text-amber underline"
-                  >
-                    {t('downloadInvoiceFr')}
-                  </a>
-                </p>
-              )}
-            </Card>
-          </div>
-        </Reveal>
-      )}
+              </Card>
+            </div>
+          </Reveal>
+        )}
 
-      {hasTripStatus && (
-        <Reveal delay={0.35}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
-            <p className="eyebrow text-mist">{t('tripStatus')}</p>
-            <Card className="mt-2">
-            <dl className="space-y-3 text-sm">
-              {itineraryStatus && (
-                <div>
-                  <dt className="text-xs text-mist">{t('itinerary')}</dt>
-                  <dd>
-                    <Badge tone={ITINERARY_STATUS_TONE[itineraryStatus]}>{tItineraryStatus(itineraryStatus)}</Badge>
-                  </dd>
-                </div>
-              )}
-              {vehicles.length > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">{t('vehicleCount', { count: vehicles.length })}</dt>
-                  <dd>
-                    {vehicles
-                      .map((v) => `${v.make} ${v.model} (${v.plateNumber})`)
-                      .join(', ')}
-                  </dd>
-                </div>
-              )}
-              {driverNames.length > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">{t('driverCount', { count: driverNames.length })}</dt>
-                  <dd>{driverNames.join(', ')}</dd>
-                </div>
-              )}
-              {guideNames.length > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">{t('guideCount', { count: guideNames.length })}</dt>
-                  <dd>{guideNames.join(', ')}</dd>
-                </div>
-              )}
-              {starlinkKits.size > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">{t('vehicleTracking')}</dt>
-                  <dd>{t('starlinkAssigned', { count: starlinkKits.size })}</dd>
-                </div>
-              )}
-              {visaStatuses.size > 0 && (
-                <div>
-                  <dt className="text-xs text-mist">{t('visaStatus')}</dt>
-                  <dd className="space-y-1">
-                    {travelers
-                      .filter((tv) => visaStatuses.has(tv.id))
-                      .map((tv) => {
-                        const v = visaStatuses.get(tv.id)!;
-                        return (
-                          <div key={tv.id} className="flex flex-wrap items-center gap-2">
-                            <span>
-                              {tv.firstName} {tv.lastName}
-                            </span>
-                            <Badge tone={VISA_STATUS_TONE[v.status]}>{tVisaStatus(v.status)}</Badge>
-                            {/* DR-184: the government-fee status is only worth
-                                showing once staff has actually acted on it --
-                                NOT_REQUESTED is a non-actionable "nothing has
-                                happened yet" state, per explicit user scoping. */}
-                            {v.feePaymentStatus !== 'NOT_REQUESTED' && (
-                              <Badge tone={VISA_FEE_PAYMENT_STATUS_TONE[v.feePaymentStatus]}>
-                                {t('feePaymentPrefix')} {tFeeStatus(v.feePaymentStatus)}
-                                {/* DR-208 (explicit user request): show the actual
-                                    amount alongside the status badge, not just the
-                                    word "Requested"/"Paid" -- null whenever the
-                                    destination country has no public fee configured. */}
-                                {v.governmentFeeMinor != null && v.governmentFeeCurrency && (
-                                  <> · {format(money(v.governmentFeeMinor, v.governmentFeeCurrency))}</>
-                                )}
-                              </Badge>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </dd>
-                </div>
-              )}
-              {ratingCodeStatus && (
-                <div>
-                  <dt className="text-xs text-mist">{t('feedback')}</dt>
-                  <dd>{ratingCodeStatus.available ? t('ratingCodeAvailable') : t('ratingCodeUnavailable')}</dd>
-                </div>
-              )}
-            </dl>
-            </Card>
-          </div>
-        </Reveal>
-      )}
+      </div>
 
+      {/* Deliberately outside and after the card grid above, full-width --
+          explicit user request that Cancel this booking always sits at the
+          very bottom of the page, never just another grid cell that could
+          land anywhere the grid's auto-placement puts it. */}
       {cancellable && cancelTierLabel && (
-        <Reveal delay={0.4}>
-          <div className="survey-rule mt-6" />
-          <div className="pt-6">
+        <Reveal delay={0.5}>
+          <div className="survey-rule mt-8" />
+          <div className="mt-8">
             <p className="eyebrow text-mist">{t('cancelSectionTitle')}</p>
             <CancelAndRefundSection
               bookingReference={booking.bookingReference}
