@@ -4,7 +4,7 @@
 // bespoke log model (DR-013).
 import type { Currency, Locale, PaymentKind } from '@prisma/client';
 import { format, money } from '@lib/money';
-import { renderBrandedEmail } from './email-template';
+import { FONT_SANS, renderBrandedEmail } from './email-template';
 
 export type NotificationChannel = 'WHATSAPP' | 'SMS' | 'EMAIL';
 
@@ -136,8 +136,8 @@ function summaryTable(rows: Array<[string, string | null | undefined]>): string 
     .map(
       ([label, value]) => `
       <tr>
-        <td style="padding:6px 12px 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8C7D78;white-space:nowrap;vertical-align:top;">${label}</td>
-        <td style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#211A1D;">${value}</td>
+        <td style="padding:6px 12px 6px 0;font-family:${FONT_SANS};font-size:13px;color:#8C7D78;white-space:nowrap;vertical-align:top;">${label}</td>
+        <td style="padding:6px 0;font-family:${FONT_SANS};font-size:13px;font-weight:700;color:#211A1D;">${value}</td>
       </tr>`,
     )
     .join('');
