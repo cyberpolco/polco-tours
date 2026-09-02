@@ -1,8 +1,17 @@
 // auth module — repository. The only place that touches the DB for this module.
 import type { Role } from '@prisma/client';
 import { prisma, withOrg } from '@lib/db';
+import { Errors } from '@lib/errors';
 import { DORMANCY_THRESHOLD_DAYS } from './domain';
 import type { PublicUser, UpdateProfileInput } from './domain';
+
+function isRecordNotFoundError(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2025';
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 interface RawUser {
   id: string;
@@ -156,16 +165,37 @@ export const authRepository = {
     userId: string,
     input: { role: Role; phone: string | null; organizationId: string },
   ): Promise<void> {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        role: input.role,
-        phone: input.phone,
-        organizationId: input.organizationId,
-        emailVerified: true,
-        mustChangePassword: true,
-      },
-    });
+    // Real production incident (2026-09): this update, run immediately after
+    // auth.api.signUpEmail resolves with `userId`, has been observed to fail
+    // with P2025 "Record to update not found" even though the row shows up
+    // moments later on /staff/admin/users -- the row exists, it's just not
+    // yet visible to this immediate follow-up query. Root cause not fully
+    // confirmed (suspected Neon pooler read-after-write timing), so this
+    // retries a few times before giving up, rather than letting a raw
+    // PrismaClientKnownRequestError crash the create-user Server Action.
+    const MAX_ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            role: input.role,
+            phone: input.phone,
+            organizationId: input.organizationId,
+            emailVerified: true,
+            mustChangePassword: true,
+          },
+        });
+        return;
+      } catch (e) {
+        if (isRecordNotFoundError(e) && attempt < MAX_ATTEMPTS) {
+          await delay(attempt * 150);
+          continue;
+        }
+        if (isRecordNotFoundError(e)) throw Errors.internal();
+        throw e;
+      }
+    }
   },
 
   /** DR-026: inserts one Membership row per role a newly-created user holds. */
