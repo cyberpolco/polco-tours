@@ -45,6 +45,13 @@ const SIGNATURE: Record<BrandedEmailOptions['audience'], string> = {
 
 const AUTOMATED_NOTICE = 'This is an automated message &mdash; please do not reply to this email.';
 
+// Explicit user request: every automated email footer credits the parent
+// company, same "a Cyber PolCo Product" convention as the guest site's own
+// footer legal line (CmsTextBlock key footer.legal, DR-204/214) -- fixed
+// here rather than a per-event param, same reasoning as SIGNATURE/
+// AUTOMATED_NOTICE above.
+const POWERED_BY = '<a href="https://www.cyberpolco.com" style="color:#8C7D78;text-decoration:underline;">www.cyberpolco.com</a>';
+
 export function renderBrandedEmail(opts: BrandedEmailOptions): string {
   const cta = opts.cta
     ? `
@@ -99,6 +106,7 @@ export function renderBrandedEmail(opts: BrandedEmailOptions): string {
               <td align="center" style="padding:20px 16px 0 16px;">
                 <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8C7D78;">${FOOTER_CONTACT[opts.audience]}</p>
                 <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8C7D78;">${AUTOMATED_NOTICE}</p>
+                <p style="margin:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8C7D78;">Powered by ${POWERED_BY}</p>
               </td>
             </tr>
           </table>
