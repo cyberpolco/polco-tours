@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-215** (2026-09-02). This file used to carry a running
+Current through **DR-216** (2026-09-02). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -1075,7 +1075,13 @@ serverless function bundle.
   `CANCELLABLE_STATUSES` arrays across booking-detail pages; removing the
   unreachable `DRAFT` `BookingStatus` value (blocked on cleaning up leftover
   `DRAFT` test-fixture rows in the shared DB, including one in the real
-  "Lam" org).
+  "Lam" org); moving the guest passport upload and staff package-image
+  upload off their plain Server Actions onto the same direct-to-Blob
+  client-upload pattern DR-163 already uses for video (DR-216, explicit
+  user choice over this durable fix) — until then, a passport PDF or
+  package image between ~4.5MB and `documents/domain.ts`'s own advertised
+  10MB passport allowance still fails at Next's Server Action body-size
+  ceiling before the app's own size check ever runs.
 
 Full roadmap and testing strategy: Volume 10 (design package, not yet in repo).
 

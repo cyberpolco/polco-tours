@@ -14,16 +14,24 @@ const nextConfig = {
   // layer, so no amount of try/catch inside those actions could ever have
   // caught it (confirmed only after this incident recurred post-DR-174's
   // ZodError fix, which addressed a real but different gap). Raised to 4MB,
-  // just under Vercel's own ~4.5MB hard platform ceiling for a serverless
-  // function's request body (see the DR-163 tech-stack note on why hero
-  // video upload bypasses this entirely via a direct-to-Blob client
-  // upload instead) -- that platform ceiling itself can't be configured
-  // away here, so a single photo pushing 4-5MB (or 3 photos combined) can
-  // still fail; a durable full fix would move package images to the same
-  // direct-to-Blob client-upload pattern DR-163 already uses for video.
+  // then to 4.5MB (DR-216, same recurrence for the guest passport-upload
+  // Server Action, (guest)/booking/[bookingId]/passport/actions.ts -- a
+  // mobile scan/camera-to-PDF app routinely produces a 5-15MB file, well
+  // past the old 4MB cap) -- this is Vercel's own hard platform ceiling for
+  // a serverless function's request body (see the DR-163 tech-stack note on
+  // why hero video upload bypasses this entirely via a direct-to-Blob
+  // client upload instead), so it can't be configured any higher here.
+  // This is a global setting (every Server Action in the app shares it), so
+  // raising it also helps package images the same way. Explicitly a partial
+  // fix, not a durable one: documents/domain.ts's own
+  // MAX_PASSPORT_SIZE_BYTES already allows up to 10MB, and a passport scan
+  // above ~4.5MB will still fail here exactly as before -- a durable fix
+  // would move passport (and package image) upload to the same
+  // direct-to-Blob client-upload pattern DR-163 already uses for video,
+  // which bypasses this platform ceiling entirely.
   experimental: {
     serverActions: {
-      bodySizeLimit: '4mb',
+      bodySizeLimit: '4.5mb',
     },
   },
   // DR-071 allowlists Vercel Blob's public-storage host so next/image can
