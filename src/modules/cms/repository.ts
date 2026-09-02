@@ -105,6 +105,12 @@ export const cmsRepository = {
   async deleteTextBlocksByKey(key: string): Promise<void> {
     await prisma.cmsTextBlock.deleteMany({ where: { key } });
   },
+  /** One query for every `email.*` override instead of 26+ single-key
+   * reads -- notifications/service.ts's per-send lookup (DR-217). */
+  async listTextBlocksByKeyPrefix(prefix: string, locale: CmsLocale): Promise<CmsTextBlockView[]> {
+    const rows = await prisma.cmsTextBlock.findMany({ where: { key: { startsWith: prefix }, locale } });
+    return rows.map(toCmsTextBlockView);
+  },
 
   // --------------------------------------------------------- CmsFaqEntry
   async listFaqEntries(locale: CmsLocale): Promise<CmsFaqEntryView[]> {

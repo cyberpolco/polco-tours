@@ -46,6 +46,15 @@ export const cmsService = {
     assertCan(ctx, 'cms.read');
     return cmsRepository.getTextBlockByKey(key, locale);
   },
+  /** DR-217: one query backing the /staff/cms Emails tab's 27 template
+   * editors, same "one query up front" reasoning as
+   * listPublicTextBlocksByKeyPrefix below (which this doesn't share --
+   * that one is no-ctx, this one still gates on cms.read like every other
+   * staff read in this module). */
+  async listTextBlocksByKeyPrefix(ctx: AuthContext, prefix: string, locale: CmsLocale): Promise<CmsTextBlockView[]> {
+    assertCan(ctx, 'cms.read');
+    return cmsRepository.listTextBlocksByKeyPrefix(prefix, locale);
+  },
   async updateTextBlock(ctx: AuthContext, input: UpdateCmsTextBlockInput): Promise<CmsTextBlockView> {
     requireCmsWriter(ctx);
     const content = await cmsRepository.upsertTextBlock(input, ctx.userId);
@@ -250,6 +259,14 @@ export const cmsService = {
 
   async getPublicTextBlock(key: string, locale: CmsLocale): Promise<CmsTextBlockView | null> {
     return cmsRepository.getTextBlockByKey(key, locale);
+  },
+
+  /** DR-217: notifications/service.ts's one bulk read for every `email.*`
+   * override before rendering a notification -- same no-ctx public
+   * convention as getPublicTextBlock, just prefix-scoped so one send needs
+   * one query instead of one per possible event. */
+  async listPublicTextBlocksByKeyPrefix(prefix: string, locale: CmsLocale): Promise<CmsTextBlockView[]> {
+    return cmsRepository.listTextBlocksByKeyPrefix(prefix, locale);
   },
 
   async listPublicFaqEntries(locale: CmsLocale): Promise<CmsFaqEntryView[]> {

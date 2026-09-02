@@ -3,17 +3,43 @@
 // (module boundary rule).
 import type { Locale } from '@prisma/client';
 import { authService } from '@modules/auth';
+import { cmsService } from '@modules/cms';
 import { audit } from '@lib/audit';
 import { logger, newTraceId } from '@lib/logger';
 import {
   renderMessage,
   renderSmsMessage,
   resolveChannelOrder,
+  type EmailTemplateOverrides,
   type NotificationChannel,
   type NotificationData,
   type NotificationEvent,
 } from './domain';
 import { gateways } from './gateway';
+
+const EMAIL_TEMPLATE_KEY_PREFIX = 'email.';
+
+/** DR-217: one bulk CMS read per send, mapped into the shape domain.ts's
+ * pure renderMessage expects (title -> heading, body -> bodyTemplate) --
+ * this is the one place notifications reaches into @modules/cms, keeping
+ * domain.ts itself framework/DB-free. Never throws: a CMS read failure
+ * degrades to "no overrides" (coded defaults render normally) rather than
+ * blocking a transactional email, same charter-rule-8 posture as every
+ * other external read in this module. */
+async function getEmailOverrides(locale: Locale, log: ReturnType<typeof logger>): Promise<EmailTemplateOverrides> {
+  try {
+    const cmsLocale = locale === 'FR' ? 'fr' : 'en';
+    const rows = await cmsService.listPublicTextBlocksByKeyPrefix(EMAIL_TEMPLATE_KEY_PREFIX, cmsLocale);
+    const overrides: EmailTemplateOverrides = {};
+    for (const row of rows) {
+      overrides[row.key.slice(EMAIL_TEMPLATE_KEY_PREFIX.length)] = { eyebrow: row.eyebrow, heading: row.title, bodyTemplate: row.body };
+    }
+    return overrides;
+  } catch (err) {
+    log.warn('getEmailOverrides: CMS read failed, using coded defaults', { message: err instanceof Error ? err.message : String(err) });
+    return {};
+  }
+}
 
 export const notificationsService = {
   /**
@@ -46,7 +72,8 @@ export const notificationsService = {
     }
 
     const locale = user.preferredLocale;
-    const message = renderMessage(event, locale, data);
+    const overrides = await getEmailOverrides(locale, log);
+    const message = renderMessage(event, locale, data, overrides);
     const order = resolveChannelOrder({ phone: user.phone, email: user.email });
 
     // DR-205: EMAIL sends the full branded HTML body; WHATSAPP/SMS need
@@ -113,7 +140,8 @@ export const notificationsService = {
     data: NotificationData,
   ): Promise<void> {
     const log = logger(newTraceId());
-    const message = renderMessage(event, locale, data);
+    const overrides = await getEmailOverrides(locale, log);
+    const message = renderMessage(event, locale, data, overrides);
 
     try {
       const { providerRef } = await gateways.EMAIL.send({ to: email, subject: message.subject, body: message.body });

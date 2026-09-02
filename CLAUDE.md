@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-216** (2026-09-02). This file used to carry a running
+Current through **DR-217** (2026-09-02). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -318,7 +318,24 @@ src/
                    #   field; NotificationData itself is now exported from
                    #   this module's index.ts (previously only
                    #   NotificationEvent was) so a calling module can type
-                   #   what it builds
+                   #   what it builds. DR-217: every email event's eyebrow/
+                   #   heading/body copy (subject/CTA/layout stay code-driven)
+                   #   is staff-editable via cms's CmsTextBlock (key
+                   #   `email.<TEMPLATE_KEY>`, 27 keys -- PAYMENT_SUCCEEDED
+                   #   splits into _DEPOSIT/_FULL, the one event whose default
+                   #   copy genuinely branches rather than just filling an
+                   #   optional word), degrading to the coded
+                   #   EMAIL_TEMPLATE_DEFAULTS when no override exists --
+                   #   same convention as every other CmsTextBlock-backed
+                   #   page. domain.ts stays pure (no DB import): a staff
+                   #   override is substituted via {{token}} placeholders
+                   #   (resolveContent/applyBodyTemplate, escaped-plain-text-
+                   #   then-newlines-to-<br>, same contract as every other
+                   #   CmsTextBlock.body); service.ts's new getEmailOverrides
+                   #   does the one actual `cms` read per send (new runtime
+                   #   dependency, see "Module dependency direction matters"
+                   #   below) and never blocks a send on failure (charter
+                   #   rule 8). Surfaced at /staff/cms's new "Emails" tab
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -621,6 +638,22 @@ src/
                    #   (`key` was already free-form). The Terms of Service
                    #   section's liability/governing-law paragraphs are
                    #   marked `[NEEDS LEGAL REVIEW]` in the copy itself.
+                   #   DR-217: this module's first *inbound* dependency from
+                   #   a non-page caller -- `notifications` reads every
+                   #   `email.<TEMPLATE_KEY>` `CmsTextBlock` row (a new
+                   #   `listPublicTextBlocksByKeyPrefix`/
+                   #   `listTextBlocksByKeyPrefix` pair, no-ctx public + ctx-
+                   #   gated staff versions, both backed by one new
+                   #   `cmsRepository.listTextBlocksByKeyPrefix` query) to
+                   #   resolve a staff override for an automated email's
+                   #   eyebrow/heading/body copy. `/staff/cms` gained an
+                   #   "Emails" tab (27 collapsible `PageTextEditor`s, one
+                   #   generic `updatePageTextAction` reused verbatim, no new
+                   #   Server Action) grouped by Booking/Payment/Visa/
+                   #   Ratings/Trip planning/Staff accounts/Staff
+                   #   assignments, prefilled from notifications'
+                   #   EMAIL_TEMPLATE_DEFAULTS the same way DR-207's Terms
+                   #   tab prefills from a coded i18n default.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
@@ -712,7 +745,15 @@ same convention as every cross-module composition this section documents.
 Since DR-215, `invoicing` also gained a runtime dependency on `auth`
 (`authService.getUser`, to resolve a payment-succeeded notification's
 locale and last-resort recipient email) — confirmed acyclic the same way
-DR-205 established `visa -> auth`: `auth` never imports `invoicing`.
+DR-205 established `visa -> auth`: `auth` never imports `invoicing`. Since
+DR-217, `notifications` also depends on `cms` (`notifications/service.ts`'s
+new `getEmailOverrides`, a bulk `cmsService.listPublicTextBlocksByKeyPrefix`
+read of every `email.*` staff override before rendering a notification) —
+confirmed acyclic: `cms` had zero inbound module dependencies before this
+and still imports nothing from `notifications`. `notifications/domain.ts`
+itself stays pure (no DB/framework import, per the module template
+convention) — the `cms` read happens only in service.ts, which passes the
+fetched overrides into `domain.ts`'s `renderMessage` as a plain argument.
 
 ---
 

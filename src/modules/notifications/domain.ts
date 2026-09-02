@@ -2,6 +2,19 @@
 // imports. No repository.ts in this module -- it owns no Prisma table;
 // delivery outcomes are recorded via the existing @lib/audit, not a
 // bespoke log model (DR-013).
+//
+// DR-217: every email event's eyebrow/heading/body copy is now staff-
+// editable via the cms module's CmsTextBlock table (key `email.<KEY>`),
+// with the strings below as the coded EN/FR default -- same "degrades to
+// default" convention as every other CmsTextBlock-backed page. This file
+// stays pure (no cms/DB import): resolveContent takes an already-fetched
+// overrides map as a plain argument, and notifications/service.ts (which
+// DOES import @modules/cms) is the one that fetches it and threads it
+// through renderMessage. Subject lines and CTA buttons are NOT part of
+// this -- explicit user scoping decision, kept fully code-driven -- and
+// any event with real structured/branching content (PAYMENT_SUCCEEDED's
+// deposit-vs-full wording, the summary tables) keeps that part fixed too;
+// only the editable prose sits in EMAIL_TEMPLATE_DEFAULTS.
 import type { Currency, Locale, PaymentKind } from '@prisma/client';
 import { format, money } from '@lib/money';
 import { FONT_SANS, renderBrandedEmail } from './email-template';
@@ -107,7 +120,455 @@ function audienceFor(event: NotificationEvent): 'guest' | 'staff' {
   return GUEST_EVENTS.has(event) ? 'guest' : 'staff';
 }
 
-type Template = (data: NotificationData) => RenderedMessage;
+// ------------------------------------------------------- DR-217 CMS overrides
+
+/** What a staff CmsTextBlock override looks like once notifications/
+ * service.ts has fetched+mapped it (title -> heading, body -> bodyTemplate)
+ * -- kept as this module's own minimal shape rather than importing
+ * CmsTextBlockView, so this file never imports @modules/cms (pure module
+ * rule). */
+export interface EmailTemplateOverride {
+  eyebrow: string | null;
+  heading: string;
+  bodyTemplate: string;
+}
+export type EmailTemplateOverrides = Record<string, EmailTemplateOverride>;
+
+export interface EmailTemplateDefault {
+  eyebrow: string;
+  heading: string;
+  bodyTemplate: string;
+}
+
+/** Every CMS-backed email template key. Almost 1:1 with NotificationEvent,
+ * except PAYMENT_SUCCEEDED splits into _DEPOSIT/_FULL -- the only event
+ * whose default copy genuinely branches into two different sentences
+ * (not just an optional word), so it needs two independently-editable
+ * defaults rather than one staff override losing that distinction. */
+export const EMAIL_TEMPLATE_DEFAULTS: Record<string, Record<Locale, EmailTemplateDefault>> = {
+  BOOKING_CONFIRMED: {
+    EN: { eyebrow: 'Booking confirmed', heading: 'You’re all set', bodyTemplate: 'Your booking {{bookingId}} is confirmed. See you soon!' },
+    FR: { eyebrow: 'Réservation confirmée', heading: 'C’est confirmé', bodyTemplate: 'Votre réservation {{bookingId}} est confirmée. À bientôt !' },
+  },
+  BOOKING_CANCELLED: {
+    EN: { eyebrow: 'Booking cancelled', heading: 'Your booking was cancelled', bodyTemplate: 'Your booking {{bookingId}} has been cancelled.' },
+    FR: { eyebrow: 'Réservation annulée', heading: 'Votre réservation a été annulée', bodyTemplate: 'Votre réservation {{bookingId}} a été annulée.' },
+  },
+  PAYMENT_SUCCEEDED_DEPOSIT: {
+    EN: {
+      eyebrow: 'Deposit received',
+      heading: 'Your spot is on hold',
+      bodyTemplate: "We received your deposit of {{amount}}. Your booking is on hold — we'll be in touch about the remaining balance.",
+    },
+    FR: {
+      eyebrow: 'Acompte reçu',
+      heading: 'Votre place est réservée',
+      bodyTemplate: 'Nous avons reçu votre acompte de {{amount}}. Votre réservation est en attente — nous vous recontacterons au sujet du solde restant.',
+    },
+  },
+  PAYMENT_SUCCEEDED_FULL: {
+    EN: {
+      eyebrow: 'Payment received',
+      heading: 'You’re all set!',
+      bodyTemplate: 'We received your payment of {{amount}}. Your trip is fully paid and confirmed!',
+    },
+    FR: {
+      eyebrow: 'Paiement reçu',
+      heading: 'C’est confirmé !',
+      bodyTemplate: 'Nous avons reçu votre paiement de {{amount}}. Votre voyage est entièrement payé et confirmé !',
+    },
+  },
+  PAYMENT_FAILED: {
+    EN: {
+      eyebrow: 'Payment issue',
+      heading: 'Your payment didn’t go through',
+      bodyTemplate: 'Your payment of {{amount}} could not be processed. Please try again.',
+    },
+    FR: {
+      eyebrow: 'Problème de paiement',
+      heading: 'Votre paiement n’a pas abouti',
+      bodyTemplate: "Votre paiement de {{amount}} n'a pas pu être traité. Merci de réessayer.",
+    },
+  },
+  QUOTATION_SENT: {
+    EN: {
+      eyebrow: 'Your quotation',
+      heading: 'Your quotation is ready',
+      bodyTemplate: 'Your quotation for booking {{bookingId}} is ready: {{amount}}. Log in to review and pay.',
+    },
+    FR: {
+      eyebrow: 'Votre devis',
+      heading: 'Votre devis est prêt',
+      bodyTemplate: 'Votre devis pour la réservation {{bookingId}} est prêt : {{amount}}. Connectez-vous pour consulter et payer.',
+    },
+  },
+  QUOTATION_ACCEPTED: {
+    EN: {
+      eyebrow: 'Quotation accepted',
+      heading: 'You’re all set',
+      bodyTemplate: "Thanks for accepting your quotation for booking {{bookingId}}. We'll prepare your deposit invoice next — you'll receive it shortly.",
+    },
+    FR: {
+      eyebrow: 'Devis accepté',
+      heading: 'C’est confirmé',
+      bodyTemplate:
+        "Merci d'avoir accepté votre devis pour la réservation {{bookingId}}. Nous préparons votre facture d'acompte, que vous recevrez très bientôt.",
+    },
+  },
+  BOOKING_REFUNDED: {
+    EN: {
+      eyebrow: 'Refund processed',
+      heading: 'Your refund is on its way',
+      bodyTemplate:
+        "We've processed a refund of {{amount}} for booking {{bookingId}}. Please allow a few business days for it to reflect on your original payment method.",
+    },
+    FR: {
+      eyebrow: 'Remboursement effectué',
+      heading: 'Votre remboursement est en cours',
+      bodyTemplate:
+        "Nous avons traité un remboursement de {{amount}} pour la réservation {{bookingId}}. Comptez quelques jours ouvrés pour qu'il apparaisse sur votre moyen de paiement.",
+    },
+  },
+  INVOICE_ISSUED: {
+    EN: {
+      eyebrow: 'Invoice ready',
+      heading: 'Your invoice is ready',
+      bodyTemplate: 'An invoice of {{amount}} is ready for booking {{bookingId}}. Log in to your booking to review and pay.',
+    },
+    FR: {
+      eyebrow: 'Facture disponible',
+      heading: 'Votre facture est prête',
+      bodyTemplate: 'Une facture de {{amount}} est disponible pour la réservation {{bookingId}}. Connectez-vous à votre réservation pour la consulter et la régler.',
+    },
+  },
+  VISA_CONTACT_TRAVELER: {
+    EN: { eyebrow: 'Visa update', heading: 'A message about your visa application', bodyTemplate: 'Regarding {{travelerName}} visa application: {{message}}' },
+    FR: {
+      eyebrow: 'Mise à jour visa',
+      heading: 'Un message concernant votre demande de visa',
+      bodyTemplate: 'Concernant la demande de visa de {{travelerName}} : {{message}}',
+    },
+  },
+  VISA_MISSING_DOCUMENTS: {
+    EN: {
+      eyebrow: 'Document needed',
+      heading: 'A document is missing',
+      bodyTemplate: "Please upload the missing visa document for {{travelerName}}'s upcoming trip to {{country}}.",
+    },
+    FR: {
+      eyebrow: 'Document requis',
+      heading: 'Un document manque',
+      bodyTemplate: 'Merci de téléverser le document de visa manquant pour le prochain voyage de {{travelerName}} vers {{country}}.',
+    },
+  },
+  VISA_APPROVED: {
+    EN: {
+      eyebrow: 'Visa approved',
+      heading: 'Good news!',
+      bodyTemplate: '{{travelerName}} visa application has been approved. Log in to your booking to download the visa document.',
+    },
+    FR: {
+      eyebrow: 'Visa approuvé',
+      heading: 'Bonne nouvelle !',
+      bodyTemplate: 'La demande de visa de {{travelerName}} a été approuvée. Connectez-vous à votre réservation pour télécharger le document de visa.',
+    },
+  },
+  VISA_REJECTED: {
+    EN: {
+      eyebrow: 'Visa — action needed',
+      heading: 'Your visa application needs attention',
+      bodyTemplate: '{{travelerName}} visa application was rejected{{rejectionClause}} Log in to your booking to resubmit.',
+    },
+    FR: {
+      eyebrow: 'Visa — action requise',
+      heading: 'Votre demande de visa nécessite une action',
+      bodyTemplate: 'La demande de visa de {{travelerName}} a été rejetée{{rejectionClause}} Connectez-vous à votre réservation pour la soumettre à nouveau.',
+    },
+  },
+  VISA_SUBMITTED: {
+    EN: {
+      eyebrow: 'Visa application received',
+      heading: 'We’ve got your visa application',
+      bodyTemplate:
+        "{{travelerName}} visa application for your trip to {{country}} has been received and is under review. We'll notify you as soon as there's an update.",
+    },
+    FR: {
+      eyebrow: 'Demande de visa reçue',
+      heading: 'Nous avons bien reçu votre demande de visa',
+      bodyTemplate:
+        "La demande de visa de {{travelerName}} pour votre voyage vers {{country}} a été reçue et est en cours d'examen. Nous vous informerons dès qu'il y aura une mise à jour.",
+    },
+  },
+  VISA_RESUBMITTED: {
+    EN: {
+      eyebrow: 'Visa resubmitted',
+      heading: 'Your visa application is back with us',
+      bodyTemplate: '{{travelerName}} updated visa application has been received and is under review again.',
+    },
+    FR: {
+      eyebrow: 'Visa resoumis',
+      heading: 'Votre demande de visa nous est revenue',
+      bodyTemplate: "La demande de visa mise à jour de {{travelerName}} a été reçue et est de nouveau en cours d'examen.",
+    },
+  },
+  VISA_QUEUE_NEW_APPLICATION: {
+    EN: { eyebrow: 'Visa queue', heading: 'New visa application', bodyTemplate: 'A new visa application for {{travelerName}} ({{country}}) needs review.' },
+    FR: {
+      eyebrow: 'File des visas',
+      heading: 'Nouvelle demande de visa',
+      bodyTemplate: 'Une nouvelle demande de visa pour {{travelerName}} ({{country}}) nécessite votre examen.',
+    },
+  },
+  RATING_CODE_ISSUED: {
+    EN: {
+      eyebrow: 'Rate your trip',
+      heading: 'How was your trip?',
+      bodyTemplate:
+        'Thank you for traveling with us! Once your tour is complete, use booking {{bookingId}} and Rating Code {{ratingCode}} at mufasasafaris.com/rate to share your feedback.',
+    },
+    FR: {
+      eyebrow: 'Évaluez votre voyage',
+      heading: 'Comment s’est passé votre voyage ?',
+      bodyTemplate:
+        "Merci d'avoir voyagé avec nous ! Une fois votre circuit terminé, utilisez la réservation {{bookingId}} et le code d'évaluation {{ratingCode}} sur mufasasafaris.com/rate pour partager votre avis.",
+    },
+  },
+  RATING_THANK_YOU: {
+    EN: {
+      eyebrow: 'Thank you',
+      heading: 'We appreciate your feedback',
+      bodyTemplate: 'Thank you for sharing your feedback on booking {{bookingId}} — it genuinely helps us improve every trip that follows yours.',
+    },
+    FR: {
+      eyebrow: 'Merci',
+      heading: 'Nous vous remercions pour votre avis',
+      bodyTemplate: "Merci d'avoir partagé votre avis sur la réservation {{bookingId}} — cela nous aide vraiment à améliorer chaque voyage à venir.",
+    },
+  },
+  TAILOR_MADE_REQUEST_RECEIVED: {
+    EN: {
+      eyebrow: 'Trip request received',
+      heading: 'Thanks for your trip request!',
+      bodyTemplate:
+        'Here is a summary:\n\n' +
+        'Destination(s): {{destinations}}\n' +
+        'Travelers: {{travelers}}\n' +
+        'Travel dates: {{dates}}\n\n' +
+        'Your booking reference: {{bookingId}}\n' +
+        "Please keep this reference and your last name safe -- you'll need both any time you contact us about this trip, including to check its status or accept a quotation.\n\n" +
+        'Our team will be in touch soon with a personalized quotation.',
+    },
+    FR: {
+      eyebrow: 'Demande reçue',
+      heading: 'Merci pour votre demande de voyage !',
+      bodyTemplate:
+        'Voici un résumé :\n\n' +
+        'Destination(s) : {{destinations}}\n' +
+        'Voyageurs : {{travelers}}\n' +
+        'Dates de voyage : {{dates}}\n\n' +
+        'Votre référence de réservation : {{bookingId}}\n' +
+        "Merci de conserver cette référence ainsi que votre nom de famille en lieu sûr -- vous en aurez besoin à chaque fois que vous nous contacterez au sujet de ce voyage, y compris pour suivre son statut ou accepter un devis.\n\n" +
+        'Notre équipe vous contactera bientôt avec un devis personnalisé.',
+    },
+  },
+  ITINERARY_APPROVED: {
+    EN: {
+      eyebrow: 'Itinerary ready',
+      heading: 'Your trip plan is finalized',
+      bodyTemplate: 'The day-by-day itinerary for booking {{bookingId}} has been finalized. Log in to your booking to view or download it.',
+    },
+    FR: {
+      eyebrow: 'Itinéraire prêt',
+      heading: 'Votre programme de voyage est finalisé',
+      bodyTemplate: "L'itinéraire jour par jour de la réservation {{bookingId}} a été finalisé. Connectez-vous à votre réservation pour le consulter ou le télécharger.",
+    },
+  },
+  STAFF_PASSWORD_ISSUED: {
+    EN: {
+      eyebrow: 'Account created',
+      heading: 'Welcome to POLCO Tours',
+      bodyTemplate:
+        "An account was created for you at POLCO Tours ({{email}}). Your temporary password is: {{temporaryPassword}}. You'll be asked to set a new password the first time you sign in — this temporary one stops working once you do.",
+    },
+    FR: {
+      eyebrow: 'Compte créé',
+      heading: 'Bienvenue chez POLCO Tours',
+      bodyTemplate:
+        'Un compte a été créé pour vous chez POLCO Tours ({{email}}). Votre mot de passe temporaire est : {{temporaryPassword}}. Il vous sera demandé de définir un nouveau mot de passe dès votre première connexion — celui-ci ne fonctionnera plus ensuite.',
+    },
+  },
+  STAFF_PASSWORD_RESET: {
+    EN: {
+      eyebrow: 'Password reset',
+      heading: 'Password reset',
+      bodyTemplate:
+        "Your POLCO Tours password was just reset by an administrator. Your new temporary password is: {{temporaryPassword}}. You'll be asked to set your own password the next time you sign in. If you didn't expect this, contact your administrator right away.",
+    },
+    FR: {
+      eyebrow: 'Mot de passe réinitialisé',
+      heading: 'Mot de passe réinitialisé',
+      bodyTemplate:
+        "Votre mot de passe POLCO Tours vient d'être réinitialisé par un administrateur. Votre nouveau mot de passe temporaire est : {{temporaryPassword}}. Il vous sera demandé de définir votre propre mot de passe à la prochaine connexion. Si vous ne vous attendiez pas à ce message, contactez votre administrateur immédiatement.",
+    },
+  },
+  STAFF_ACCOUNT_DEACTIVATED: {
+    EN: {
+      eyebrow: 'Account deactivated',
+      heading: 'Your account was deactivated',
+      bodyTemplate: 'Your POLCO Tours account has been deactivated. If you believe this is a mistake, contact your administrator.',
+    },
+    FR: {
+      eyebrow: 'Compte désactivé',
+      heading: 'Votre compte a été désactivé',
+      bodyTemplate: "Votre compte POLCO Tours a été désactivé. Si vous pensez qu'il s'agit d'une erreur, contactez votre administrateur.",
+    },
+  },
+  STAFF_ACCOUNT_REACTIVATED: {
+    EN: {
+      eyebrow: 'Account reactivated',
+      heading: 'You’re back in',
+      bodyTemplate: 'Your POLCO Tours account has been reactivated — you can sign in as usual.',
+    },
+    FR: {
+      eyebrow: 'Compte réactivé',
+      heading: 'Vous êtes de retour',
+      bodyTemplate: 'Votre compte POLCO Tours a été réactivé — vous pouvez vous connecter normalement.',
+    },
+  },
+  ASSIGNMENT_NOTICE_DRIVER: {
+    EN: {
+      eyebrow: 'New assignment',
+      heading: 'You’ve been assigned to a departure',
+      bodyTemplate:
+        "You've been assigned as driver for the departure starting {{startDate}} ({{country}}). Vehicle: {{vehicleLabel}}. Guide: {{guideName}}.",
+    },
+    FR: {
+      eyebrow: 'Nouvelle affectation',
+      heading: 'Vous avez été affecté à un départ',
+      bodyTemplate: 'Vous avez été affecté comme chauffeur pour le départ du {{startDate}} ({{country}}). Véhicule : {{vehicleLabel}}. Guide : {{guideName}}.',
+    },
+  },
+  ASSIGNMENT_NOTICE_GUIDE: {
+    EN: {
+      eyebrow: 'New assignment',
+      heading: 'You’ve been assigned to a departure',
+      bodyTemplate: "You've been assigned as guide for the departure starting {{startDate}} ({{country}}). Driver: {{driverName}}. Vehicle: {{vehicleLabel}}.",
+    },
+    FR: {
+      eyebrow: 'Nouvelle affectation',
+      heading: 'Vous avez été affecté à un départ',
+      bodyTemplate: 'Vous avez été affecté comme guide pour le départ du {{startDate}} ({{country}}). Chauffeur : {{driverName}}. Véhicule : {{vehicleLabel}}.',
+    },
+  },
+  ASSIGNMENT_NOTICE_VEHICLE_OWNER: {
+    EN: {
+      eyebrow: 'Vehicle scheduled',
+      heading: 'Your vehicle has been scheduled',
+      bodyTemplate: 'Your vehicle {{vehicleLabel}} has been scheduled for the departure starting {{startDate}} ({{country}}). Driver: {{driverName}}.',
+    },
+    FR: {
+      eyebrow: 'Véhicule planifié',
+      heading: 'Votre véhicule a été planifié',
+      bodyTemplate: 'Votre véhicule {{vehicleLabel}} a été planifié pour le départ du {{startDate}} ({{country}}). Chauffeur : {{driverName}}.',
+    },
+  },
+};
+
+/** Which {{tokens}} a template key's body may reference -- shown as a hint
+ * on the staff editor so an edit doesn't guess a wrong/typo'd token name.
+ * Locale-independent (same variable names in both languages). */
+export const EMAIL_TEMPLATE_TOKENS: Record<string, readonly string[]> = {
+  BOOKING_CONFIRMED: ['bookingId'],
+  BOOKING_CANCELLED: ['bookingId'],
+  PAYMENT_SUCCEEDED_DEPOSIT: ['amount'],
+  PAYMENT_SUCCEEDED_FULL: ['amount'],
+  PAYMENT_FAILED: ['amount'],
+  QUOTATION_SENT: ['bookingId', 'amount'],
+  QUOTATION_ACCEPTED: ['bookingId'],
+  BOOKING_REFUNDED: ['amount', 'bookingId'],
+  INVOICE_ISSUED: ['amount', 'bookingId'],
+  VISA_CONTACT_TRAVELER: ['travelerName', 'message'],
+  VISA_MISSING_DOCUMENTS: ['travelerName', 'country'],
+  VISA_APPROVED: ['travelerName'],
+  VISA_REJECTED: ['travelerName', 'rejectionClause'],
+  VISA_SUBMITTED: ['travelerName', 'country'],
+  VISA_RESUBMITTED: ['travelerName'],
+  VISA_QUEUE_NEW_APPLICATION: ['travelerName', 'country'],
+  RATING_CODE_ISSUED: ['bookingId', 'ratingCode'],
+  RATING_THANK_YOU: ['bookingId'],
+  TAILOR_MADE_REQUEST_RECEIVED: ['destinations', 'travelers', 'dates', 'bookingId'],
+  ITINERARY_APPROVED: ['bookingId'],
+  STAFF_PASSWORD_ISSUED: ['email', 'temporaryPassword'],
+  STAFF_PASSWORD_RESET: ['temporaryPassword'],
+  STAFF_ACCOUNT_DEACTIVATED: [],
+  STAFF_ACCOUNT_REACTIVATED: [],
+  ASSIGNMENT_NOTICE_DRIVER: ['startDate', 'country', 'vehicleLabel', 'guideName'],
+  ASSIGNMENT_NOTICE_GUIDE: ['startDate', 'country', 'driverName', 'vehicleLabel'],
+  ASSIGNMENT_NOTICE_VEHICLE_OWNER: ['vehicleLabel', 'startDate', 'country', 'driverName'],
+};
+
+/** Grouping for the staff /staff/cms Emails tab -- `groupKey` (not a
+ * hardcoded label) so the tab can translate the group heading via
+ * next-intl, same i18n convention as everywhere else in the staff shell. */
+export const EMAIL_TEMPLATE_GROUPS: Array<{ groupKey: string; keys: string[] }> = [
+  { groupKey: 'booking', keys: ['BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'BOOKING_REFUNDED'] },
+  {
+    groupKey: 'payment',
+    keys: ['PAYMENT_SUCCEEDED_DEPOSIT', 'PAYMENT_SUCCEEDED_FULL', 'PAYMENT_FAILED', 'QUOTATION_SENT', 'QUOTATION_ACCEPTED', 'INVOICE_ISSUED'],
+  },
+  {
+    groupKey: 'visa',
+    keys: ['VISA_CONTACT_TRAVELER', 'VISA_MISSING_DOCUMENTS', 'VISA_APPROVED', 'VISA_REJECTED', 'VISA_SUBMITTED', 'VISA_RESUBMITTED', 'VISA_QUEUE_NEW_APPLICATION'],
+  },
+  { groupKey: 'rating', keys: ['RATING_CODE_ISSUED', 'RATING_THANK_YOU'] },
+  { groupKey: 'tripPlanning', keys: ['TAILOR_MADE_REQUEST_RECEIVED', 'ITINERARY_APPROVED'] },
+  { groupKey: 'staffAccounts', keys: ['STAFF_PASSWORD_ISSUED', 'STAFF_PASSWORD_RESET', 'STAFF_ACCOUNT_DEACTIVATED', 'STAFF_ACCOUNT_REACTIVATED'] },
+  { groupKey: 'staffAssignments', keys: ['ASSIGNMENT_NOTICE_DRIVER', 'ASSIGNMENT_NOTICE_GUIDE', 'ASSIGNMENT_NOTICE_VEHICLE_OWNER'] },
+];
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Turns a staff-authored (or coded-default) plain-text template into safe
+ * HTML: escapes the template text first (so an edit can never inject
+ * markup), substitutes {{token}} placeholders with equally-escaped
+ * pre-formatted values, then turns newlines into <br> -- the same
+ * "plain text, not HTML" contract every other CmsTextBlock.body already
+ * has on the guest site (rendered there as plain JSX text). An unknown
+ * {{token}} is left as literal text rather than silently dropped, so a
+ * staff typo is visible in the sent email instead of vanishing. */
+function applyBodyTemplate(template: string, tokens: Record<string, string>): string {
+  const escapedTemplate = escapeHtml(template);
+  const substituted = escapedTemplate.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    const value = tokens[key];
+    return value !== undefined ? escapeHtml(value) : match;
+  });
+  return substituted.replace(/\n/g, '<br>');
+}
+
+/** Resolves one template key's effective eyebrow/heading/body -- the staff
+ * CmsTextBlock override when one exists, else the coded default -- and
+ * renders the body through applyBodyTemplate. Eyebrow/heading are escaped
+ * too (defense in depth: a SUPERADMIN-only edit, but still staff input
+ * landing in a transactional email). */
+function resolveContent(
+  templateKey: string,
+  locale: Locale,
+  tokens: Record<string, string>,
+  overrides: EmailTemplateOverrides,
+): { eyebrow: string; heading: string; bodyHtml: string } {
+  const defaultsForKey = EMAIL_TEMPLATE_DEFAULTS[templateKey];
+  if (!defaultsForKey) throw new Error(`resolveContent: unknown email template key "${templateKey}"`);
+  const defaults = defaultsForKey[locale];
+  const override = overrides[templateKey];
+  const eyebrow = override?.eyebrow ?? defaults.eyebrow;
+  const heading = override?.heading ?? defaults.heading;
+  const bodyTemplate = override?.bodyTemplate ?? defaults.bodyTemplate;
+  return { eyebrow: escapeHtml(eyebrow), heading: escapeHtml(heading), bodyHtml: applyBodyTemplate(bodyTemplate, tokens) };
+}
+
+type Template = (data: NotificationData, overrides: EmailTemplateOverrides) => RenderedMessage;
 
 function amount(data: NotificationData, locale: string): string {
   return format(money(data.amountMinor ?? 0, data.currency ?? 'USD'), locale);
@@ -129,7 +590,9 @@ function formatDateRange(start: Date | undefined, end: Date | undefined, intlLoc
  * more structure than a single sentence (explicit user request) -- same
  * font/color tokens as renderBrandedEmail's own shell, since email clients
  * strip <style> blocks (see that file's own comment). Rows with no value
- * are skipped rather than rendered blank. */
+ * are skipped rather than rendered blank. Always code-driven, never part
+ * of a staff-editable body template (DR-217) -- it's structured data, not
+ * prose. */
 function summaryTable(rows: Array<[string, string | null | undefined]>): string {
   const cells = rows
     .filter((row): row is [string, string] => !!row[1])
@@ -160,41 +623,29 @@ const STAFF_VISA_QUEUE_URL = '/staff/visa-queue';
 
 const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
   BOOKING_CONFIRMED: {
-    EN: (d) => ({
-      subject: 'Your booking is confirmed',
-      body: brand('BOOKING_CONFIRMED', {
-        eyebrow: 'Booking confirmed',
-        heading: 'You&rsquo;re all set',
-        bodyHtml: `Your booking ${d.bookingId} is confirmed. See you soon!`,
-        cta: { label: 'View your booking', url: FIND_BOOKING_URL },
-      }),
-    }),
-    FR: (d) => ({
-      subject: 'Votre réservation est confirmée',
-      body: brand('BOOKING_CONFIRMED', {
-        eyebrow: 'Réservation confirmée',
-        heading: 'C&rsquo;est confirmé',
-        bodyHtml: `Votre réservation ${d.bookingId} est confirmée. À bientôt !`,
-        cta: { label: 'Voir ma réservation', url: FIND_BOOKING_URL },
-      }),
-    }),
+    EN: (d, ov) => {
+      const content = resolveContent('BOOKING_CONFIRMED', 'EN', { bookingId: d.bookingId ?? '' }, ov);
+      return {
+        subject: 'Your booking is confirmed',
+        body: brand('BOOKING_CONFIRMED', { ...content, cta: { label: 'View your booking', url: FIND_BOOKING_URL } }),
+      };
+    },
+    FR: (d, ov) => {
+      const content = resolveContent('BOOKING_CONFIRMED', 'FR', { bookingId: d.bookingId ?? '' }, ov);
+      return {
+        subject: 'Votre réservation est confirmée',
+        body: brand('BOOKING_CONFIRMED', { ...content, cta: { label: 'Voir ma réservation', url: FIND_BOOKING_URL } }),
+      };
+    },
   },
   BOOKING_CANCELLED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your booking was cancelled',
-      body: brand('BOOKING_CANCELLED', {
-        eyebrow: 'Booking cancelled',
-        heading: 'Your booking was cancelled',
-        bodyHtml: `Your booking ${d.bookingId} has been cancelled.`,
-      }),
+      body: brand('BOOKING_CANCELLED', resolveContent('BOOKING_CANCELLED', 'EN', { bookingId: d.bookingId ?? '' }, ov)),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre réservation a été annulée',
-      body: brand('BOOKING_CANCELLED', {
-        eyebrow: 'Réservation annulée',
-        heading: 'Votre réservation a été annulée',
-        bodyHtml: `Votre réservation ${d.bookingId} a été annulée.`,
-      }),
+      body: brand('BOOKING_CANCELLED', resolveContent('BOOKING_CANCELLED', 'FR', { bookingId: d.bookingId ?? '' }, ov)),
     }),
   },
   // DR-215 (explicit user request): a real booking-confirmation body, not a
@@ -203,24 +654,24 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
   // still owed, not "confirmed" yet) from a BALANCE/FULL payment (fully
   // paid and confirmed). Sent via notifyEmail (Resend) directly by
   // invoicing's applyPaymentOutcome, not through notify()'s fallback chain
-  // -- see that call site's own comment for why.
+  // -- see that call site's own comment for why. DR-217: the intro
+  // sentence is staff-editable per variant (PAYMENT_SUCCEEDED_DEPOSIT/
+  // _FULL); the details block stays fixed, code-driven structured data.
   PAYMENT_SUCCEEDED: {
-    EN: (d) => {
+    EN: (d, ov) => {
       const isDeposit = d.paymentKind === 'DEPOSIT';
       const trip = d.tripTitle
         ? `${d.tripTitle}${d.tripCountry ? ` (${d.tripCountry})` : ''}`
         : d.tripCountry
           ? `Your custom trip to ${d.tripCountry}`
           : null;
+      const content = resolveContent(isDeposit ? 'PAYMENT_SUCCEEDED_DEPOSIT' : 'PAYMENT_SUCCEEDED_FULL', 'EN', { amount: amount(d, 'en') }, ov);
       return {
         subject: isDeposit ? 'Deposit received' : 'Payment received',
         body: brand('PAYMENT_SUCCEEDED', {
-          eyebrow: isDeposit ? 'Deposit received' : 'Payment received',
-          heading: isDeposit ? 'Your spot is on hold' : 'You&rsquo;re all set!',
+          ...content,
           bodyHtml:
-            (isDeposit
-              ? `We received your deposit of ${amount(d, 'en')}. Your booking is on hold &mdash; we'll be in touch about the remaining balance.`
-              : `We received your payment of ${amount(d, 'en')}. Your trip is fully paid and confirmed!`) +
+            content.bodyHtml +
             summaryTable([
               ['Booking reference', d.bookingId],
               ['Trip', trip],
@@ -232,22 +683,20 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
         }),
       };
     },
-    FR: (d) => {
+    FR: (d, ov) => {
       const isDeposit = d.paymentKind === 'DEPOSIT';
       const trip = d.tripTitle
         ? `${d.tripTitle}${d.tripCountry ? ` (${d.tripCountry})` : ''}`
         : d.tripCountry
           ? `Votre voyage sur mesure en ${d.tripCountry}`
           : null;
+      const content = resolveContent(isDeposit ? 'PAYMENT_SUCCEEDED_DEPOSIT' : 'PAYMENT_SUCCEEDED_FULL', 'FR', { amount: amount(d, 'fr') }, ov);
       return {
         subject: isDeposit ? 'Acompte reçu' : 'Paiement reçu',
         body: brand('PAYMENT_SUCCEEDED', {
-          eyebrow: isDeposit ? 'Acompte reçu' : 'Paiement reçu',
-          heading: isDeposit ? 'Votre place est réservée' : 'C&rsquo;est confirmé !',
+          ...content,
           bodyHtml:
-            (isDeposit
-              ? `Nous avons reçu votre acompte de ${amount(d, 'fr')}. Votre réservation est en attente &mdash; nous vous recontacterons au sujet du solde restant.`
-              : `Nous avons reçu votre paiement de ${amount(d, 'fr')}. Votre voyage est entièrement payé et confirmé !`) +
+            content.bodyHtml +
             summaryTable([
               ['Référence de réservation', d.bookingId],
               ['Voyage', trip],
@@ -261,273 +710,234 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
     },
   },
   PAYMENT_FAILED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Payment failed',
       body: brand('PAYMENT_FAILED', {
-        eyebrow: 'Payment issue',
-        heading: 'Your payment didn&rsquo;t go through',
-        bodyHtml: `Your payment of ${amount(d, 'en')} could not be processed. Please try again.`,
+        ...resolveContent('PAYMENT_FAILED', 'EN', { amount: amount(d, 'en') }, ov),
         cta: { label: 'Try again', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Paiement échoué',
       body: brand('PAYMENT_FAILED', {
-        eyebrow: 'Problème de paiement',
-        heading: 'Votre paiement n&rsquo;a pas abouti',
-        bodyHtml: `Votre paiement de ${amount(d, 'fr')} n'a pas pu être traité. Merci de réessayer.`,
+        ...resolveContent('PAYMENT_FAILED', 'FR', { amount: amount(d, 'fr') }, ov),
         cta: { label: 'Réessayer', url: FIND_BOOKING_URL },
       }),
     }),
   },
   QUOTATION_SENT: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your quotation is ready',
       body: brand('QUOTATION_SENT', {
-        eyebrow: 'Your quotation',
-        heading: 'Your quotation is ready',
-        bodyHtml: `Your quotation for booking ${d.bookingId} is ready: ${amount(d, 'en')}. Log in to review and pay.`,
+        ...resolveContent('QUOTATION_SENT', 'EN', { bookingId: d.bookingId ?? '', amount: amount(d, 'en') }, ov),
         cta: { label: 'Review &amp; accept', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre devis est prêt',
       body: brand('QUOTATION_SENT', {
-        eyebrow: 'Votre devis',
-        heading: 'Votre devis est prêt',
-        bodyHtml: `Votre devis pour la réservation ${d.bookingId} est prêt : ${amount(d, 'fr')}. Connectez-vous pour consulter et payer.`,
+        ...resolveContent('QUOTATION_SENT', 'FR', { bookingId: d.bookingId ?? '', amount: amount(d, 'fr') }, ov),
         cta: { label: 'Consulter et accepter', url: FIND_BOOKING_URL },
       }),
     }),
   },
   QUOTATION_ACCEPTED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Quotation accepted',
       body: brand('QUOTATION_ACCEPTED', {
-        eyebrow: 'Quotation accepted',
-        heading: 'You&rsquo;re all set',
-        bodyHtml: `Thanks for accepting your quotation for booking ${d.bookingId}. We'll prepare your deposit invoice next &mdash; you'll receive it shortly.`,
+        ...resolveContent('QUOTATION_ACCEPTED', 'EN', { bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'View your booking', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Devis accepté',
       body: brand('QUOTATION_ACCEPTED', {
-        eyebrow: 'Devis accepté',
-        heading: 'C&rsquo;est confirmé',
-        bodyHtml: `Merci d'avoir accepté votre devis pour la réservation ${d.bookingId}. Nous préparons votre facture d'acompte, que vous recevrez très bientôt.`,
+        ...resolveContent('QUOTATION_ACCEPTED', 'FR', { bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'Voir ma réservation', url: FIND_BOOKING_URL },
       }),
     }),
   },
   BOOKING_REFUNDED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Refund processed',
-      body: brand('BOOKING_REFUNDED', {
-        eyebrow: 'Refund processed',
-        heading: 'Your refund is on its way',
-        bodyHtml: `We've processed a refund of ${amount(d, 'en')} for booking ${d.bookingId}. Please allow a few business days for it to reflect on your original payment method.`,
-      }),
+      body: brand('BOOKING_REFUNDED', resolveContent('BOOKING_REFUNDED', 'EN', { amount: amount(d, 'en'), bookingId: d.bookingId ?? '' }, ov)),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Remboursement effectué',
-      body: brand('BOOKING_REFUNDED', {
-        eyebrow: 'Remboursement effectué',
-        heading: 'Votre remboursement est en cours',
-        bodyHtml: `Nous avons traité un remboursement de ${amount(d, 'fr')} pour la réservation ${d.bookingId}. Comptez quelques jours ouvrés pour qu'il apparaisse sur votre moyen de paiement.`,
-      }),
+      body: brand('BOOKING_REFUNDED', resolveContent('BOOKING_REFUNDED', 'FR', { amount: amount(d, 'fr'), bookingId: d.bookingId ?? '' }, ov)),
     }),
   },
   INVOICE_ISSUED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your invoice is ready',
       body: brand('INVOICE_ISSUED', {
-        eyebrow: 'Invoice ready',
-        heading: 'Your invoice is ready',
-        bodyHtml: `An invoice of ${amount(d, 'en')} is ready for booking ${d.bookingId}. Log in to your booking to review and pay.`,
+        ...resolveContent('INVOICE_ISSUED', 'EN', { amount: amount(d, 'en'), bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'View invoice', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre facture est prête',
       body: brand('INVOICE_ISSUED', {
-        eyebrow: 'Facture disponible',
-        heading: 'Votre facture est prête',
-        bodyHtml: `Une facture de ${amount(d, 'fr')} est disponible pour la réservation ${d.bookingId}. Connectez-vous à votre réservation pour la consulter et la régler.`,
+        ...resolveContent('INVOICE_ISSUED', 'FR', { amount: amount(d, 'fr'), bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'Voir la facture', url: FIND_BOOKING_URL },
       }),
     }),
   },
   VISA_CONTACT_TRAVELER: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'A message about your visa application',
-      body: brand('VISA_CONTACT_TRAVELER', {
-        eyebrow: 'Visa update',
-        heading: 'A message about your visa application',
-        bodyHtml: `Regarding ${d.travelerName ?? 'your'} visa application: ${d.message ?? ''}`,
-      }),
+      body: brand(
+        'VISA_CONTACT_TRAVELER',
+        resolveContent('VISA_CONTACT_TRAVELER', 'EN', { travelerName: d.travelerName ?? 'your', message: d.message ?? '' }, ov),
+      ),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Un message concernant votre demande de visa',
-      body: brand('VISA_CONTACT_TRAVELER', {
-        eyebrow: 'Mise à jour visa',
-        heading: 'Un message concernant votre demande de visa',
-        bodyHtml: `Concernant la demande de visa de ${d.travelerName ?? ''} : ${d.message ?? ''}`,
-      }),
+      body: brand(
+        'VISA_CONTACT_TRAVELER',
+        resolveContent('VISA_CONTACT_TRAVELER', 'FR', { travelerName: d.travelerName ?? '', message: d.message ?? '' }, ov),
+      ),
     }),
   },
   VISA_MISSING_DOCUMENTS: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'A document is missing for your visa application',
       body: brand('VISA_MISSING_DOCUMENTS', {
-        eyebrow: 'Document needed',
-        heading: 'A document is missing',
-        bodyHtml: `Please upload the missing visa document for ${d.travelerName ?? 'your traveler'}'s upcoming trip to ${d.country ?? 'your destination'}.`,
+        ...resolveContent(
+          'VISA_MISSING_DOCUMENTS',
+          'EN',
+          { travelerName: d.travelerName ?? 'your traveler', country: d.country ?? 'your destination' },
+          ov,
+        ),
         cta: { label: 'Upload document', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Un document manque pour votre demande de visa',
       body: brand('VISA_MISSING_DOCUMENTS', {
-        eyebrow: 'Document requis',
-        heading: 'Un document manque',
-        bodyHtml: `Merci de téléverser le document de visa manquant pour le prochain voyage de ${d.travelerName ?? 'votre voyageur'} vers ${d.country ?? 'votre destination'}.`,
+        ...resolveContent(
+          'VISA_MISSING_DOCUMENTS',
+          'FR',
+          { travelerName: d.travelerName ?? 'votre voyageur', country: d.country ?? 'votre destination' },
+          ov,
+        ),
         cta: { label: 'Téléverser le document', url: FIND_BOOKING_URL },
       }),
     }),
   },
   VISA_APPROVED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Visa application approved',
       body: brand('VISA_APPROVED', {
-        eyebrow: 'Visa approved',
-        heading: 'Good news!',
-        bodyHtml: `${d.travelerName ?? "Your traveler's"} visa application has been approved. Log in to your booking to download the visa document.`,
+        ...resolveContent('VISA_APPROVED', 'EN', { travelerName: d.travelerName ?? "Your traveler's" }, ov),
         cta: { label: 'Download visa', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Demande de visa approuvée',
       body: brand('VISA_APPROVED', {
-        eyebrow: 'Visa approuvé',
-        heading: 'Bonne nouvelle !',
-        bodyHtml: `La demande de visa de ${d.travelerName ?? 'votre voyageur'} a été approuvée. Connectez-vous à votre réservation pour télécharger le document de visa.`,
+        ...resolveContent('VISA_APPROVED', 'FR', { travelerName: d.travelerName ?? 'votre voyageur' }, ov),
         cta: { label: 'Télécharger le visa', url: FIND_BOOKING_URL },
       }),
     }),
   },
   VISA_REJECTED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Visa application needs attention',
       body: brand('VISA_REJECTED', {
-        eyebrow: 'Visa — action needed',
-        heading: 'Your visa application needs attention',
-        bodyHtml: `${d.travelerName ?? "Your traveler's"} visa application was rejected${d.rejectionReason ? `: ${d.rejectionReason}` : '.'} Log in to your booking to resubmit.`,
+        ...resolveContent(
+          'VISA_REJECTED',
+          'EN',
+          { travelerName: d.travelerName ?? "Your traveler's", rejectionClause: d.rejectionReason ? `: ${d.rejectionReason}` : '.' },
+          ov,
+        ),
         cta: { label: 'Resubmit', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre demande de visa nécessite une action',
       body: brand('VISA_REJECTED', {
-        eyebrow: 'Visa — action requise',
-        heading: 'Votre demande de visa nécessite une action',
-        bodyHtml: `La demande de visa de ${d.travelerName ?? 'votre voyageur'} a été rejetée${d.rejectionReason ? ` : ${d.rejectionReason}` : '.'} Connectez-vous à votre réservation pour la soumettre à nouveau.`,
+        ...resolveContent(
+          'VISA_REJECTED',
+          'FR',
+          { travelerName: d.travelerName ?? 'votre voyageur', rejectionClause: d.rejectionReason ? ` : ${d.rejectionReason}` : '.' },
+          ov,
+        ),
         cta: { label: 'Soumettre à nouveau', url: FIND_BOOKING_URL },
       }),
     }),
   },
   VISA_SUBMITTED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Visa application received',
-      body: brand('VISA_SUBMITTED', {
-        eyebrow: 'Visa application received',
-        heading: 'We&rsquo;ve got your visa application',
-        bodyHtml: `${d.travelerName ?? "Your traveler's"} visa application for your trip to ${d.country ?? 'your destination'} has been received and is under review. We'll notify you as soon as there's an update.`,
-      }),
+      body: brand(
+        'VISA_SUBMITTED',
+        resolveContent('VISA_SUBMITTED', 'EN', { travelerName: d.travelerName ?? "Your traveler's", country: d.country ?? 'your destination' }, ov),
+      ),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Nous avons bien reçu votre demande de visa',
-      body: brand('VISA_SUBMITTED', {
-        eyebrow: 'Demande de visa reçue',
-        heading: 'Nous avons bien reçu votre demande de visa',
-        bodyHtml: `La demande de visa de ${d.travelerName ?? 'votre voyageur'} pour votre voyage vers ${d.country ?? 'votre destination'} a été reçue et est en cours d'examen. Nous vous informerons dès qu'il y aura une mise à jour.`,
-      }),
+      body: brand(
+        'VISA_SUBMITTED',
+        resolveContent('VISA_SUBMITTED', 'FR', { travelerName: d.travelerName ?? 'votre voyageur', country: d.country ?? 'votre destination' }, ov),
+      ),
     }),
   },
   VISA_RESUBMITTED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Visa application resubmitted',
-      body: brand('VISA_RESUBMITTED', {
-        eyebrow: 'Visa resubmitted',
-        heading: 'Your visa application is back with us',
-        bodyHtml: `${d.travelerName ?? "Your traveler's"} updated visa application has been received and is under review again.`,
-      }),
+      body: brand('VISA_RESUBMITTED', resolveContent('VISA_RESUBMITTED', 'EN', { travelerName: d.travelerName ?? "Your traveler's" }, ov)),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Demande de visa soumise à nouveau',
-      body: brand('VISA_RESUBMITTED', {
-        eyebrow: 'Visa resoumis',
-        heading: 'Votre demande de visa nous est revenue',
-        bodyHtml: `La demande de visa mise à jour de ${d.travelerName ?? 'votre voyageur'} a été reçue et est de nouveau en cours d'examen.`,
-      }),
+      body: brand('VISA_RESUBMITTED', resolveContent('VISA_RESUBMITTED', 'FR', { travelerName: d.travelerName ?? 'votre voyageur' }, ov)),
     }),
   },
   VISA_QUEUE_NEW_APPLICATION: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'New visa application in your queue',
       body: brand('VISA_QUEUE_NEW_APPLICATION', {
-        eyebrow: 'Visa queue',
-        heading: 'New visa application',
-        bodyHtml: `A new visa application for ${d.travelerName ?? 'a traveler'} (${d.country ?? 'destination not set'}) needs review.`,
+        ...resolveContent('VISA_QUEUE_NEW_APPLICATION', 'EN', { travelerName: d.travelerName ?? 'a traveler', country: d.country ?? 'destination not set' }, ov),
         cta: { label: 'Open visa queue', url: STAFF_VISA_QUEUE_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Nouvelle demande de visa dans votre file',
       body: brand('VISA_QUEUE_NEW_APPLICATION', {
-        eyebrow: 'File des visas',
-        heading: 'Nouvelle demande de visa',
-        bodyHtml: `Une nouvelle demande de visa pour ${d.travelerName ?? 'un voyageur'} (${d.country ?? 'destination non définie'}) nécessite votre examen.`,
+        ...resolveContent(
+          'VISA_QUEUE_NEW_APPLICATION',
+          'FR',
+          { travelerName: d.travelerName ?? 'un voyageur', country: d.country ?? 'destination non définie' },
+          ov,
+        ),
         cta: { label: 'Ouvrir la file des visas', url: STAFF_VISA_QUEUE_URL },
       }),
     }),
   },
   RATING_CODE_ISSUED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Rate your trip',
       body: brand('RATING_CODE_ISSUED', {
-        eyebrow: 'Rate your trip',
-        heading: 'How was your trip?',
-        bodyHtml: `Thank you for traveling with us! Once your tour is complete, use booking ${d.bookingId} and Rating Code ${d.ratingCode ?? ''} at mufasasafaris.com/rate to share your feedback.`,
+        ...resolveContent('RATING_CODE_ISSUED', 'EN', { bookingId: d.bookingId ?? '', ratingCode: d.ratingCode ?? '' }, ov),
         cta: { label: 'Leave a review', url: 'https://mufasasafaris.com/rate' },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Évaluez votre voyage',
       body: brand('RATING_CODE_ISSUED', {
-        eyebrow: 'Évaluez votre voyage',
-        heading: 'Comment s&rsquo;est passé votre voyage ?',
-        bodyHtml: `Merci d'avoir voyagé avec nous ! Une fois votre circuit terminé, utilisez la réservation ${d.bookingId} et le code d'évaluation ${d.ratingCode ?? ''} sur mufasasafaris.com/rate pour partager votre avis.`,
+        ...resolveContent('RATING_CODE_ISSUED', 'FR', { bookingId: d.bookingId ?? '', ratingCode: d.ratingCode ?? '' }, ov),
         cta: { label: 'Laisser un avis', url: 'https://mufasasafaris.com/rate' },
       }),
     }),
   },
   RATING_THANK_YOU: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Thank you for your feedback',
-      body: brand('RATING_THANK_YOU', {
-        eyebrow: 'Thank you',
-        heading: 'We appreciate your feedback',
-        bodyHtml: `Thank you for sharing your feedback on booking ${d.bookingId} &mdash; it genuinely helps us improve every trip that follows yours.`,
-      }),
+      body: brand('RATING_THANK_YOU', resolveContent('RATING_THANK_YOU', 'EN', { bookingId: d.bookingId ?? '' }, ov)),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Merci pour votre avis',
-      body: brand('RATING_THANK_YOU', {
-        eyebrow: 'Merci',
-        heading: 'Nous vous remercions pour votre avis',
-        bodyHtml: `Merci d'avoir partagé votre avis sur la réservation ${d.bookingId} &mdash; cela nous aide vraiment à améliorer chaque voyage à venir.`,
-      }),
+      body: brand('RATING_THANK_YOU', resolveContent('RATING_THANK_YOU', 'FR', { bookingId: d.bookingId ?? '' }, ov)),
     }),
   },
   // DR-055: sent to Booking.contactEmail right when a /plan-my-trip
@@ -536,237 +946,204 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
   // User.email is a synthetic placeholder, not a real address (see
   // Booking.contactEmail's own comment in booking/domain.ts).
   TAILOR_MADE_REQUEST_RECEIVED: {
-    EN: (d) => {
+    EN: (d, ov) => {
       const destinations = d.countries?.length ? d.countries.join(', ') : 'Not yet specified';
       const start = formatDate(d.travelStart, 'en-US');
       const end = formatDate(d.travelEnd, 'en-US');
       const dates = start && end ? `${start} to ${end}` : 'Not yet specified';
       return {
         subject: `We received your trip request -- ${d.bookingId}`,
-        body: brand('TAILOR_MADE_REQUEST_RECEIVED', {
-          eyebrow: 'Trip request received',
-          heading: 'Thanks for your trip request!',
-          bodyHtml:
-            `Here is a summary:<br><br>` +
-            `Destination(s): ${destinations}<br>` +
-            `Travelers: ${d.seats ?? '-'}<br>` +
-            `Travel dates: ${dates}<br><br>` +
-            `Your booking reference: <strong>${d.bookingId}</strong><br>` +
-            `Please keep this reference and your last name safe -- you'll need both any time you contact us about ` +
-            `this trip, including to check its status or accept a quotation.<br><br>` +
-            `Our team will be in touch soon with a personalized quotation.`,
-        }),
+        body: brand(
+          'TAILOR_MADE_REQUEST_RECEIVED',
+          resolveContent(
+            'TAILOR_MADE_REQUEST_RECEIVED',
+            'EN',
+            { destinations, travelers: d.seats ? String(d.seats) : '-', dates, bookingId: d.bookingId ?? '' },
+            ov,
+          ),
+        ),
       };
     },
-    FR: (d) => {
+    FR: (d, ov) => {
       const destinations = d.countries?.length ? d.countries.join(', ') : 'Pas encore précisé';
       const start = formatDate(d.travelStart, 'fr-FR');
       const end = formatDate(d.travelEnd, 'fr-FR');
       const dates = start && end ? `du ${start} au ${end}` : 'Pas encore précisées';
       return {
         subject: `Nous avons bien reçu votre demande de voyage -- ${d.bookingId}`,
-        body: brand('TAILOR_MADE_REQUEST_RECEIVED', {
-          eyebrow: 'Demande reçue',
-          heading: 'Merci pour votre demande de voyage !',
-          bodyHtml:
-            `Voici un résumé :<br><br>` +
-            `Destination(s) : ${destinations}<br>` +
-            `Voyageurs : ${d.seats ?? '-'}<br>` +
-            `Dates de voyage : ${dates}<br><br>` +
-            `Votre référence de réservation : <strong>${d.bookingId}</strong><br>` +
-            `Merci de conserver cette référence ainsi que votre nom de famille en lieu sûr -- vous en aurez besoin ` +
-            `à chaque fois que vous nous contacterez au sujet de ce voyage, y compris pour suivre son statut ou ` +
-            `accepter un devis.<br><br>` +
-            `Notre équipe vous contactera bientôt avec un devis personnalisé.`,
-        }),
+        body: brand(
+          'TAILOR_MADE_REQUEST_RECEIVED',
+          resolveContent(
+            'TAILOR_MADE_REQUEST_RECEIVED',
+            'FR',
+            { destinations, travelers: d.seats ? String(d.seats) : '-', dates, bookingId: d.bookingId ?? '' },
+            ov,
+          ),
+        ),
       };
     },
   },
   ITINERARY_APPROVED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your trip plan is finalized',
       body: brand('ITINERARY_APPROVED', {
-        eyebrow: 'Itinerary ready',
-        heading: 'Your trip plan is finalized',
-        bodyHtml: `The day-by-day itinerary for booking ${d.bookingId} has been finalized. Log in to your booking to view or download it.`,
+        ...resolveContent('ITINERARY_APPROVED', 'EN', { bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'View itinerary', url: FIND_BOOKING_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre programme de voyage est finalisé',
       body: brand('ITINERARY_APPROVED', {
-        eyebrow: 'Itinéraire prêt',
-        heading: 'Votre programme de voyage est finalisé',
-        bodyHtml: `L'itinéraire jour par jour de la réservation ${d.bookingId} a été finalisé. Connectez-vous à votre réservation pour le consulter ou le télécharger.`,
+        ...resolveContent('ITINERARY_APPROVED', 'FR', { bookingId: d.bookingId ?? '' }, ov),
         cta: { label: 'Voir l&rsquo;itinéraire', url: FIND_BOOKING_URL },
       }),
     }),
   },
   STAFF_PASSWORD_ISSUED: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your POLCO Tours account is ready',
       body: brand('STAFF_PASSWORD_ISSUED', {
-        eyebrow: 'Account created',
-        heading: 'Welcome to POLCO Tours',
-        bodyHtml:
-          `An account was created for you at POLCO Tours (${d.email ?? ''}). Your temporary password is: ` +
-          `<strong>${d.temporaryPassword ?? ''}</strong>. You'll be asked to set a new password the first time you ` +
-          `sign in &mdash; this temporary one stops working once you do.`,
+        ...resolveContent('STAFF_PASSWORD_ISSUED', 'EN', { email: d.email ?? '', temporaryPassword: d.temporaryPassword ?? '' }, ov),
         cta: { label: 'Sign in', url: STAFF_LOGIN_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre compte POLCO Tours est prêt',
       body: brand('STAFF_PASSWORD_ISSUED', {
-        eyebrow: 'Compte créé',
-        heading: 'Bienvenue chez POLCO Tours',
-        bodyHtml:
-          `Un compte a été créé pour vous chez POLCO Tours (${d.email ?? ''}). Votre mot de passe temporaire est : ` +
-          `<strong>${d.temporaryPassword ?? ''}</strong>. Il vous sera demandé de définir un nouveau mot de passe dès ` +
-          `votre première connexion &mdash; celui-ci ne fonctionnera plus ensuite.`,
+        ...resolveContent('STAFF_PASSWORD_ISSUED', 'FR', { email: d.email ?? '', temporaryPassword: d.temporaryPassword ?? '' }, ov),
         cta: { label: 'Se connecter', url: STAFF_LOGIN_URL },
       }),
     }),
   },
   STAFF_PASSWORD_RESET: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your POLCO Tours password was reset',
       body: brand('STAFF_PASSWORD_RESET', {
-        eyebrow: 'Password reset',
-        heading: 'Password reset',
-        bodyHtml:
-          `Your POLCO Tours password was just reset by an administrator. Your new temporary password is: ` +
-          `<strong>${d.temporaryPassword ?? ''}</strong>. You'll be asked to set your own password the next time you ` +
-          `sign in. If you didn't expect this, contact your administrator right away.`,
+        ...resolveContent('STAFF_PASSWORD_RESET', 'EN', { temporaryPassword: d.temporaryPassword ?? '' }, ov),
         cta: { label: 'Sign in', url: STAFF_LOGIN_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre mot de passe POLCO Tours a été réinitialisé',
       body: brand('STAFF_PASSWORD_RESET', {
-        eyebrow: 'Mot de passe réinitialisé',
-        heading: 'Mot de passe réinitialisé',
-        bodyHtml:
-          `Votre mot de passe POLCO Tours vient d'être réinitialisé par un administrateur. Votre nouveau mot de passe ` +
-          `temporaire est : <strong>${d.temporaryPassword ?? ''}</strong>. Il vous sera demandé de définir votre propre ` +
-          `mot de passe à la prochaine connexion. Si vous ne vous attendiez pas à ce message, contactez votre ` +
-          `administrateur immédiatement.`,
+        ...resolveContent('STAFF_PASSWORD_RESET', 'FR', { temporaryPassword: d.temporaryPassword ?? '' }, ov),
         cta: { label: 'Se connecter', url: STAFF_LOGIN_URL },
       }),
     }),
   },
   STAFF_ACCOUNT_DEACTIVATED: {
-    EN: () => ({
+    EN: (_d, ov) => ({
       subject: 'Your POLCO Tours account was deactivated',
-      body: brand('STAFF_ACCOUNT_DEACTIVATED', {
-        eyebrow: 'Account deactivated',
-        heading: 'Your account was deactivated',
-        bodyHtml: `Your POLCO Tours account has been deactivated. If you believe this is a mistake, contact your administrator.`,
-      }),
+      body: brand('STAFF_ACCOUNT_DEACTIVATED', resolveContent('STAFF_ACCOUNT_DEACTIVATED', 'EN', {}, ov)),
     }),
-    FR: () => ({
+    FR: (_d, ov) => ({
       subject: 'Votre compte POLCO Tours a été désactivé',
-      body: brand('STAFF_ACCOUNT_DEACTIVATED', {
-        eyebrow: 'Compte désactivé',
-        heading: 'Votre compte a été désactivé',
-        bodyHtml: `Votre compte POLCO Tours a été désactivé. Si vous pensez qu'il s'agit d'une erreur, contactez votre administrateur.`,
-      }),
+      body: brand('STAFF_ACCOUNT_DEACTIVATED', resolveContent('STAFF_ACCOUNT_DEACTIVATED', 'FR', {}, ov)),
     }),
   },
   STAFF_ACCOUNT_REACTIVATED: {
-    EN: () => ({
+    EN: (_d, ov) => ({
       subject: 'Your POLCO Tours account is active again',
       body: brand('STAFF_ACCOUNT_REACTIVATED', {
-        eyebrow: 'Account reactivated',
-        heading: 'You&rsquo;re back in',
-        bodyHtml: `Your POLCO Tours account has been reactivated &mdash; you can sign in as usual.`,
+        ...resolveContent('STAFF_ACCOUNT_REACTIVATED', 'EN', {}, ov),
         cta: { label: 'Sign in', url: STAFF_LOGIN_URL },
       }),
     }),
-    FR: () => ({
+    FR: (_d, ov) => ({
       subject: 'Votre compte POLCO Tours est de nouveau actif',
       body: brand('STAFF_ACCOUNT_REACTIVATED', {
-        eyebrow: 'Compte réactivé',
-        heading: 'Vous êtes de retour',
-        bodyHtml: `Votre compte POLCO Tours a été réactivé &mdash; vous pouvez vous connecter normalement.`,
+        ...resolveContent('STAFF_ACCOUNT_REACTIVATED', 'FR', {}, ov),
         cta: { label: 'Se connecter', url: STAFF_LOGIN_URL },
       }),
     }),
   },
   ASSIGNMENT_NOTICE_DRIVER: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: "You've been assigned to a departure",
       body: brand('ASSIGNMENT_NOTICE_DRIVER', {
-        eyebrow: 'New assignment',
-        heading: 'You&rsquo;ve been assigned to a departure',
-        bodyHtml:
-          `You've been assigned as driver for the departure starting ${formatDate(d.startDate, 'en-US') ?? '-'} ` +
-          `(${d.country ?? 'destination not set'}). Vehicle: ${d.vehicleLabel ?? '-'}. Guide: ${d.guideName ?? 'unassigned'}.`,
+        ...resolveContent(
+          'ASSIGNMENT_NOTICE_DRIVER',
+          'EN',
+          { startDate: formatDate(d.startDate, 'en-US') ?? '-', country: d.country ?? 'destination not set', vehicleLabel: d.vehicleLabel ?? '-', guideName: d.guideName ?? 'unassigned' },
+          ov,
+        ),
         cta: { label: 'View schedule', url: STAFF_SCHEDULE_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Vous avez été affecté à un départ',
       body: brand('ASSIGNMENT_NOTICE_DRIVER', {
-        eyebrow: 'Nouvelle affectation',
-        heading: 'Vous avez été affecté à un départ',
-        bodyHtml:
-          `Vous avez été affecté comme chauffeur pour le départ du ${formatDate(d.startDate, 'fr-FR') ?? '-'} ` +
-          `(${d.country ?? 'destination non définie'}). Véhicule : ${d.vehicleLabel ?? '-'}. Guide : ${d.guideName ?? 'non affecté'}.`,
+        ...resolveContent(
+          'ASSIGNMENT_NOTICE_DRIVER',
+          'FR',
+          { startDate: formatDate(d.startDate, 'fr-FR') ?? '-', country: d.country ?? 'destination non définie', vehicleLabel: d.vehicleLabel ?? '-', guideName: d.guideName ?? 'non affecté' },
+          ov,
+        ),
         cta: { label: 'Voir le planning', url: STAFF_SCHEDULE_URL },
       }),
     }),
   },
   ASSIGNMENT_NOTICE_GUIDE: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: "You've been assigned to a departure",
       body: brand('ASSIGNMENT_NOTICE_GUIDE', {
-        eyebrow: 'New assignment',
-        heading: 'You&rsquo;ve been assigned to a departure',
-        bodyHtml:
-          `You've been assigned as guide for the departure starting ${formatDate(d.startDate, 'en-US') ?? '-'} ` +
-          `(${d.country ?? 'destination not set'}). Driver: ${d.driverName ?? '-'}. Vehicle: ${d.vehicleLabel ?? '-'}.`,
+        ...resolveContent(
+          'ASSIGNMENT_NOTICE_GUIDE',
+          'EN',
+          { startDate: formatDate(d.startDate, 'en-US') ?? '-', country: d.country ?? 'destination not set', driverName: d.driverName ?? '-', vehicleLabel: d.vehicleLabel ?? '-' },
+          ov,
+        ),
         cta: { label: 'View schedule', url: STAFF_SCHEDULE_URL },
       }),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Vous avez été affecté à un départ',
       body: brand('ASSIGNMENT_NOTICE_GUIDE', {
-        eyebrow: 'Nouvelle affectation',
-        heading: 'Vous avez été affecté à un départ',
-        bodyHtml:
-          `Vous avez été affecté comme guide pour le départ du ${formatDate(d.startDate, 'fr-FR') ?? '-'} ` +
-          `(${d.country ?? 'destination non définie'}). Chauffeur : ${d.driverName ?? '-'}. Véhicule : ${d.vehicleLabel ?? '-'}.`,
+        ...resolveContent(
+          'ASSIGNMENT_NOTICE_GUIDE',
+          'FR',
+          { startDate: formatDate(d.startDate, 'fr-FR') ?? '-', country: d.country ?? 'destination non définie', driverName: d.driverName ?? '-', vehicleLabel: d.vehicleLabel ?? '-' },
+          ov,
+        ),
         cta: { label: 'Voir le planning', url: STAFF_SCHEDULE_URL },
       }),
     }),
   },
   ASSIGNMENT_NOTICE_VEHICLE_OWNER: {
-    EN: (d) => ({
+    EN: (d, ov) => ({
       subject: 'Your vehicle has been scheduled',
-      body: brand('ASSIGNMENT_NOTICE_VEHICLE_OWNER', {
-        eyebrow: 'Vehicle scheduled',
-        heading: 'Your vehicle has been scheduled',
-        bodyHtml:
-          `Your vehicle ${d.vehicleLabel ?? ''} has been scheduled for the departure starting ` +
-          `${formatDate(d.startDate, 'en-US') ?? '-'} (${d.country ?? 'destination not set'}). Driver: ${d.driverName ?? '-'}.`,
-      }),
+      body: brand(
+        'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
+        resolveContent(
+          'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
+          'EN',
+          { vehicleLabel: d.vehicleLabel ?? '', startDate: formatDate(d.startDate, 'en-US') ?? '-', country: d.country ?? 'destination not set', driverName: d.driverName ?? '-' },
+          ov,
+        ),
+      ),
     }),
-    FR: (d) => ({
+    FR: (d, ov) => ({
       subject: 'Votre véhicule a été planifié',
-      body: brand('ASSIGNMENT_NOTICE_VEHICLE_OWNER', {
-        eyebrow: 'Véhicule planifié',
-        heading: 'Votre véhicule a été planifié',
-        bodyHtml:
-          `Votre véhicule ${d.vehicleLabel ?? ''} a été planifié pour le départ du ` +
-          `${formatDate(d.startDate, 'fr-FR') ?? '-'} (${d.country ?? 'destination non définie'}). Chauffeur : ${d.driverName ?? '-'}.`,
-      }),
+      body: brand(
+        'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
+        resolveContent(
+          'ASSIGNMENT_NOTICE_VEHICLE_OWNER',
+          'FR',
+          { vehicleLabel: d.vehicleLabel ?? '', startDate: formatDate(d.startDate, 'fr-FR') ?? '-', country: d.country ?? 'destination non définie', driverName: d.driverName ?? '-' },
+          ov,
+        ),
+      ),
     }),
   },
 };
 
-export function renderMessage(event: NotificationEvent, locale: Locale, data: NotificationData): RenderedMessage {
-  return TEMPLATES[event][locale](data);
+export function renderMessage(
+  event: NotificationEvent,
+  locale: Locale,
+  data: NotificationData,
+  overrides: EmailTemplateOverrides = {},
+): RenderedMessage {
+  return TEMPLATES[event][locale](data, overrides);
 }
 
 type SmsTemplate = (data: NotificationData) => string;
@@ -777,7 +1154,9 @@ type SmsTemplate = (data: NotificationData) => string;
 // would show literal markup as the message text. Only events actually
 // reachable by WHATSAPP/SMS need an entry -- notify() (service.ts) falls
 // through to the next channel when an event has none, rather than sending
-// raw HTML (the bug this map's expansion fixes, DR-205).
+// raw HTML (the bug this map's expansion fixes, DR-205). Not part of
+// DR-217's CMS-editable scope (explicit user request was about email
+// templates only) -- these stay coded.
 const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplate>>> = {
   BOOKING_CONFIRMED: {
     EN: (d) => `MUFASA SAFARIS & TOURS: Booking ${d.bookingId} confirmed. See you soon!`,

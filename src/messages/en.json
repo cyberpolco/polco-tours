@@ -1976,6 +1976,7 @@
     "termsPrivacySectionTitle": "Privacy & What We Collect",
     "termsCookiesSectionTitle": "Cookie Policy",
     "termsCancellationSectionTitle": "Cancellation & Refund Policy",
+    "emailsSectionTitle": "Emails",
     "partnersSectionTitle": "Partners & clients",
     "partnersIntro": "The homepage's scrolling partner/client strip. A partner with no logo uploaded yet shows our own mark and its name instead.",
     "partnerNameLabel": "Partner or client name",
@@ -2046,6 +2047,19 @@
     "dayTrip": "{days}-day trip",
     "chooseOwnStartDate": "choose your own travel start date",
     "bookThisTrip": "Book this trip"
+  },
+  "StaffCmsEmail": {
+    "intro": "Edit the wording of every automated email. Layout, colors, the logo, and the subject line stay fixed -- only the eyebrow label, heading, and body text below are editable. A blank field falls back to the default shown here. Use the {{placeholders}} shown under a template's body exactly as written -- they're replaced with real data (booking reference, amount, etc.) when the email is sent.",
+    "placeholdersLabel": "Available placeholders:",
+    "groups": {
+      "booking": "Booking",
+      "payment": "Payment & invoicing",
+      "visa": "Visa",
+      "rating": "Ratings",
+      "tripPlanning": "Trip planning",
+      "staffAccounts": "Staff accounts",
+      "staffAssignments": "Staff assignments"
+    }
   },
   "StaffForbidden": {
     "title": "Not authorized",

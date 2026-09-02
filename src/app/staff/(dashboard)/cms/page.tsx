@@ -9,6 +9,7 @@ import {
   type CmsLocale,
   type CmsTextBlockView,
 } from '@modules/cms';
+import { EMAIL_TEMPLATE_DEFAULTS, EMAIL_TEMPLATE_GROUPS, EMAIL_TEMPLATE_TOKENS } from '@modules/notifications';
 import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
@@ -72,6 +73,7 @@ const CMS_TABS = [
   { key: 'rate', labelKey: 'rateSectionTitle' },
   { key: 'weather', labelKey: 'weatherSectionTitle' },
   { key: 'terms', labelKey: 'termsSectionTitle' },
+  { key: 'emails', labelKey: 'emailsSectionTitle' },
   { key: 'media', labelKey: 'imageUpload' },
 ] as const;
 type CmsTabKey = (typeof CMS_TABS)[number]['key'];
@@ -100,6 +102,27 @@ function withTermsFallback(
       title,
       body,
       eyebrow: null,
+      updatedAt: new Date(0),
+      updatedByUserId: null,
+    }
+  );
+}
+
+// DR-217: same prefill reasoning as withTermsFallback above, sourced from
+// notifications' EMAIL_TEMPLATE_DEFAULTS instead of a messages/*.json coded
+// default -- notify()/notifyEmail() fall back to that exact same table when
+// no CmsTextBlock override exists, so the editor always starts from what a
+// guest/staff recipient would actually receive today.
+function withEmailFallback(current: CmsTextBlockView | null, key: string, locale: CmsLocale, templateKey: string): CmsTextBlockView {
+  const defaults = EMAIL_TEMPLATE_DEFAULTS[templateKey]?.[locale === 'fr' ? 'FR' : 'EN'];
+  return (
+    current ?? {
+      id: '',
+      key,
+      locale,
+      title: defaults?.heading ?? '',
+      body: defaults?.bodyTemplate ?? '',
+      eyebrow: defaults?.eyebrow ?? null,
       updatedAt: new Date(0),
       updatedByUserId: null,
     }
@@ -163,6 +186,7 @@ export default async function CmsPage({ searchParams }: Props) {
     mapText,
     operatingCountries,
     footerLegalText,
+    emailOverrideRows,
   ] = await Promise.all([
     cmsService.getTextBlock(ctx, 'about', locale),
     cmsService.listFaqEntries(ctx, locale),
@@ -191,7 +215,9 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.getTextBlock(ctx, 'home-map', locale),
     cmsService.listOperatingCountries(ctx),
     cmsService.getTextBlock(ctx, 'footer.legal', locale),
+    cmsService.listTextBlocksByKeyPrefix(ctx, 'email.', locale),
   ]);
+  const emailOverridesByKey = new Map(emailOverrideRows.map((row) => [row.key, row]));
   const availableCountriesToAdd = AFRICA_COUNTRIES.filter(
     (country) => !operatingCountries.some((c) => c.countryCode === country.alpha2),
   );
@@ -200,6 +226,7 @@ export default async function CmsPage({ searchParams }: Props) {
   const tCountries = await getTranslations('Countries');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
   const tTerms = await getTranslations('Terms');
+  const tEmails = await getTranslations('StaffCmsEmail');
   const termsTosView = withTermsFallback(termsTosText, 'terms.tos', locale, tTerms('sections.tos.title'), tTerms('sections.tos.body'));
   const termsPrivacyView = withTermsFallback(
     termsPrivacyText,
@@ -1055,6 +1082,50 @@ export default async function CmsPage({ searchParams }: Props) {
             saveLabel={t('save')}
             bodyRows={12}
           />
+        </div>
+        )}
+
+        {activeTab === 'emails' && (
+        <div className="space-y-8">
+          <p className="text-sm text-mist">{tEmails('intro')}</p>
+          {EMAIL_TEMPLATE_GROUPS.map((group) => (
+            <section key={group.groupKey} className="space-y-3">
+              <h2 className="font-semibold text-navy">{tEmails(`groups.${group.groupKey}`)}</h2>
+              <div className="space-y-2">
+                {group.keys.map((templateKey) => {
+                  const cmsKey = `email.${templateKey}`;
+                  const view = withEmailFallback(emailOverridesByKey.get(cmsKey) ?? null, cmsKey, locale, templateKey);
+                  const tokens = EMAIL_TEMPLATE_TOKENS[templateKey] ?? [];
+                  const label = EMAIL_TEMPLATE_DEFAULTS[templateKey]?.EN.eyebrow ?? templateKey;
+                  return (
+                    <details key={templateKey} className="rounded-card border border-rule p-4">
+                      <summary className="cursor-pointer font-semibold text-navy">{label}</summary>
+                      <div className="mt-3 space-y-2">
+                        {tokens.length > 0 && (
+                          <p className="text-xs text-mist">
+                            {tEmails('placeholdersLabel')} {tokens.map((token) => `{{${token}}}`).join(', ')}
+                          </p>
+                        )}
+                        <PageTextEditor
+                          cmsKey={cmsKey}
+                          locale={locale}
+                          current={view}
+                          canWrite={canWrite}
+                          sectionTitle={label}
+                          eyebrowLabel={t('eyebrowLabel')}
+                          titleLabel={t('pageTitleLabel')}
+                          bodyLabel={t('pageBodyLabel')}
+                          savingLabel={t('saving')}
+                          saveLabel={t('save')}
+                          bodyRows={6}
+                        />
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
         </div>
         )}
 

@@ -1976,6 +1976,7 @@
     "termsPrivacySectionTitle": "Confidentialité et données collectées",
     "termsCookiesSectionTitle": "Politique de cookies",
     "termsCancellationSectionTitle": "Politique d'annulation et de remboursement",
+    "emailsSectionTitle": "E-mails",
     "partnersSectionTitle": "Partenaires et clients",
     "partnersIntro": "Le bandeau défilant des partenaires/clients de la page d'accueil. Un partenaire sans logo téléchargé affiche notre propre symbole et son nom à la place.",
     "partnerNameLabel": "Nom du partenaire ou client",
@@ -2053,6 +2054,19 @@
     "tryAgain": "Réessayer",
     "goToDashboard": "Retour au tableau de bord",
     "digest": "Référence"
+  },
+  "StaffCmsEmail": {
+    "intro": "Modifiez le texte de chaque e-mail automatique. La mise en page, les couleurs, le logo et l'objet restent fixes -- seuls le libellé d'accroche, le titre et le corps ci-dessous sont modifiables. Un champ vide revient au texte par défaut affiché ici. Utilisez les {{placeholders}} indiqués sous le corps d'un modèle tels quels -- ils sont remplacés par de vraies données (référence de réservation, montant, etc.) à l'envoi.",
+    "placeholdersLabel": "Variables disponibles :",
+    "groups": {
+      "booking": "Réservation",
+      "payment": "Paiement et facturation",
+      "visa": "Visa",
+      "rating": "Évaluations",
+      "tripPlanning": "Planification de voyage",
+      "staffAccounts": "Comptes du personnel",
+      "staffAssignments": "Affectations du personnel"
+    }
   },
   "StaffForbidden": {
     "title": "Non autorisé",
