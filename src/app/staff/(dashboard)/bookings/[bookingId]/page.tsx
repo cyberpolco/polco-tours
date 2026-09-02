@@ -21,7 +21,7 @@ import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { format, formatOrPending, money } from '@lib/money';
-import { COUNTRY_CODES_BY_ALPHA2 } from '@lib/country-codes';
+import { COUNTRY_CODES_BY_ALPHA2, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { BOOKING_STATUS_TONE, INVOICE_STATUS_TONE, ITINERARY_STATUS_TONE, PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { can, STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { CouponForm } from '@/components/CouponForm';
@@ -40,6 +40,7 @@ import {
   removeCouponAction,
   resolvePaymentAction,
   sendQuotationAction,
+  updateTripDatesAction,
 } from './actions';
 
 interface Props {
@@ -51,10 +52,10 @@ function visaTone(status: string): BadgeTone {
   return (VISA_STATUS_TONE as Record<string, BadgeTone>)[status] ?? 'neutral';
 }
 
-const OPERATING_COUNTRY_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
+const OPERATING_COUNTRY_CODE_SET = new Set<string>(OPERATING_COUNTRY_CODES);
 
 function countryName(alpha2: string, tCountries: (code: string) => string): string {
-  return OPERATING_COUNTRY_CODES.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
+  return OPERATING_COUNTRY_CODE_SET.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
 }
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
@@ -264,7 +265,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
               </span>
             )}
             <span className="rounded-pill bg-mist/10 px-2.5 py-1 text-xs font-semibold text-mist">
-              {booking.customTravelStart?.toLocaleDateString()} – {booking.customTravelEnd?.toLocaleDateString()}
+              {booking.customTravelStart?.toLocaleDateString()} – {booking.customTravelEnd?.toLocaleDateString()} {tCommon('estimatedSuffix')}
             </span>
             {booking.customDescription && <span className="text-sm text-mist">{booking.customDescription}</span>}
           </div>
@@ -389,6 +390,35 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             <Alert tone="error">{t('notAuthorized')}</Alert>
           </div>
         )}
+        {error === 'dateChangeFailed' && (
+          <div className="mt-4 max-w-sm">
+            <Alert tone="error">{t('dateChangeFailed')}</Alert>
+          </div>
+        )}
+        {/* DR-219: previously not editable at all -- the trip date shown
+            above/below is always labeled "(estimated)" precisely because it
+            can still move. Hardcoded to SUPERADMIN/TOUR_OPERATOR here to
+            match bookingService.updateTripDates' own isDepartureDateChanger
+            gate exactly, same convention as the Confirm button above. */}
+        {!isBookingLocked(booking.status) &&
+          (ctx.roles.includes('SUPERADMIN') || ctx.roles.includes('TOUR_OPERATOR')) &&
+          (packageSummary?.startDate ?? booking.customTravelStart) && (
+            <form action={updateTripDatesAction.bind(null, booking.id)} className="mt-4 flex flex-wrap items-end gap-3">
+              <FormField label={t('newStartDateLabel')} htmlFor="startDate">
+                <input
+                  type="date"
+                  name="startDate"
+                  id="startDate"
+                  defaultValue={(packageSummary?.startDate ?? booking.customTravelStart!).toISOString().slice(0, 10)}
+                  className="rounded-survey border border-rule px-3 py-2 text-sm"
+                  required
+                />
+              </FormField>
+              <SubmitButton variant="secondary" pendingLabel={t('changingTripDate')}>
+                {t('changeTripDate')}
+              </SubmitButton>
+            </form>
+          )}
         <div className="mt-4 flex flex-col gap-2">
           <div className="flex gap-3">
             {/* DR-159: booking.confirm alone isn't narrow enough to hide this
@@ -479,7 +509,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             <p className="font-semibold text-navy">{packageSummary.title}</p>
             <p className="mt-1 text-sm text-mist">
               {countryName(packageSummary.country, tCountries)} · {packageSummary.startDate.toLocaleDateString()}
-              {packageSummary.endDate && <> – {packageSummary.endDate.toLocaleDateString()}</>}
+              {packageSummary.endDate && <> – {packageSummary.endDate.toLocaleDateString()}</>} {tCommon('estimatedSuffix')}
             </p>
           </Card>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

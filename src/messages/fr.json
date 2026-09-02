@@ -12,6 +12,7 @@
     "noMatches": "Aucun résultat",
     "selectFromListRequired": "Veuillez sélectionner une option dans la liste.",
     "remove": "Supprimer",
+    "estimatedSuffix": "(à titre indicatif)",
     "available": "Disponible",
     "unavailable": "Indisponible",
     "done": "Terminé",
@@ -204,7 +205,8 @@
     "NA": "Namibie",
     "CD": "RD Congo",
     "ZM": "Zambie",
-    "ZW": "Zimbabwe"
+    "ZW": "Zimbabwe",
+    "BW": "Botswana"
   },
   "WeatherPage": {
     "eyebrow": "Météo",
@@ -593,7 +595,7 @@
     "quotationReadySignIn": "Votre devis est prêt : {price}. Reconnectez-vous sur l'appareil depuis lequel vous avez fait la demande pour l'accepter et continuer.",
     "requestSummary": "Résumé de la demande",
     "destinations": "Destination(s)",
-    "travelDates": "Dates de voyage",
+    "travelDates": "Dates de voyage (à titre indicatif)",
     "tripDescription": "Description du voyage",
     "tripDetails": "Détails du voyage",
     "dayTrip": "voyage de {days} jours",
@@ -767,6 +769,10 @@
     "quotationOverrideNotice": "Une répartition des coûts existe pour cette demande. Modifier le montant ci-dessus nécessite un motif et est enregistré dans le journal d'audit.",
     "quotationReasonRequired": "Ce montant diffère du total suggéré par la répartition des coûts — indiquez un motif avant d'envoyer.",
     "notAuthorized": "Vous n'avez pas la permission d'effectuer cette action.",
+    "dateChangeFailed": "Impossible de modifier la date du séjour. Elle est peut-être verrouillée, partagée avec une autre réservation, ou vous n'en avez pas la permission.",
+    "changeTripDate": "Modifier la date du séjour",
+    "newStartDateLabel": "Nouvelle date de départ",
+    "changingTripDate": "Modification…",
     "accepting": "Acceptation…",
     "acceptQuotationOnBehalf": "Accepter le devis au nom du client",
     "releasedSeatHoldWarning": "Ceci provient d'une réservation de place relâchée — la disponibilité des places n'a pas été revérifiée automatiquement si le client accepte plus tard et procède au paiement.",

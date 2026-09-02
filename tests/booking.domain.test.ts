@@ -18,6 +18,7 @@ import {
   CreateTailorMadeInput,
   CreateBookingWithDatesInput,
   isBookingDeleter,
+  isDepartureDateChanger,
   BOOKING_DELETION_RETENTION_DAYS,
   requiresFullTravelerDetails,
   type TravelerView,
@@ -522,6 +523,30 @@ describe('booking domain', () => {
 
     it('is true if SUPERADMIN is any one of several held roles', () => {
       expect(isBookingDeleter(['TOUR_OPERATOR', 'SUPERADMIN'])).toBe(true);
+    });
+  });
+
+  // DR-219: gates bookingService.updateTripDates -- a booking's trip date
+  // (previously not editable at all) is only ever changeable by SUPERADMIN
+  // or TOUR_OPERATOR, at any status short of a locked/terminal one.
+  describe('isDepartureDateChanger', () => {
+    it('is true for SUPERADMIN and TOUR_OPERATOR', () => {
+      expect(isDepartureDateChanger(['SUPERADMIN'])).toBe(true);
+      expect(isDepartureDateChanger(['TOUR_OPERATOR'])).toBe(true);
+    });
+
+    it('is false for every other role, including PLATFORM_ADMIN', () => {
+      expect(isDepartureDateChanger(['PLATFORM_ADMIN'])).toBe(false);
+      expect(isDepartureDateChanger(['TOUR_GUIDE'])).toBe(false);
+      expect(isDepartureDateChanger(['DRIVER'])).toBe(false);
+      expect(isDepartureDateChanger(['VISA_FACILITATOR'])).toBe(false);
+      expect(isDepartureDateChanger(['VEHICLE_OWNER'])).toBe(false);
+      expect(isDepartureDateChanger(['TOURIST'])).toBe(false);
+      expect(isDepartureDateChanger([])).toBe(false);
+    });
+
+    it('is true if either allowed role is one of several held roles', () => {
+      expect(isDepartureDateChanger(['PLATFORM_ADMIN', 'TOUR_OPERATOR'])).toBe(true);
     });
   });
 

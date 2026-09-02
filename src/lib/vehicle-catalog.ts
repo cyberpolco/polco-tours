@@ -1,7 +1,7 @@
 // Reference data for the fleet vehicle Make/Model/Type pickers (DR-096).
 // Vehicle.make/model/vehicleType stay free-text in the schema (see
 // prisma/schema.prisma's own comment on vehicleType -- deliberately
-// open-ended, varies too much across NA/DRC/Zambia/Zimbabwe for an enum);
+// open-ended, varies too much across NA/DRC/Zambia/Zimbabwe/Botswana for an enum);
 // this is a curated *suggestion* list for the UI only, not a constraint --
 // every picker built on this data always offers an "Other" escape hatch
 // that accepts any free text, so a real vehicle the operator actually owns

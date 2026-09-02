@@ -1,6 +1,6 @@
 ---
 name: regional-compliance
-description: Namibia/DRC/Zambia/Zimbabwe tourism regulatory context — operator & fleet compliance, visa rules, DRC security zones (BR-07), guest health/logistics. Load when working on the fleet, visa, catalog (destinations), or immigration modules, or on booking eligibility/security-zone features.
+description: Namibia/DRC/Zambia/Zimbabwe/Botswana tourism regulatory context — operator & fleet compliance, visa rules, DRC security zones (BR-07), guest health/logistics. Load when working on the fleet, visa, catalog (destinations), or immigration modules, or on booking eligibility/security-zone features.
 ---
 
 Why the app is shaped the way it is — and the real-world rules any feature
@@ -10,11 +10,16 @@ verify against NTB/MEFT (Namibia), ICCN/Ministry of Tourism (DRC), and the
 relevant Zambia/Zimbabwe authorities/embassies. Treat this as orientation,
 not legal ground truth.**
 
-**Four regimes, one platform.** Namibia, the DRC, Zambia, and Zimbabwe have
-very different tourism governance. This is the reason for per-country tax,
-per-country operator compliance (BR-12), country-scoped visa applications
-(`VisaApplication.country`), EN/FR bilingual content, and packages priced in
-one of four currencies with **no FX conversion anywhere**.
+**Five regimes, one platform** (Botswana added DR-218). Namibia, the DRC,
+Zambia, Zimbabwe, and Botswana have very different tourism governance. This
+is the reason for per-country tax, per-country operator compliance (BR-12),
+country-scoped visa applications (`VisaApplication.country`), EN/FR
+bilingual content, and packages priced in one of four currencies with **no
+FX conversion anywhere** — `Currency` is a fixed enum (`USD`/`EUR`/`NAD`/
+`CDF`, `prisma/schema.prisma`) with no `BWP` value, same as Zambia/Zimbabwe
+already having no `ZMW`/`ZWG` value; a Botswana package/booking prices in
+USD or EUR like a Zambian or Zimbabwean one does, not a new currency (BR-02,
+`src/lib/money.ts`).
 
 **Country Regulations (`immigration` module) is the structured source of
 truth going forward** for visa requirements, required documents, processing
@@ -60,6 +65,33 @@ correct them in the UI, not by hand-editing this file or `seed.ts`.
   proof if arriving from an endemic country; gorilla trekking has strict rules
   (accredited local guide, ~8/group, 7 m distance, no flash, sick visitors may
   not trek).
+- **Botswana — operator & fleet compliance (feeds `fleet`/`documents`, DR-218).**
+  Every tourism enterprise (incl. tour operators) must register with the
+  **Department of Tourism** and hold a Tourism Registration certificate,
+  decided by the Tourism Industry Licensing Committee (TILC, ~30 days);
+  tour operators additionally need a **Tour Operation Permit**, only issued
+  once Department-of-Tourism-approved, and must supply vehicle registration
+  + roadworthiness certificates for any Botswana-registered vehicle. National
+  parks/wildlife areas (Chobe, Okavango Delta, Central Kalahari, Moremi) are
+  managed by the **Department of Wildlife and National Parks (DWNP)** —
+  separate park-entry permits apply, distinct from the tourism-enterprise
+  licence itself. **General-knowledge starting point, not verified against
+  the Department of Tourism directly — confirm before treating as
+  authoritative**, same posture as every other bullet here.
+- **Botswana — visas (feeds `visa`, DR-218).** Visa-exempt for tourist stays
+  up to 90 days for most Commonwealth/EU/US/SADC nationalities; others use
+  Botswana's e-Visa system (online, or Form 1 at an embassy/immigration
+  office). A KAZA UniVisa issued by Zambia or Zimbabwe also covers day trips
+  into Botswana via the Kazungula crossing (see those two countries'
+  bullets in `prisma/seed.ts`'s `countryRegulations`). Model as
+  effective-dated data, same as every other country here — never a
+  hardcoded nationality list.
+- **Botswana — no BR-07-style security zone.** Unlike eastern DRC, Botswana
+  has no active-conflict region requiring a security-zone product rule —
+  it's a stable, low-risk tourism destination end to end. The only
+  logistics caveat worth modeling is remote-wilderness wildlife safety in
+  the Okavango Delta/Chobe/Central Kalahari (free-roaming elephant/hippo/big
+  cats — guide/lodge safety briefings, not a booking-eligibility concern).
 
 **Implication for engineering:** compliance data is documents-with-expiry, not
 free text; visa and immigration flows are country-scoped; destination risk is

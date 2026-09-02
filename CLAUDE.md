@@ -7,8 +7,8 @@ that, see `git log` and `docs/decisions/DECISION_LOG.md` (the canonical,
 dated decision record, DR-007).
 
 POLCO TOURS is a **Tourism Operating System** for **Namibia** and the
-**Democratic Republic of Congo (DRC)** (also operating in **Zambia** and
-**Zimbabwe**) — tour package sales plus operations management (tourists,
+**Democratic Republic of Congo (DRC)** (also operating in **Zambia**,
+**Zimbabwe**, and — since DR-218 — **Botswana**) — tour package sales plus operations management (tourists,
 operators, guides, drivers, vehicle owners, hotels, restaurants, visa
 facilitators). Web platform first; native apps later. Internal/engineering
 brand: **polcotours** (`polcotours.com`) — the domain itself still does not
@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-217** (2026-09-02). This file used to carry a running
+Current through **DR-219** (2026-09-02). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -579,11 +579,11 @@ src/
                    #   (DR-034) and its `src/lib/country-facts.ts` fact table
                    #   (deleted, fully superseded). Deliberately validated
                    #   against the full continent list, not the narrower
-                   #   4-country `OPERATING_COUNTRY_CODES` business-eligibility
-                   #   set — this is a decorative map highlight, not a
-                   #   booking/visa/tax eligibility list. Degrades to a
-                   #   4-country fallback (the original NA/DRC/ZM/ZW facts)
-                   #   until staff configures a real row, same convention as
+                   #   (5-country as of DR-218) `OPERATING_COUNTRY_CODES`
+                   #   business-eligibility set — this is a decorative map
+                   #   highlight, not a booking/visa/tax eligibility list.
+                   #   Degrades to a 5-country fallback (NA/DRC/ZM/ZW/BW
+                   #   facts) until staff configures a real row, same convention as
                    #   partners/social-links. DR-203: the `/staff/cms` Gallery
                    #   tab gains a `PageTextEditor` (eyebrow/title/body) above
                    #   its existing site grid, using the `gallery`
@@ -850,7 +850,7 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
 
 ---
 
-## Domain & regulatory context (Namibia, DRC, Zambia & Zimbabwe)
+## Domain & regulatory context (Namibia, DRC, Zambia, Zimbabwe & Botswana)
 
 Operator/fleet compliance, visa rules, DRC security zones (BR-07), and guest
 health/logistics context — moved to the `regional-compliance` skill
@@ -1038,7 +1038,18 @@ serverless function bundle.
   are nullable (DR-111) and only actually required for a
   `PREDEFINED_PACKAGE` booking (`requiresFullTravelerDetails` in
   `booking/domain.ts`) — a `TAILOR_MADE` request's wizard never collects
-  real per-traveler values for these.
+  real per-traveler values for these. DR-219: a booking's trip date
+  (`Departure.startDate` for `PREDEFINED_PACKAGE`, `Booking
+  .customTravelStart`/`customTravelEnd` for a not-yet-converted
+  `TAILOR_MADE` request) is always shown to guests and staff with an
+  "(estimated)" qualifier, and is only ever changeable by `SUPERADMIN`/
+  `TOUR_OPERATOR` (`isDepartureDateChanger` in `booking/domain.ts`, same
+  role set as `isBookingConfirmer`) — at any status short of the
+  terminal/locked ones, not just post-confirmation. `bookingService
+  .updateTripDates` routes a `PREDEFINED_PACKAGE` (or already-converted
+  `TAILOR_MADE`, DR-028) date change to `catalogService.updateDepartureDate`
+  and refuses outright when the target `Departure` is shared with another
+  live booking (rescheduling would silently move someone else's trip too).
 - **Guest site** (`(guest)/`) has no tourist accounts, ever — bookings ride
   better-auth's `anonymous` plugin. Every booking (from guest package
   browse, guest `/plan-my-trip`, or staff's own "New Booking" flow) shows up

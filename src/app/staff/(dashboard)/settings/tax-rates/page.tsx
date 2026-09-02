@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { requireStaffContext } from '@lib/staff-guard';
 import { settingsService } from '@modules/settings';
 import { BackLink } from '@/components/ui/BackLink';
@@ -14,10 +15,11 @@ import { createTaxRateAction, deleteTaxRateAction, updateTaxRateAction } from '.
 function countryOptions(tCountries: (code: string) => string) {
   return (
     <>
-      <option value="NA">🇳🇦 {tCountries('NA')}</option>
-      <option value="CD">🇨🇩 {tCountries('CD')}</option>
-      <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
-      <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
+      {OPERATING_COUNTRY_CODES.map((code) => (
+        <option key={code} value={code}>
+          {flagEmoji(code)} {tCountries(code)}
+        </option>
+      ))}
     </>
   );
 }

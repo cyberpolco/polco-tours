@@ -20,6 +20,7 @@ import {
   isBookingConfirmer,
   isBookingDeleter,
   isBookingLocked,
+  isDepartureDateChanger,
   isTravelerManifestComplete,
   lastNameMatches,
   requiresFullTravelerDetails,
@@ -35,6 +36,7 @@ import {
   type LookupBookingInput,
   type SendQuotationInput,
   type SetAddonsInput,
+  type UpdateTripDatesInput,
   type TravelerDutyGroup,
   type TravelerView,
   type VisaCandidateTravelerView,
@@ -426,6 +428,63 @@ export const bookingService = {
       bookingId: updated.bookingReference,
     });
     return updated;
+  },
+
+  /** DR-219: lets staff reschedule a booking's trip date -- previously not
+   * editable at all after creation. `booking.confirm` is the route/service
+   * permission passed through (same base permission `confirm` above uses);
+   * `isDepartureDateChanger` beneath it is the real gate, at every status
+   * short of the terminal ones `isBookingLocked` already blocks -- same
+   * "route passes the broader permission, this hardcoded check narrows it"
+   * layering as `confirm`'s own `isBookingConfirmer` check. A
+   * PREDEFINED_PACKAGE booking's date lives on its Departure
+   * (catalogService.updateDepartureDate); a not-yet-converted TAILOR_MADE
+   * request has no Departure yet, so it's Booking.customTravelStart/
+   * customTravelEnd directly -- once convertToItinerary attaches a bespoke
+   * Departure (DR-028), that Departure becomes the source of truth instead,
+   * same branch staff/itineraries/[itineraryId]/page.tsx already reads.
+   * Refuses outright when the Departure is shared with another live booking
+   * (bookingRepository.hasActiveBookingForDeparture's own comment: "a
+   * departure can have several bookings") -- rescheduling would silently
+   * move someone else's trip too, which needs its own dedicated flow, not
+   * this one. */
+  async updateTripDates(ctx: AuthContext, bookingId: string, input: UpdateTripDatesInput): Promise<BookingView> {
+    assertCan(ctx, 'booking.confirm');
+    if (!isDepartureDateChanger(ctx.roles)) {
+      throw Errors.forbidden("Only SUPERADMIN or TOUR_OPERATOR may change a booking's trip date");
+    }
+    const organizationId = requireOrg(ctx);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
+
+    if (booking.departureId) {
+      const otherBookings = await bookingRepository.countBookingsForDeparture(organizationId, booking.departureId, bookingId);
+      if (otherBookings > 0) {
+        throw Errors.conflict('This departure is shared with other bookings and cannot be rescheduled from a single booking');
+      }
+      await catalogService.updateDepartureDate(ctx, booking.departureId, input.startDate);
+    } else {
+      if (!booking.customTravelStart) throw Errors.conflict('This booking has no trip date to change');
+      const spanMs = booking.customTravelEnd ? booking.customTravelEnd.getTime() - booking.customTravelStart.getTime() : 0;
+      const newEnd = booking.customTravelEnd ? new Date(input.startDate.getTime() + spanMs) : null;
+      await bookingRepository.updateTravelDates(organizationId, bookingId, {
+        customTravelStart: input.startDate,
+        customTravelEnd: newEnd,
+      });
+    }
+
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'booking.trip_dates_changed',
+      resourceType: 'Booking',
+      resourceId: bookingId,
+      organizationId,
+      metadata: { newStartDate: input.startDate.toISOString() },
+    });
+    return getOwnedBooking(ctx, organizationId, bookingId);
   },
 
   async cancel(ctx: AuthContext, bookingId: string): Promise<BookingView> {

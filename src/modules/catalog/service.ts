@@ -17,6 +17,7 @@ import { assertCan } from '@lib/rbac';
 import {
   computeDepartureEndDate,
   effectivePrice,
+  hasDepartureEnded,
   isBookable,
   isDepartureVisible,
   isPackageVisible,
@@ -293,6 +294,62 @@ export const catalogService = {
     const organizationId = requireOrg(ctx);
     const updated = await catalogRepository.setDeparturePickupLocation(organizationId, departureId, input);
     if (!updated) throw Errors.notFound('Departure not found');
+    return updated;
+  },
+
+  /** DR-219: reschedules an existing Departure's start date, preserving its
+   * trip length -- a real TourPackage departure recomputes endDate from the
+   * package's own durationDays (same formula createDeparture/
+   * createDepartureForBooking already use); a bespoke departure
+   * (tourPackageId null, DR-028) has no durationDays to recompute from, so it
+   * instead preserves its own existing start-to-end day span. This method
+   * only knows about the Departure itself, not which booking(s) sit on it or
+   * their status -- the "confirmed booking -> TOUR_OPERATOR/SUPERADMIN only"
+   * restriction is enforced one level up, by bookingService.updateTripDates,
+   * the only caller. */
+  async updateDepartureDate(ctx: AuthContext, departureId: string, newStartDate: Date): Promise<DepartureView> {
+    assertCan(ctx, 'catalog.write');
+    const organizationId = requireOrg(ctx);
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    if (!departure) throw Errors.notFound('Departure not found');
+    if (hasDepartureEnded(departure.endDate, new Date())) {
+      throw Errors.conflict('This departure has already ended and can no longer be rescheduled');
+    }
+
+    let newEndDate: Date | null = null;
+    if (departure.tourPackageId) {
+      const pkg = await catalogRepository.findPackageById(organizationId, departure.tourPackageId);
+      if (!pkg) throw Errors.notFound('Package not found');
+      // Every real, bookable Departure's package has durationDays set --
+      // createDepartureForBooking/createDeparture both require it before a
+      // Departure can exist against a package in the first place. Fall back
+      // to preserving the existing span if it's somehow still unset, same
+      // as the bespoke-departure branch below, rather than crashing.
+      newEndDate =
+        pkg.durationDays != null
+          ? computeDepartureEndDate(newStartDate, pkg.durationDays)
+          : departure.endDate
+            ? new Date(newStartDate.getTime() + (departure.endDate.getTime() - departure.startDate.getTime()))
+            : null;
+    } else if (departure.endDate) {
+      const spanMs = departure.endDate.getTime() - departure.startDate.getTime();
+      newEndDate = new Date(newStartDate.getTime() + spanMs);
+    }
+
+    const updated = await catalogRepository.updateDepartureDates(organizationId, departureId, {
+      startDate: newStartDate,
+      endDate: newEndDate,
+    });
+    if (!updated) throw Errors.notFound('Departure not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'catalog.departure_date_changed',
+      resourceType: 'Departure',
+      resourceId: departureId,
+      organizationId,
+      metadata: { newStartDate: newStartDate.toISOString() },
+    });
     return updated;
   },
 

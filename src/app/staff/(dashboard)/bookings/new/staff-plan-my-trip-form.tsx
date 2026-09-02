@@ -10,7 +10,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { createStaffTailorMadeBookingAction } from './actions';
 
 // DR-167: gallery sites are now staff-managed (name/country, add/remove)
@@ -26,7 +26,7 @@ const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXUR
 // Mirrors (guest)/plan-my-trip/plan-my-trip-form.tsx's local ADDON_CODES.
 const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
 
-const DESTINATION_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
+const DESTINATION_CODES = OPERATING_COUNTRY_CODES;
 
 // Staff copy of (guest)/plan-my-trip/plan-my-trip-form.tsx -- same 9 steps,
 // same fields/labels/validation, so filling this out feels identical to the

@@ -178,10 +178,11 @@ describe('catalog domain', () => {
     });
   });
 
-  // DR-114: country/countries restricted to the 4 operating countries, and
-  // countries must include the primary country -- same "client prevents for
-  // UX, server still validates" precedent as itinerary/domain.ts's
-  // CreateSiteInput country/province refine.
+  // DR-114 (extended to 5 operating countries, DR-218): country/countries
+  // restricted to the operating countries, and countries must include the
+  // primary country -- same "client prevents for UX, server still
+  // validates" precedent as itinerary/domain.ts's CreateSiteInput
+  // country/province refine.
   describe('CreatePackageInput (DR-114)', () => {
     const base = {
       title: 'Combo Safari',
@@ -199,12 +200,17 @@ describe('catalog domain', () => {
       expect(result.success).toBe(true);
     });
 
+    it('accepts Botswana (DR-218) as a package country', () => {
+      const result = CreatePackageInput.safeParse({ ...base, country: 'BW', countries: ['BW'] });
+      expect(result.success).toBe(true);
+    });
+
     it('rejects a primary country missing from countries', () => {
       const result = CreatePackageInput.safeParse({ ...base, country: 'ZM', countries: ['ZW'] });
       expect(result.success).toBe(false);
     });
 
-    it('rejects a country outside the 4 operating countries', () => {
+    it('rejects a country outside the 5 operating countries', () => {
       const result = CreatePackageInput.safeParse({ ...base, country: 'ZA', countries: ['ZA'] });
       expect(result.success).toBe(false);
     });

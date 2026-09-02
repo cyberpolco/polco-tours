@@ -10,16 +10,17 @@ const prisma = new PrismaClient();
 async function main() {
   // --- Operator tenant: Lam ---
   // Zambia (ZM) + Zimbabwe (ZW) added alongside Namibia/DRC (DR-034, full
-  // platform expansion, explicit user choice) -- `update` here (not `{}`)
-  // so re-running this seed against the already-provisioned Lam org
-  // actually adds the new countries, not just on first create.
+  // platform expansion, explicit user choice); Botswana (BW) added DR-218 --
+  // `update` here (not `{}`) so re-running this seed against the
+  // already-provisioned Lam org actually adds the new countries, not just
+  // on first create.
   const lam = await prisma.organization.upsert({
     where: { id: '00000000-0000-4000-8000-000000000001' },
-    update: { countries: ['NA', 'CD', 'ZM', 'ZW'] },
+    update: { countries: ['NA', 'CD', 'ZM', 'ZW', 'BW'] },
     create: {
       id: '00000000-0000-4000-8000-000000000001',
       name: 'Lam',
-      countries: ['NA', 'CD', 'ZM', 'ZW'],
+      countries: ['NA', 'CD', 'ZM', 'ZW', 'BW'],
       status: OrgStatus.VERIFIED,
       isPrimary: true,
     },
@@ -47,14 +48,16 @@ async function main() {
   );
 
   // --- Per-country tax (basis points) ---
-  // Zambia/Zimbabwe rates below are reasonable estimates, not verified
-  // figures -- same "effective-dated, verify against the real revenue
-  // authority" caveat CLAUDE.md already applies to Namibia/DRC (DR-034).
+  // Zambia/Zimbabwe/Botswana rates below are reasonable estimates, not
+  // verified figures -- same "effective-dated, verify against the real
+  // revenue authority" caveat CLAUDE.md already applies to Namibia/DRC
+  // (DR-034).
   const taxes = [
     { country: 'CD', rateBp: 1600 }, // DRC VAT 16%
     { country: 'NA', rateBp: 1500 }, // Namibia VAT 15%
     { country: 'ZM', rateBp: 1600 }, // Zambia VAT 16% (estimate, verify against ZRA)
     { country: 'ZW', rateBp: 1500 }, // Zimbabwe VAT 15% (estimate, verify against ZIMRA)
+    { country: 'BW', rateBp: 1400 }, // Botswana VAT 14% (DR-218, estimate, verify against BURS)
   ];
   for (const t of taxes) {
     const existing = await prisma.taxRate.findFirst({
@@ -166,6 +169,30 @@ async function main() {
       embassyName: 'Zimbabwe Department of Immigration',
       healthRequirements:
         'Malaria risk in the Zambezi Valley and lower-lying regions (incl. around Victoria Falls and Hwange) -- prophylaxis recommended. Yellow fever certificate required if arriving from an endemic country.',
+    },
+    {
+      // DR-218 -- researched from general public sources (Botswana e-Visa
+      // portal, Botswana Tourism Organisation, Wikipedia's visa-policy
+      // summary), NOT verified against Botswana's Department of Immigration
+      // and Citizenship (DIC) directly. Same "draft, flag, verify before
+      // treating as authoritative" posture as every other row here --
+      // SUPERADMIN should confirm via /staff/country-regulations before
+      // relying on this for a real booking.
+      country: 'BW',
+      visaRequirements:
+        'Visa-exempt for tourist/business stays of up to 90 days for most Commonwealth, EU, US, and SADC-region nationalities; a smaller list of nationalities need a visa. Botswana runs an e-Visa system (launched 2021) for every nationality that does need one -- apply online or via Form 1 at an embassy/consulate/immigration office, typically decided in 7-14 working days. A KAZA UniVisa (where available, issued by Zambia or Zimbabwe) covers cross-border day trips into Botswana via the Kazungula crossing. Verify current requirements against the Department of Immigration and Citizenship (DIC) or the nearest Botswana embassy before travel -- NEEDS VERIFICATION.',
+      requiredDocuments:
+        'Passport valid 6+ months beyond both arrival and departure dates with 3+ blank pages, a completed visa application (online e-Visa or Form 1) where a visa is required, proof of onward/return travel, and proof of accommodation.',
+      processingTimeDays: 10,
+      entryConditions:
+        'Yellow fever vaccination certificate required only if arriving from a country with yellow-fever transmission risk. Standard immigration/customs screening on arrival.',
+      embassyName: 'Botswana Department of Immigration and Citizenship (DIC)',
+      healthRequirements:
+        'Malaria risk in the north (Okavango Delta, Chobe, Linyanti) -- prophylaxis recommended for travel to these regions; lower risk in Gaborone and the south. Yellow fever certificate required only if arriving from an endemic country.',
+      travelAdvisories:
+        'Generally stable and low-risk for tourism. The Okavango Delta and Chobe river-front areas are remote wilderness with free-roaming wildlife (elephant, hippo, big cats) -- follow lodge/guide safety briefings closely, especially after dark.',
+      specialRestrictions:
+        'Self-driving into remote areas of the Okavango Delta/Central Kalahari requires a 4x4, sufficient fuel/water reserves, and (in national parks) a valid park permit -- most visitors go with a licensed operator/guide instead.',
     },
   ];
   for (const r of countryRegulations) {

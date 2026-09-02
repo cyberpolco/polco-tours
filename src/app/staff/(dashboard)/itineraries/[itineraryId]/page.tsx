@@ -84,6 +84,7 @@ export default async function ItineraryDetailPage({ params }: Props) {
 
   const days = await itineraryService.listDays(ctx, itineraryId);
   const t = await getTranslations('StaffItineraryDetail');
+  const tCommon = await getTranslations('Common');
   const tItineraryStatus = await getTranslations('ItineraryStatusLabel');
   const tBookingStatus = await getTranslations('BookingStatusLabel');
   const tCountries = await getTranslations('Countries');
@@ -104,13 +105,13 @@ export default async function ItineraryDetailPage({ params }: Props) {
   if (booking.departureId) {
     try {
       const { departure, packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
-      travelDates = `${departure.startDate.toLocaleDateString()}${departure.endDate ? ` – ${departure.endDate.toLocaleDateString()}` : ''}`;
+      travelDates = `${departure.startDate.toLocaleDateString()}${departure.endDate ? ` – ${departure.endDate.toLocaleDateString()}` : ''} ${tCommon('estimatedSuffix')}`;
       tripCountry = packageCountry;
     } catch {
       // departure no longer visible to this role -- fall through to the default text
     }
   } else if (booking.customTravelStart) {
-    travelDates = `${booking.customTravelStart.toLocaleDateString()}${booking.customTravelEnd ? ` – ${booking.customTravelEnd.toLocaleDateString()}` : ''}`;
+    travelDates = `${booking.customTravelStart.toLocaleDateString()}${booking.customTravelEnd ? ` – ${booking.customTravelEnd.toLocaleDateString()}` : ''} ${tCommon('estimatedSuffix')}`;
   }
 
   // Batch name resolution for whatever hotels/restaurants the days already

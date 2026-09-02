@@ -18,7 +18,7 @@ import { Card } from '@/components/ui/Card';
 import { PackageImage } from '@/components/ui/PackageImage';
 import { Reveal } from '@/components/ui/Reveal';
 import { CancelAndRefundSection } from './CancelAndRefundSection';
-import { COUNTRY_CODES_BY_ALPHA2, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES_BY_ALPHA2, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { format, formatOrPending, money } from '@lib/money';
 import {
   BOOKING_STATUS_TONE,
@@ -29,10 +29,10 @@ import {
   VISA_STATUS_TONE,
 } from '@lib/status-tones';
 
-const OPERATING_COUNTRY_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
+const OPERATING_COUNTRY_CODE_SET = new Set<string>(OPERATING_COUNTRY_CODES);
 
 function countryLabel(alpha2: string, tCountries: (code: string) => string): string {
-  const name = OPERATING_COUNTRY_CODES.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
+  const name = OPERATING_COUNTRY_CODE_SET.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
   return `${flagEmoji(alpha2)} ${name}`;
 }
 

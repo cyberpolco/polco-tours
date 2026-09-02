@@ -70,9 +70,10 @@ export interface DepartureView {
 // share data through index.ts, never by reaching into each other's domain.ts.
 export const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
-// DR-114: country/countries restricted to the 4 operating countries
-// (OPERATING_COUNTRY_CODES) -- previously an unrestricted z.string().length(2)
-// with the 4-country limit enforced only client-side (the staff form's
+// DR-114 (extended to 5 countries, DR-218): country/countries restricted to
+// the operating countries (OPERATING_COUNTRY_CODES) -- previously an
+// unrestricted z.string().length(2) with the limit enforced only
+// client-side (the staff form's
 // hardcoded <option> list). `countries` must include `country` (the primary/
 // billing country can't be selected without also being one of the visited
 // countries) -- same "client prevents for UX, server still validates"

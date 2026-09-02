@@ -51,9 +51,10 @@ const HERO_SLOT_FALLBACKS: Record<string, { image: string; gradient: string }> =
   },
 };
 
-// DR-202: staff-editable via /staff/cms's "Where we operate" tab
-// (cmsService.listPublicOperatingCountries) -- these 4 are the fallback
-// shown until staff configures at least one real row (or on a DB hiccup),
+// DR-202 (extended to 5 countries, DR-218): staff-editable via
+// /staff/cms's "Where we operate" tab (cmsService.listPublicOperatingCountries)
+// -- these 5 are the fallback shown until staff configures at least one
+// real row (or on a DB hiccup),
 // same "never a blank/broken decorative section" convention as
 // HERO_SLOT_FALLBACKS/PARTNERS above. Figures are recent public estimates
 // for orientation only, not live/official data -- same "verify before
@@ -94,6 +95,15 @@ const FALLBACK_OPERATING_COUNTRIES: OperatingCountryMapEntry[] = [
     currency: 'US Dollar (widely used); Zimbabwe Gold (ZWG)',
     population: '~16 million (est.)',
     areaKm2: '~390,757 km²',
+  },
+  {
+    countryCode: 'BW',
+    name: 'Botswana',
+    capital: 'Gaborone',
+    languages: 'English (official); Setswana widely spoken',
+    currency: 'Botswana Pula (BWP)',
+    population: '~2.6 million (est.)',
+    areaKm2: '~581,730 km²',
   },
 ];
 

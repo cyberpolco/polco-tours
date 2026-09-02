@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { weatherService } from '@modules/weather';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
 import { WeatherAnimation } from './weather-animation';
 import { classifyCondition, weatherCardTint } from './weather-classify';
 
-const COUNTRY_ORDER = ['NA', 'CD', 'ZM', 'ZW'] as const;
+const COUNTRY_ORDER = OPERATING_COUNTRY_CODES;
 
 // Same direct-cookie-read convention as (guest)/about/page.tsx.
 async function resolveLocale(): Promise<CmsLocale> {

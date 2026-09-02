@@ -37,6 +37,24 @@ export async function confirmBookingAction(bookingId: string) {
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
+// DR-219: reschedules a booking's trip date. bookingService.updateTripDates'
+// own isDepartureDateChanger check narrows this beyond booking.confirm
+// itself (which PLATFORM_ADMIN still holds for other actions) -- caught
+// here so a bypass attempt (the form is already hidden for non-TOUR_OPERATOR/
+// SUPERADMIN) lands back on the booking page with a clear message, never a
+// raw crash. Same ApiError-catch-and-redirect shape as confirmBookingAction.
+export async function updateTripDatesAction(bookingId: string, formData: FormData) {
+  const ctx = await requireStaffContext('booking.confirm');
+  const startDate = String(formData.get('startDate') ?? '');
+  try {
+    await bookingService.updateTripDates(ctx, bookingId, { startDate: new Date(startDate) });
+  } catch (err) {
+    if (err instanceof ApiError) redirect(`/staff/bookings/${bookingId}?error=dateChangeFailed`);
+    throw err;
+  }
+  revalidatePath(`/staff/bookings/${bookingId}`);
+}
+
 export async function cancelBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.cancel');
   const booking = await bookingService.cancel(ctx, bookingId);

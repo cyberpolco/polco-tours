@@ -318,6 +318,25 @@ export const catalogRepository = {
     });
   },
 
+  /** DR-219: backs catalogService.updateDepartureDate -- the caller has
+   * already recomputed `endDate` (from the package's durationDays, or by
+   * preserving a bespoke departure's own day span), this just persists both. */
+  async updateDepartureDates(
+    organizationId: string,
+    id: string,
+    dates: { startDate: Date; endDate: Date | null },
+  ): Promise<DepartureView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.departure.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const d = await tx.departure.update({
+        where: { id },
+        data: { startDate: dates.startDate, endDate: dates.endDate },
+      });
+      return toDepartureView(d);
+    });
+  },
+
   async findDepartureById(organizationId: string, id: string): Promise<DepartureView | null> {
     return withOrg(organizationId, async (tx) => {
       const d = await tx.departure.findUnique({ where: { id } });

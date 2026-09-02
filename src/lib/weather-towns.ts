@@ -29,7 +29,7 @@ import type { Coordinates } from './geo';
 export interface WeatherTown {
   slug: string;
   name: string;
-  country: 'NA' | 'CD' | 'ZM' | 'ZW';
+  country: 'NA' | 'CD' | 'ZM' | 'ZW' | 'BW';
   coordinates: Coordinates;
   seasonalNotes: string;
 }
@@ -223,6 +223,28 @@ export const WEATHER_TOWNS: WeatherTown[] = [
     coordinates: { latitude: -20.0637, longitude: 30.8277 },
     seasonalNotes: 'Rainy season Nov-Mar, dry and mild Apr-Oct -- the easier stretch for visiting Great Zimbabwe.',
   },
+  // Botswana (DR-218)
+  {
+    slug: 'gaborone',
+    name: 'Gaborone',
+    country: 'BW',
+    coordinates: { latitude: -24.6282, longitude: 25.9231 },
+    seasonalNotes: 'Semi-arid, hot Oct-Apr with most rain falling Dec-Feb, mild and dry May-Sep.',
+  },
+  {
+    slug: 'maun',
+    name: 'Maun',
+    country: 'BW',
+    coordinates: { latitude: -19.9833, longitude: 23.4167 },
+    seasonalNotes: 'Gateway to the Okavango Delta -- the delta’s flood peak (fed by rains far upstream in Angola) usually arrives Jun-Aug, the local dry winter, giving the best water levels for boat/mokoro trips alongside cooler, rain-free days. Local rainy season is Nov-Mar.',
+  },
+  {
+    slug: 'kasane',
+    name: 'Kasane',
+    country: 'BW',
+    coordinates: { latitude: -17.8167, longitude: 25.15 },
+    seasonalNotes: 'Gateway to Chobe National Park and the Kazungula four-country crossing -- dry season (Apr-Oct) concentrates game along the Chobe riverfront; hot and rainy Nov-Mar.',
+  },
 ];
 
 export function findWeatherTown(slug: string): WeatherTown | undefined {
@@ -235,5 +257,6 @@ export function weatherTownsByCountry(): Record<WeatherTown['country'], WeatherT
     CD: WEATHER_TOWNS.filter((t) => t.country === 'CD'),
     ZM: WEATHER_TOWNS.filter((t) => t.country === 'ZM'),
     ZW: WEATHER_TOWNS.filter((t) => t.country === 'ZW'),
+    BW: WEATHER_TOWNS.filter((t) => t.country === 'BW'),
   };
 }

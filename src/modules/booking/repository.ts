@@ -610,6 +610,37 @@ export const bookingRepository = {
     });
   },
 
+  /** DR-219: how many OTHER live bookings share this departureId -- backs
+   * bookingService.updateTripDates' refusal to reschedule a departure that
+   * serves more than one booking (per DR-082's own note, "a departure can
+   * have several bookings sharing one Assignment" -- moving its date would
+   * silently move every other guest's trip too). */
+  async countBookingsForDeparture(organizationId: string, departureId: string, excludeBookingId: string): Promise<number> {
+    return withOrg(organizationId, async (tx) => {
+      return tx.booking.count({ where: { departureId, deletedAt: null, id: { not: excludeBookingId } } });
+    });
+  },
+
+  /** DR-219: the TAILOR_MADE-not-yet-converted half of
+   * bookingService.updateTripDates -- a PREDEFINED_PACKAGE booking (or an
+   * already-converted TAILOR_MADE one, DR-028) always has a departureId by
+   * this point and goes through catalogService.updateDepartureDate instead. */
+  async updateTravelDates(
+    organizationId: string,
+    id: string,
+    dates: { customTravelStart: Date; customTravelEnd: Date | null },
+  ): Promise<BookingView | null> {
+    return withOrg(organizationId, async (tx) => {
+      const existing = await tx.booking.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) return null;
+      const b = await tx.booking.update({
+        where: { id },
+        data: { customTravelStart: dates.customTravelStart, customTravelEnd: dates.customTravelEnd },
+      });
+      return toBookingView(b);
+    });
+  },
+
   /** Staff prices a TAILOR_MADE booking -- the only place priceMinor/currency
    * get set outside createHold, since a bespoke trip has no departure-derived
    * price. AWAITING_QUOTATION -> QUOTATION_SENT only (canTransition-enforced). */

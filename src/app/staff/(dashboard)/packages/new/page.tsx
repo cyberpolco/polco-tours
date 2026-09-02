@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { catalogService } from '@modules/catalog';
-import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
@@ -13,7 +13,6 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createPackageAction } from './actions';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
-const COUNTRY_FLAGS: Record<string, string> = { NA: '🇳🇦', CD: '🇨🇩', ZM: '🇿🇲', ZW: '🇿🇼' };
 
 interface Props {
   searchParams: Promise<{ error?: string; detail?: string }>;
@@ -62,10 +61,11 @@ export default async function NewPackagePage({ searchParams }: Props) {
         </FormField>
         <FormField label={t('country')} htmlFor="country">
           <Select name="country" required>
-            <option value="NA">🇳🇦 {tCountries('NA')}</option>
-            <option value="CD">🇨🇩 {tCountries('CD')}</option>
-            <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
-            <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
+            {OPERATING_COUNTRY_CODES.map((code) => (
+              <option key={code} value={code}>
+                {flagEmoji(code)} {tCountries(code)}
+              </option>
+            ))}
           </Select>
         </FormField>
         {/* DR-114: the primary country above still drives tax/finance-rate
@@ -78,7 +78,7 @@ export default async function NewPackagePage({ searchParams }: Props) {
           <div className="flex flex-wrap gap-2">
             {OPERATING_COUNTRY_CODES.map((code) => (
               <SelectableCard key={code} type="checkbox" name="additionalCountries" value={code}>
-                {COUNTRY_FLAGS[code]} {tCountries(code)}
+                {flagEmoji(code)} {tCountries(code)}
               </SelectableCard>
             ))}
           </div>

@@ -12,7 +12,7 @@ import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator, type StepIndicatorStepDetail } from '@/components/ui/StepIndicator';
 import type { WizardStepIconKey } from '@/components/ui/wizard-step-icons';
 import { authClient } from '@lib/auth-client';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { createPlanMyTripRequestAction, recordWizardStepAction } from './actions';
 
 // Order-matched to STEPS below (destination -> contact) -- shares the
@@ -47,7 +47,7 @@ const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXUR
 // validating vocabulary for AddonCode yet, only PACKAGE_TAGS).
 const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
 
-const DESTINATION_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
+const DESTINATION_CODES = OPERATING_COUNTRY_CODES;
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];

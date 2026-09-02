@@ -35,6 +35,18 @@ export function isBookingConfirmer(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
 }
 
+/** DR-219: a booking's trip date (Departure.startDate for
+ * PREDEFINED_PACKAGE, Booking.customTravelStart for a not-yet-converted
+ * TAILOR_MADE request) was previously not editable at all after creation --
+ * explicit user request to make it editable, but only for SUPERADMIN/
+ * TOUR_OPERATOR, at any status short of the terminal ones isBookingLocked
+ * already blocks. Same shape as isBookingConfirmer (identical two roles
+ * today), kept as its own named function since it gates a different action
+ * with its own rationale, not a reuse of the confirm gate. */
+export function isDepartureDateChanger(roles: Role[]): boolean {
+  return roles.includes('SUPERADMIN') || roles.includes('TOUR_OPERATOR');
+}
+
 // DR-060: a whole-org candidate list for the visa module's "needs
 // application" reconciliation view -- travelers with an uploaded passport on
 // a booking that requires one, regardless of whether a VisaApplication has
@@ -220,6 +232,12 @@ export const SendQuotationInput = z.object({
   overrideReason: z.string().min(1).max(500).optional(),
 });
 export type SendQuotationInput = z.infer<typeof SendQuotationInput>;
+
+// DR-219: the new "reschedule a trip's date" action's request body.
+export const UpdateTripDatesInput = z.object({
+  startDate: z.coerce.date(),
+});
+export type UpdateTripDatesInput = z.infer<typeof UpdateTripDatesInput>;
 
 export function holdExpiryFrom(now: Date): Date {
   return new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);

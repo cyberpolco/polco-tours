@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, parseE164 } from '@lib/country-codes';
+import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, OPERATING_COUNTRY_CODES, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
@@ -20,10 +20,10 @@ interface Props {
   params: Promise<{ bookingId: string }>;
 }
 
-const OPERATING_COUNTRY_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
+const OPERATING_COUNTRY_CODE_SET = new Set<string>(OPERATING_COUNTRY_CODES);
 
 function countryName(alpha2: string, tCountries: (code: string) => string): string {
-  return OPERATING_COUNTRY_CODES.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
+  return OPERATING_COUNTRY_CODE_SET.has(alpha2) ? tCountries(alpha2) : COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2;
 }
 
 export default async function NewTravelerPage({ params }: Props) {

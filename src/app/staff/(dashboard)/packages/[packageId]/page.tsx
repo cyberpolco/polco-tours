@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffRole } from '@lib/staff-guard';
-import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { can, STAFF_PAGE_ACCESS } from '@lib/rbac';
 import { bookingService } from '@modules/booking';
 import { catalogService, isPublishedStatus } from '@modules/catalog';
@@ -33,7 +33,6 @@ import {
 } from './actions';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
-const COUNTRY_FLAGS: Record<string, string> = { NA: '🇳🇦', CD: '🇨🇩', ZM: '🇿🇲', ZW: '🇿🇼' };
 
 interface Props {
   params: Promise<{ packageId: string }>;
@@ -213,10 +212,11 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
         </FormField>
         <FormField label={t('country')} htmlFor="country">
           <Select name="country" defaultValue={pkg.country} required>
-            <option value="NA">🇳🇦 {tCountries('NA')}</option>
-            <option value="CD">🇨🇩 {tCountries('CD')}</option>
-            <option value="ZM">🇿🇲 {tCountries('ZM')}</option>
-            <option value="ZW">🇿🇼 {tCountries('ZW')}</option>
+            {OPERATING_COUNTRY_CODES.map((code) => (
+              <option key={code} value={code}>
+                {flagEmoji(code)} {tCountries(code)}
+              </option>
+            ))}
           </Select>
         </FormField>
         {/* DR-114: the primary country above still drives tax/finance-rate
@@ -233,7 +233,7 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
                 value={code}
                 defaultChecked={pkg.countries.includes(code)}
               >
-                {COUNTRY_FLAGS[code]} {tCountries(code)}
+                {flagEmoji(code)} {tCountries(code)}
               </SelectableCard>
             ))}
           </div>

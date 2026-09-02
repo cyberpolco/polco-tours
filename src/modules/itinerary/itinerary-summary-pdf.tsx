@@ -100,7 +100,7 @@ export async function renderItinerarySummaryPdf(input: ItinerarySummaryPdfInput)
           <Text style={styles.heading}>Detailed Itinerary</Text>
         </View>
         <Text style={styles.bookingRef}>Booking reference: {input.bookingReference}</Text>
-        <Text style={styles.subheading}>Travel dates: {input.travelDates}</Text>
+        <Text style={styles.subheading}>Travel dates (estimated): {input.travelDates}</Text>
         {input.emergencyContact && <Text style={styles.subheading}>Emergency contact: {input.emergencyContact}</Text>}
         {input.notes && <Text style={styles.subheading}>Notes: {input.notes}</Text>}
         <View style={styles.headerRule} />

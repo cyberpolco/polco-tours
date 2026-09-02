@@ -12,6 +12,7 @@ export {
   SendQuotationInput,
   SetAddonsInput,
   TERMINAL_BOOKING_STATUSES,
+  UpdateTripDatesInput,
   generateBookingReference,
   isBookingLocked,
   requiresFullTravelerDetails,

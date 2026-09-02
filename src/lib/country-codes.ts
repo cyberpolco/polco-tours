@@ -234,15 +234,15 @@ export const COUNTRY_CODES_BY_ALPHA2: Record<string, CountryCode> = Object.fromE
 );
 
 /**
- * The 4 countries POLCO TOURS actually operates in (Namibia, DRC, Zambia,
- * Zimbabwe) -- shared source for anywhere that needs to restrict to (or
- * name) just these, e.g. TourPackage's country/countries validation
- * (DR-114). Several call sites redeclared this exact literal ad hoc before
- * this constant existed (bookings/[bookingId]/page.tsx,
- * travelers/new/page.tsx, find-booking/result/page.tsx) -- prefer this one
- * for anything new rather than adding a fifth copy.
+ * The 5 countries POLCO TOURS actually operates in (Namibia, DRC, Zambia,
+ * Zimbabwe, and -- since DR-218 -- Botswana) -- shared source for anywhere
+ * that needs to restrict to (or name) just these, e.g. TourPackage's
+ * country/countries validation (DR-114). Several call sites redeclared this
+ * exact literal ad hoc before this constant existed (bookings/[bookingId]/
+ * page.tsx, travelers/new/page.tsx, find-booking/result/page.tsx) -- prefer
+ * this one for anything new rather than adding a fifth copy.
  */
-export const OPERATING_COUNTRY_CODES = ['NA', 'CD', 'ZM', 'ZW'] as const;
+export const OPERATING_COUNTRY_CODES = ['NA', 'CD', 'ZM', 'ZW', 'BW'] as const;
 export type OperatingCountryCode = (typeof OPERATING_COUNTRY_CODES)[number];
 
 /** Joins a dial code + local number (as typed, spaces/leading zero allowed)

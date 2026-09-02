@@ -12,6 +12,7 @@
     "noMatches": "No matches",
     "selectFromListRequired": "Please select an option from the list.",
     "remove": "Remove",
+    "estimatedSuffix": "(estimated)",
     "available": "Available",
     "unavailable": "Unavailable",
     "done": "Done",
@@ -204,7 +205,8 @@
     "NA": "Namibia",
     "CD": "DR Congo",
     "ZM": "Zambia",
-    "ZW": "Zimbabwe"
+    "ZW": "Zimbabwe",
+    "BW": "Botswana"
   },
   "WeatherPage": {
     "eyebrow": "Weather",
@@ -593,7 +595,7 @@
     "quotationReadySignIn": "Your quotation is ready: {price}. Sign back in on the device you requested from to accept it and continue.",
     "requestSummary": "Request summary",
     "destinations": "Destination(s)",
-    "travelDates": "Travel dates",
+    "travelDates": "Travel dates (estimated)",
     "tripDescription": "Trip description",
     "tripDetails": "Trip details",
     "dayTrip": "{days}-day trip",
@@ -767,6 +769,10 @@
     "quotationOverrideNotice": "A cost breakdown exists for this request. Changing the amount above requires a reason and is recorded in the audit log.",
     "quotationReasonRequired": "This amount differs from the cost breakdown's suggested total — enter a reason before sending.",
     "notAuthorized": "You don't have permission to perform this action.",
+    "dateChangeFailed": "Could not change the trip date. It may be locked, shared with another booking, or you may lack permission.",
+    "changeTripDate": "Change trip date",
+    "newStartDateLabel": "New departure date",
+    "changingTripDate": "Changing…",
     "accepting": "Accepting…",
     "acceptQuotationOnBehalf": "Accept quotation on client's behalf",
     "releasedSeatHoldWarning": "This came from a released seat hold — seat availability hasn't been re-checked automatically if the client later accepts and proceeds to pay.",

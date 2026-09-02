@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
+import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import { TravelBackdrop } from '@/components/ui/TravelBackdrop';
 import PlanMyTripForm, { type PlanMyTripSite } from './plan-my-trip-form';
@@ -31,7 +32,7 @@ async function resolveLocale(): Promise<CmsLocale> {
 
 // Mirrors plan-my-trip-form.tsx's own local DESTINATIONS codes -- kept in
 // sync by hand, same convention as that file's ADDONS/DESTINATIONS comment.
-const VALID_DESTINATION_CODES = new Set(['NA', 'CD', 'ZM', 'ZW']);
+const VALID_DESTINATION_CODES = new Set<string>(OPERATING_COUNTRY_CODES);
 
 // Merged entry point (DR-046) -- replaces the old quiz->package-matching
 // flow AND the old tailor-made form with a single always-bespoke intake:
