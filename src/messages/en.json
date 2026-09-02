@@ -155,6 +155,15 @@
     "emailPending": "Email — on its way",
     "phonePending": "Phone — on its way"
   },
+  "GuestError": {
+    "eyebrow": "Something went wrong",
+    "title": "We've hit a rough patch",
+    "body": "An unexpected error interrupted this page. It's been logged on our side — try again, or head back to familiar ground.",
+    "tryAgain": "Try again",
+    "goHome": "Back to home",
+    "contactUs": "Contact us",
+    "digest": "Reference"
+  },
   "Terms": {
     "eyebrow": "Terms & Policies",
     "title": "Terms of service & policies",
@@ -2041,6 +2050,13 @@
   "StaffForbidden": {
     "title": "Not authorized",
     "body": "Your account doesn't have access to the staff dashboard."
+  },
+  "StaffError": {
+    "title": "Something went wrong",
+    "body": "An unexpected error interrupted this page. It's been logged — try again, or return to the dashboard.",
+    "tryAgain": "Try again",
+    "goToDashboard": "Back to dashboard",
+    "digest": "Reference"
   },
   "StaffTracking": {
     "eyebrow": "Tracking",

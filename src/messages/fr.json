@@ -155,6 +155,15 @@
     "emailPending": "E-mail — à venir",
     "phonePending": "Téléphone — à venir"
   },
+  "GuestError": {
+    "eyebrow": "Un problème est survenu",
+    "title": "Nous avons rencontré un imprévu",
+    "body": "Une erreur inattendue a interrompu cette page. Elle a été enregistrée de notre côté — réessayez, ou revenez en terrain connu.",
+    "tryAgain": "Réessayer",
+    "goHome": "Retour à l'accueil",
+    "contactUs": "Nous contacter",
+    "digest": "Référence"
+  },
   "Terms": {
     "eyebrow": "Conditions et politiques",
     "title": "Conditions d'utilisation et politiques",
@@ -2037,6 +2046,13 @@
     "dayTrip": "voyage de {days} jours",
     "chooseOwnStartDate": "choisissez votre propre date de départ",
     "bookThisTrip": "Réserver ce voyage"
+  },
+  "StaffError": {
+    "title": "Un problème est survenu",
+    "body": "Une erreur inattendue a interrompu cette page. Elle a été enregistrée — réessayez, ou retournez au tableau de bord.",
+    "tryAgain": "Réessayer",
+    "goToDashboard": "Retour au tableau de bord",
+    "digest": "Référence"
   },
   "StaffForbidden": {
     "title": "Non autorisé",
