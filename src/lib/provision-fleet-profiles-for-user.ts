@@ -25,6 +25,7 @@ import type { Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { fleetService } from '@modules/fleet';
 import { audit } from '@lib/audit';
+import { logger, newTraceId } from '@lib/logger';
 
 // Every required field with no source data on a freshly created User
 // (licenseNumber, plate/make/model/vehicleType) gets this placeholder --
@@ -64,14 +65,28 @@ export async function provisionFleetProfilesForUser(ctx: AuthContext, userId: st
   }
 
   if (provisioned.length > 0) {
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'fleet.profile_auto_provisioned',
-      resourceType: 'User',
-      resourceId: userId,
-      organizationId: ctx.organizationId,
-      metadata: { provisioned },
-    });
+    // Best-effort like the provisioning above -- a failure recording this
+    // trail (e.g. a transient DB/RLS issue) must never fail the user
+    // create/edit action itself, same posture as the try/catch above. A
+    // dual-role create (e.g. DRIVER + TOUR_GUIDE) is exactly the case that
+    // reaches this line, since it's the only path that provisions more than
+    // one record in a single call.
+    try {
+      await audit({
+        actorUserId: ctx.userId,
+        actorRole: ctx.roles[0],
+        action: 'fleet.profile_auto_provisioned',
+        resourceType: 'User',
+        resourceId: userId,
+        organizationId: ctx.organizationId,
+        metadata: { provisioned },
+      });
+    } catch (err) {
+      logger(newTraceId()).error('fleet.profile_auto_provisioned audit write failed', {
+        userId,
+        provisioned,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 }
