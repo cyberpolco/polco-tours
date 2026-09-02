@@ -119,7 +119,7 @@ export default async function NewTravelerPage({ params, searchParams }: Props) {
     <Reveal>
     <div className="max-w-lg">
       <BackLink href={`/booking/${bookingId}/addons`}>{t('backToAddons')}</BackLink>
-      <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} />
+      <StepIndicator steps={await getBookingWizardSteps(booking.requiresPassportUpload)} currentIndex={2} variant="checklist" />
       <p className="eyebrow mt-4 text-mist">{t('setupTravelers')}</p>
       <h1 className="mt-1 text-2xl font-bold text-navy">{t('travelerOf', { number: travelerNumber, total: booking.seats })}</h1>
       <p className="mt-1 text-sm text-mist">{t('enteredOf', { current: travelers.length, total: booking.seats })}</p>
