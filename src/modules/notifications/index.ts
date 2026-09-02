@@ -2,4 +2,4 @@
 // here. Nothing from gateway.ts is exported -- callers never see
 // channel-level detail.
 export { notificationsService } from './service';
-export type { NotificationEvent } from './domain';
+export type { NotificationData, NotificationEvent } from './domain';

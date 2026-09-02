@@ -2,7 +2,7 @@
 // imports. No repository.ts in this module -- it owns no Prisma table;
 // delivery outcomes are recorded via the existing @lib/audit, not a
 // bespoke log model (DR-013).
-import type { Currency, Locale } from '@prisma/client';
+import type { Currency, Locale, PaymentKind } from '@prisma/client';
 import { format, money } from '@lib/money';
 import { renderBrandedEmail } from './email-template';
 
@@ -56,9 +56,12 @@ export interface NotificationData {
   rejectionReason?: string; // VISA_REJECTED: staff-authored, optional
   ratingCode?: string; // RATING_CODE_ISSUED
   countries?: string[]; // TAILOR_MADE_REQUEST_RECEIVED -- Booking.preferredCountries
-  seats?: number; // TAILOR_MADE_REQUEST_RECEIVED
-  travelStart?: Date; // TAILOR_MADE_REQUEST_RECEIVED
-  travelEnd?: Date; // TAILOR_MADE_REQUEST_RECEIVED
+  seats?: number; // TAILOR_MADE_REQUEST_RECEIVED / PAYMENT_SUCCEEDED
+  travelStart?: Date; // TAILOR_MADE_REQUEST_RECEIVED / PAYMENT_SUCCEEDED
+  travelEnd?: Date; // TAILOR_MADE_REQUEST_RECEIVED / PAYMENT_SUCCEEDED
+  tripTitle?: string; // PAYMENT_SUCCEEDED -- the departure's package title; unset for a TAILOR_MADE booking (no package yet)
+  tripCountry?: string; // PAYMENT_SUCCEEDED
+  paymentKind?: PaymentKind; // PAYMENT_SUCCEEDED -- DEPOSIT picks "on hold, balance due" wording over BALANCE/FULL's "fully paid and confirmed"
   temporaryPassword?: string; // STAFF_PASSWORD_ISSUED / STAFF_PASSWORD_RESET
   email?: string; // STAFF_PASSWORD_ISSUED -- the new account's own address, for the body copy
   startDate?: Date; // ASSIGNMENT_NOTICE_*
@@ -115,6 +118,32 @@ function formatDate(date: Date | undefined, intlLocale: 'en-US' | 'fr-FR'): stri
   return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'long' }).format(date);
 }
 
+function formatDateRange(start: Date | undefined, end: Date | undefined, intlLocale: 'en-US' | 'fr-FR'): string | null {
+  const startLabel = formatDate(start, intlLocale);
+  if (!startLabel) return null;
+  const endLabel = formatDate(end, intlLocale);
+  return endLabel && endLabel !== startLabel ? `${startLabel} – ${endLabel}` : startLabel;
+}
+
+/** A two-column, inline-styled details block for an email body that needs
+ * more structure than a single sentence (explicit user request) -- same
+ * font/color tokens as renderBrandedEmail's own shell, since email clients
+ * strip <style> blocks (see that file's own comment). Rows with no value
+ * are skipped rather than rendered blank. */
+function summaryTable(rows: Array<[string, string | null | undefined]>): string {
+  const cells = rows
+    .filter((row): row is [string, string] => !!row[1])
+    .map(
+      ([label, value]) => `
+      <tr>
+        <td style="padding:6px 12px 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8C7D78;white-space:nowrap;vertical-align:top;">${label}</td>
+        <td style="padding:6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#211A1D;">${value}</td>
+      </tr>`,
+    )
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border-top:1px solid #E3D6C8;border-bottom:1px solid #E3D6C8;">${cells}</table>`;
+}
+
 /** Wraps an event's per-locale content in the shared branded shell
  * (email-template.ts). `event` picks the wordmark/footer via audienceFor. */
 function brand(
@@ -168,25 +197,68 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
       }),
     }),
   },
+  // DR-215 (explicit user request): a real booking-confirmation body, not a
+  // one-sentence receipt -- a details block (reference, trip, dates,
+  // travelers, amount) plus wording that distinguishes a DEPOSIT (balance
+  // still owed, not "confirmed" yet) from a BALANCE/FULL payment (fully
+  // paid and confirmed). Sent via notifyEmail (Resend) directly by
+  // invoicing's applyPaymentOutcome, not through notify()'s fallback chain
+  // -- see that call site's own comment for why.
   PAYMENT_SUCCEEDED: {
-    EN: (d) => ({
-      subject: 'Payment received',
-      body: brand('PAYMENT_SUCCEEDED', {
-        eyebrow: 'Payment received',
-        heading: 'Thank you!',
-        bodyHtml: `We received your payment of ${amount(d, 'en')}. Thank you!`,
-        cta: { label: 'View your booking', url: FIND_BOOKING_URL },
-      }),
-    }),
-    FR: (d) => ({
-      subject: 'Paiement reçu',
-      body: brand('PAYMENT_SUCCEEDED', {
-        eyebrow: 'Paiement reçu',
-        heading: 'Merci !',
-        bodyHtml: `Nous avons reçu votre paiement de ${amount(d, 'fr')}. Merci !`,
-        cta: { label: 'Voir ma réservation', url: FIND_BOOKING_URL },
-      }),
-    }),
+    EN: (d) => {
+      const isDeposit = d.paymentKind === 'DEPOSIT';
+      const trip = d.tripTitle
+        ? `${d.tripTitle}${d.tripCountry ? ` (${d.tripCountry})` : ''}`
+        : d.tripCountry
+          ? `Your custom trip to ${d.tripCountry}`
+          : null;
+      return {
+        subject: isDeposit ? 'Deposit received' : 'Payment received',
+        body: brand('PAYMENT_SUCCEEDED', {
+          eyebrow: isDeposit ? 'Deposit received' : 'Payment received',
+          heading: isDeposit ? 'Your spot is on hold' : 'You&rsquo;re all set!',
+          bodyHtml:
+            (isDeposit
+              ? `We received your deposit of ${amount(d, 'en')}. Your booking is on hold &mdash; we'll be in touch about the remaining balance.`
+              : `We received your payment of ${amount(d, 'en')}. Your trip is fully paid and confirmed!`) +
+            summaryTable([
+              ['Booking reference', d.bookingId],
+              ['Trip', trip],
+              ['Travel dates', formatDateRange(d.travelStart, d.travelEnd, 'en-US')],
+              ['Travelers', d.seats ? String(d.seats) : null],
+              [isDeposit ? 'Deposit paid' : 'Amount paid', amount(d, 'en')],
+            ]),
+          cta: { label: 'View your booking', url: FIND_BOOKING_URL },
+        }),
+      };
+    },
+    FR: (d) => {
+      const isDeposit = d.paymentKind === 'DEPOSIT';
+      const trip = d.tripTitle
+        ? `${d.tripTitle}${d.tripCountry ? ` (${d.tripCountry})` : ''}`
+        : d.tripCountry
+          ? `Votre voyage sur mesure en ${d.tripCountry}`
+          : null;
+      return {
+        subject: isDeposit ? 'Acompte reçu' : 'Paiement reçu',
+        body: brand('PAYMENT_SUCCEEDED', {
+          eyebrow: isDeposit ? 'Acompte reçu' : 'Paiement reçu',
+          heading: isDeposit ? 'Votre place est réservée' : 'C&rsquo;est confirmé !',
+          bodyHtml:
+            (isDeposit
+              ? `Nous avons reçu votre acompte de ${amount(d, 'fr')}. Votre réservation est en attente &mdash; nous vous recontacterons au sujet du solde restant.`
+              : `Nous avons reçu votre paiement de ${amount(d, 'fr')}. Votre voyage est entièrement payé et confirmé !`) +
+            summaryTable([
+              ['Référence de réservation', d.bookingId],
+              ['Voyage', trip],
+              ['Dates du voyage', formatDateRange(d.travelStart, d.travelEnd, 'fr-FR')],
+              ['Voyageurs', d.seats ? String(d.seats) : null],
+              [isDeposit ? 'Acompte versé' : 'Montant payé', amount(d, 'fr')],
+            ]),
+          cta: { label: 'Voir ma réservation', url: FIND_BOOKING_URL },
+        }),
+      };
+    },
   },
   PAYMENT_FAILED: {
     EN: (d) => ({
@@ -716,8 +788,14 @@ const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplat
     FR: (d) => `MUFASA SAFARIS & TOURS : réservation ${d.bookingId} annulée.`,
   },
   PAYMENT_SUCCEEDED: {
-    EN: (d) => `MUFASA SAFARIS & TOURS: Payment of ${amount(d, 'en')} received. Thank you!`,
-    FR: (d) => `MUFASA SAFARIS & TOURS : paiement de ${amount(d, 'fr')} reçu. Merci !`,
+    EN: (d) =>
+      d.paymentKind === 'DEPOSIT'
+        ? `MUFASA SAFARIS & TOURS: Deposit of ${amount(d, 'en')} received. Booking ${d.bookingId} is on hold.`
+        : `MUFASA SAFARIS & TOURS: Payment of ${amount(d, 'en')} received. Booking ${d.bookingId} confirmed!`,
+    FR: (d) =>
+      d.paymentKind === 'DEPOSIT'
+        ? `MUFASA SAFARIS & TOURS : acompte de ${amount(d, 'fr')} reçu. Réservation ${d.bookingId} en attente.`
+        : `MUFASA SAFARIS & TOURS : paiement de ${amount(d, 'fr')} reçu. Réservation ${d.bookingId} confirmée !`,
   },
   PAYMENT_FAILED: {
     EN: (d) => `MUFASA SAFARIS & TOURS: Payment of ${amount(d, 'en')} failed. Please try again.`,

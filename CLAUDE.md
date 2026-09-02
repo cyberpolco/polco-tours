@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-214** (2026-09-01). This file used to carry a running
+Current through **DR-215** (2026-09-02). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -282,7 +282,21 @@ src/
                    #   just-cancelled booking as a dead end — while staff
                    #   can always regenerate the same PDF on demand
                    #   (streamRefundNotePdf, /api/v1/bookings/[bookingId]/
-                   #   refund-note-pdf) from the booking detail page
+                   #   refund-note-pdf) from the booking detail page.
+                   #   DR-215: applyPaymentOutcome's new notifyPaymentSucceeded
+                   #   sends PAYMENT_SUCCEEDED straight over EMAIL via Resend
+                   #   (notificationsService.notifyEmail), bypassing notify()'s
+                   #   WhatsApp→SMS→email fallback chain — that chain resolves
+                   #   EMAIL from the guest's anonymous-session User.email,
+                   #   which is a synthetic, undeliverable placeholder
+                   #   (better-auth's anonymous-plugin default); resolves the
+                   #   real recipient the same way bookingService
+                   #   .cancelForBookingLookup/visaService.contactTraveler do
+                   #   (tour lead Traveler.email → Booking.contactEmail →
+                   #   User.email as a last resort). New invoicing → auth
+                   #   runtime dependency (authService.getUser) — see "Module
+                   #   dependency direction matters" below. PAYMENT_FAILED is
+                   #   unchanged, still on notify().
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
                    #   DR-205: 26 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
@@ -295,7 +309,16 @@ src/
                    #   renderSmsMessage's plain-text twin over WHATSAPP/SMS
                    #   (previously reused the same body for every channel --
                    #   harmless only because every body used to be one plain
-                   #   sentence)
+                   #   sentence). DR-215: PAYMENT_SUCCEEDED's HTML body is a
+                   #   real details block (reference, trip, dates, travelers,
+                   #   amount via a new summaryTable helper), not one
+                   #   sentence, and distinguishes a DEPOSIT payment ("on
+                   #   hold, balance due") from BALANCE/FULL ("fully paid and
+                   #   confirmed") via a new NotificationData.paymentKind
+                   #   field; NotificationData itself is now exported from
+                   #   this module's index.ts (previously only
+                   #   NotificationEvent was) so a calling module can type
+                   #   what it builds
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -686,6 +709,10 @@ not from inside `authService` itself: `notifications` already imports
 `auth`, so an `auth -> notifications` dependency would be a real cycle —
 the Server Action layer is the "one level up" place for that orchestration,
 same convention as every cross-module composition this section documents.
+Since DR-215, `invoicing` also gained a runtime dependency on `auth`
+(`authService.getUser`, to resolve a payment-succeeded notification's
+locale and last-resort recipient email) — confirmed acyclic the same way
+DR-205 established `visa -> auth`: `auth` never imports `invoicing`.
 
 ---
 

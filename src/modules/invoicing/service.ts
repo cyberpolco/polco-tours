@@ -1,7 +1,7 @@
 // invoicing module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
-import type { AuthContext } from '@modules/auth';
+import { authService, type AuthContext } from '@modules/auth';
 import { bookingService, isBookingLocked, type BookingView, type CancellationRefundTier, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 // New invoicing -> finance dependency (confirmed acyclic -- finance depends
@@ -13,6 +13,7 @@ import { financeService } from '@modules/finance';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
 import { money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
 import { getEffectivePlatformRate } from '@lib/platform-rate';
@@ -137,16 +138,85 @@ async function applyPaymentOutcome(
     // its status reflects the payment without invoicing ever writing
     // Booking.status directly.
     await bookingService.recordPaymentReceived(ctx, result.invoice.bookingId, result.payment.kind);
+    await notifyPaymentSucceeded(ctx, organizationId, result);
+  } else {
+    await notificationsService.notify('PAYMENT_FAILED', result.touristUserId, organizationId, {
+      amountMinor: result.payment.amountMinor,
+      currency: result.payment.currency,
+    });
   }
-  await notificationsService.notify(
-    outcome === 'SUCCEEDED' ? 'PAYMENT_SUCCEEDED' : 'PAYMENT_FAILED',
-    result.touristUserId,
-    organizationId,
-    { amountMinor: result.payment.amountMinor, currency: result.payment.currency },
-  );
   // Rebuilt explicitly (not `return result`) -- touristUserId is only for
-  // notify() above, never part of this endpoint's response contract.
+  // the notifications above, never part of this endpoint's response contract.
   return { payment: result.payment, invoice: result.invoice };
+}
+
+/** DR-215 (explicit user request): PAYMENT_SUCCEEDED bypasses notify()'s
+ * WhatsApp -> SMS -> email fallback chain and sends straight over EMAIL via
+ * Resend (notificationsService.notifyEmail). An anonymous guest checkout
+ * session's User.email is a synthetic, undeliverable placeholder
+ * (better-auth's anonymous plugin default, `temp@<id>.com`) -- notify()'s
+ * EMAIL leg silently failed against it, and with WhatsApp unconfigured
+ * (OI-06) and SMS on a low account balance (OI-07), this confirmation was
+ * often not reaching the guest on any channel at all. Resolves the real
+ * recipient address the same way bookingService.cancelForBookingLookup
+ * (DR-207) and visaService.contactTraveler (DR-209) already do: the tour
+ * lead Traveler's own email, falling back to Booking.contactEmail, falling
+ * back to the tourist's own User.email only as a last resort -- by the time
+ * a booking reaches payment, the Travelers wizard step (which requires the
+ * tour lead's email) has always already run, so the first fallback is the
+ * common case, not the last. New invoicing -> auth runtime dependency
+ * (authService.getUser), the same shape DR-205 already established for
+ * visa -> auth -- confirmed acyclic, auth never imports invoicing.
+ *
+ * The whole body is wrapped in try/catch and never throws -- the payment
+ * itself already succeeded and committed before this runs, so a failure
+ * composing or sending the *notification* (a bad lookup, a transient DB
+ * blip) must never turn an already-successful payment into a 500 for the
+ * guest. Same never-throws contract notificationsService.notify/notifyEmail
+ * already guarantee one layer down; this extends it to the lookups above
+ * them too. */
+async function notifyPaymentSucceeded(
+  ctx: AuthContext,
+  organizationId: string,
+  result: { touristUserId: string; invoice: InvoiceView; payment: PaymentView },
+): Promise<void> {
+  const log = logger(newTraceId());
+  try {
+    const booking = await bookingService.getById(ctx, result.invoice.bookingId);
+    const travelers = await bookingService.listTravelers(ctx, result.invoice.bookingId);
+    const lead = travelers.find((t) => t.isTourLead);
+    const tourist = await authService.getUser(result.touristUserId);
+    const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+
+    const tripSummary = booking.departureId
+      ? await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId)
+      : null;
+    const notificationData = {
+      bookingId: booking.bookingReference,
+      amountMinor: result.payment.amountMinor,
+      currency: result.payment.currency,
+      paymentKind: result.payment.kind,
+      seats: booking.seats,
+      tripTitle: tripSummary?.title,
+      tripCountry: tripSummary?.country ?? booking.customCountry ?? undefined,
+      travelStart: tripSummary?.startDate ?? booking.customTravelStart ?? undefined,
+      travelEnd: tripSummary?.endDate ?? booking.customTravelEnd ?? undefined,
+    };
+
+    if (email) {
+      await notificationsService.notifyEmail('PAYMENT_SUCCEEDED', email, tourist?.preferredLocale ?? 'EN', organizationId, notificationData);
+    } else {
+      // Extremely rare (no traveler manifest and no booking-level contact
+      // email at all) -- fall back to the old fallback chain rather than
+      // silently dropping the notification (charter rule 8).
+      await notificationsService.notify('PAYMENT_SUCCEEDED', result.touristUserId, organizationId, notificationData);
+    }
+  } catch (err) {
+    log.error('notifyPaymentSucceeded failed', {
+      paymentId: result.payment.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export const invoicingService = {
