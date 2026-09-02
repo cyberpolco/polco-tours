@@ -1,7 +1,14 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { cmsService, CMS_SOCIAL_PLATFORM_LABELS, CMS_SOCIAL_PLATFORMS, GALLERY_COUNTRY_CODES, type CmsLocale } from '@modules/cms';
+import {
+  cmsService,
+  CMS_SOCIAL_PLATFORM_LABELS,
+  CMS_SOCIAL_PLATFORMS,
+  GALLERY_COUNTRY_CODES,
+  type CmsLocale,
+  type CmsTextBlockView,
+} from '@modules/cms';
 import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
@@ -69,6 +76,35 @@ const CMS_TABS = [
 ] as const;
 type CmsTabKey = (typeof CMS_TABS)[number]['key'];
 const CMS_TAB_KEYS: readonly string[] = CMS_TABS.map((tabDef) => tabDef.key);
+
+// Terms' 4 sections (DR-207) each ship a coded EN/FR default in
+// messages/*.json -- (guest)/terms/page.tsx renders `cms?.title ?? t(...)`
+// so the *effective* text a visitor sees is often that coded default, not a
+// blank string. Before this, the staff editor's `current` prop was `null`
+// until a section had a saved override, so PageTextEditor's `defaultValue`
+// prefilled empty and any edit meant retyping the whole section from
+// scratch. Fall back to the same coded default the guest page uses, so the
+// textarea always starts from what's actually live.
+function withTermsFallback(
+  current: CmsTextBlockView | null,
+  key: string,
+  locale: CmsLocale,
+  title: string,
+  body: string,
+): CmsTextBlockView {
+  return (
+    current ?? {
+      id: '',
+      key,
+      locale,
+      title,
+      body,
+      eyebrow: null,
+      updatedAt: new Date(0),
+      updatedByUserId: null,
+    }
+  );
+}
 
 function DeleteButton({
   action,
@@ -163,6 +199,29 @@ export default async function CmsPage({ searchParams }: Props) {
   const t = await getTranslations('StaffCms');
   const tCountries = await getTranslations('Countries');
   const tSidebar = await getTranslations('StaffSettingsSidebar');
+  const tTerms = await getTranslations('Terms');
+  const termsTosView = withTermsFallback(termsTosText, 'terms.tos', locale, tTerms('sections.tos.title'), tTerms('sections.tos.body'));
+  const termsPrivacyView = withTermsFallback(
+    termsPrivacyText,
+    'terms.privacy',
+    locale,
+    tTerms('sections.privacy.title'),
+    tTerms('sections.privacy.body'),
+  );
+  const termsCookiesView = withTermsFallback(
+    termsCookiesText,
+    'terms.cookies',
+    locale,
+    tTerms('sections.cookies.title'),
+    tTerms('sections.cookies.body'),
+  );
+  const termsCancellationView = withTermsFallback(
+    termsCancellationText,
+    'terms.cancellation',
+    locale,
+    tTerms('sections.cancellation.title'),
+    tTerms('sections.cancellation.body'),
+  );
 
   return (
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
@@ -947,7 +1006,7 @@ export default async function CmsPage({ searchParams }: Props) {
           <PageTextEditor
             cmsKey="terms.tos"
             locale={locale}
-            current={termsTosText}
+            current={termsTosView}
             canWrite={canWrite}
             sectionTitle={t('termsTosSectionTitle')}
             eyebrowLabel={t('eyebrowLabel')}
@@ -960,7 +1019,7 @@ export default async function CmsPage({ searchParams }: Props) {
           <PageTextEditor
             cmsKey="terms.privacy"
             locale={locale}
-            current={termsPrivacyText}
+            current={termsPrivacyView}
             canWrite={canWrite}
             sectionTitle={t('termsPrivacySectionTitle')}
             eyebrowLabel={t('eyebrowLabel')}
@@ -973,7 +1032,7 @@ export default async function CmsPage({ searchParams }: Props) {
           <PageTextEditor
             cmsKey="terms.cookies"
             locale={locale}
-            current={termsCookiesText}
+            current={termsCookiesView}
             canWrite={canWrite}
             sectionTitle={t('termsCookiesSectionTitle')}
             eyebrowLabel={t('eyebrowLabel')}
@@ -986,7 +1045,7 @@ export default async function CmsPage({ searchParams }: Props) {
           <PageTextEditor
             cmsKey="terms.cancellation"
             locale={locale}
-            current={termsCancellationText}
+            current={termsCancellationView}
             canWrite={canWrite}
             sectionTitle={t('termsCancellationSectionTitle')}
             eyebrowLabel={t('eyebrowLabel')}
