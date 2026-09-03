@@ -477,7 +477,7 @@ describe('POST /api/v1/bookings/:bookingId/addons (FLIGHT_TICKET/ESIM, DR-222)',
             touristUserId: touristAId,
             bookingReference: generateBookingReference(),
             seats: 1,
-            customCountry: country,
+            customCountry: country.slice(0, 2),
             currency: 'USD',
             priceMinor: 20000,
             status: 'AWAITING_DEPOSIT',
@@ -507,13 +507,17 @@ describe('POST /api/v1/bookings/:bookingId/addons (FLIGHT_TICKET/ESIM, DR-222)',
       admin.flightFareRate.create({
         data: { originAirportId, destinationAirportId, airline: 'Fixture Air', flightClass: 'ECONOMY', priceMinor: 45000, currency: 'USD' },
       }),
-      admin.esimDataPlanRate.create({ data: { country, dataAllowanceGb: 5, priceMinor: 1200, currency: 'USD' } }),
+      // The booking's own customCountry is truncated to 2 chars (VarChar(2)
+      // column) -- the rate must be seeded under that same truncated value,
+      // not the full fixture `country`, or getEffectiveEsimRate's lookup
+      // (keyed off resolveBookingCountry -> booking.customCountry) misses.
+      admin.esimDataPlanRate.create({ data: { country: country.slice(0, 2), dataAllowanceGb: 5, priceMinor: 1200, currency: 'USD' } }),
     ]);
   });
 
   afterAll(async () => {
     await admin.flightFareRate.deleteMany({ where: { originAirportId, destinationAirportId } });
-    await admin.esimDataPlanRate.deleteMany({ where: { country, dataAllowanceGb: 5 } });
+    await admin.esimDataPlanRate.deleteMany({ where: { country: country.slice(0, 2), dataAllowanceGb: 5 } });
     await admin.airport.deleteMany({ where: { id: { in: [originAirportId, destinationAirportId] } } });
   });
 
