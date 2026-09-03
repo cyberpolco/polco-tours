@@ -160,80 +160,38 @@ export const authRepository = {
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
 
-  /** DR-026: finishes what auth.api.signUpEmail can't set directly (role/
-   * phone/organizationId aren't registered better-auth additionalFields, so
-   * they must be written via a plain Prisma update, same pattern
-   * scripts/create-staff-user.ts already uses) -- also flips emailVerified
-   * and mustChangePassword for an admin-created account with a generated
-   * temporary password. Writes every selected role's Membership row in the
-   * same transaction (DR-026), so a 2-or-more-role create can never leave
-   * the account holding fewer roles than the admin actually selected --
-   * previously `User.role` and the Membership rows were two separate,
-   * non-transactional statements (`createMemberships`, now folded in here),
-   * and a failure on the second one silently dropped every role but the
-   * first. */
-  async finalizeAdminCreatedUser(
-    userId: string,
-    input: { roles: Role[]; phone: string | null; organizationId: string },
-  ): Promise<void> {
-    const primaryRole = input.roles[0];
-    if (!primaryRole) throw new Error('finalizeAdminCreatedUser requires at least one role');
-    // Real production incident (2026-09): the user.update below, run
-    // immediately after auth.api.signUpEmail resolves with `userId`, has
-    // been observed to fail with P2025 "Record to update not found" even
-    // though the row shows up moments later on /staff/admin/users -- the
-    // row exists, it's just not yet visible to this immediate follow-up
-    // query. Root cause not fully confirmed (suspected Neon pooler
-    // read-after-write timing), so this retries the whole transaction a
-    // few times before giving up, rather than letting a raw
-    // PrismaClientKnownRequestError crash the create-user Server Action.
-    // DR-221 follow-up, real repro: once this became a 2-statement
-    // transaction, the same connectivity blips can also surface as P2028
-    // ("Transaction not found... old closed transaction... obtained before
-    // disconnecting") instead of P2025 -- see @lib/db's withTransientRetry.
-    //
-    // Real repro of a second, subtler bug this same retry introduces: a
-    // P2028 means the *client* lost track of the transaction, not that
-    // Postgres necessarily rolled it back -- if the connection actually
-    // dropped right at COMMIT (after the server applied it, before the
-    // client got the ack), the transaction is genuinely "in doubt," not
-    // definitely uncommitted. Retrying from scratch re-runs
-    // membership.createMany with the exact same rows, which then hits
-    // Membership's own `@@unique([userId, organizationId, role])` (P2002)
-    // if that earlier attempt actually did commit. `skipDuplicates` makes
-    // the retry idempotent either way -- a genuine rollback re-inserts
-    // cleanly, an in-doubt commit's retry is a harmless no-op instead of a
-    // crash.
+  /** DR-229: writes every selected role's Membership row for an
+   * admin-created user (DR-026: a 2+-role create can never leave the
+   * account holding fewer roles than selected). `User.role`/
+   * `organizationId`/`phone`/`emailVerified`/`mustChangePassword` are now
+   * set atomically inside `auth.api.signUpEmail`'s own INSERT (see
+   * src/lib/trusted-user-create.ts + src/lib/auth.ts's
+   * databaseHooks.user.create.before) -- this function no longer touches
+   * the User row at all. The P2025 "record not found" incidents
+   * (DR-221/224/226) were entirely about racing a separate `UPDATE`
+   * against that INSERT on a different pooled connection; there is no
+   * `UPDATE` here to race anymore.
+   *
+   * Membership is a related table, not a User column, so it can't be
+   * folded into the same INSERT -- this stays a second write, kept
+   * idempotent via `skipDuplicates` (a P2028 can mean the client lost
+   * track of an in-doubt COMMIT, not that Postgres rolled it back --
+   * retrying might re-insert rows that already landed; `skipDuplicates`
+   * makes that a no-op instead of a P2002 crash).
+   *
+   * Retry budget is `withTransientRetry`'s shared default (4 attempts,
+   * ~1.5s) -- DR-224/226's 10-attempt/~7s bump specifically compensated
+   * for the now-removed User-row UPDATE race; this plain Membership
+   * insert never needed that budget. */
+  async finalizeAdminCreatedUser(userId: string, input: { roles: Role[]; organizationId: string }): Promise<void> {
     try {
-      // DR-224 follow-up, real production repro (2026-09-03): the 4-attempt/
-      // ~1.5s-total budget below stopped being enough -- production started
-      // exhausting all 4 attempts consistently, not just occasionally, on
-      // this exact call (confirmed via Vercel logs: 4 identical P2025
-      // "record not found" lines per failed create-user request, with no
-      // corresponding User row ever landing in the DB). The doc comment
-      // above already predicted the row "shows up moments later" -- this
-      // just gives it more moments: 10 attempts, same backoff shape, ~7s
-      // total budget instead of ~1.5s. User creation is a rare, admin-only
-      // action, not a hot path, so a few extra seconds of patience here is
-      // cheap insurance against a slow Neon pooler catch-up.
       await withTransientRetry(() =>
-        withOrg(input.organizationId, async (tx) => {
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              role: primaryRole,
-              phone: input.phone,
-              organizationId: input.organizationId,
-              emailVerified: true,
-              mustChangePassword: true,
-            },
-          });
-          await tx.membership.createMany({
+        withOrg(input.organizationId, (tx) =>
+          tx.membership.createMany({
             data: input.roles.map((role) => ({ userId, organizationId: input.organizationId, role })),
             skipDuplicates: true,
-          });
-        }),
-        10,
+          }),
+        ),
       );
     } catch (e) {
       if (isTransientDbError(e)) throw Errors.internal();

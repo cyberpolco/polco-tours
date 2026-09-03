@@ -7,6 +7,7 @@ import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { withTransientRetry } from '@lib/db';
 import { Errors } from '@lib/errors';
+import { withTrustedUserCreate } from '@lib/trusted-user-create';
 import { authRepository } from './repository';
 import { computeStaffRosterSummary, isClientDirectoryViewer, isSuperAdmin } from './domain';
 import type { AuthContext, CreateUserInput, PublicUser, StaffRosterSummary, UpdateProfileInput, UpdateUserInput } from './domain';
@@ -168,14 +169,19 @@ export const authService = {
     const primaryRole = input.roles[0];
     if (!primaryRole) throw Errors.validation('At least one role is required');
 
+    // DR-229: role/organizationId/mustChangePassword/phone/emailVerified
+    // are now set atomically inside this signUpEmail call's own INSERT, via
+    // the trusted signal src/lib/auth.ts's databaseHooks.user.create.before
+    // hook reads -- see src/lib/trusted-user-create.ts. This replaces the
+    // old insert-then-separate-update pattern that caused DR-221/224/226.
     const temporaryPassword = generateRandomString(16, 'a-z', 'A-Z', '0-9');
-    const result = await auth.api.signUpEmail({
-      body: { name: input.name, email: input.email, password: temporaryPassword },
-    });
+    const result = await withTrustedUserCreate(
+      { role: primaryRole, organizationId, mustChangePassword: true, phone: input.phone ?? null },
+      () => auth.api.signUpEmail({ body: { name: input.name, email: input.email, password: temporaryPassword } }),
+    );
 
     await authRepository.finalizeAdminCreatedUser(result.user.id, {
       roles: input.roles,
-      phone: input.phone ?? null,
       organizationId,
     });
 
@@ -198,14 +204,23 @@ export const authService = {
       }),
     );
 
-    // Real production repro: unlike finalizeAdminCreatedUser/audit above,
+    // DR-229 narrowed this comment's scope: since role/organizationId/
+    // mustChangePassword/emailVerified are now set atomically inside
+    // signUpEmail's own INSERT (see above), the User row itself is
+    // complete the moment signUpEmail resolves -- that part of the old
+    // race is gone. What's left: finalizeAdminCreatedUser's Membership
+    // rows are still a genuinely separate write, and findUserById ->
+    // resolveRoles reads them via yet another connection -- if that write
+    // hasn't landed yet, resolveRoles silently returns just the primary
+    // role instead of throwing, so this retry-on-null loop stays. (A
+    // residual "does a User-row read itself still ever race the now-atomic
+    // User-row write" risk was investigated but not fully confirmed either
+    // way from code alone -- watch Vercel logs post-deploy for this loop's
+    // attempt count before assuming it can shrink further.)
     // findUserById's prisma.user.findUnique returns null on a miss rather
     // than throwing P2025 -- so it slips past withTransientRetry/
-    // isTransientDbError entirely and a Neon pooler read-after-write lag
-    // here surfaced as a bare Errors.internal() ("Something went wrong")
-    // even though the account (with every role) had already committed.
-    // Same transient window as the two writes above, just on a read, so it
-    // gets the same short backoff-retry treatment instead of a single try.
+    // isTransientDbError entirely, hence this separate retry-on-null loop
+    // instead of reusing that helper.
     let user = await authRepository.findUserById(result.user.id);
     for (let attempt = 1; !user && attempt < 4; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, attempt * 150));

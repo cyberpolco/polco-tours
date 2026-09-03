@@ -4,6 +4,7 @@ import { anonymous } from 'better-auth/plugins';
 import { prisma } from './db';
 import { getPrimaryOrgId } from './primary-org';
 import { getAuthRateLimitStorage } from './rate-limit';
+import { getTrustedUserCreateSignal } from './trusted-user-create';
 
 /**
  * Authentication (Vol. 5 / Vol. 7): Better Auth, self-hosted, data in our own
@@ -32,9 +33,25 @@ export const authConfig = {
   // Postgres (root-caused via CI diagnostics, 2026-07-09 -- see Gotchas).
   // input: false means a client can never set this directly via the
   // sign-up request body; only the server-side hook may.
+  //
+  // DR-229: role/mustChangePassword/phone joined organizationId here so
+  // an admin-created staff account's databaseHooks.user.create.before hook
+  // (below) can set them atomically as part of signUpEmail's own INSERT --
+  // see src/lib/trusted-user-create.ts. `type: 'string'` even for `role`
+  // (a Role enum column) -- better-auth's additionalFields schema has no
+  // enum type; better-auth's own first-party `admin` plugin registers its
+  // Role-backed `role` column the exact same way. Prisma still enforces
+  // the enum on both read and write. input: false on all three means a
+  // client can never set them via the public sign-up request body either
+  // (same contract organizationId already has) -- the only way to set real
+  // values is the AsyncLocalStorage signal in trusted-user-create.ts,
+  // which only our own trusted server code can populate.
   user: {
     additionalFields: {
       organizationId: { type: 'string', required: false, input: false } as const,
+      role: { type: 'string', required: false, input: false } as const,
+      mustChangePassword: { type: 'boolean', required: false, input: false } as const,
+      phone: { type: 'string', required: false, input: false } as const,
     },
   },
   emailAndPassword: {
@@ -115,6 +132,41 @@ export const authConfig = {
         // failing loudly on misconfiguration, signup itself should degrade
         // gracefully rather than block entirely.
         async before() {
+          // DR-229: an admin-created staff account (authService.createUser,
+          // scripts/create-staff-user.ts) sets this AsyncLocalStorage signal
+          // around its own auth.api.signUpEmail(...) call -- when present,
+          // every field below was previously set by a SEPARATE
+          // finalizeAdminCreatedUser tx.user.update immediately after this
+          // same signUpEmail insert, racing its visibility on a different
+          // pooled DB connection (DR-221/224/226, three same-day production
+          // incidents). Folding it into this hook's `data` return puts it in
+          // the SAME atomic INSERT createWithHooks performs -- no second
+          // statement, no race. emailVerified: true here wins over the
+          // route's own hardcoded `emailVerified: false` because this hook's
+          // merge happens later, inside createWithHooks.
+          const trusted = getTrustedUserCreateSignal();
+          if (trusted) {
+            return {
+              data: {
+                role: trusted.role,
+                organizationId: trusted.organizationId,
+                mustChangePassword: trusted.mustChangePassword,
+                phone: trusted.phone,
+                emailVerified: true,
+              },
+            };
+          }
+
+          // DR-005/DR-011: single-tenant launch -- every OTHER new user
+          // (public/guest sign-up, anonymous checkout) joins the primary
+          // org (Lam) at signup. organizationId stays nullable in the
+          // schema for the future multi-operator case. Deliberately falls
+          // back to null instead of propagating getPrimaryOrgId()'s throw --
+          // unlike a guest-facing page failing loudly on misconfiguration,
+          // signup itself should degrade gracefully rather than block
+          // entirely. role/mustChangePassword/phone are left unset here, so
+          // Prisma's own column defaults apply exactly as they did before
+          // these three were registered as additionalFields.
           let organizationId: string | null = null;
           try {
             organizationId = await getPrimaryOrgId();

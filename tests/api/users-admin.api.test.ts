@@ -114,6 +114,33 @@ describe('POST /api/v1/users', () => {
     expect(memberships.map((m) => m.role).sort()).toEqual(['DRIVER', 'TOUR_GUIDE', 'TOUR_OPERATOR']);
   }, 60_000);
 
+  it('DR-229: role/organizationId/mustChangePassword/emailVerified are set atomically inside signUpEmail\'s own insert', async () => {
+    // Reads the raw User row directly (bypassing authRepository.findUserById
+    // /resolveRoles, which also depends on the separate Membership write)
+    // to prove the User row itself is already fully correct the moment
+    // createUser's signUpEmail call resolves -- this is exactly the
+    // assertion that would have failed under the old insert-then-separate-
+    // update design (DR-221/224/226).
+    const headers = await loginAs(superadminId);
+    const email = `atomic-${Date.now()}@example.test`;
+    const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {
+      name: 'Atomic Check',
+      email,
+      phone: '+264812340001',
+      roles: ['DRIVER'],
+    });
+    const res = await createUser(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+
+    const rawUser = await prisma.user.findUnique({ where: { id: body.user.id } });
+    expect(rawUser?.role).toBe('DRIVER');
+    expect(rawUser?.organizationId).toBe(orgId);
+    expect(rawUser?.mustChangePassword).toBe(true);
+    expect(rawUser?.emailVerified).toBe(true);
+    expect(rawUser?.phone).toBe('+264812340001');
+  }, 60_000);
+
   it('DR-138: creating a VEHICLE_OWNER auto-provisions one placeholder Vehicle', async () => {
     const headers = await loginAs(superadminId);
     const email = `owner-${Date.now()}@example.test`;

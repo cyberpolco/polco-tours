@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-228** (2026-09-03). This file used to carry a running
+Current through **DR-229** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -242,16 +242,12 @@ src/
                    #   superRefine (the real gate, shared by the Server
                    #   Actions and the REST routes) plus a client-side
                    #   mirror (RoleCheckboxGroup) for immediate UX feedback.
-                   #   DR-224 (production bug report, follow-up in the same
-                   #   family as DR-221): createUser's final re-fetch of the
-                   #   just-created account (findUserById) returns null
-                   #   rather than throwing P2025 on a Neon pooler
-                   #   read-after-write miss, so it slipped past
-                   #   withTransientRetry entirely and surfaced as a bare
-                   #   "Something went wrong" even though the account (every
-                   #   role included) had already committed — not tied to
-                   #   any specific role combination. Now retried up to 3x
-                   #   (150ms backoff) before giving up. DR-225 (real bug
+                   #   createUser's final re-fetch of the just-created
+                   #   account (findUserById) returns null rather than
+                   #   throwing P2025 on a Neon pooler read-after-write miss,
+                   #   so it's retried up to 3x (150ms backoff) before giving
+                   #   up rather than surfacing a bare "Something went wrong"
+                   #   (DR-224). DR-225 (real bug
                    #   found): authService.listUsersByRole/
                    #   findUsersByRole filtered only on the primary
                    #   User.role, never Membership rows — since
@@ -263,21 +259,41 @@ src/
                    #   Now unions primary-role and Membership-role matches
                    #   (deduped), same "primary falls back, Membership
                    #   extends it" shape resolveRoles already uses per-user.
-                   #   DR-226 (production bug, same call chain as DR-224 but
-                   #   a step earlier, still failing after DR-224 shipped):
-                   #   finalizeAdminCreatedUser's own tx.user.update started
-                   #   hitting P2025 "record not found" on every single
-                   #   create-user attempt (not occasionally) — confirmed via
-                   #   production logs, 4/4 retry attempts failing with no
-                   #   User row ever landing in the DB. Same Neon
-                   #   read-after-write lag class this function's own
-                   #   comment already predicted ("shows up moments later"),
-                   #   just needing more moments than the shared 4-attempt/
-                   #   ~1.5s default gave it — bumped to 10 attempts/~7s for
-                   #   this one call site only (rare, admin-only action, not
-                   #   a hot path). RLS-on-users, org-mismatch, and
-                   #   better-auth/Prisma version drift were all ruled out
-                   #   first (see DR-226 in the decision log for detail).
+                   #   DR-221/224/226 were three same-day production
+                   #   incidents (dropped roles, then two P2025 "record not
+                   #   found" crashes) all traced to the same architectural
+                   #   gap: createUser's finalizeAdminCreatedUser did
+                   #   auth.api.signUpEmail's INSERT, then a SEPARATE
+                   #   withOrg transaction's tx.user.update immediately
+                   #   after, racing that INSERT's visibility on a different
+                   #   pooled Neon connection. DR-229 (explicit user request
+                   #   to redesign, not just re-patch) removed the race
+                   #   structurally instead of giving it a bigger retry
+                   #   window: role/organizationId/mustChangePassword/phone/
+                   #   emailVerified now land in the SAME atomic INSERT
+                   #   signUpEmail performs, via a new AsyncLocalStorage
+                   #   "trusted signal" (src/lib/trusted-user-create.ts --
+                   #   a plain Node stdlib primitive, not a better-auth
+                   #   internal) that only createUser/scripts/
+                   #   create-staff-user.ts populate, read by
+                   #   databaseHooks.user.create.before (src/lib/auth.ts).
+                   #   finalizeAdminCreatedUser now only writes Membership
+                   #   rows (a related table, can't be folded into the User
+                   #   INSERT) at withTransientRetry's shared default (4
+                   #   attempts/~1.5s, down from DR-224/226's emergency
+                   #   10-attempt/~7s bump — the severity that justified
+                   #   that bump no longer exists once the User row is
+                   #   atomic). role/mustChangePassword/phone are
+                   #   registered as additionalFields with input: false
+                   #   (same contract organizationId already had) so a
+                   #   public POST to the live /api/auth/sign-up/email
+                   #   route (guest checkout shares this route family) can
+                   #   never self-assign them — only the AsyncLocalStorage
+                   #   signal can, and that's a channel no HTTP body can
+                   #   reach. The findUserById retry-on-null loop in
+                   #   createUser is kept (Membership-visibility-on-read is
+                   #   still a real, separate race), just narrower in scope
+                   #   than before.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a
