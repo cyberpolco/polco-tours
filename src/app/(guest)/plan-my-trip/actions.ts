@@ -8,6 +8,7 @@ import { CreateTailorMadeInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { COOKIE_CONSENT_COOKIE, isAnalyticsConsentGiven } from '@lib/cookie-consent';
 import { ApiError } from '@lib/errors';
+import { resolveGuestPreferredLocale } from '@lib/guest-locale';
 import { logger, newTraceId } from '@lib/logger';
 import { isStaffRole } from '@lib/rbac';
 
@@ -99,10 +100,14 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
     // any staff role, not just SUPERADMIN -- the booking itself still
     // proceeds under that session below, unchanged.
     const name = `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim();
-    if (name && !isStaffRole(ctx.roles)) {
+    // Also snapshots which language they're actually browsing/booking in
+    // onto User.preferredLocale (guest-locale.ts) -- see
+    // (guest)/book/[departureId]/actions.ts's identical comment for why.
+    if (!isStaffRole(ctx.roles)) {
       await authService.updateProfile(ctx, {
-        name,
+        name: name || undefined,
         phone: payload.localNumber ? toE164(payload.dialCode, payload.localNumber) : undefined,
+        preferredLocale: await resolveGuestPreferredLocale(),
       });
     }
 

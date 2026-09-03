@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-227** (2026-09-03). This file used to carry a running
+Current through **DR-228** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -210,7 +210,18 @@ src/
                               #   cookie-consent + set-cookie-consent-action
                               #   (DR-207: the `cookie_consent` cookie/banner
                               #   choice gating the one non-essential guest
-                              #   cookie, wizard_session)
+                              #   cookie, wizard_session),
+                              #   guest-locale (DR-228: real bug fix —
+                              #   `resolveGuestPreferredLocale` maps the
+                              #   guest-facing `locale` cookie to the Prisma
+                              #   `Locale` enum so the 3 guest booking-
+                              #   creation Server Actions can snapshot it
+                              #   onto `User.preferredLocale` — previously
+                              #   nothing ever wrote that field for a guest
+                              #   checkout, so every automated notification
+                              #   email silently stayed in English
+                              #   regardless of what language the guest
+                              #   actually browsed/booked in)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support.
                    #   DR-221: fixed a real bug where creating a 2+-role
@@ -792,6 +803,14 @@ src/
                    #   footer.tsx's three fallback constants and building a
                    #   fallback CmsTextBlockView from them (same shape
                    #   withTermsFallback returns) when no row exists yet.
+                   #   DR-228 (real bug found): the Emails tab's own
+                   #   accordion `<summary>` label for each of the 27
+                   #   templates was hardcoded to the EN eyebrow regardless
+                   #   of the page's own `?locale=` toggle — only the
+                   #   editable fields inside (via withEmailFallback) were
+                   #   actually locale-aware. Now reads the FR eyebrow when
+                   #   `locale === 'fr'`, same selection withEmailFallback
+                   #   already used.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

@@ -1114,7 +1114,13 @@ export default async function CmsPage({ searchParams }: Props) {
                   const cmsKey = `email.${templateKey}`;
                   const view = withEmailFallback(emailOverridesByKey.get(cmsKey) ?? null, cmsKey, locale, templateKey);
                   const tokens = EMAIL_TEMPLATE_TOKENS[templateKey] ?? [];
-                  const label = EMAIL_TEMPLATE_DEFAULTS[templateKey]?.EN.eyebrow ?? templateKey;
+                  // Real bug fixed here: this always read the EN default
+                  // regardless of the page's own locale toggle, so a staff
+                  // member viewing ?locale=fr still saw every accordion
+                  // label ("Booking confirmed", etc.) in English -- only the
+                  // editable fields inside (via withEmailFallback above)
+                  // were actually locale-aware.
+                  const label = EMAIL_TEMPLATE_DEFAULTS[templateKey]?.[locale === 'fr' ? 'FR' : 'EN'].eyebrow ?? templateKey;
                   return (
                     <details key={templateKey} className="rounded-card border border-rule p-4">
                       <summary className="cursor-pointer font-semibold text-navy">{label}</summary>

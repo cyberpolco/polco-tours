@@ -5,6 +5,7 @@ import { authService } from '@modules/auth';
 import { CreateBookingInput, bookingService } from '@modules/booking';
 import { toE164 } from '@lib/country-codes';
 import { ApiError } from '@lib/errors';
+import { resolveGuestPreferredLocale } from '@lib/guest-locale';
 import { logger, newTraceId } from '@lib/logger';
 import { isStaffRole } from '@lib/rbac';
 
@@ -52,10 +53,17 @@ export async function createGuestBookingAction(
     // as `ctx` (resolveSession has no staff-vs-guest distinction) -- without
     // this guard, typing a client's name here overwrote the staff member's
     // own User.name. See plan-my-trip/actions.ts's identical guard/comment.
-    if (name && !isStaffRole(ctx.roles)) {
+    // Also snapshots which language they're actually browsing/booking in
+    // onto User.preferredLocale (guest-locale.ts) -- every automated
+    // booking/payment/visa email reads that field to pick its language
+    // (notify()/notifyEmail()), and nothing else ever wrote it for a guest
+    // checkout session, so it silently stayed at the schema default (EN)
+    // regardless of what language the guest actually used.
+    if (!isStaffRole(ctx.roles)) {
       await authService.updateProfile(ctx, {
-        name,
+        name: name || undefined,
         phone: localNumber ? toE164(dialCode, localNumber) : undefined,
+        preferredLocale: await resolveGuestPreferredLocale(),
       });
     }
 

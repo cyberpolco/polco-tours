@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * DR-139 regression: real incident (SUPERADMIN's own User.name was silently
@@ -17,7 +17,7 @@ const { resolveSession, updateProfile, getUserByEmail, headersMock, cookiesMock,
   updateProfile: vi.fn(),
   getUserByEmail: vi.fn(),
   headersMock: vi.fn(async () => new Headers()),
-  cookiesMock: vi.fn(async () => ({ get: () => undefined })),
+  cookiesMock: vi.fn(async () => ({ get: (_key?: string) => undefined as { value: string } | undefined })),
   requireGuestContext: vi.fn(),
 }));
 
@@ -164,6 +164,90 @@ describe('guest booking wizards never overwrite a staff session\'s own profile (
       localNumber: '811234567',
     });
     expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ name: 'Real Guest' }));
+  });
+});
+
+/**
+ * DR-228 (explicit user request): a guest's browsing/booking language
+ * should end up on their own User.preferredLocale, since that's the field
+ * notify()/notifyEmail() (notifications module) read to pick which
+ * language every automated booking/payment/visa email renders in --
+ * previously nothing ever wrote it for a guest checkout, so it silently
+ * stayed at the schema default (EN) regardless of what language the guest
+ * actually browsed/booked in.
+ */
+describe('guest booking wizards snapshot the browsing locale onto preferredLocale (DR-228)', () => {
+  beforeEach(() => {
+    resolveSession.mockReset();
+    updateProfile.mockReset();
+    createHold.mockReset();
+    createHoldWithDates.mockReset();
+    createTailorMadeRequest.mockReset();
+  });
+
+  // cookiesMock is shared module-level state (vi.hoisted) read by every
+  // other describe block's actions too via @lib/guest-locale's own
+  // `cookies()` call -- mockReset() would strip its factory default with
+  // nothing to put back, breaking later blocks that never touch it
+  // themselves. Restore that default after this block's own overrides
+  // instead of resetting it away.
+  afterEach(() => {
+    cookiesMock.mockResolvedValue({ get: () => undefined });
+  });
+
+  it('createGuestBookingAction persists FR when the locale cookie is fr', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    createHold.mockResolvedValue({ id: 'booking-fr-1' });
+    cookiesMock.mockResolvedValue({ get: (key?: string) => (key === 'locale' ? { value: 'fr' } : undefined) });
+    await createGuestBookingAction(
+      '11111111-1111-4111-8111-111111111111',
+      bookingFormData({ firstName: 'Real', lastName: 'Guest', seats: '1' }),
+    );
+    expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ preferredLocale: 'FR' }));
+  });
+
+  it('createGuestPackageBookingAction persists EN when the locale cookie is en', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    createHoldWithDates.mockResolvedValue({ id: 'booking-en-1' });
+    cookiesMock.mockResolvedValue({ get: (key?: string) => (key === 'locale' ? { value: 'en' } : undefined) });
+    await createGuestPackageBookingAction(
+      '22222222-2222-4222-8222-222222222222',
+      bookingFormData({ firstName: 'Real', lastName: 'Guest', startDate: '2026-09-01', seats: '1' }),
+    );
+    expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ preferredLocale: 'EN' }));
+  });
+
+  it('createPlanMyTripRequestAction persists FR when the locale cookie is fr', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    createTailorMadeRequest.mockResolvedValue({ id: 'booking-fr-2' });
+    cookiesMock.mockResolvedValue({ get: (key?: string) => (key === 'locale' ? { value: 'fr' } : undefined) });
+    await createPlanMyTripRequestAction({
+      countries: ['NA'],
+      customTravelStart: '2026-09-01',
+      customTravelEnd: '2026-09-10',
+      seats: 2,
+      preferredTags: [],
+      preferredSites: [],
+      countryOfResidence: 'US',
+      citizenship: 'US',
+      firstName: 'Real',
+      lastName: 'Guest',
+      email: 'real-fr@example.test',
+      dialCode: '+264',
+      localNumber: '811234567',
+    });
+    expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ preferredLocale: 'FR' }));
+  });
+
+  it('leaves preferredLocale unset when there is no recognizable locale cookie', async () => {
+    resolveSession.mockResolvedValue(GUEST_CTX);
+    createHold.mockResolvedValue({ id: 'booking-none-1' });
+    cookiesMock.mockResolvedValue({ get: () => undefined });
+    await createGuestBookingAction(
+      '11111111-1111-4111-8111-111111111111',
+      bookingFormData({ firstName: 'Real', lastName: 'Guest', seats: '1' }),
+    );
+    expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ preferredLocale: undefined }));
   });
 });
 
