@@ -104,6 +104,49 @@ export const ASSIGNABLE_ROLES = [
   'VISA_FACILITATOR',
 ] as const;
 
+// DR-221: which of the ASSIGNABLE_ROLES may be held simultaneously by one
+// account -- explicitly reviewed and confirmed pair-by-pair (all 21
+// combinations), not inferred. Symmetric by construction (if A lists B, B
+// lists A) -- see DECISION_LOG DR-221 for the full reviewed matrix.
+// SUPERADMIN and PLATFORM_ADMIN are each near-exclusive (one carve-out
+// apiece); TOUR_OPERATOR is the one role compatible with everything except
+// SUPERADMIN; the three field roles (TOUR_GUIDE/DRIVER/VEHICLE_OWNER) form
+// a clique among themselves plus TOUR_OPERATOR; VISA_FACILITATOR only pairs
+// with SUPERADMIN/TOUR_OPERATOR.
+const ROLE_COMPATIBILITY: Record<(typeof ASSIGNABLE_ROLES)[number], ReadonlySet<Role>> = {
+  SUPERADMIN: new Set(['VISA_FACILITATOR']),
+  PLATFORM_ADMIN: new Set(['TOUR_OPERATOR']),
+  TOUR_OPERATOR: new Set(['PLATFORM_ADMIN', 'TOUR_GUIDE', 'DRIVER', 'VEHICLE_OWNER', 'VISA_FACILITATOR']),
+  TOUR_GUIDE: new Set(['TOUR_OPERATOR', 'DRIVER', 'VEHICLE_OWNER']),
+  DRIVER: new Set(['TOUR_OPERATOR', 'TOUR_GUIDE', 'VEHICLE_OWNER']),
+  VEHICLE_OWNER: new Set(['TOUR_OPERATOR', 'TOUR_GUIDE', 'DRIVER']),
+  VISA_FACILITATOR: new Set(['SUPERADMIN', 'TOUR_OPERATOR']),
+};
+
+/** Returns the first mutually-incompatible pair found in `roles` (DR-221),
+ * or null if every pair held is allowed. A single role is always valid. */
+export function findIncompatibleRolePair(roles: Role[]): [Role, Role] | null {
+  for (const [i, a] of roles.entries()) {
+    for (const b of roles.slice(i + 1)) {
+      if (a === b) continue;
+      const allowed = ROLE_COMPATIBILITY[a as keyof typeof ROLE_COMPATIBILITY];
+      if (!allowed?.has(b)) return [a, b];
+    }
+  }
+  return null;
+}
+
+function refineRoleCompatibility(roles: Role[], ctx: z.RefinementCtx): void {
+  const conflict = findIncompatibleRolePair(roles);
+  if (conflict) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['roles'],
+      message: `${conflict[0]} cannot be combined with ${conflict[1]}`,
+    });
+  }
+}
+
 // Admin-only (assertCan('admin.all') in service.ts); creates a staff account
 // with one or more simultaneous roles and a generated temporary password
 // (DR-026).
@@ -112,7 +155,7 @@ export const CreateUserInput = z.object({
   email: z.string().email(),
   phone: z.string().regex(E164).nullable().optional(),
   roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1),
-});
+}).superRefine((input, ctx) => refineRoleCompatibility(input.roles, ctx));
 export type CreateUserInput = z.infer<typeof CreateUserInput>;
 
 // User Management (DR-035): edit an existing user's own profile fields
@@ -127,6 +170,8 @@ export const UpdateUserInput = z.object({
   email: z.string().email().optional(),
   phone: z.string().regex(E164).nullable().optional(),
   roles: z.array(z.enum(ASSIGNABLE_ROLES)).min(1).optional(),
+}).superRefine((input, ctx) => {
+  if (input.roles) refineRoleCompatibility(input.roles, ctx);
 });
 export type UpdateUserInput = z.infer<typeof UpdateUserInput>;
 

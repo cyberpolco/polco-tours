@@ -168,11 +168,10 @@ export const authService = {
     });
 
     await authRepository.finalizeAdminCreatedUser(result.user.id, {
-      role: primaryRole,
+      roles: input.roles,
       phone: input.phone ?? null,
       organizationId: ctx.organizationId,
     });
-    await authRepository.createMemberships(result.user.id, ctx.organizationId, input.roles);
 
     await audit({
       actorUserId: ctx.userId,

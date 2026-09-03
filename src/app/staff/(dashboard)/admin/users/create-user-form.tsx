@@ -1,17 +1,19 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createUserAction, type CreateUserState } from './actions';
+import { RoleCheckboxGroup } from './role-checkbox-group';
 
 const INITIAL_STATE: CreateUserState = {};
 
 export function CreateUserForm({ assignableRoles }: { assignableRoles: readonly Role[] }) {
   const [state, formAction] = useActionState(createUserAction, INITIAL_STATE);
+  const [rolesValid, setRolesValid] = useState(true);
   const t = useTranslations('StaffCreateUserForm');
 
   return (
@@ -38,16 +40,9 @@ export function CreateUserForm({ assignableRoles }: { assignableRoles: readonly 
         </FormField>
         <div>
           <p className="mb-1 text-sm text-mist">{t('rolesLabel')}</p>
-          <div className="grid grid-cols-2 gap-2">
-            {assignableRoles.map((r) => (
-              <label key={r} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name={`role_${r}`} />
-                {r}
-              </label>
-            ))}
-          </div>
+          <RoleCheckboxGroup assignableRoles={assignableRoles} onValidityChange={setRolesValid} />
         </div>
-        <SubmitButton>{t('createUser')}</SubmitButton>
+        <SubmitButton disabled={!rolesValid}>{t('createUser')}</SubmitButton>
       </form>
     </div>
   );

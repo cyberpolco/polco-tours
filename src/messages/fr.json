@@ -1910,6 +1910,9 @@
     "rolesLabel": "Rôles (sélectionnez-en un ou plusieurs)",
     "createUser": "Créer l'utilisateur"
   },
+  "StaffRoleCheckboxGroup": {
+    "incompatible": "{roleA} ne peut pas être combiné avec {roleB} — décochez l'un des deux avant d'enregistrer."
+  },
   "StaffCms": {
     "eyebrow": "Paramètres",
     "title": "Contenu du site",

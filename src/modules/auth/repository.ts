@@ -160,31 +160,45 @@ export const authRepository = {
    * they must be written via a plain Prisma update, same pattern
    * scripts/create-staff-user.ts already uses) -- also flips emailVerified
    * and mustChangePassword for an admin-created account with a generated
-   * temporary password. */
+   * temporary password. Writes every selected role's Membership row in the
+   * same transaction (DR-026), so a 2-or-more-role create can never leave
+   * the account holding fewer roles than the admin actually selected --
+   * previously `User.role` and the Membership rows were two separate,
+   * non-transactional statements (`createMemberships`, now folded in here),
+   * and a failure on the second one silently dropped every role but the
+   * first. */
   async finalizeAdminCreatedUser(
     userId: string,
-    input: { role: Role; phone: string | null; organizationId: string },
+    input: { roles: Role[]; phone: string | null; organizationId: string },
   ): Promise<void> {
-    // Real production incident (2026-09): this update, run immediately after
-    // auth.api.signUpEmail resolves with `userId`, has been observed to fail
-    // with P2025 "Record to update not found" even though the row shows up
-    // moments later on /staff/admin/users -- the row exists, it's just not
-    // yet visible to this immediate follow-up query. Root cause not fully
-    // confirmed (suspected Neon pooler read-after-write timing), so this
-    // retries a few times before giving up, rather than letting a raw
+    const primaryRole = input.roles[0];
+    if (!primaryRole) throw new Error('finalizeAdminCreatedUser requires at least one role');
+    // Real production incident (2026-09): the user.update below, run
+    // immediately after auth.api.signUpEmail resolves with `userId`, has
+    // been observed to fail with P2025 "Record to update not found" even
+    // though the row shows up moments later on /staff/admin/users -- the
+    // row exists, it's just not yet visible to this immediate follow-up
+    // query. Root cause not fully confirmed (suspected Neon pooler
+    // read-after-write timing), so this retries the whole transaction a
+    // few times before giving up, rather than letting a raw
     // PrismaClientKnownRequestError crash the create-user Server Action.
     const MAX_ATTEMPTS = 4;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            role: input.role,
-            phone: input.phone,
-            organizationId: input.organizationId,
-            emailVerified: true,
-            mustChangePassword: true,
-          },
+        await withOrg(input.organizationId, async (tx) => {
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              role: primaryRole,
+              phone: input.phone,
+              organizationId: input.organizationId,
+              emailVerified: true,
+              mustChangePassword: true,
+            },
+          });
+          await tx.membership.createMany({
+            data: input.roles.map((role) => ({ userId, organizationId: input.organizationId, role })),
+          });
         });
         return;
       } catch (e) {
@@ -196,13 +210,6 @@ export const authRepository = {
         throw e;
       }
     }
-  },
-
-  /** DR-026: inserts one Membership row per role a newly-created user holds. */
-  async createMemberships(userId: string, organizationId: string, roles: Role[]): Promise<void> {
-    await withOrg(organizationId, (tx) =>
-      tx.membership.createMany({ data: roles.map((role) => ({ userId, organizationId, role })) }),
-    );
   },
 
   /** DR-035: edit an already-created user's profile fields. Deliberately

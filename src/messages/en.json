@@ -1910,6 +1910,9 @@
     "rolesLabel": "Roles (select one or more)",
     "createUser": "Create user"
   },
+  "StaffRoleCheckboxGroup": {
+    "incompatible": "{roleA} cannot be combined with {roleB} — uncheck one before saving."
+  },
   "StaffCms": {
     "eyebrow": "Settings",
     "title": "Site Content",

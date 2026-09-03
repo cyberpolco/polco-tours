@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Role } from '@prisma/client';
 import type { PublicUser } from '@modules/auth';
@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { updateUserAction, type UpdateUserState } from './actions';
+import { RoleCheckboxGroup } from '../role-checkbox-group';
 
 const INITIAL_STATE: UpdateUserState = {};
 
@@ -21,6 +22,7 @@ export function EditUserForm({
   assignableRoles: readonly Role[];
 }) {
   const [state, formAction] = useActionState(updateUserAction.bind(null, userId), INITIAL_STATE);
+  const [rolesValid, setRolesValid] = useState(true);
   const t = useTranslations('StaffEditUser');
 
   return (
@@ -50,16 +52,9 @@ export function EditUserForm({
         </FormField>
         <div>
           <p className="mb-1 text-sm text-mist">{t('rolesLabel')}</p>
-          <div className="grid grid-cols-2 gap-2">
-            {assignableRoles.map((r) => (
-              <label key={r} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name={`role_${r}`} defaultChecked={user.roles.includes(r)} />
-                {r}
-              </label>
-            ))}
-          </div>
+          <RoleCheckboxGroup assignableRoles={assignableRoles} defaultSelected={user.roles} onValidityChange={setRolesValid} />
         </div>
-        <SubmitButton>{t('saveChanges')}</SubmitButton>
+        <SubmitButton disabled={!rolesValid}>{t('saveChanges')}</SubmitButton>
       </form>
     </div>
   );

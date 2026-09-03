@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-220** (2026-09-03). This file used to carry a running
+Current through **DR-221** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -212,7 +212,25 @@ src/
                               #   choice gating the one non-essential guest
                               #   cookie, wizard_session)
   modules/                    # feature modules — independent, reusable
-    auth/          # User/Membership/Session, RBAC resolution, multi-role support
+    auth/          # User/Membership/Session, RBAC resolution, multi-role support.
+                   #   DR-221: fixed a real bug where creating a 2+-role
+                   #   staff account could silently drop every role but the
+                   #   first (finalizeAdminCreatedUser + the old separate
+                   #   createMemberships were two non-transactional writes;
+                   #   now one, inside a single withOrg transaction, folded
+                   #   into finalizeAdminCreatedUser). Also adds
+                   #   ROLE_COMPATIBILITY/findIncompatibleRolePair (domain.ts)
+                   #   — which of the 7 ASSIGNABLE_ROLES may be held
+                   #   simultaneously, explicitly reviewed pair-by-pair, not
+                   #   inferred: SUPERADMIN only pairs with VISA_FACILITATOR;
+                   #   PLATFORM_ADMIN only with TOUR_OPERATOR; TOUR_OPERATOR
+                   #   with everything except SUPERADMIN; TOUR_GUIDE/DRIVER/
+                   #   VEHICLE_OWNER with each other and TOUR_OPERATOR only;
+                   #   VISA_FACILITATOR only with SUPERADMIN/TOUR_OPERATOR.
+                   #   Enforced via CreateUserInput/UpdateUserInput's
+                   #   superRefine (the real gate, shared by the Server
+                   #   Actions and the REST routes) plus a client-side
+                   #   mirror (RoleCheckboxGroup) for immediate UX feedback.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a
@@ -1216,6 +1234,16 @@ Surface these to the human — don't invent answers.
   `npm run dev` package/About/FAQ image upload will fail with the same
   "Something went wrong uploading the image" error until someone with
   dashboard access adds Development to that same connection.
+- **OI-16** (DR-221) The new role-compatibility rule (which of the 7
+  `ASSIGNABLE_ROLES` may be held simultaneously) is enforced going forward
+  on every create/edit, but no query was run against the live production DB
+  to check whether any *already-created* staff account (made via the admin
+  UI before this rule existed) holds a now-incompatible combination — this
+  session had no DB access to check. If one exists, that account's roles
+  can no longer be re-saved unchanged through `/staff/admin/users/[userId]`
+  (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
+  a SUPERADMIN fixes its role set. Worth a one-time audit query before or
+  shortly after this ships.
 
 **Resolved:** OI-02 (brand-naming split confirmed permanent, not pending
 trademark clearance — 2026-08-30), OI-03 (Lam's per-market legal
