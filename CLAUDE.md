@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-225** (2026-09-03). This file used to carry a running
+Current through **DR-226** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -252,6 +252,21 @@ src/
                    #   Now unions primary-role and Membership-role matches
                    #   (deduped), same "primary falls back, Membership
                    #   extends it" shape resolveRoles already uses per-user.
+                   #   DR-226 (production bug, same call chain as DR-224 but
+                   #   a step earlier, still failing after DR-224 shipped):
+                   #   finalizeAdminCreatedUser's own tx.user.update started
+                   #   hitting P2025 "record not found" on every single
+                   #   create-user attempt (not occasionally) — confirmed via
+                   #   production logs, 4/4 retry attempts failing with no
+                   #   User row ever landing in the DB. Same Neon
+                   #   read-after-write lag class this function's own
+                   #   comment already predicted ("shows up moments later"),
+                   #   just needing more moments than the shared 4-attempt/
+                   #   ~1.5s default gave it — bumped to 10 attempts/~7s for
+                   #   this one call site only (rare, admin-only action, not
+                   #   a hot path). RLS-on-users, org-mismatch, and
+                   #   better-auth/Prisma version drift were all ruled out
+                   #   first (see DR-226 in the decision log for detail).
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a

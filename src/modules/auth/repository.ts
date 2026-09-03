@@ -133,22 +133,19 @@ export const authRepository = {
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
 
-  /** DR-205: every active user holding `role` as their PRIMARY role in the
-   * org -- powers the visa-queue "new application" staff alert
-   * (VISA_FACILITATOR). Deliberately mirrors listStaff/listClients'
-   * `role` (User.role), not a Membership union -- a facilitator holding
-   * the role only as a secondary Membership is a real gap this doesn't
-   * cover, same scope limitation those two existing directory queries
-   * already accept. */
-  /** Real bug fixed here: this used to filter on `User.role` (the primary
-   * role) alone, which misses anyone holding `role` only via a `Membership`
-   * row -- exactly the DR-026 multi-role shape this app relies on
-   * everywhere else (e.g. `ROLE_COMPATIBILITY` pairs VISA_FACILITATOR with
-   * SUPERADMIN/TOUR_OPERATOR, so a facilitator's *primary* role is often
-   * the other one and VISA_FACILITATOR lives only in `organization_members`
-   * -- `listUsersByRole('VISA_FACILITATOR', ...)` could silently return
-   * nobody). Union both sources, same "primary role falls back, Membership
-   * extends it" shape `resolveRoles` already uses per-user. */
+  /** DR-205: every active user holding `role` in the org -- powers the
+   * visa-queue "new application" staff alert (VISA_FACILITATOR).
+   * DR-225 (real bug fixed): this originally filtered on `User.role` (the
+   * PRIMARY role) alone, deliberately mirroring listStaff/listClients --
+   * documented at the time as an accepted gap for anyone holding `role`
+   * only via a secondary `Membership` row. That gap turned out to matter in
+   * practice: `ROLE_COMPATIBILITY` (DR-221) only ever pairs VISA_FACILITATOR
+   * with SUPERADMIN/TOUR_OPERATOR, so a facilitator's primary role is
+   * routinely the *other* one in the pair, with VISA_FACILITATOR living
+   * only in `organization_members` -- meaning this could silently return
+   * zero facilitators. Now unions primary-role and Membership-role matches
+   * (deduped), same "primary falls back, Membership extends it" shape
+   * `resolveRoles` already uses per-user. */
   async findUsersByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
     const users = await withOrg(organizationId, async (tx) => {
       const [primaryMatches, membershipMatches] = await Promise.all([
@@ -208,6 +205,17 @@ export const authRepository = {
     // cleanly, an in-doubt commit's retry is a harmless no-op instead of a
     // crash.
     try {
+      // DR-224 follow-up, real production repro (2026-09-03): the 4-attempt/
+      // ~1.5s-total budget below stopped being enough -- production started
+      // exhausting all 4 attempts consistently, not just occasionally, on
+      // this exact call (confirmed via Vercel logs: 4 identical P2025
+      // "record not found" lines per failed create-user request, with no
+      // corresponding User row ever landing in the DB). The doc comment
+      // above already predicted the row "shows up moments later" -- this
+      // just gives it more moments: 10 attempts, same backoff shape, ~7s
+      // total budget instead of ~1.5s. User creation is a rare, admin-only
+      // action, not a hot path, so a few extra seconds of patience here is
+      // cheap insurance against a slow Neon pooler catch-up.
       await withTransientRetry(() =>
         withOrg(input.organizationId, async (tx) => {
           await tx.user.update({
@@ -225,6 +233,7 @@ export const authRepository = {
             skipDuplicates: true,
           });
         }),
+        10,
       );
     } catch (e) {
       if (isTransientDbError(e)) throw Errors.internal();
