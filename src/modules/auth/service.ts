@@ -5,6 +5,7 @@ import { generateRandomString, hashPassword } from 'better-auth/crypto';
 import { assertCan, can, resolvePermissionsForRoles, type Permission } from '@lib/rbac';
 import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
+import { withTransientRetry } from '@lib/db';
 import { Errors } from '@lib/errors';
 import { authRepository } from './repository';
 import { computeStaffRosterSummary, isClientDirectoryViewer, isSuperAdmin } from './domain';
@@ -155,6 +156,11 @@ export const authService = {
   async createUser(ctx: AuthContext, input: CreateUserInput): Promise<{ user: PublicUser; temporaryPassword: string }> {
     assertCan(ctx, 'admin.all');
     if (!ctx.organizationId) throw Errors.forbidden('No organization membership');
+    // Captured into a local so it stays narrowed to `string` inside the
+    // withTransientRetry closure below -- TS control-flow narrowing on a
+    // property access (ctx.organizationId) doesn't survive into a nested
+    // function.
+    const organizationId = ctx.organizationId;
 
     const existing = await authRepository.findUserByEmail(input.email);
     if (existing) throw Errors.conflict('A user with this email already exists');
@@ -170,18 +176,27 @@ export const authService = {
     await authRepository.finalizeAdminCreatedUser(result.user.id, {
       roles: input.roles,
       phone: input.phone ?? null,
-      organizationId: ctx.organizationId,
+      organizationId,
     });
 
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'auth.user_created',
-      resourceType: 'User',
-      resourceId: result.user.id,
-      organizationId: ctx.organizationId,
-      metadata: { email: input.email, roles: input.roles },
-    });
+    // DR-221 follow-up, real repro: this audit() write is its own withOrg
+    // transaction, just like finalizeAdminCreatedUser's above -- the same
+    // transient Neon connectivity blip can hit it too, and without a retry
+    // here it crashed createUser with a raw, uncaught Prisma error even
+    // though the user account (with every selected role) had already
+    // committed successfully one line above. Same retry treatment, not a
+    // silent swallow -- NFR-07 still requires this event to be logged.
+    await withTransientRetry(() =>
+      audit({
+        actorUserId: ctx.userId,
+        actorRole: ctx.roles[0],
+        action: 'auth.user_created',
+        resourceType: 'User',
+        resourceId: result.user.id,
+        organizationId,
+        metadata: { email: input.email, roles: input.roles },
+      }),
+    );
 
     const user = await authRepository.findUserById(result.user.id);
     if (!user) throw Errors.internal();

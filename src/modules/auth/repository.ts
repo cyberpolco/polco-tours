@@ -1,17 +1,9 @@
 // auth module — repository. The only place that touches the DB for this module.
 import type { Role } from '@prisma/client';
-import { prisma, withOrg } from '@lib/db';
+import { isTransientDbError, prisma, withOrg, withTransientRetry } from '@lib/db';
 import { Errors } from '@lib/errors';
 import { DORMANCY_THRESHOLD_DAYS } from './domain';
 import type { PublicUser, UpdateProfileInput } from './domain';
-
-function isRecordNotFoundError(e: unknown): boolean {
-  return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2025';
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 interface RawUser {
   id: string;
@@ -182,10 +174,26 @@ export const authRepository = {
     // read-after-write timing), so this retries the whole transaction a
     // few times before giving up, rather than letting a raw
     // PrismaClientKnownRequestError crash the create-user Server Action.
-    const MAX_ATTEMPTS = 4;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      try {
-        await withOrg(input.organizationId, async (tx) => {
+    // DR-221 follow-up, real repro: once this became a 2-statement
+    // transaction, the same connectivity blips can also surface as P2028
+    // ("Transaction not found... old closed transaction... obtained before
+    // disconnecting") instead of P2025 -- see @lib/db's withTransientRetry.
+    //
+    // Real repro of a second, subtler bug this same retry introduces: a
+    // P2028 means the *client* lost track of the transaction, not that
+    // Postgres necessarily rolled it back -- if the connection actually
+    // dropped right at COMMIT (after the server applied it, before the
+    // client got the ack), the transaction is genuinely "in doubt," not
+    // definitely uncommitted. Retrying from scratch re-runs
+    // membership.createMany with the exact same rows, which then hits
+    // Membership's own `@@unique([userId, organizationId, role])` (P2002)
+    // if that earlier attempt actually did commit. `skipDuplicates` makes
+    // the retry idempotent either way -- a genuine rollback re-inserts
+    // cleanly, an in-doubt commit's retry is a harmless no-op instead of a
+    // crash.
+    try {
+      await withTransientRetry(() =>
+        withOrg(input.organizationId, async (tx) => {
           await tx.user.update({
             where: { id: userId },
             data: {
@@ -198,17 +206,13 @@ export const authRepository = {
           });
           await tx.membership.createMany({
             data: input.roles.map((role) => ({ userId, organizationId: input.organizationId, role })),
+            skipDuplicates: true,
           });
-        });
-        return;
-      } catch (e) {
-        if (isRecordNotFoundError(e) && attempt < MAX_ATTEMPTS) {
-          await delay(attempt * 150);
-          continue;
-        }
-        if (isRecordNotFoundError(e)) throw Errors.internal();
-        throw e;
-      }
+        }),
+      );
+    } catch (e) {
+      if (isTransientDbError(e)) throw Errors.internal();
+      throw e;
     }
   },
 
