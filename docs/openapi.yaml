@@ -3201,7 +3201,7 @@ components:
         platformFeeMinor: { type: integer, nullable: true, description: 'Charged to the customer on top of (subtotalMinor - discountMinor + taxMinor) (DR-042, additive since DR-127) -- included in totalMinor/depositMinor/balanceMinor below. Null for invoices predating DR-042.' }
         platformFeeRateBp: { type: integer, nullable: true, description: Snapshotted PlatformRate.rateBp at invoice-issue time (DR-042) }
         totalMinor: { type: integer, description: (subtotalMinor - discountMinor) + taxMinor + platformFeeMinor }
-        depositMinor: { type: integer, description: 40% of totalMinor, half-up (DR-012) }
+        depositMinor: { type: integer, description: 30% of totalMinor, half-up (DR-012, changed to 30% by DR-220) }
         balanceMinor: { type: integer, description: totalMinor - depositMinor }
         status: { type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID] }
         createdAt: { type: string, format: date-time }

@@ -13,15 +13,15 @@ import {
 
 describe('invoicing domain', () => {
   describe('splitDeposit', () => {
-    it('splits 40%/60%, half-up, drift-free', () => {
-      expect(splitDeposit(10000)).toEqual({ depositMinor: 4000, balanceMinor: 6000 });
+    it('splits 30%/70%, half-up, drift-free', () => {
+      expect(splitDeposit(10000)).toEqual({ depositMinor: 3000, balanceMinor: 7000 });
     });
 
     it('rounds the deposit half-up and the balance absorbs any remainder (no independent rounding)', () => {
-      // 9999 * 0.4 = 3999.6 -> rounds to 4000; balance = 9999 - 4000 = 5999.
+      // 9999 * 0.3 = 2999.7 -> rounds to 3000; balance = 9999 - 3000 = 6999.
       const { depositMinor, balanceMinor } = splitDeposit(9999);
-      expect(depositMinor).toBe(4000);
-      expect(balanceMinor).toBe(5999);
+      expect(depositMinor).toBe(3000);
+      expect(balanceMinor).toBe(6999);
       expect(depositMinor + balanceMinor).toBe(9999);
     });
   });
@@ -208,8 +208,8 @@ describe('invoicing domain', () => {
         lateBookingSurchargeMinor: 0,
         depositAllowed: true,
         totalMinor: 11000,
-        depositMinor: 4400,
-        balanceMinor: 6600,
+        depositMinor: 3300,
+        balanceMinor: 7700,
       });
     });
 
@@ -219,8 +219,8 @@ describe('invoicing domain', () => {
       const amounts = computeInvoiceAmounts({ subtotalMinor: 10000, currency: 'USD', taxRateBp: 1000, platformFeeRateBp: 500 });
       expect(amounts.platformFeeMinor).toBe(550);
       expect(amounts.totalMinor).toBe(11550); // 10000 + 1000 + 550
-      expect(amounts.depositMinor).toBe(4620); // 40% of 11550
-      expect(amounts.balanceMinor).toBe(6930); // 11550 - 4620
+      expect(amounts.depositMinor).toBe(3465); // 30% of 11550
+      expect(amounts.balanceMinor).toBe(8085); // 11550 - 3465
     });
 
     it('discountBp: 0 behaves identically to omitting it', () => {
@@ -242,8 +242,8 @@ describe('invoicing domain', () => {
       expect(amounts.discountMinor).toBe(1500);
       expect(amounts.taxMinor).toBe(850);
       expect(amounts.totalMinor).toBe(9350); // (10000 - 1500) + 850
-      expect(amounts.depositMinor).toBe(3740); // 40% of 9350
-      expect(amounts.balanceMinor).toBe(5610); // 9350 - 3740
+      expect(amounts.depositMinor).toBe(2805); // 30% of 9350
+      expect(amounts.balanceMinor).toBe(6545); // 9350 - 2805
     });
 
     it('rounds the discount half-up, same convention as taxOf/splitDeposit', () => {
@@ -305,12 +305,12 @@ describe('invoicing domain', () => {
   });
 
   describe('computeCancellationRefundAmountMinor (DR-207)', () => {
-    // 100000 paid, 40000 deposit -- same 40% split splitDeposit itself uses.
+    // 100000 paid, 30000 deposit -- same 30% split splitDeposit itself uses.
     const paidMinor = 100_000;
-    const depositMinor = 40_000;
+    const depositMinor = 30_000;
 
     it('FULL_MINUS_DEPOSIT refunds everything except the deposit', () => {
-      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', paidMinor, depositMinor)).toBe(60_000);
+      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', paidMinor, depositMinor)).toBe(70_000);
     });
 
     it('FULL_MINUS_DEPOSIT never goes negative when only the deposit itself was paid', () => {

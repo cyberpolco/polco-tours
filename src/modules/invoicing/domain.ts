@@ -74,10 +74,11 @@ export type ApplyCouponInput = z.infer<typeof ApplyCouponInput>;
 export const ResolvePaymentInput = z.object({ outcome: z.enum(['SUCCEEDED', 'FAILED']) });
 export type ResolvePaymentInput = z.infer<typeof ResolvePaymentInput>;
 
-/** 40%/60% deposit/balance split (DR-012), half-up. balance = total - deposit
- * (never independently rounded) so the two legs always sum back to the total. */
+/** 30%/70% deposit/balance split (DR-012, changed to 30% by DR-220), half-up.
+ * balance = total - deposit (never independently rounded) so the two legs
+ * always sum back to the total. */
 export function splitDeposit(totalMinor: number): { depositMinor: number; balanceMinor: number } {
-  const depositMinor = Math.round(totalMinor * 0.4);
+  const depositMinor = Math.round(totalMinor * 0.3);
   return { depositMinor, balanceMinor: totalMinor - depositMinor };
 }
 

@@ -179,7 +179,7 @@
     "sections": {
       "tos": {
         "title": "Terms of Service",
-        "body": "Mufasa Safaris & Tours is operated by Cyber PolCo, based in Windhoek, Namibia, running tours in Namibia, the Democratic Republic of Congo, Zambia and Zimbabwe.\n\nHow bookings work: there are no guest accounts. Browse a package and pick a departure date, or tell us what you have in mind through Plan My Trip and we'll follow up with a quotation. Your booking reference, paired with the tour lead's last name, is the only way to look up your booking again — keep it somewhere safe.\n\nPricing & payment: every price is computed by us and shown to you before you pay. Card payments are handled entirely on our payment provider's own secure hosted page — we never see or store your card details. Payment is a 40% deposit and the balance later, unless full payment upfront is required (booking close to departure carries a lead-time surcharge, always shown before you pay).\n\nYour responsibilities: give us accurate names and passport/ID details for every traveler, and make sure everyone booked is fit for the activities included (for example, gorilla trekking has its own health rules). You're responsible for meeting the entry requirements of every country on your itinerary.\n\nVisa assistance: this is a paid add-on where we help you prepare and submit your application — we don't control the outcome, and visa assistance fees and any government visa fee are never refundable, whatever happens to your application.\n\nLiability [NEEDS LEGAL REVIEW]: travel in the destinations we operate in carries inherent risk, including from terrain, wildlife, and regional security conditions. By booking, you accept these risks; we carry the insurance and safety practices required of a licensed operator, but this section needs a qualified legal review before it should be treated as final.\n\nGoverning law [NEEDS LEGAL REVIEW]: these terms are intended to be governed by the laws of Namibia — pending confirmation from a qualified lawyer.\n\nWe may update these terms from time to time; the version on this page is always the current one."
+        "body": "Mufasa Safaris & Tours is operated by Cyber PolCo, based in Windhoek, Namibia, running tours in Namibia, the Democratic Republic of Congo, Zambia and Zimbabwe.\n\nHow bookings work: there are no guest accounts. Browse a package and pick a departure date, or tell us what you have in mind through Plan My Trip and we'll follow up with a quotation. Your booking reference, paired with the tour lead's last name, is the only way to look up your booking again — keep it somewhere safe.\n\nPricing & payment: every price is computed by us and shown to you before you pay. Card payments are handled entirely on our payment provider's own secure hosted page — we never see or store your card details. Payment is a 30% deposit and the balance later, unless full payment upfront is required (booking close to departure carries a lead-time surcharge, always shown before you pay).\n\nYour responsibilities: give us accurate names and passport/ID details for every traveler, and make sure everyone booked is fit for the activities included (for example, gorilla trekking has its own health rules). You're responsible for meeting the entry requirements of every country on your itinerary.\n\nVisa assistance: this is a paid add-on where we help you prepare and submit your application — we don't control the outcome, and visa assistance fees and any government visa fee are never refundable, whatever happens to your application.\n\nLiability [NEEDS LEGAL REVIEW]: travel in the destinations we operate in carries inherent risk, including from terrain, wildlife, and regional security conditions. By booking, you accept these risks; we carry the insurance and safety practices required of a licensed operator, but this section needs a qualified legal review before it should be treated as final.\n\nGoverning law [NEEDS LEGAL REVIEW]: these terms are intended to be governed by the laws of Namibia — pending confirmation from a qualified lawyer.\n\nWe may update these terms from time to time; the version on this page is always the current one."
       },
       "privacy": {
         "title": "Privacy & What We Collect",
@@ -191,7 +191,7 @@
       },
       "cancellation": {
         "title": "Cancellation & Refund Policy",
-        "body": "You can cancel a booking yourself at any time from Find My Booking — look up your booking, confirm your email and tell us why, and your refund is calculated automatically using the table below.\n\n60 or more days before departure: full refund of what you've paid, minus your deposit.\n30 to 59 days before departure: 50% of what you've paid.\n14 to 29 days before departure: 25% of what you've paid.\nFewer than 14 days before departure, or a no-show: no refund.\n\nYour deposit is 40% of the total price. It reflects costs we commit to hotels, vehicles and guides on your behalf in advance, so it's the one part of your payment that's never refunded once paid.\n\nIf we're the ones who have to cancel your trip — for example because of a safety advisory in the area you're visiting — you get a full refund with no deductions.\n\nVisa assistance fees and any government visa fee are never refundable, whatever the outcome of your visa application.\n\nOnce your cancellation is confirmed, our team processes your refund back to your original payment method."
+        "body": "You can cancel a booking yourself at any time from Find My Booking — look up your booking, confirm your email and tell us why, and your refund is calculated automatically using the table below.\n\n60 or more days before departure: full refund of what you've paid, minus your deposit.\n30 to 59 days before departure: 50% of what you've paid.\n14 to 29 days before departure: 25% of what you've paid.\nFewer than 14 days before departure, or a no-show: no refund.\n\nYour deposit is 30% of the total price. It reflects costs we commit to hotels, vehicles and guides on your behalf in advance, so it's the one part of your payment that's never refunded once paid.\n\nIf we're the ones who have to cancel your trip — for example because of a safety advisory in the area you're visiting — you get a full refund with no deductions.\n\nVisa assistance fees and any government visa fee are never refundable, whatever the outcome of your visa application.\n\nOnce your cancellation is confirmed, our team processes your refund back to your original payment method."
       }
     }
   },
@@ -404,8 +404,8 @@
     "tax": "Tax",
     "platformFee": "Platform fee",
     "total": "Total",
-    "depositPct": "Deposit (40%)",
-    "balancePct": "Balance (60%)",
+    "depositPct": "Deposit (30%)",
+    "balancePct": "Balance (70%)",
     "downloadInvoicePdf": "Download invoice/receipt:",
     "downloadInvoiceEn": "English",
     "downloadInvoiceFr": "French",
@@ -806,8 +806,8 @@
     "subtotal": "Subtotal",
     "discount": "Discount",
     "tax": "Tax",
-    "depositPct": "Deposit (40%)",
-    "balancePct": "Balance (60%)",
+    "depositPct": "Deposit (30%)",
+    "balancePct": "Balance (70%)",
     "platformFee": "Platform fee",
     "total": "Total",
     "status": "Status:",

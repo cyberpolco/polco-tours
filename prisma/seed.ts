@@ -615,7 +615,7 @@ async function main() {
   // is orientation, not verified legal fact.
   const faqEntries: Array<{ locale: string; sortOrder: number; question: string; answer: string }> = [
     { locale: 'en', sortOrder: 0, question: 'Do I need to create an account?', answer: 'Nope -- you book as a guest. Pick a departure, add your travelers, pay a deposit, no password involved. Afterward you\'ll get a reference code so you can check on your booking whenever you want.' },
-    { locale: 'en', sortOrder: 1, question: 'How do I pay?', answer: 'Your booking page shows a deposit (40%) and a balance (60%). Click "Pay deposit" or "Pay balance" when you\'re ready. Right now our team confirms each payment by hand, so give it a little time to show as complete.' },
+    { locale: 'en', sortOrder: 1, question: 'How do I pay?', answer: 'Your booking page shows a deposit (30%) and a balance (70%). Click "Pay deposit" or "Pay balance" when you\'re ready. Right now our team confirms each payment by hand, so give it a little time to show as complete.' },
     { locale: 'en', sortOrder: 2, question: "I lost my booking's page -- how do I find it again?", answer: 'Head to "Find my booking" and enter your reference code plus the tour lead\'s last name.' },
     { locale: 'en', sortOrder: 3, question: 'What do I need to have ready to book?', answer: "Each traveler's name, age, sex, and nationality, plus the tour lead's passport. You'll pick any add-on services in the same flow." },
     { locale: 'en', sortOrder: 4, question: 'What currency will I pay in?', answer: "Whatever currency the package is listed in -- USD, EUR, NAD, or CDF. We don't convert between currencies, so double-check the listing before you book." },

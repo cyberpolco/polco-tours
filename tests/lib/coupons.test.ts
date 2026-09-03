@@ -53,8 +53,8 @@ beforeAll(async () => {
         taxRateBp: 1000,
         taxMinor: 1000,
         totalMinor: 11000,
-        depositMinor: 4400,
-        balanceMinor: 6600,
+        depositMinor: 3300,
+        balanceMinor: 7700,
         status: 'ISSUED',
       },
     });

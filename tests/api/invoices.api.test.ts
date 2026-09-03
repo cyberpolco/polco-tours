@@ -18,7 +18,7 @@ function expectedAmounts(subtotalMinor: number, taxRateBp: number, platformFeeRa
   const preFeeTotal = subtotalMinor + taxMinor;
   const platformFeeMinor = Math.round((preFeeTotal * platformFeeRateBp) / 10000);
   const totalMinor = preFeeTotal + platformFeeMinor;
-  const depositMinor = Math.round(totalMinor * 0.4);
+  const depositMinor = Math.round(totalMinor * 0.3);
   const balanceMinor = totalMinor - depositMinor;
   return { taxMinor, platformFeeMinor, totalMinor, depositMinor, balanceMinor };
 }
@@ -390,8 +390,8 @@ async function createFreshInvoice(touristUserId: string, bookingStatus: BookingS
         taxRateBp: 1000,
         taxMinor: 1000,
         totalMinor: 11000,
-        depositMinor: 4400,
-        balanceMinor: 6600,
+        depositMinor: 3300,
+        balanceMinor: 7700,
         status: 'ISSUED',
       },
     });
@@ -417,8 +417,8 @@ describe('POST/DELETE /api/v1/invoices/:invoiceId/coupon', () => {
     expect(body.invoice.discountMinor).toBe(1500);
     expect(body.invoice.taxMinor).toBe(850);
     expect(body.invoice.totalMinor).toBe(9350);
-    expect(body.invoice.depositMinor).toBe(3740);
-    expect(body.invoice.balanceMinor).toBe(5610);
+    expect(body.invoice.depositMinor).toBe(2805);
+    expect(body.invoice.balanceMinor).toBe(6545);
   });
 
   it('removing a coupon reverts to the exact pre-coupon values', async () => {
@@ -440,8 +440,8 @@ describe('POST/DELETE /api/v1/invoices/:invoiceId/coupon', () => {
     expect(body.invoice.discountMinor).toBe(0);
     expect(body.invoice.taxMinor).toBe(1000);
     expect(body.invoice.totalMinor).toBe(11000);
-    expect(body.invoice.depositMinor).toBe(4400);
-    expect(body.invoice.balanceMinor).toBe(6600);
+    expect(body.invoice.depositMinor).toBe(3300);
+    expect(body.invoice.balanceMinor).toBe(7700);
   });
 
   it('rejects an unknown coupon code (404)', async () => {
