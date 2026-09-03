@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-222** (2026-09-03). This file used to carry a running
+Current through **DR-224** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -231,6 +231,16 @@ src/
                    #   superRefine (the real gate, shared by the Server
                    #   Actions and the REST routes) plus a client-side
                    #   mirror (RoleCheckboxGroup) for immediate UX feedback.
+                   #   DR-224 (production bug report, follow-up in the same
+                   #   family as DR-221): createUser's final re-fetch of the
+                   #   just-created account (findUserById) returns null
+                   #   rather than throwing P2025 on a Neon pooler
+                   #   read-after-write miss, so it slipped past
+                   #   withTransientRetry entirely and surfaced as a bare
+                   #   "Something went wrong" even though the account (every
+                   #   role included) had already committed — not tied to
+                   #   any specific role combination. Now retried up to 3x
+                   #   (150ms backoff) before giving up.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a

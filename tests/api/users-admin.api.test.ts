@@ -88,6 +88,32 @@ describe('POST /api/v1/users', () => {
     expect(guideProfile).not.toBeNull();
   }, 60_000); // createUser is several sequential DB round-trips (signUpEmail, finalize, memberships, audit, re-fetch); this sandbox's Neon latency can exceed the 20s default
 
+  it('a SUPERADMIN creates a user with three simultaneous roles including TOUR_OPERATOR (201)', async () => {
+    // Regression test: TOUR_OPERATOR is a no-op for fleet auto-provisioning
+    // (only DRIVER/TOUR_GUIDE/VEHICLE_OWNER provision a profile), but the
+    // extra role and the extra DB round-trips it implies were previously
+    // untested alongside a real "Something went wrong" (Errors.internal())
+    // production report -- root cause was an unguarded re-fetch of the
+    // newly created user (findUserById returns null rather than throwing
+    // P2025 on a Neon pooler read-after-write lag), now retried.
+    const headers = await loginAs(superadminId);
+    const email = `triple-${Date.now()}@example.test`;
+    const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {
+      name: 'Triple Role',
+      email,
+      phone: '+264812345679',
+      roles: ['DRIVER', 'TOUR_GUIDE', 'TOUR_OPERATOR'],
+    });
+    const res = await createUser(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.email).toBe(email);
+    expect(body.user.roles.sort()).toEqual(['DRIVER', 'TOUR_GUIDE', 'TOUR_OPERATOR']);
+
+    const memberships = await withOrg(orgId, (tx) => tx.membership.findMany({ where: { userId: body.user.id } }));
+    expect(memberships.map((m) => m.role).sort()).toEqual(['DRIVER', 'TOUR_GUIDE', 'TOUR_OPERATOR']);
+  }, 60_000);
+
   it('DR-138: creating a VEHICLE_OWNER auto-provisions one placeholder Vehicle', async () => {
     const headers = await loginAs(superadminId);
     const email = `owner-${Date.now()}@example.test`;

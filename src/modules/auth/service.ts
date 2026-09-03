@@ -198,7 +198,19 @@ export const authService = {
       }),
     );
 
-    const user = await authRepository.findUserById(result.user.id);
+    // Real production repro: unlike finalizeAdminCreatedUser/audit above,
+    // findUserById's prisma.user.findUnique returns null on a miss rather
+    // than throwing P2025 -- so it slips past withTransientRetry/
+    // isTransientDbError entirely and a Neon pooler read-after-write lag
+    // here surfaced as a bare Errors.internal() ("Something went wrong")
+    // even though the account (with every role) had already committed.
+    // Same transient window as the two writes above, just on a read, so it
+    // gets the same short backoff-retry treatment instead of a single try.
+    let user = await authRepository.findUserById(result.user.id);
+    for (let attempt = 1; !user && attempt < 4; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 150));
+      user = await authRepository.findUserById(result.user.id);
+    }
     if (!user) throw Errors.internal();
     return { user, temporaryPassword };
   },
