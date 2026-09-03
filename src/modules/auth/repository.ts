@@ -140,10 +140,26 @@ export const authRepository = {
    * the role only as a secondary Membership is a real gap this doesn't
    * cover, same scope limitation those two existing directory queries
    * already accept. */
+  /** Real bug fixed here: this used to filter on `User.role` (the primary
+   * role) alone, which misses anyone holding `role` only via a `Membership`
+   * row -- exactly the DR-026 multi-role shape this app relies on
+   * everywhere else (e.g. `ROLE_COMPATIBILITY` pairs VISA_FACILITATOR with
+   * SUPERADMIN/TOUR_OPERATOR, so a facilitator's *primary* role is often
+   * the other one and VISA_FACILITATOR lives only in `organization_members`
+   * -- `listUsersByRole('VISA_FACILITATOR', ...)` could silently return
+   * nobody). Union both sources, same "primary role falls back, Membership
+   * extends it" shape `resolveRoles` already uses per-user. */
   async findUsersByRole(organizationId: string, role: Role): Promise<PublicUser[]> {
-    const users = await withOrg(organizationId, (tx) =>
-      tx.user.findMany({ where: { organizationId, role, deletedAt: null }, orderBy: { email: 'asc' } }),
-    );
+    const users = await withOrg(organizationId, async (tx) => {
+      const [primaryMatches, membershipMatches] = await Promise.all([
+        tx.user.findMany({ where: { organizationId, role, deletedAt: null } }),
+        tx.user.findMany({ where: { organizationId, deletedAt: null, memberships: { some: { role } } } }),
+      ]);
+      const byId = new Map(primaryMatches.map((u) => [u.id, u]));
+      for (const u of membershipMatches) byId.set(u.id, u);
+      return [...byId.values()];
+    });
+    users.sort((a, b) => a.email.localeCompare(b.email));
     return Promise.all(users.map(async (u) => toPublicUser(u, await resolveRoles(u))));
   },
 

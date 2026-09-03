@@ -21,7 +21,7 @@ const COLORS = { navy: '#3B1F3A', forest: '#2F6E4F', mist: '#8C7D78', ink: '#211
 const FOOTER = {
   ntb: 'NTB: TFA01163',
   emails: 'info@mufasasafaris.com / faustin@mufasasafaris.com',
-  operatingCountries: 'Operating in Namibia, DRC, Zambia & Zimbabwe',
+  operatingCountries: 'Operating in Namibia, DRC, Zambia, Zimbabwe & Botswana',
   poweredBy: 'Powered by Cyber PolCo',
 };
 

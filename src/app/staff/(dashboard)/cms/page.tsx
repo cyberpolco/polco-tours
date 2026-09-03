@@ -11,6 +11,11 @@ import {
 } from '@modules/cms';
 import { EMAIL_TEMPLATE_DEFAULTS, EMAIL_TEMPLATE_GROUPS, EMAIL_TEMPLATE_TOKENS } from '@modules/notifications';
 import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
+import {
+  FALLBACK_FOOTER_LEGAL_LABEL,
+  FALLBACK_FOOTER_LEGAL_TEMPLATE,
+  FALLBACK_FOOTER_LEGAL_URL,
+} from '@/app/(guest)/footer';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -249,6 +254,19 @@ export default async function CmsPage({ searchParams }: Props) {
     tTerms('sections.cancellation.title'),
     tTerms('sections.cancellation.body'),
   );
+  // Same "prefill from the coded default" convention as the Terms sections
+  // above -- until staff configures a real row, the editor should show the
+  // template/label/URL footer.tsx actually falls back to, not blank fields.
+  const footerLegalView: CmsTextBlockView = footerLegalText ?? {
+    id: '',
+    key: 'footer.legal',
+    locale,
+    title: FALLBACK_FOOTER_LEGAL_LABEL,
+    body: FALLBACK_FOOTER_LEGAL_URL,
+    eyebrow: FALLBACK_FOOTER_LEGAL_TEMPLATE,
+    updatedAt: new Date(0),
+    updatedByUserId: null,
+  };
 
   return (
     <SidebarShell items={SETTINGS_ITEMS} sectionTitle={tSidebar('sectionTitle')} roles={ctx.roles} permissions={[...ctx.permissions]}>
@@ -659,7 +677,7 @@ export default async function CmsPage({ searchParams }: Props) {
           <PageTextEditor
             cmsKey="footer.legal"
             locale={locale}
-            current={footerLegalText}
+            current={footerLegalView}
             canWrite={canWrite}
             sectionTitle={t('footerLegalSectionTitle')}
             eyebrowLabel={t('footerLineTemplateLabel')}

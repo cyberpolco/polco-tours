@@ -41,8 +41,8 @@ const FOOTER = {
 };
 
 const OPERATING_COUNTRIES: Record<PdfLocale, string> = {
-  en: 'Operating in Namibia, DRC, Zambia & Zimbabwe',
-  fr: "Opérant en Namibie, RDC, Zambie et au Zimbabwe",
+  en: 'Operating in Namibia, DRC, Zambia, Zimbabwe & Botswana',
+  fr: "Opérant en Namibie, RDC, Zambie, au Zimbabwe et au Botswana",
 };
 
 const LABELS: Record<PdfLocale, Record<string, string>> = {

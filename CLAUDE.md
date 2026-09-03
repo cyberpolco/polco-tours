@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-224** (2026-09-03). This file used to carry a running
+Current through **DR-225** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -240,7 +240,18 @@ src/
                    #   "Something went wrong" even though the account (every
                    #   role included) had already committed — not tied to
                    #   any specific role combination. Now retried up to 3x
-                   #   (150ms backoff) before giving up.
+                   #   (150ms backoff) before giving up. DR-225 (real bug
+                   #   found): authService.listUsersByRole/
+                   #   findUsersByRole filtered only on the primary
+                   #   User.role, never Membership rows — since
+                   #   ROLE_COMPATIBILITY only pairs VISA_FACILITATOR with
+                   #   SUPERADMIN/TOUR_OPERATOR, a facilitator's primary
+                   #   role is routinely the other one in the pair, so this
+                   #   could silently return zero facilitators and the
+                   #   DR-205 new-visa-application alert would never fire.
+                   #   Now unions primary-role and Membership-role matches
+                   #   (deduped), same "primary falls back, Membership
+                   #   extends it" shape resolveRoles already uses per-user.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a
@@ -756,6 +767,16 @@ src/
                    #   assignments, prefilled from notifications'
                    #   EMAIL_TEMPLATE_DEFAULTS the same way DR-207's Terms
                    #   tab prefills from a coded i18n default.
+                   #   DR-225 (real bug found): the Footer legal tab was the
+                   #   one PageTextEditor NOT following that same "prefill
+                   #   from the coded default" convention — it passed the
+                   #   raw (possibly-null) footer.legal CmsTextBlock read
+                   #   straight through, so an unconfigured install showed
+                   #   blank fields with no clue what the guest footer
+                   #   actually falls back to. Fixed by exporting
+                   #   footer.tsx's three fallback constants and building a
+                   #   fallback CmsTextBlockView from them (same shape
+                   #   withTermsFallback returns) when no row exists yet.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps

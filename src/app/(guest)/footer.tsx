@@ -21,9 +21,13 @@ async function resolveLocale(): Promise<CmsLocale> {
 // every word around it (including the brand name, deliberately, per
 // explicit user direction -- a one-line, scoped exception to DR-168's
 // otherwise-fixed brand text, not a reversal of it elsewhere).
-const FALLBACK_FOOTER_LEGAL_TEMPLATE = '© {year} Mufasa Safaris & Tours, a {link} Product.';
-const FALLBACK_FOOTER_LEGAL_LABEL = 'Cyber PolCo';
-const FALLBACK_FOOTER_LEGAL_URL = 'https://www.cyberpolco.com';
+// Exported so the /staff/cms Footer legal editor can prefill its form with
+// the same values a not-yet-configured install actually renders, instead of
+// showing blank fields with no clue what "default" means (same "prefill
+// from the coded default" convention as the Terms tabs' withTermsFallback).
+export const FALLBACK_FOOTER_LEGAL_TEMPLATE = '© {year} Mufasa Safaris & Tours, a {link} Product.';
+export const FALLBACK_FOOTER_LEGAL_LABEL = 'Cyber PolCo';
+export const FALLBACK_FOOTER_LEGAL_URL = 'https://www.cyberpolco.com';
 
 interface FooterLegalContent {
   template: string;
