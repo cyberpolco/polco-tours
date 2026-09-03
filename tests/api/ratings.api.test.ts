@@ -129,12 +129,15 @@ describe('POST /api/v1/bookings/:bookingId/rating-code', () => {
       expect(body.ratingCode.bookingId).toBe(paidBookingId);
       expect(body.ratingCode.code).toHaveLength(8);
     },
-    // issueRatingCode fires notificationsService.notify's real WhatsApp ->
-    // SMS -> email fallback chain (charter rule 8) -- no provider
-    // credentials exist in any test env (OI-05/06/07), so every channel is
-    // tried and fails before the request completes; the default 20s test
-    // timeout isn't always enough for that plus the DB round trips.
-    30_000,
+    // issueRatingCode (DR-223) now resolves the real recipient email via
+    // bookingService.listTravelers + authService.getUser (2 extra real DB
+    // round trips) before sending via notificationsService.notifyEmail --
+    // falling back to the old notify() WhatsApp -> SMS -> email chain only
+    // if no traveler/contact email resolves at all. No provider credentials
+    // exist in any test env (OI-05/06/07), so any channel actually attempted
+    // is tried and fails before the request completes; bumped from the
+    // previous 30s once DR-223's extra round trips pushed a real run over it.
+    45_000,
   );
 
   it('rejects re-issuing for the same booking (409)', async () => {

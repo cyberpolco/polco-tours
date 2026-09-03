@@ -222,10 +222,13 @@ describe('POST /api/v1/bookings/:bookingId/travelers/:travelerId/visa/decide', (
     const body = await res.json();
     expect(body.application.status).toBe('APPROVED');
     expect(body.application.decidedAt).not.toBeNull();
-    // Notification fallback chain (WhatsApp -> SMS -> email) makes real
-    // network attempts against this environment's live-but-degraded
-    // credentials (OI-05/OI-07) before giving up -- same latency headroom
-    // bump as the other slow tests in this file.
+    // decideApplication (DR-223) now resolves the real recipient via
+    // bookingService.listTravelers + authService.getUser (2 extra real DB
+    // round trips) before sending via notificationsService
+    // .notifyEmailWithHeadsUp (always email, plus a best-effort WhatsApp/SMS
+    // heads-up) -- both legs make real network attempts against this
+    // environment's live-but-degraded credentials (OI-05/OI-07) before
+    // giving up, same latency headroom bump as the other slow tests here.
   }, 40_000);
 
   it('rejects deciding an already-decided application (409)', async () => {

@@ -158,15 +158,39 @@ export const visaService = {
     // DR-154: let the guest know their application was decided -- same
     // "notify the booking's tour lead, since a Traveler isn't its own User
     // account" shape as contactTraveler/requestMissingDocuments above.
+    // DR-223 (explicit user decision): a visa decision needs a fast heads-up
+    // (WhatsApp/SMS) AND the full email (download link / rejection reason /
+    // resubmit CTA) -- sent via notifyEmailWithHeadsUp, not notify()'s
+    // single fallback chain, so text failing never substitutes for the real
+    // content and vice versa. Recipient is resolved via the same DR-194
+    // fallback chain as invoicing.notifyPaymentSucceeded (DR-215) /
+    // visa.contactTraveler (DR-209) above: the tour lead Traveler's own
+    // email/phone, then Booking.contactEmail, then the tourist's own
+    // User.email/phone as a last resort.
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
     if (booking) {
       const travelerName = `${traveler.firstName} ${traveler.lastName}`;
-      await notificationsService.notify(
-        input.outcome === 'APPROVED' ? 'VISA_APPROVED' : 'VISA_REJECTED',
-        booking.touristUserId,
-        organizationId,
-        { travelerName, rejectionReason: input.outcome === 'REJECTED' ? (input.reason ?? undefined) : undefined },
-      );
+      const event = input.outcome === 'APPROVED' ? 'VISA_APPROVED' : 'VISA_REJECTED';
+      const data = { travelerName, rejectionReason: input.outcome === 'REJECTED' ? (input.reason ?? undefined) : undefined };
+      const travelers = await bookingService.listTravelers(ctx, booking.id);
+      const lead = travelers.find((t) => t.isTourLead);
+      const tourist = await authService.getUser(booking.touristUserId);
+      const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+
+      if (email) {
+        await notificationsService.notifyEmailWithHeadsUp(
+          event,
+          { email, phone: lead?.phone ?? tourist?.phone ?? null },
+          tourist?.preferredLocale ?? 'EN',
+          organizationId,
+          data,
+        );
+      } else {
+        // Extremely rare (no traveler manifest and no booking-level contact
+        // email at all) -- fall back to notify()'s User-lookup chain rather
+        // than silently dropping the notification (charter rule 8).
+        await notificationsService.notify(event, booking.touristUserId, organizationId, data);
+      }
     }
     return decided;
   },

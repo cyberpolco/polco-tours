@@ -15,6 +15,11 @@ const SMS_EVENTS: NotificationEvent[] = [
   'INVOICE_ISSUED',
   'VISA_SUBMITTED',
   'VISA_RESUBMITTED',
+  // DR-223: a short heads-up template only (real content stays email-only,
+  // see notifyEmailWithHeadsUp) -- still belongs in this list since
+  // renderSmsMessage returns a real non-null body for both.
+  'VISA_APPROVED',
+  'VISA_REJECTED',
   'RATING_THANK_YOU',
   'ITINERARY_APPROVED',
   'STAFF_ACCOUNT_DEACTIVATED',
@@ -208,9 +213,11 @@ describe('notifications domain', () => {
 
     // DR-205: notify()'s channel-routing fix relies on this returning null
     // (not a stringified HTML body) for any event with no plain-text
-    // template -- VISA_APPROVED is deliberately email-only today.
+    // template -- VISA_MISSING_DOCUMENTS is deliberately email-only today
+    // (DR-223 explicit user decision, unlike its sibling VISA_APPROVED/
+    // VISA_REJECTED which gained a heads-up template the same round).
     it('returns null for an event with no SMS template', () => {
-      expect(renderSmsMessage('VISA_APPROVED', 'EN', DATA)).toBeNull();
+      expect(renderSmsMessage('VISA_MISSING_DOCUMENTS', 'EN', DATA)).toBeNull();
     });
 
     it('never renders a plain-text body for the email-only staff password events', () => {

@@ -1200,6 +1200,18 @@ const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplat
     EN: (d) => `MUFASA SAFARIS & TOURS: Visa application for ${d.travelerName ?? 'your traveler'} received, under review.`,
     FR: (d) => `MUFASA SAFARIS & TOURS : demande de visa de ${d.travelerName ?? 'votre voyageur'} reçue, en cours d'examen.`,
   },
+  // DR-223 (explicit user decision): a short heads-up only -- the real
+  // content (download link / rejection reason / resubmit CTA) stays
+  // email-only, sent in parallel via notifyEmailWithHeadsUp, not through
+  // this template. See that call site's own comment.
+  VISA_APPROVED: {
+    EN: (d) => `MUFASA SAFARIS & TOURS: Good news -- ${d.travelerName ?? "your traveler's"} visa application was approved. Check your email for details.`,
+    FR: (d) => `MUFASA SAFARIS & TOURS : bonne nouvelle -- la demande de visa de ${d.travelerName ?? 'votre voyageur'} a été approuvée. Consultez votre e-mail pour les détails.`,
+  },
+  VISA_REJECTED: {
+    EN: (d) => `MUFASA SAFARIS & TOURS: ${d.travelerName ?? "Your traveler's"} visa application needs attention. Check your email for details.`,
+    FR: (d) => `MUFASA SAFARIS & TOURS : la demande de visa de ${d.travelerName ?? 'votre voyageur'} nécessite une action. Consultez votre e-mail pour les détails.`,
+  },
   VISA_RESUBMITTED: {
     EN: (d) => `MUFASA SAFARIS & TOURS: Updated visa application for ${d.travelerName ?? 'your traveler'} received.`,
     FR: (d) => `MUFASA SAFARIS & TOURS : demande de visa mise à jour pour ${d.travelerName ?? 'votre voyageur'} reçue.`,

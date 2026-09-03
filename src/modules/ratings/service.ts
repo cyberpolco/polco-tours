@@ -174,25 +174,41 @@ export const ratingsService = {
       resourceId: ratingCode.id,
       organizationId,
     });
-    await notificationsService.notify('RATING_CODE_ISSUED', booking.touristUserId, organizationId, {
-      bookingId: booking.bookingReference,
-      ratingCode: ratingCode.code,
-    });
-    // DR-205 (explicit user request): guarantee a copy reaches the real
-    // tour-lead address too -- for an anonymous-checkout booking, the
-    // User.email notify() just resolved above can be a synthetic
-    // placeholder (same class of gap DR-055 already fixed for
-    // TAILOR_MADE_REQUEST_RECEIVED), while Booking.contactEmail is always
-    // the real address the tour lead actually typed.
-    if (booking.contactEmail) {
-      const tourist = await authService.getUser(booking.touristUserId);
+    // DR-223 (fixes a real bug): the previous version sent via notify()
+    // (resolves the anonymous-checkout User.email, a synthetic placeholder
+    // for a PREDEFINED_PACKAGE booking) plus a "guaranteed copy" that only
+    // checked Booking.contactEmail -- which is null for a
+    // PREDEFINED_PACKAGE booking (only ever set for TAILOR_MADE, DR-047),
+    // so that safety net silently never fired for the common case. No SMS
+    // template exists for this event either (an intentional design choice,
+    // not a gap this DR revisits -- confirmed with the user), so email is
+    // the only deliverable channel; getting the address right is what
+    // actually matters. Same DR-194 fallback chain as
+    // invoicing.notifyPaymentSucceeded (DR-215) / visa.contactTraveler
+    // (DR-209) / booking.cancelForBookingLookup (DR-207): the tour lead
+    // Traveler's own email, then Booking.contactEmail, then the tourist's
+    // own User.email only as a last resort.
+    const travelers = await bookingService.listTravelers(ctx, bookingId);
+    const lead = travelers.find((t) => t.isTourLead);
+    const tourist = await authService.getUser(booking.touristUserId);
+    const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+
+    if (email) {
       await notificationsService.notifyEmail(
         'RATING_CODE_ISSUED',
-        booking.contactEmail,
+        email,
         tourist?.preferredLocale ?? 'EN',
         organizationId,
         { bookingId: booking.bookingReference, ratingCode: ratingCode.code },
       );
+    } else {
+      // Extremely rare (no traveler manifest and no booking-level contact
+      // email at all) -- fall back to notify()'s User-lookup chain rather
+      // than silently dropping the notification (charter rule 8).
+      await notificationsService.notify('RATING_CODE_ISSUED', booking.touristUserId, organizationId, {
+        bookingId: booking.bookingReference,
+        ratingCode: ratingCode.code,
+      });
     }
 
     return ratingCode;

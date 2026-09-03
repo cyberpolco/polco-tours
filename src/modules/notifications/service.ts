@@ -164,6 +164,64 @@ export const notificationsService = {
   },
 
   /**
+   * DR-223 (explicit user decision): for an event whose email carries the
+   * real actionable content (a document to download, a rejection reason,
+   * a resubmit link) but where a fast heads-up also matters, send BOTH --
+   * a full email (always attempted, the guaranteed channel, via the
+   * existing notifyEmail) and a short WhatsApp/SMS notice in parallel
+   * (best-effort, WhatsApp before SMS, stopping at the first success).
+   * Unlike notify()'s single fallback chain, the text leg never blocks or
+   * substitutes for the email and vice versa -- this is deliberately two
+   * independent attempts, not one chain. Takes an explicit
+   * email/phone recipient (not a userId) so the caller can resolve the
+   * real tour-lead contact first (DR-194's Traveler.email -> contactEmail
+   * -> User.email fallback), same "explicit recipient" shape as
+   * notifyEmail/notifySms above -- never throws (charter rule 8).
+   */
+  async notifyEmailWithHeadsUp(
+    event: NotificationEvent,
+    recipient: { email: string; phone: string | null },
+    locale: Locale,
+    organizationId: string,
+    data: NotificationData,
+  ): Promise<void> {
+    await notificationsService.notifyEmail(event, recipient.email, locale, organizationId, data);
+
+    if (!recipient.phone) return;
+    const smsBody = renderSmsMessage(event, locale, data);
+    if (!smsBody) return;
+
+    const log = logger(newTraceId());
+    for (const channel of ['WHATSAPP', 'SMS'] as const) {
+      try {
+        const { providerRef } = await gateways[channel].send({ to: recipient.phone, body: smsBody });
+        await audit({
+          action: 'notification.sent',
+          resourceType: 'Notification',
+          organizationId,
+          metadata: { event, channel, providerRef },
+        });
+        log.info('notification sent', { event, channel });
+        return;
+      } catch (err) {
+        log.warn('notification channel failed, falling back', {
+          event,
+          channel,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    await audit({
+      action: 'notification.failed',
+      resourceType: 'Notification',
+      organizationId,
+      metadata: { event, attemptedChannels: ['WHATSAPP', 'SMS'] },
+    });
+    log.error('heads-up text failed on all channels', { event });
+  },
+
+  /**
    * DR-056: sends straight to an explicit phone number via only the SMS
    * gateway -- same "explicit recipient, not a User lookup" shape as
    * notifyEmail, for the same caller (a fresh TAILOR_MADE request) that
