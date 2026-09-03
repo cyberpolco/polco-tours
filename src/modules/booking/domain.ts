@@ -4,7 +4,7 @@
 // directly) to validate Booking.preferredTags against the same tag
 // vocabulary TourPackage.tags uses, rather than hand-duplicating that
 // 7-value tuple in a second module where it could silently drift.
-import type { AddonCode, BookingOrigin, BookingStatus, CancellationRefundTier, Currency, PackageTag, Role, Sex } from '@prisma/client';
+import type { AddonCode, BookingOrigin, BookingStatus, CancellationRefundTier, Currency, FlightClass, PackageTag, Role, Sex } from '@prisma/client';
 import { z } from 'zod';
 import { PACKAGE_TAGS } from '@modules/catalog';
 
@@ -600,18 +600,45 @@ export function isTravelerManifestComplete(
 
 // -------------------------------------------------------------- add-ons
 
+// DR-222: code/name are joined in from the addon's catalog identity
+// (AddonService) at read time -- BookingAddon itself has no name column.
+// flightClass/airline/originAirportCode/destinationAirportCode (FLIGHT_TICKET)
+// and dataAllowanceGb (ESIM) are the guest's snapshotted variant selection --
+// null for every other AddonCode.
 export interface BookingAddonView {
   id: string;
   organizationId: string;
   bookingId: string;
   addonServiceId: string;
+  code: AddonCode;
+  name: string;
   priceMinor: number;
   currency: Currency;
+  flightClass: FlightClass | null;
+  airline: string | null;
+  originAirportCode: string | null;
+  destinationAirportCode: string | null;
+  dataAllowanceGb: number | null;
   createdAt: Date;
 }
 
+// DR-222: FLIGHT_TICKET requires originAirportId/destinationAirportId/
+// airline/flightClass; ESIM requires dataAllowanceGb. Every other AddonCode
+// takes none of these -- bookingService.setAddons validates the right
+// subset is present per the selected addon's actual code (not enforceable
+// here in the pure zod shape, since that requires a DB lookup).
+export const AddonSelectionInput = z.object({
+  addonServiceId: z.string().uuid(),
+  flightClass: z.enum(['ECONOMY', 'BUSINESS', 'FIRST']).optional(),
+  airline: z.string().min(1).max(200).optional(),
+  originAirportId: z.string().uuid().optional(),
+  destinationAirportId: z.string().uuid().optional(),
+  dataAllowanceGb: z.number().int().positive().optional(),
+});
+export type AddonSelectionInput = z.infer<typeof AddonSelectionInput>;
+
 export const SetAddonsInput = z.object({
-  addonServiceIds: z.array(z.string().uuid()),
+  addons: z.array(AddonSelectionInput),
 });
 export type SetAddonsInput = z.infer<typeof SetAddonsInput>;
 

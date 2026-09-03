@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-221** (2026-09-03). This file used to carry a running
+Current through **DR-222** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -242,6 +242,29 @@ src/
                    #   Activity/Hotel/Restaurant)
     booking/       # Booking (11-state lifecycle) + Traveler + BookingAddon;
                    #   bookingReference is the sole guest-facing lookup key.
+                   #   DR-222: two new guest-facing add-on types, FLIGHT_TICKET
+                   #   and ESIM, priced by a guest-picked variant instead of a
+                   #   flat per-country AddonRate. SetAddonsInput's shape
+                   #   changed from a flat { addonServiceIds: string[] } to
+                   #   { addons: AddonSelectionInput[] } — each selection
+                   #   carries addonServiceId plus 5 optional variant fields
+                   #   (flightClass/airline/originAirportId/
+                   #   destinationAirportId for FLIGHT_TICKET,
+                   #   dataAllowanceGb for ESIM); every other AddonCode now
+                   #   rejects a selection carrying any of them.
+                   #   BookingAddon snapshots the resolved variant as 5
+                   #   nullable columns (flightClass/airline/
+                   #   originAirportCode/destinationAirportCode/
+                   #   dataAllowanceGb) — plain denormalized values, not an
+                   #   FK into finance's Airport/FlightFareRate, same
+                   #   "snapshot the resolved fact" convention as
+                   #   invoicing's lateBookingSurchargeRateBp. Price resolved
+                   #   via new src/lib/flight-fare-rate.ts/esim-rate.ts (no-
+                   #   AuthContext lib helpers, same shape as the existing
+                   #   src/lib/addon-rates.ts) — a plain function import, not
+                   #   a new booking -> finance module dependency.
+                   #   BookingAddonView also gains code/name, joined from
+                   #   AddonService at read time.
                    #   DR-198: Booking.lateBookingSurchargeBp — snapshotted
                    #   at hold-creation time (finalizeHold, shared by
                    #   createHold/createHoldWithDates, against the
@@ -353,7 +376,22 @@ src/
                    #   does the one actual `cms` read per send (new runtime
                    #   dependency, see "Module dependency direction matters"
                    #   below) and never blocks a send on failure (charter
-                   #   rule 8). Surfaced at /staff/cms's new "Emails" tab
+                   #   rule 8). Surfaced at /staff/cms's new "Emails" tab.
+                   #   DR-223: fixed a real bug (RATING_CODE_ISSUED never
+                   #   reached the guest -- ratings/'s own comment below) and
+                   #   added a second send shape alongside notify()'s single
+                   #   fallback chain: `notifyEmailWithHeadsUp(event,
+                   #   {email, phone}, locale, organizationId, data)` always
+                   #   sends the full email (via the existing notifyEmail)
+                   #   AND independently best-effort-attempts a short
+                   #   WhatsApp-then-SMS heads-up -- neither leg blocks or
+                   #   substitutes for the other, unlike notify()'s
+                   #   stop-at-first-success chain. Takes an explicit
+                   #   {email, phone} recipient, not a userId, same
+                   #   "caller already resolved the real contact" precedent
+                   #   as notifyEmail/notifySms (DR-055/DR-056). Used by
+                   #   visa's VISA_APPROVED/VISA_REJECTED (see visa/'s own
+                   #   comment) -- the only two events using it so far.
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -416,7 +454,19 @@ src/
                    #   documentFileName (nullable, the original uploaded
                    #   filename) — set alongside documentId in
                    #   uploadDocument, cleared alongside it on resubmit;
-                   #   shown next to the Document column's "View" link
+                   #   shown next to the Document column's "View" link.
+                   #   DR-223: decideApplication's VISA_APPROVED/
+                   #   VISA_REJECTED notification now resolves the real
+                   #   recipient via the same DR-194 chain contactTraveler
+                   #   already used (tour lead Traveler.email/phone →
+                   #   Booking.contactEmail → the tourist's own User.email/
+                   #   phone) instead of notify()'s plain touristUserId
+                   #   lookup — closes the identical synthetic-email gap
+                   #   ratings' RATING_CODE_ISSUED bug had — and sends via
+                   #   notifications' new notifyEmailWithHeadsUp (a short
+                   #   WhatsApp/SMS "check your email" heads-up alongside
+                   #   the full email, added the same DR, new SMS templates
+                   #   for both events which previously had none).
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -489,6 +539,30 @@ src/
                    #   AddonService by country+code, resolved via
                    #   src/lib/addon-rates.ts, not computeBaseCostMinor, so
                    #   it's a separate concept, not an 8th bucket) +
+                   #   DR-222: two more addon-pricing tables, same "not an
+                   #   8th cost-plus bucket" shape as AddonRate — Airport (a
+                   #   small staff-curated reference list, iataCode/name/
+                   #   city/country/active, giving the next table a real
+                   #   FK-able route identity) and FlightFareRate (origin/
+                   #   destination Airport FKs + free-text airline +
+                   #   flightClass, effective-dated, prices the FLIGHT_TICKET
+                   #   add-on's guest-picked route×airline×class variant) and
+                   #   EsimDataPlanRate (country+dataAllowanceGb, otherwise
+                   #   AddonRate's exact shape, prices the ESIM add-on's
+                   #   data-plan-tier variant) — resolved via
+                   #   src/lib/flight-fare-rate.ts/esim-rate.ts, same
+                   #   no-AuthContext public-read precedent as
+                   #   src/lib/addon-rates.ts. Full staff CRUD at
+                   #   /staff/finance/rates/flights and .../esim (linked from
+                   #   the Finance hub), same finance_config.read/write +
+                   #   requireRateWriter gating as every other rate table;
+                   #   three public no-ctx reads (listPublicAirports/
+                   #   listPublicFlightFareOptions/listPublicEsimPlans) back
+                   #   the guest/staff add-on-selection pickers. Deliberately
+                   #   NOT wired into reapplyRatesToAllCostBreakdowns, same
+                   #   reasoning as AddonRate — resolved live at add-on
+                   #   selection time, never snapshotted into a cost
+                   #   breakdown. +
                    #   PackageCostBreakdown (TourPackage) / BookingCostBreakdown
                    #   (TAILOR_MADE Booking, DR-092) — DR-132: Accommodation/
                    #   Restaurant/Activity buckets on both are derived
@@ -1244,8 +1318,11 @@ Surface these to the human — don't invent answers.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-
-**Resolved:** OI-02 (brand-naming split confirmed permanent, not pending
+**Resolved:** OI-17 (DR-222's schema change — `Airport`/`FlightFareRate`/
+`EsimDataPlanRate` tables, `BookingAddon`'s 5 new nullable columns — pushed
+to the shared Neon database via `npm run db:push` with the user's own
+pasted `neondb_owner` credential, then `npm run db:rls` reapplied clean
+(150 statements) confirming no regression — 2026-09-03), OI-02 (brand-naming split confirmed permanent, not pending
 trademark clearance — 2026-08-30), OI-03 (Lam's per-market legal
 registration documents obtained — 2026-08-30), OI-04 (object storage →
 Vercel Blob), OI-08 (`BLOB_READ_WRITE_TOKEN` provisioned), OI-10 (Upstash

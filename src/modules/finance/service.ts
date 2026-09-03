@@ -32,15 +32,21 @@ import {
   type ActivityFeeView,
   type AddonRateView,
   type AdminCostRateView,
+  type AirportView,
   type BookingCostBreakdownView,
   type CreateActivityFeeInput,
   type CreateAddonRateInput,
   type CreateAdminCostRateInput,
+  type CreateAirportInput,
+  type CreateEsimDataPlanRateInput,
+  type CreateFlightFareRateInput,
   type CreateFoodBeverageRateInput,
   type CreateHotelRateInput,
   type CreateRestaurantRateInput,
   type CreateStaffRateInput,
   type CreateTransportRateInput,
+  type EsimDataPlanRateView,
+  type FlightFareRateView,
   type FoodBeverageRateView,
   type HotelRateView,
   type PackageCostBreakdownView,
@@ -535,6 +541,113 @@ export const financeService = {
     const deleted = await financeRepository.deleteAddonRate(id);
     if (!deleted) throw Errors.notFound('Addon rate not found');
     await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.addon_rate_deleted', resourceType: 'AddonRate', resourceId: id });
+  },
+
+  // -------------------------------------------------------------- Airport
+  async listAirports(ctx: AuthContext): Promise<AirportView[]> {
+    assertCan(ctx, 'finance_config.read');
+    return financeRepository.listAirports();
+  },
+  async createAirport(ctx: AuthContext, input: CreateAirportInput): Promise<AirportView> {
+    requireRateWriter(ctx);
+    const airport = await financeRepository.createAirport(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.airport_created', resourceType: 'Airport', resourceId: airport.id });
+    return airport;
+  },
+  async updateAirport(ctx: AuthContext, id: string, input: CreateAirportInput): Promise<AirportView> {
+    requireRateWriter(ctx);
+    const airport = await financeRepository.updateAirport(id, input);
+    if (!airport) throw Errors.notFound('Airport not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.airport_updated', resourceType: 'Airport', resourceId: id });
+    return airport;
+  },
+  async deleteAirport(ctx: AuthContext, id: string): Promise<void> {
+    requireRateWriter(ctx);
+    const deleted = await financeRepository.deleteAirport(id);
+    if (!deleted) throw Errors.notFound('Airport not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.airport_deleted', resourceType: 'Airport', resourceId: id });
+  },
+
+  // -------------------------------------------------------------- FlightFareRate
+  async listFlightFareRates(ctx: AuthContext): Promise<FlightFareRateView[]> {
+    assertCan(ctx, 'finance_config.read');
+    return financeRepository.listFlightFareRates();
+  },
+  async createFlightFareRate(ctx: AuthContext, input: CreateFlightFareRateInput): Promise<FlightFareRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.createFlightFareRate(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.flight_fare_rate_created', resourceType: 'FlightFareRate', resourceId: rate.id });
+    return rate;
+  },
+  // No reapply sweep here, same reasoning as AddonRate above -- a
+  // FlightFareRate is resolved live at add-on selection time
+  // (src/lib/flight-fare-rate.ts), never snapshotted into a cost
+  // breakdown, so there's nothing to recompute.
+  async updateFlightFareRate(ctx: AuthContext, id: string, input: CreateFlightFareRateInput): Promise<FlightFareRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateFlightFareRate(id, input);
+    if (!rate) throw Errors.notFound('Flight fare rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.flight_fare_rate_updated', resourceType: 'FlightFareRate', resourceId: id });
+    return rate;
+  },
+  async deleteFlightFareRate(ctx: AuthContext, id: string): Promise<void> {
+    requireRateWriter(ctx);
+    const deleted = await financeRepository.deleteFlightFareRate(id);
+    if (!deleted) throw Errors.notFound('Flight fare rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.flight_fare_rate_deleted', resourceType: 'FlightFareRate', resourceId: id });
+  },
+
+  // -------------------------------------------------------------- EsimDataPlanRate
+  async listEsimDataPlanRates(ctx: AuthContext): Promise<EsimDataPlanRateView[]> {
+    assertCan(ctx, 'finance_config.read');
+    return financeRepository.listEsimDataPlanRates();
+  },
+  async createEsimDataPlanRate(ctx: AuthContext, input: CreateEsimDataPlanRateInput): Promise<EsimDataPlanRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.createEsimDataPlanRate(input);
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.esim_data_plan_rate_created', resourceType: 'EsimDataPlanRate', resourceId: rate.id });
+    return rate;
+  },
+  // No reapply sweep here either, same reasoning as AddonRate/FlightFareRate
+  // above -- resolved live at add-on selection time (src/lib/esim-rate.ts).
+  async updateEsimDataPlanRate(ctx: AuthContext, id: string, input: CreateEsimDataPlanRateInput): Promise<EsimDataPlanRateView> {
+    requireRateWriter(ctx);
+    const rate = await financeRepository.updateEsimDataPlanRate(id, input);
+    if (!rate) throw Errors.notFound('eSIM data plan rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.esim_data_plan_rate_updated', resourceType: 'EsimDataPlanRate', resourceId: id });
+    return rate;
+  },
+  async deleteEsimDataPlanRate(ctx: AuthContext, id: string): Promise<void> {
+    requireRateWriter(ctx);
+    const deleted = await financeRepository.deleteEsimDataPlanRate(id);
+    if (!deleted) throw Errors.notFound('eSIM data plan rate not found');
+    await audit({ actorUserId: ctx.userId, actorRole: ctx.roles[0], action: 'finance.esim_data_plan_rate_deleted', resourceType: 'EsimDataPlanRate', resourceId: id });
+  },
+
+  // ---------------------------------------------------- Public reads (DR-222)
+  // No-ctx, no permission check -- guest checkout (an anonymous session, no
+  // staff permissions) must be able to read these too, same precedent as
+  // cms's listPublicTextBlocksByKeyPrefix / immigration's getPublicFee.
+  // Called directly from the guest addon-selection page/Server Action, not
+  // from inside booking's own service (booking must never import finance --
+  // see CLAUDE.md's module-dependency-direction note); booking resolves its
+  // own price at selection time via src/lib/flight-fare-rate.ts and
+  // src/lib/esim-rate.ts instead.
+  async listPublicAirports(): Promise<AirportView[]> {
+    const rows = await financeRepository.listAirports();
+    return rows.filter((a) => a.active);
+  },
+  async listPublicFlightFareOptions(): Promise<FlightFareRateView[]> {
+    const now = new Date();
+    const rows = await financeRepository.listFlightFareRates();
+    return rows.filter((r) => r.validFrom <= now && (r.validTo === null || r.validTo >= now));
+  },
+  async listPublicEsimPlans(country: string): Promise<EsimDataPlanRateView[]> {
+    const now = new Date();
+    const rows = await financeRepository.listEsimDataPlanRates();
+    return rows
+      .filter((r) => r.country === country && r.validFrom <= now && (r.validTo === null || r.validTo >= now))
+      .sort((a, b) => a.dataAllowanceGb - b.dataAllowanceGb);
   },
 
   /** Explicit user request: after any operational-rate price update, every

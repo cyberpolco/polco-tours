@@ -9,8 +9,11 @@ import type {
   ActivityFee,
   AddonRate,
   AdminCostRate,
+  Airport,
   BookingCostBreakdown,
   BookingCostLineItem,
+  EsimDataPlanRate,
+  FlightFareRate,
   FoodBeverageCategory,
   FoodBeverageRate,
   HotelRate,
@@ -26,16 +29,22 @@ import type {
   ActivityFeeView,
   AddonRateView,
   AdminCostRateView,
+  AirportView,
   BookingCostBreakdownView,
   BookingDrinkLineItemView,
   CreateActivityFeeInput,
   CreateAddonRateInput,
   CreateAdminCostRateInput,
+  CreateAirportInput,
+  CreateEsimDataPlanRateInput,
+  CreateFlightFareRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateRestaurantRateInput,
   CreateStaffRateInput,
   CreateTransportRateInput,
+  EsimDataPlanRateView,
+  FlightFareRateView,
   FoodBeverageRateView,
   HotelRateView,
   PackageCostBreakdownView,
@@ -78,6 +87,25 @@ function toAdminCostRateView(r: AdminCostRate): AdminCostRateView {
 }
 function toAddonRateView(r: AddonRate): AddonRateView {
   return { id: r.id, country: r.country, code: r.code, priceMinor: r.priceMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
+}
+function toAirportView(a: Airport): AirportView {
+  return { id: a.id, iataCode: a.iataCode, name: a.name, city: a.city, country: a.country, active: a.active };
+}
+function toFlightFareRateView(r: FlightFareRate): FlightFareRateView {
+  return {
+    id: r.id,
+    originAirportId: r.originAirportId,
+    destinationAirportId: r.destinationAirportId,
+    airline: r.airline,
+    flightClass: r.flightClass,
+    priceMinor: r.priceMinor,
+    currency: r.currency,
+    validFrom: r.validFrom,
+    validTo: r.validTo,
+  };
+}
+function toEsimDataPlanRateView(r: EsimDataPlanRate): EsimDataPlanRateView {
+  return { id: r.id, country: r.country, dataAllowanceGb: r.dataAllowanceGb, priceMinor: r.priceMinor, currency: r.currency, validFrom: r.validFrom, validTo: r.validTo };
 }
 function toLineItemView(li: PackageCostLineItem): PackageDrinkLineItemView {
   return { id: li.id, foodBeverageRateId: li.foodBeverageRateId, quantityPerPerson: li.quantityPerPerson };
@@ -407,6 +435,84 @@ export const financeRepository = {
     if (!existing) return null;
     await prisma.addonRate.delete({ where: { id } });
     return toAddonRateView(existing);
+  },
+
+  // -------------------------------------------------------------- Airport
+  // DR-222: plain staff-curated reference list (not effective-dated, not a
+  // rate) -- exists solely to give FlightFareRate a real FK-able route
+  // identity. Same platform-wide, no-org-scoping precedent as every rate
+  // table above.
+  async listAirports(): Promise<AirportView[]> {
+    const rows = await prisma.airport.findMany({ orderBy: [{ country: 'asc' }, { iataCode: 'asc' }] });
+    return rows.map(toAirportView);
+  },
+  async createAirport(input: CreateAirportInput): Promise<AirportView> {
+    const a = await prisma.airport.create({ data: input });
+    return toAirportView(a);
+  },
+  async updateAirport(id: string, input: CreateAirportInput): Promise<AirportView | null> {
+    const existing = await prisma.airport.findUnique({ where: { id } });
+    if (!existing) return null;
+    const a = await prisma.airport.update({ where: { id }, data: input });
+    return toAirportView(a);
+  },
+  async deleteAirport(id: string): Promise<AirportView | null> {
+    const existing = await prisma.airport.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.airport.delete({ where: { id } });
+    return toAirportView(existing);
+  },
+
+  // -------------------------------------------------------------- FlightFareRate
+  // DR-222: staff CRUD only (Operational Rates page) -- the actual
+  // resolve-for-pricing read lives in src/lib/flight-fare-rate.ts, queried
+  // directly against Prisma with no AuthContext/permission gate, same
+  // "guest checkout must read this too" precedent as AddonRate.
+  async listFlightFareRates(): Promise<FlightFareRateView[]> {
+    const rows = await prisma.flightFareRate.findMany({
+      orderBy: [{ originAirportId: 'asc' }, { destinationAirportId: 'asc' }, { airline: 'asc' }, { flightClass: 'asc' }, { validFrom: 'desc' }],
+    });
+    return rows.map(toFlightFareRateView);
+  },
+  async createFlightFareRate(input: CreateFlightFareRateInput): Promise<FlightFareRateView> {
+    const r = await prisma.flightFareRate.create({ data: input });
+    return toFlightFareRateView(r);
+  },
+  async updateFlightFareRate(id: string, input: CreateFlightFareRateInput): Promise<FlightFareRateView | null> {
+    const existing = await prisma.flightFareRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.flightFareRate.update({ where: { id }, data: input });
+    return toFlightFareRateView(r);
+  },
+  async deleteFlightFareRate(id: string): Promise<FlightFareRateView | null> {
+    const existing = await prisma.flightFareRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.flightFareRate.delete({ where: { id } });
+    return toFlightFareRateView(existing);
+  },
+
+  // -------------------------------------------------------------- EsimDataPlanRate
+  // DR-222: staff CRUD only -- the actual resolve-for-pricing read lives in
+  // src/lib/esim-rate.ts, same no-AuthContext-gate precedent as AddonRate.
+  async listEsimDataPlanRates(): Promise<EsimDataPlanRateView[]> {
+    const rows = await prisma.esimDataPlanRate.findMany({ orderBy: [{ country: 'asc' }, { dataAllowanceGb: 'asc' }, { validFrom: 'desc' }] });
+    return rows.map(toEsimDataPlanRateView);
+  },
+  async createEsimDataPlanRate(input: CreateEsimDataPlanRateInput): Promise<EsimDataPlanRateView> {
+    const r = await prisma.esimDataPlanRate.create({ data: input });
+    return toEsimDataPlanRateView(r);
+  },
+  async updateEsimDataPlanRate(id: string, input: CreateEsimDataPlanRateInput): Promise<EsimDataPlanRateView | null> {
+    const existing = await prisma.esimDataPlanRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    const r = await prisma.esimDataPlanRate.update({ where: { id }, data: input });
+    return toEsimDataPlanRateView(r);
+  },
+  async deleteEsimDataPlanRate(id: string): Promise<EsimDataPlanRateView | null> {
+    const existing = await prisma.esimDataPlanRate.findUnique({ where: { id } });
+    if (!existing) return null;
+    await prisma.esimDataPlanRate.delete({ where: { id } });
+    return toEsimDataPlanRateView(existing);
   },
 
   // ---------------------------------------------------- PackageCostBreakdown

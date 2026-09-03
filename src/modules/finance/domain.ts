@@ -13,7 +13,7 @@
 // AddonService add-ons, not a cost-breakdown bucket), managed on the same
 // Operational Rates page for consistency but resolved via
 // src/lib/addon-rates.ts, not computeBaseCostMinor.
-import type { AddonCode, Currency, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
+import type { AddonCode, Currency, FlightClass, FoodBeverageCategory, StaffRateRole } from '@prisma/client';
 import { z } from 'zod';
 
 const CURRENCY_ENUM = z.enum(['USD', 'EUR', 'NAD', 'CDF']);
@@ -207,6 +207,85 @@ export const CreateAddonRateInput = z.object({
   ...EFFECTIVE_DATING,
 });
 export type CreateAddonRateInput = z.infer<typeof CreateAddonRateInput>;
+
+// DR-222: a small staff-curated Airport reference list, keyed by IATA code
+// -- exists solely to give FlightFareRate a real FK-able route identity
+// (see FlightFareRateView below), not itself a rate. Platform-wide, same
+// as every Operational Rate table, but not effective-dated (a plain
+// reference row, not a price).
+export interface AirportView {
+  id: string;
+  iataCode: string;
+  name: string;
+  city: string;
+  country: string;
+  active: boolean;
+}
+
+export const CreateAirportInput = z.object({
+  iataCode: z
+    .string()
+    .length(3)
+    .transform((v) => v.toUpperCase()),
+  name: z.string().min(1).max(200),
+  city: z.string().min(1).max(200),
+  country: z.string().length(2),
+  active: z.boolean().optional(),
+});
+export type CreateAirportInput = z.infer<typeof CreateAirportInput>;
+
+// DR-222: the FLIGHT_TICKET add-on's price varies by route x airline x
+// class -- a genuinely multi-dimensional rate, so unlike AddonRate (a small
+// fixed enum, "no id") this needs a real FK-able identity per row, the same
+// "list of distinct instances" shape as HotelRate/ActivityFee. airline is
+// free text, staff-entered per rate row -- no separate Airline reference
+// table; the guest-facing airline choice is simply whatever distinct
+// airline strings exist among active rates for the route picked.
+export interface FlightFareRateView {
+  id: string;
+  originAirportId: string;
+  destinationAirportId: string;
+  airline: string;
+  flightClass: FlightClass;
+  priceMinor: number;
+  currency: Currency;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
+export const CreateFlightFareRateInput = z.object({
+  originAirportId: z.string().uuid(),
+  destinationAirportId: z.string().uuid(),
+  airline: z.string().min(1).max(200),
+  flightClass: z.enum(['ECONOMY', 'BUSINESS', 'FIRST']),
+  priceMinor: z.number().int().nonnegative(),
+  currency: CURRENCY_ENUM,
+  ...EFFECTIVE_DATING,
+});
+export type CreateFlightFareRateInput = z.infer<typeof CreateFlightFareRateInput>;
+
+// DR-222: the ESIM add-on's price varies by data-plan tier (e.g. 5/10/20GB),
+// not just by country -- otherwise the same auto-resolved, no-id,
+// effective-dated shape as AddonRate, just with dataAllowanceGb as a second
+// key alongside country.
+export interface EsimDataPlanRateView {
+  id: string;
+  country: string;
+  dataAllowanceGb: number;
+  priceMinor: number;
+  currency: Currency;
+  validFrom: Date;
+  validTo: Date | null;
+}
+
+export const CreateEsimDataPlanRateInput = z.object({
+  country: z.string().length(2),
+  dataAllowanceGb: z.number().int().positive(),
+  priceMinor: z.number().int().nonnegative(),
+  currency: CURRENCY_ENUM,
+  ...EFFECTIVE_DATING,
+});
+export type CreateEsimDataPlanRateInput = z.infer<typeof CreateEsimDataPlanRateInput>;
 
 // ---------------------------------------------------- package cost breakdown
 

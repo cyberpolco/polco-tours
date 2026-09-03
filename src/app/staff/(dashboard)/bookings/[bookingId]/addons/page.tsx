@@ -1,11 +1,15 @@
 import { getTranslations } from 'next-intl/server';
+import type { AirportView } from '@modules/finance';
 import { requireStaffContext } from '@lib/staff-guard';
 import { format, money } from '@lib/money';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { financeService } from '@modules/finance';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
+import { EsimPlanPicker } from '@/components/ui/EsimPlanPicker';
+import { FlightTicketPicker } from '@/components/ui/FlightTicketPicker';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -15,6 +19,15 @@ import { finalizeAddonsAction } from './actions';
 interface Props {
   params: Promise<{ bookingId: string }>;
   searchParams: Promise<{ error?: string }>;
+}
+
+// DR-222: FLIGHT_TICKET/ESIM are priced by a variant combination instead of
+// a flat per-country AddonRate -- see the guest page's own comment on
+// VARIANT_CODES for why they're pulled out of the flat-priced list.
+const VARIANT_CODES = new Set(['FLIGHT_TICKET', 'ESIM']);
+
+function airportLabel(a: Pick<AirportView, 'city' | 'iataCode'>): string {
+  return `${a.city} (${a.iataCode})`;
 }
 
 // Add-ons is now the FIRST setup step (right after the booking exists) --
@@ -50,13 +63,16 @@ export default async function AddonsPage({ params, searchParams }: Props) {
     booking.addonsFinalizedAt ? bookingService.listAddons(ctx, bookingId) : Promise.resolve([]),
     bookingService.getBookingCountry(ctx, bookingId),
   ]);
+  const flatAddons = allAddons.filter((a) => !VARIANT_CODES.has(a.code));
+  const flightAddon = allAddons.find((a) => a.code === 'FLIGHT_TICKET') ?? null;
+  const esimAddon = allAddons.find((a) => a.code === 'ESIM') ?? null;
   // DR-128: each add-on's real, chargeable price comes from AddonRate
   // (country + code, resolved by src/lib/addon-rates.ts) -- AddonService's
   // own flat priceMinor/currency is no longer used for pricing. An add-on
   // with no rate configured for this booking's country is simply not
   // offered here.
   const withResolvedRates = await Promise.all(
-    allAddons.map(async (a) => {
+    flatAddons.map(async (a) => {
       const rate = await getEffectiveAddonRate(country, a.code);
       return rate ? { ...a, priceMinor: rate.priceMinor, currency: rate.currency } : null;
     }),
@@ -81,6 +97,55 @@ export default async function AddonsPage({ params, searchParams }: Props) {
   // question the guest already answered. Only before the first finalize:
   // once real add-ons are on file, defer entirely to that actual selection.
   const requestedCodes = new Set(booking.origin === 'TAILOR_MADE' ? booking.preferredAddons : []);
+
+  // DR-222: same variant-picker data assembly as the guest page -- see that
+  // page's own comments for why the airport join happens here rather than
+  // assuming financeService.listPublicFlightFareOptions returns joined data.
+  const [airports, flightFareOptions] = flightAddon
+    ? await Promise.all([financeService.listPublicAirports(), financeService.listPublicFlightFareOptions()])
+    : [[] as AirportView[], []];
+  const airportById = new Map(airports.map((a) => [a.id, a]));
+  const flightOptions = flightFareOptions
+    .filter((r) => !booking.currency || r.currency === booking.currency)
+    .map((r) => {
+      const origin = airportById.get(r.originAirportId);
+      const destination = airportById.get(r.destinationAirportId);
+      if (!origin || !destination) return null;
+      return {
+        originAirportId: r.originAirportId,
+        originLabel: airportLabel(origin),
+        destinationAirportId: r.destinationAirportId,
+        destinationLabel: airportLabel(destination),
+        airline: r.airline,
+        flightClass: r.flightClass,
+        priceMinor: r.priceMinor,
+        currency: r.currency,
+      };
+    })
+    .filter((o): o is NonNullable<typeof o> => o !== null);
+  const existingFlightSelections = selected
+    .filter((a) => a.code === 'FLIGHT_TICKET' && a.originAirportCode && a.destinationAirportCode && a.airline && a.flightClass)
+    .map((a) => {
+      const origin = airports.find((ap) => ap.iataCode === a.originAirportCode);
+      const destination = airports.find((ap) => ap.iataCode === a.destinationAirportCode);
+      return {
+        originAirportId: origin?.id ?? '',
+        originLabel: origin ? airportLabel(origin) : (a.originAirportCode as string),
+        destinationAirportId: destination?.id ?? '',
+        destinationLabel: destination ? airportLabel(destination) : (a.destinationAirportCode as string),
+        airline: a.airline as string,
+        flightClass: a.flightClass as NonNullable<typeof a.flightClass>,
+        priceMinor: a.priceMinor,
+        currency: a.currency,
+      };
+    });
+
+  const esimPlans = esimAddon
+    ? (await financeService.listPublicEsimPlans(country)).filter((p) => !booking.currency || p.currency === booking.currency)
+    : [];
+  const existingEsimSelections = selected
+    .filter((a) => a.code === 'ESIM' && a.dataAllowanceGb != null)
+    .map((a) => ({ dataAllowanceGb: a.dataAllowanceGb as number, priceMinor: a.priceMinor, currency: a.currency }));
 
   return (
     <div className="max-w-md">
@@ -128,6 +193,10 @@ export default async function AddonsPage({ params, searchParams }: Props) {
               ))}
             </RevealGroup>
           )}
+          {flightAddon && (
+            <FlightTicketPicker addonServiceId={flightAddon.id} options={flightOptions} initialSelections={existingFlightSelections} />
+          )}
+          {esimAddon && <EsimPlanPicker addonServiceId={esimAddon.id} plans={esimPlans} initialSelections={existingEsimSelections} />}
           <SubmitButton>{booking.addonsFinalizedAt ? t('saveChanges') : t('continueLabel')}</SubmitButton>
         </form>
       </Reveal>

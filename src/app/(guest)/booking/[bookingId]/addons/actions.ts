@@ -30,7 +30,23 @@ export async function finalizeAddonsAction(bookingId: string, formData: FormData
   const ctx = await requireGuestContext();
   const traceId = newTraceId();
   try {
-    const input = SetAddonsInput.parse({ addonServiceIds: formData.getAll('addonServiceId').map(String) });
+    // DR-222: SetAddonsInput's shape changed from a flat addonServiceIds
+    // array to a per-selection { addons: [...] } array (to carry the new
+    // FLIGHT_TICKET/ESIM variant fields). Plain checkboxes (the 4 existing
+    // flat-priced codes) still map to a bare { addonServiceId }; the new
+    // FlightTicketPicker/EsimPlanPicker each render one hidden, JSON-encoded
+    // `flightSelection`/`esimSelection` field per accepted variant pick
+    // (there's no other way for a plain FormData field to carry a
+    // multi-field structured selection) -- decoded here and merged into one
+    // flat addons array before validating against the real schema, so a
+    // malformed/tampered JSON value fails the same way any other bad input
+    // does (caught below, never propagated unhandled).
+    const plainSelections = formData.getAll('addonServiceId').map((id) => ({ addonServiceId: String(id) }));
+    const flightSelections = formData.getAll('flightSelection').map((v) => JSON.parse(String(v)));
+    const esimSelections = formData.getAll('esimSelection').map((v) => JSON.parse(String(v)));
+    const input = SetAddonsInput.parse({
+      addons: [...plainSelections, ...flightSelections, ...esimSelections],
+    });
     await bookingService.setAddons(ctx, bookingId, input);
     return { ok: true };
   } catch (err) {

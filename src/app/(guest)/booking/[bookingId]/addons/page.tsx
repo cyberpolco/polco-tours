@@ -1,8 +1,10 @@
 import { getTranslations } from 'next-intl/server';
+import type { AirportView } from '@modules/finance';
 import { requireGuestContext } from '@lib/guest-guard';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { bookingService } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
+import { financeService } from '@modules/finance';
 import { immigrationService } from '@modules/immigration';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
@@ -13,6 +15,17 @@ import { AddonsForm } from './addons-form';
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+}
+
+// DR-222: FLIGHT_TICKET/ESIM are priced by a guest-picked variant
+// combination (route+airline+class / data-plan tier) instead of a flat
+// per-country AddonRate -- getEffectiveAddonRate always returns null for
+// them, so they're pulled out of the flat-priced list entirely rather than
+// silently vanishing behind that lookup.
+const VARIANT_CODES = new Set(['FLIGHT_TICKET', 'ESIM']);
+
+function airportLabel(a: Pick<AirportView, 'city' | 'iataCode'>): string {
+  return `${a.city} (${a.iataCode})`;
 }
 
 // Add-ons is now the FIRST setup step (right after the booking/hold itself
@@ -60,6 +73,9 @@ export default async function AddonsPage({ params }: Props) {
   const allAddons = packageId
     ? await catalogService.listAddonServicesForPackage(ctx, packageId)
     : await catalogService.listActiveAddonServices(ctx);
+  const flatAddons = allAddons.filter((a) => !VARIANT_CODES.has(a.code));
+  const flightAddon = allAddons.find((a) => a.code === 'FLIGHT_TICKET') ?? null;
+  const esimAddon = allAddons.find((a) => a.code === 'ESIM') ?? null;
   // DR-128: each add-on's real, chargeable price comes from AddonRate
   // (country + code, resolved by src/lib/addon-rates.ts) -- AddonService's
   // own flat priceMinor/currency is no longer used for pricing. An add-on
@@ -67,7 +83,7 @@ export default async function AddonsPage({ params }: Props) {
   // offered here, same "hide, never fall back to a hand-typed price"
   // posture as every other Operational Rate.
   const withResolvedRates = await Promise.all(
-    allAddons.map(async (a) => {
+    flatAddons.map(async (a) => {
       const rate = await getEffectiveAddonRate(country, a.code);
       return rate ? { ...a, priceMinor: rate.priceMinor, currency: rate.currency } : null;
     }),
@@ -89,6 +105,64 @@ export default async function AddonsPage({ params }: Props) {
   // disclaimer next to that specific add-on anyway.
   const governmentFee = await immigrationService.getPublicFee(country);
 
+  // DR-222: FLIGHT_TICKET's picker is built from every currently-effective
+  // FlightFareRate row, joined against the (small, staff-curated) Airport
+  // list for a human-readable label -- listPublicFlightFareOptions carries
+  // only originAirportId/destinationAirportId, no joined airport fields, so
+  // the join happens here rather than assuming a shape financeService
+  // doesn't actually return.
+  const [airports, flightFareOptions] = flightAddon
+    ? await Promise.all([financeService.listPublicAirports(), financeService.listPublicFlightFareOptions()])
+    : [[] as AirportView[], []];
+  const airportById = new Map(airports.map((a) => [a.id, a]));
+  const flightOptions = flightFareOptions
+    .filter((r) => r.currency === booking.currency)
+    .map((r) => {
+      const origin = airportById.get(r.originAirportId);
+      const destination = airportById.get(r.destinationAirportId);
+      if (!origin || !destination) return null;
+      return {
+        originAirportId: r.originAirportId,
+        originLabel: airportLabel(origin),
+        destinationAirportId: r.destinationAirportId,
+        destinationLabel: airportLabel(destination),
+        airline: r.airline,
+        flightClass: r.flightClass,
+        priceMinor: r.priceMinor,
+        currency: r.currency,
+      };
+    })
+    .filter((o): o is NonNullable<typeof o> => o !== null);
+  // Pre-fill an already-saved flight selection (revisiting after finalize)
+  // -- BookingAddonView only snapshots the airport's IATA code, so this
+  // resolves it back to a real airport id via the same list above (needed
+  // since setAddons/AddonSelectionInput takes ids, not codes).
+  const existingFlightSelections = selected
+    .filter((a) => a.code === 'FLIGHT_TICKET' && a.originAirportCode && a.destinationAirportCode && a.airline && a.flightClass)
+    .map((a) => {
+      const origin = airports.find((ap) => ap.iataCode === a.originAirportCode);
+      const destination = airports.find((ap) => ap.iataCode === a.destinationAirportCode);
+      return {
+        originAirportId: origin?.id ?? '',
+        originLabel: origin ? airportLabel(origin) : (a.originAirportCode as string),
+        destinationAirportId: destination?.id ?? '',
+        destinationLabel: destination ? airportLabel(destination) : (a.destinationAirportCode as string),
+        airline: a.airline as string,
+        flightClass: a.flightClass as NonNullable<typeof a.flightClass>,
+        priceMinor: a.priceMinor,
+        currency: a.currency,
+      };
+    });
+
+  // DR-222: the ESIM picker is a flat list of currently-effective
+  // data-plan tiers for this booking's own country -- no cascading needed.
+  const esimPlans = esimAddon
+    ? (await financeService.listPublicEsimPlans(country)).filter((p) => p.currency === booking.currency)
+    : [];
+  const existingEsimSelections = selected
+    .filter((a) => a.code === 'ESIM' && a.dataAllowanceGb != null)
+    .map((a) => ({ dataAllowanceGb: a.dataAllowanceGb as number, priceMinor: a.priceMinor, currency: a.currency }));
+
   return (
     <Reveal>
       <div className="max-w-md">
@@ -106,6 +180,12 @@ export default async function AddonsPage({ params }: Props) {
           emptyMessage={countryPricedAddons.length === 0 ? t('noAddonsConfigured') : t('noAddonsInCurrency', { currency: booking.currency })}
           governmentFeeMinor={governmentFee.governmentFeeMinor}
           governmentFeeCurrency={governmentFee.feeCurrency}
+          flightAddonId={flightAddon?.id ?? null}
+          flightOptions={flightOptions}
+          existingFlightSelections={existingFlightSelections}
+          esimAddonId={esimAddon?.id ?? null}
+          esimPlans={esimPlans}
+          existingEsimSelections={existingEsimSelections}
         />
       </div>
     </Reveal>

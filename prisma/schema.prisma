@@ -131,6 +131,15 @@ enum AddonCode {
   VIDEOGRAPHY
   TRANSLATOR
   VISA_ASSISTANCE
+  ESIM
+  FLIGHT_TICKET
+}
+
+// DR-222: flight-ticket add-on class of service.
+enum FlightClass {
+  ECONOMY
+  BUSINESS
+  FIRST
 }
 
 // Powers the public "tailor your trip" quiz's interest-matching (DR-016).
@@ -1652,14 +1661,27 @@ model PackageAddonService {
 // A selected add-on on a Booking. priceMinor/currency are snapshotted at
 // selection time (same pattern as Booking.priceMinor) so a later catalog
 // price change never mutates an already-selected add-on.
+// DR-222: flightClass/airline/originAirportCode/destinationAirportCode
+// (FLIGHT_TICKET) and dataAllowanceGb (ESIM) are the guest's variant
+// selection, snapshotted as plain denormalized values rather than an FK
+// into Airport/FlightFareRate -- same "snapshot the resolved fact, don't
+// just FK it" convention as Invoice.lateBookingSurchargeRateBp, so a later
+// Airport edit/deactivation never mutates an already-selected add-on. All
+// five are nullable and only ever populated together, per addon code --
+// null for every other AddonCode.
 model BookingAddon {
-  id             String   @id @default(uuid()) @db.Uuid
-  organizationId String   @db.Uuid
-  bookingId      String   @db.Uuid
-  addonServiceId String   @db.Uuid
-  priceMinor     Int
-  currency       Currency
-  createdAt      DateTime @default(now())
+  id                      String       @id @default(uuid()) @db.Uuid
+  organizationId          String       @db.Uuid
+  bookingId               String       @db.Uuid
+  addonServiceId          String       @db.Uuid
+  priceMinor              Int
+  currency                Currency
+  flightClass             FlightClass?
+  airline                 String?
+  originAirportCode       String?
+  destinationAirportCode  String?
+  dataAllowanceGb         Int?
+  createdAt               DateTime     @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   booking      Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -2108,6 +2130,77 @@ model AddonRate {
 
   @@index([country, code, validFrom])
   @@map("addon_rates")
+}
+
+// DR-222: a small staff-curated reference list of airports used to key
+// FlightFareRate routes -- not an exhaustive world database, the same
+// curation philosophy as itinerary's Hotel/Restaurant/Site reference
+// entities, but platform-wide (no organizationId) like every other
+// Operational Rate table, since flight fares aren't org-specific either.
+model Airport {
+  id        String   @id @default(uuid()) @db.Uuid
+  iataCode  String   @unique @db.Char(3)
+  name      String
+  city      String
+  country   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fareRatesAsOrigin      FlightFareRate[] @relation("FlightFareOrigin")
+  fareRatesAsDestination FlightFareRate[] @relation("FlightFareDestination")
+
+  @@map("airports")
+}
+
+// DR-222: the FLIGHT_TICKET add-on's price varies by route (origin/
+// destination airport) x airline x class -- a genuinely multi-dimensional
+// rate, so unlike AddonRate (a small fixed enum, "no id") this needs a real
+// FK-able identity per row, the same "list of distinct instances" shape as
+// HotelRate/ActivityFee. airline is free text (staff-entered per rate row,
+// not a separate Airline reference table) -- the guest-facing airline
+// choice is simply whatever distinct airline strings exist among active
+// rates for the route picked. Effective-dated like every other Operational
+// Rate; resolved by src/lib/flight-fare-rate.ts with no AuthContext gate,
+// same guest-checkout-must-read-it-too precedent as AddonRate.
+model FlightFareRate {
+  id                   String      @id @default(uuid()) @db.Uuid
+  originAirportId      String      @db.Uuid
+  destinationAirportId String      @db.Uuid
+  airline              String
+  flightClass          FlightClass
+  priceMinor           Int
+  currency             Currency
+  validFrom            DateTime    @default(now())
+  validTo              DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  originAirport      Airport @relation("FlightFareOrigin", fields: [originAirportId], references: [id])
+  destinationAirport Airport @relation("FlightFareDestination", fields: [destinationAirportId], references: [id])
+
+  @@index([originAirportId, destinationAirportId, airline, flightClass, validFrom])
+  @@map("flight_fare_rates")
+}
+
+// DR-222: the ESIM add-on's price varies by data-plan tier (e.g. 5/10/20GB),
+// not just by country -- otherwise the same auto-resolved, no-id,
+// effective-dated shape as AddonRate, just with dataAllowanceGb as a second
+// key alongside country. Resolved by src/lib/esim-rate.ts, same
+// no-AuthContext-gate precedent as AddonRate/FlightFareRate.
+model EsimDataPlanRate {
+  id              String    @id @default(uuid()) @db.Uuid
+  country         String
+  dataAllowanceGb Int
+  priceMinor      Int
+  currency        Currency
+  validFrom       DateTime  @default(now())
+  validTo         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([country, dataAllowanceGb, validFrom])
+  @@map("esim_data_plan_rates")
 }
 
 // One per TourPackage. referenceGroupSize is the divisor for the per-seat

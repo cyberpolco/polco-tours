@@ -279,7 +279,7 @@ describe('POST/GET /api/v1/bookings/:bookingId/travelers/:travelerId/passport', 
   it('selecting Visa Assistance makes passport uploads required (200)', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, {
-      addonServiceIds: [visaAddonServiceId],
+      addons: [{ addonServiceId: visaAddonServiceId }],
     });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
@@ -330,7 +330,7 @@ describe('POST /api/v1/bookings/:bookingId/addons', () => {
   it('finalizes an add-on selection and gates/unblocks the invoice (200 then 200)', async () => {
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, {
-      addonServiceIds: [addonServiceId],
+      addons: [{ addonServiceId }],
     });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(200);
@@ -378,7 +378,7 @@ describe('POST /api/v1/bookings/:bookingId/addons', () => {
     );
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, {
-      addonServiceIds: [eurAddon.id],
+      addons: [{ addonServiceId: eurAddon.id }],
     });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(409);
@@ -402,7 +402,7 @@ describe('POST /api/v1/bookings/:bookingId/addons (pre-quotation, DR-092)', () =
     );
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${preQuoteBooking.id}/addons`, headers, {
-      addonServiceIds: [addonServiceId],
+      addons: [{ addonServiceId }],
     });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId: preQuoteBooking.id }) });
     expect(res.status).toBe(200);
@@ -440,10 +440,156 @@ describe('POST /api/v1/bookings/:bookingId/addons (pre-quotation, DR-092)', () =
     ]);
     const headers = await loginAs(touristAId);
     const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${preQuoteBooking.id}/addons`, headers, {
-      addonServiceIds: [addonServiceId, eurAddon.id],
+      addons: [{ addonServiceId }, { addonServiceId: eurAddon.id }],
     });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId: preQuoteBooking.id }) });
     expect(res.status).toBe(409);
+  });
+});
+
+// DR-222: FLIGHT_TICKET's price varies by route+airline+class -- a real
+// FK-able Airport identity, not just a small fixed enum like AddonRate's
+// `code`, so this fixture needs two real Airport rows + a matching
+// FlightFareRate. Airport/FlightFareRate/EsimDataPlanRate are all
+// platform-wide reference data (no organizationId, no RLS) -- a plain
+// `admin.<model>.create` is correct here, same as `admin.addonRate.createMany`
+// above, unlike the org-scoped AddonService/Booking rows this block also needs.
+function randomIataCode(): string {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return Array.from({ length: 3 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+}
+
+describe('POST /api/v1/bookings/:bookingId/addons (FLIGHT_TICKET/ESIM, DR-222)', () => {
+  let flightEsimBookingId: string;
+  let flightAddonServiceId: string;
+  let esimAddonServiceId: string;
+  let originAirportId: string;
+  let destinationAirportId: string;
+  const originIata = randomIataCode();
+  const destinationIata = randomIataCode();
+
+  beforeAll(async () => {
+    const [flightEsimBooking, flightAddon, esimAddon, origin, destination] = await Promise.all([
+      withOrg(orgId, (tx) =>
+        tx.booking.create({
+          data: {
+            organizationId: orgId,
+            touristUserId: touristAId,
+            bookingReference: generateBookingReference(),
+            seats: 1,
+            customCountry: country,
+            currency: 'USD',
+            priceMinor: 20000,
+            status: 'AWAITING_DEPOSIT',
+          },
+        }),
+      ),
+      withOrg(orgId, (tx) =>
+        tx.addonService.create({
+          data: { organizationId: orgId, code: 'FLIGHT_TICKET', name: 'Flight Ticket', description: 'Fixture add-on.', priceMinor: 0, currency: 'USD' },
+        }),
+      ),
+      withOrg(orgId, (tx) =>
+        tx.addonService.create({
+          data: { organizationId: orgId, code: 'ESIM', name: 'eSIM', description: 'Fixture add-on.', priceMinor: 0, currency: 'USD' },
+        }),
+      ),
+      admin.airport.create({ data: { iataCode: originIata, name: 'Origin Fixture Airport', city: 'Origin City', country } }),
+      admin.airport.create({ data: { iataCode: destinationIata, name: 'Destination Fixture Airport', city: 'Destination City', country } }),
+    ]);
+    flightEsimBookingId = flightEsimBooking.id;
+    flightAddonServiceId = flightAddon.id;
+    esimAddonServiceId = esimAddon.id;
+    originAirportId = origin.id;
+    destinationAirportId = destination.id;
+
+    await Promise.all([
+      admin.flightFareRate.create({
+        data: { originAirportId, destinationAirportId, airline: 'Fixture Air', flightClass: 'ECONOMY', priceMinor: 45000, currency: 'USD' },
+      }),
+      admin.esimDataPlanRate.create({ data: { country, dataAllowanceGb: 5, priceMinor: 1200, currency: 'USD' } }),
+    ]);
+  });
+
+  afterAll(async () => {
+    await admin.flightFareRate.deleteMany({ where: { originAirportId, destinationAirportId } });
+    await admin.esimDataPlanRate.deleteMany({ where: { country, dataAllowanceGb: 5 } });
+    await admin.airport.deleteMany({ where: { id: { in: [originAirportId, destinationAirportId] } } });
+  });
+
+  it('resolves a FLIGHT_TICKET selection with a real matching rate (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      addons: [{ addonServiceId: flightAddonServiceId, originAirportId, destinationAirportId, airline: 'Fixture Air', flightClass: 'ECONOMY' }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.addons).toHaveLength(1);
+    const flight = body.addons[0];
+    expect(flight.flightClass).toBe('ECONOMY');
+    expect(flight.airline).toBe('Fixture Air');
+    expect(flight.originAirportCode).toBe(originIata);
+    expect(flight.destinationAirportCode).toBe(destinationIata);
+    expect(flight.priceMinor).toBe(45000);
+    expect(flight.currency).toBe('USD');
+  });
+
+  it('rejects a FLIGHT_TICKET selection missing one of the 4 required fields (422)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      // flightClass omitted.
+      addons: [{ addonServiceId: flightAddonServiceId, originAirportId, destinationAirportId, airline: 'Fixture Air' }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(422);
+  });
+
+  it('rejects a FLIGHT_TICKET selection with no matching rate for the route+airline+class (409)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      // Only an ECONOMY rate was seeded -- BUSINESS has no configured rate.
+      addons: [{ addonServiceId: flightAddonServiceId, originAirportId, destinationAirportId, airline: 'Fixture Air', flightClass: 'BUSINESS' }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects an ESIM selection missing dataAllowanceGb (422)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      addons: [{ addonServiceId: esimAddonServiceId }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(422);
+  });
+
+  it('resolves an ESIM selection with a real matching rate (200)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      addons: [{ addonServiceId: esimAddonServiceId, dataAllowanceGb: 5 }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.addons).toHaveLength(1);
+    expect(body.addons[0].dataAllowanceGb).toBe(5);
+    expect(body.addons[0].priceMinor).toBe(1200);
+    expect(body.addons[0].currency).toBe('USD');
+  });
+
+  it('rejects a non-flight/esim addon selection carrying a flight/esim-only field (422)', async () => {
+    const headers = await loginAs(touristAId);
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${flightEsimBookingId}/addons`, headers, {
+      // `addonServiceId` here is the PHOTOGRAPHY fixture from the outer
+      // beforeAll (its AddonRate is already seeded for `country`) --
+      // carrying dataAllowanceGb on a non-ESIM/FLIGHT_TICKET selection must
+      // be rejected regardless of whether the addon itself would otherwise
+      // resolve fine.
+      addons: [{ addonServiceId, dataAllowanceGb: 5 }],
+    });
+    const res = await setAddons(req, { params: Promise.resolve({ bookingId: flightEsimBookingId }) });
+    expect(res.status).toBe(422);
   });
 });
 
@@ -553,7 +699,7 @@ describe('DR-105: hard-blocked edits on a terminal-status booking', () => {
     expect(travelerRes.status).toBe(409);
 
     const addonsReq = jsonRequest('POST', `http://localhost/api/v1/bookings/${lockedBooking.id}/addons`, headers, {
-      addonServiceIds: [addonServiceId],
+      addons: [{ addonServiceId }],
     });
     const addonsRes = await setAddons(addonsReq, { params: Promise.resolve({ bookingId: lockedBooking.id }) });
     expect(addonsRes.status).toBe(409);

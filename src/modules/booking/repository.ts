@@ -7,6 +7,7 @@ import {
   type BookingStatus,
   type CancellationRefundTier,
   type Currency,
+  type FlightClass,
   type PackageTag,
   type Traveler,
 } from '@prisma/client';
@@ -140,14 +141,23 @@ function toTravelerView(t: Traveler): TravelerView {
   };
 }
 
-function toBookingAddonView(a: BookingAddon): BookingAddonView {
+type BookingAddonWithService = BookingAddon & { addonService: { code: AddonCode; name: string } };
+
+function toBookingAddonView(a: BookingAddonWithService): BookingAddonView {
   return {
     id: a.id,
     organizationId: a.organizationId,
     bookingId: a.bookingId,
     addonServiceId: a.addonServiceId,
+    code: a.addonService.code,
+    name: a.addonService.name,
     priceMinor: a.priceMinor,
     currency: a.currency,
+    flightClass: a.flightClass,
+    airline: a.airline,
+    originAirportCode: a.originAirportCode,
+    destinationAirportCode: a.destinationAirportCode,
+    dataAllowanceGb: a.dataAllowanceGb,
     createdAt: a.createdAt,
   };
 }
@@ -723,16 +733,41 @@ export const bookingRepository = {
 
   async listAddonsForBooking(organizationId: string, bookingId: string): Promise<BookingAddonView[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx.bookingAddon.findMany({ where: { bookingId } });
+      const rows = await tx.bookingAddon.findMany({
+        where: { bookingId },
+        include: { addonService: { select: { code: true, name: true } } },
+      });
       return rows.map(toBookingAddonView);
     });
   },
 
-  /** Replace-all semantics -- this wizard step is meant to be finalized once. */
+  /** DR-222: staff-curated Airport reference lookup used by
+   * bookingService.setAddons to validate/snapshot a FLIGHT_TICKET
+   * selection's route -- returns null for a missing or deactivated
+   * airport, same "hide/reject, never fall back" precedent as the rate
+   * resolvers in src/lib/. */
+  async getActiveAirport(id: string): Promise<{ id: string; iataCode: string } | null> {
+    const airport = await prisma.airport.findUnique({ where: { id }, select: { id: true, iataCode: true, active: true } });
+    return airport && airport.active ? { id: airport.id, iataCode: airport.iataCode } : null;
+  },
+
+  /** Replace-all semantics -- this wizard step is meant to be finalized once.
+   * DR-222: flightClass/airline/originAirportCode/destinationAirportCode
+   * (FLIGHT_TICKET) and dataAllowanceGb (ESIM) are the resolved selection's
+   * snapshot -- undefined/omitted for every other AddonCode. */
   async replaceAddons(
     organizationId: string,
     bookingId: string,
-    items: Array<{ addonServiceId: string; priceMinor: number; currency: Currency }>,
+    items: Array<{
+      addonServiceId: string;
+      priceMinor: number;
+      currency: Currency;
+      flightClass?: FlightClass;
+      airline?: string;
+      originAirportCode?: string;
+      destinationAirportCode?: string;
+      dataAllowanceGb?: number;
+    }>,
     requiresPassportUpload: boolean,
   ): Promise<void> {
     await withOrg(organizationId, async (tx) => {

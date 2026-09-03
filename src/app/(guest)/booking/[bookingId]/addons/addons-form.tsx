@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import type { AddonCode } from '@prisma/client';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
+import { EsimPlanPicker, type EsimPlanOption, type EsimSelection } from '@/components/ui/EsimPlanPicker';
+import { FlightTicketPicker, type FlightFareOption, type FlightSelection } from '@/components/ui/FlightTicketPicker';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { format, formatOrPending, money, type Currency } from '@lib/money';
 import { finalizeAddonsAction } from './actions';
@@ -29,6 +31,15 @@ interface Props {
   // guest-facing assistance service fee; this is what the country charges).
   governmentFeeMinor: number | null;
   governmentFeeCurrency: Currency | null;
+  // DR-222: null when this package/org doesn't offer the FLIGHT_TICKET/ESIM
+  // add-on at all -- no picker renders in that case, same "hide, don't
+  // fall back" posture as the flat-priced list above.
+  flightAddonId: string | null;
+  flightOptions: FlightFareOption[];
+  existingFlightSelections: FlightSelection[];
+  esimAddonId: string | null;
+  esimPlans: EsimPlanOption[];
+  existingEsimSelections: EsimSelection[];
 }
 
 // Client-driven submit (mirrors book/[departureId]/booking-form.tsx's own
@@ -45,6 +56,12 @@ export function AddonsForm({
   emptyMessage,
   governmentFeeMinor,
   governmentFeeCurrency,
+  flightAddonId,
+  flightOptions,
+  existingFlightSelections,
+  esimAddonId,
+  esimPlans,
+  existingEsimSelections,
 }: Props) {
   const router = useRouter();
   const t = useTranslations('AddonsPage');
@@ -103,6 +120,10 @@ export function AddonsForm({
           </div>
         ))
       )}
+      {flightAddonId && (
+        <FlightTicketPicker addonServiceId={flightAddonId} options={flightOptions} initialSelections={existingFlightSelections} />
+      )}
+      {esimAddonId && <EsimPlanPicker addonServiceId={esimAddonId} plans={esimPlans} initialSelections={existingEsimSelections} />}
       <Button type="submit" disabled={pending}>
         {pending ? tCommon('saving') : alreadyFinalized ? t('saveChanges') : t('continueLabel')}
       </Button>

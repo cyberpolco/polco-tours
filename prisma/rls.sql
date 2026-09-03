@@ -94,6 +94,10 @@ CREATE POLICY tenant_isolation ON payments
 -- tax_rates/platform_rates: platform-wide reference data, no
 -- organizationId column.
 
+-- No policy for airports/flight_fare_rates/esim_data_plan_rates either
+-- (DR-222), same reasoning as tax_rates/platform_rates/addon_rates:
+-- platform-wide Operational Rate reference data, no organizationId column.
+
 -- No policy for site_content/faq_entries (Prisma models CmsTextBlock/
 -- CmsFaqEntry, renamed from SiteContent/FaqEntry in DR-162 -- table names
 -- unchanged) or cms_media_items (new in DR-162) either, same reasoning

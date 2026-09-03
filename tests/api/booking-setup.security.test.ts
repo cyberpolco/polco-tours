@@ -184,7 +184,7 @@ describe('anti-BOLA: booking-setup ownership', () => {
 
   it("tourist B cannot finalize add-ons on tourist A's booking (404)", async () => {
     const headers = await loginAs(touristBId);
-    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, { addonServiceIds: [] });
+    const req = jsonRequest('POST', `http://localhost/api/v1/bookings/${bookingId}/addons`, headers, { addons: [] });
     const res = await setAddons(req, { params: Promise.resolve({ bookingId }) });
     expect(res.status).toBe(404);
   });

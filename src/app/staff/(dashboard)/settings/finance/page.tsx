@@ -55,6 +55,20 @@ export default async function FinanceHubPage() {
       title: t('operationalRatesTitle'),
       description: t('operationalRatesDesc'),
     },
+    // DR-222: Airport/FlightFareRate and EsimDataPlanRate are their own
+    // finance_config-gated pages, not extra sections on the existing
+    // Operational Rates page -- same "card hub linking to independent
+    // pages" shape as every other entry here.
+    canReadFinanceConfig && {
+      href: '/staff/finance/rates/flights',
+      title: t('flightFaresTitle'),
+      description: t('flightFaresDesc'),
+    },
+    canReadFinanceConfig && {
+      href: '/staff/finance/rates/esim',
+      title: t('esimPlansTitle'),
+      description: t('esimPlansDesc'),
+    },
   ].filter((c): c is { href: string; title: string; description: string } => Boolean(c));
 
   return (

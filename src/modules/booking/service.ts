@@ -1,12 +1,14 @@
 // booking module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { BookingStatus, CancellationRefundTier, Locale, PaymentKind } from '@prisma/client';
+import type { AddonCode, BookingStatus, CancellationRefundTier, Currency, FlightClass, Locale, PaymentKind } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { catalogService } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { getEffectiveEsimRate } from '@lib/esim-rate';
+import { getEffectiveFlightFareRate } from '@lib/flight-fare-rate';
 import { computeLateBookingSurchargeBp, getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import { add, money, scale, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
@@ -847,7 +849,16 @@ export const bookingService = {
    * flat priceMinor/currency -- an add-on with no rate configured for this
    * booking's country can't be selected at all (the picker pages already
    * hide it; reaching here anyway is a stale/tampered request, not a
-   * routine path). */
+   * routine path).
+   * DR-222: FLIGHT_TICKET/ESIM are priced by a variant selection instead of
+   * a flat (country, code) rate -- FLIGHT_TICKET via src/lib/flight-fare-
+   * rate.ts (route + airline + class) and ESIM via src/lib/esim-rate.ts
+   * (country + data-plan tier). Every other AddonCode keeps the original
+   * flat-rate path unchanged, and now explicitly rejects a selection that
+   * smuggles in flight/e-SIM-only fields (a stale/tampered request, same
+   * reasoning as the missing-rate case above). One flight-ticket and one
+   * e-SIM selection per booking, not per traveler -- matches BookingAddon's
+   * existing one-row-per-addon-code-per-booking shape. */
   async setAddons(ctx: AuthContext, bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);
@@ -862,22 +873,89 @@ export const bookingService = {
     // triple this step's latency for no reason).
     const [country, addons] = await Promise.all([
       resolveBookingCountry(ctx, booking),
-      Promise.all(input.addonServiceIds.map((id) => catalogService.getAddonService(ctx, id))),
+      Promise.all(input.addons.map((sel) => catalogService.getAddonService(ctx, sel.addonServiceId))),
     ]);
-    const addonsWithRates = await Promise.all(
-      addons.map(async (addon) => ({ addon, rate: await getEffectiveAddonRate(country, addon.code) })),
+
+    interface ResolvedAddonItem {
+      addonServiceId: string;
+      priceMinor: number;
+      currency: Currency;
+      flightClass?: FlightClass;
+      airline?: string;
+      originAirportCode?: string;
+      destinationAirportCode?: string;
+      dataAllowanceGb?: number;
+    }
+
+    const resolved = await Promise.all(
+      input.addons.map(async (selection, i): Promise<{ code: AddonCode; item: ResolvedAddonItem }> => {
+        const addon = addons[i];
+        if (!addon) throw Errors.notFound('Add-on service not found');
+
+        if (addon.code === 'FLIGHT_TICKET') {
+          const { originAirportId, destinationAirportId, airline, flightClass } = selection;
+          if (!originAirportId || !destinationAirportId || !airline || !flightClass) {
+            throw Errors.validation('Flight ticket add-on requires an origin airport, destination airport, airline, and class');
+          }
+          const [origin, destination, rate] = await Promise.all([
+            bookingRepository.getActiveAirport(originAirportId),
+            bookingRepository.getActiveAirport(destinationAirportId),
+            getEffectiveFlightFareRate(originAirportId, destinationAirportId, airline, flightClass),
+          ]);
+          if (!origin) throw Errors.notFound('Origin airport not found');
+          if (!destination) throw Errors.notFound('Destination airport not found');
+          if (!rate) throw Errors.conflict('No flight fare configured for this route, airline, and class');
+          if (booking.currency && rate.currency !== booking.currency) {
+            throw Errors.conflict('Add-on currency does not match the booking currency');
+          }
+          return {
+            code: addon.code,
+            item: {
+              addonServiceId: addon.id,
+              priceMinor: rate.priceMinor,
+              currency: rate.currency,
+              flightClass,
+              airline,
+              originAirportCode: origin.iataCode,
+              destinationAirportCode: destination.iataCode,
+            },
+          };
+        }
+
+        if (addon.code === 'ESIM') {
+          const { dataAllowanceGb } = selection;
+          if (!dataAllowanceGb) throw Errors.validation('e-SIM add-on requires a data plan size');
+          const rate = await getEffectiveEsimRate(country, dataAllowanceGb);
+          if (!rate) throw Errors.conflict(`No e-SIM rate configured for ${dataAllowanceGb}GB in ${country}`);
+          if (booking.currency && rate.currency !== booking.currency) {
+            throw Errors.conflict('Add-on currency does not match the booking currency');
+          }
+          return {
+            code: addon.code,
+            item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency, dataAllowanceGb },
+          };
+        }
+
+        if (
+          selection.flightClass ||
+          selection.airline ||
+          selection.originAirportId ||
+          selection.destinationAirportId ||
+          selection.dataAllowanceGb
+        ) {
+          throw Errors.validation(`${addon.code} does not accept a flight ticket or e-SIM selection`);
+        }
+        const rate = await getEffectiveAddonRate(country, addon.code);
+        if (!rate) throw Errors.conflict(`No rate configured for ${addon.code} in ${country}`);
+        if (booking.currency && rate.currency !== booking.currency) {
+          throw Errors.conflict('Add-on currency does not match the booking currency');
+        }
+        return { code: addon.code, item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency } };
+      }),
     );
 
-    const items = [];
-    let requiresPassportUpload = false;
-    for (const { addon, rate } of addonsWithRates) {
-      if (!rate) throw Errors.conflict(`No rate configured for ${addon.code} in ${country}`);
-      if (booking.currency && rate.currency !== booking.currency) {
-        throw Errors.conflict('Add-on currency does not match the booking currency');
-      }
-      if (addon.code === 'VISA_ASSISTANCE') requiresPassportUpload = true;
-      items.push({ addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency });
-    }
+    const items = resolved.map((r) => r.item);
+    const requiresPassportUpload = resolved.some((r) => r.code === 'VISA_ASSISTANCE');
     // Pre-quotation (booking.currency not set yet -- a TAILOR_MADE request
     // before staff have priced it), there's no fixed currency to check
     // against yet; the selection just needs to be internally consistent.
