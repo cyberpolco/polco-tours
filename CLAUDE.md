@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-231** (2026-09-03). This file used to carry a running
+Current through **DR-232** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -316,6 +316,18 @@ src/
                    #   same function, at DR-224/226's 10-attempt/~7s budget
                    #   (two real failures ~24s apart the same day argue
                    #   against a smaller one).
+                   #   DR-232: DR-230's alias-to-false fix made the build
+                   #   succeed but not the runtime — trusted-user-create.ts
+                   #   constructed `new AsyncLocalStorage()` at module top
+                   #   level, which crashed every real page load in the
+                   #   browser (AsyncLocalStorage is undefined in that
+                   #   bundle) with nothing server-side to log, since
+                   #   nothing on the client ever actually calls
+                   #   withTrustedUserCreate/getTrustedUserCreateSignal —
+                   #   only importing the module (unavoidable, same barrel
+                   #   issue as DR-230). Fixed by constructing it lazily on
+                   #   first real call instead. See the sharpened Gotchas
+                   #   entry on this exact alias-to-false pattern.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a
@@ -1471,6 +1483,25 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   show up in `tsc`/`lint`/`vitest`, only in a real `next build`, and this
   sandbox's own `npm run build` isn't a reliable substitute for a real
   Vercel build (see the gotcha below).
+  **DR-232 sharpened this further: aliasing to `false` only makes the
+  BUILD succeed — it makes every named import from that module `undefined`
+  at runtime in the client bundle, so anything that USES the import
+  unconditionally at module top level (e.g. `const x = new
+  SomeImport()`) still crashes, just at page-load time in the browser
+  instead of at build time, with nothing logged server-side to point at
+  it** (`trusted-user-create.ts` built fine after DR-230's alias, then
+  crashed every real page load with `AsyncLocalStorage is not a
+  constructor` — the constructor ran eagerly at module scope, unlike
+  `sharp`, which is only ever called lazily inside a function body a
+  client component never invokes). A module meant to be safely aliased to
+  `false` client-side must defer *every* use of the aliased import into a
+  function body — never construct/call it at module scope. A Preview
+  build succeeding is not sufficient proof of safety for this reason; the
+  regression test pattern in `tests/trusted-user-create-client-bundle
+  .test.ts` (`vi.mock` the Node builtin to export `undefined`, per-export,
+  then assert the module still *imports* cleanly) is the cheap way to
+  actually prove it, worth copying for any future module using this same
+  alias-to-`false` pattern.
 - **`authService.resolveSession()` resolves whatever session cookie the
   browser carries, with no staff-vs-guest distinction** — a guest-facing page
   or Server Action that calls it directly (rather than through
