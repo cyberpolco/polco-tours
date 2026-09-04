@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-238** (2026-09-04). This file used to carry a running
+Current through **DR-239** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -543,6 +543,22 @@ src/
                    #   as notifyEmail/notifySms (DR-055/DR-056). Used by
                    #   visa's VISA_APPROVED/VISA_REJECTED (see visa/'s own
                    #   comment) -- the only two events using it so far.
+                   #   DR-239: email-template.ts's brand logo `<img>` now
+                   #   points at a real hosted URL
+                   #   (https://mufasasafaris.com/images/brand/mufasa-logo.png)
+                   #   instead of `src/lib/brand-logo.ts`'s base64 data: URI
+                   #   -- that primitive is still correct for PDFs/
+                   #   opengraph-image (Vercel's output-file-tracer can't
+                   #   discover a runtime `fs` read against `public/` from a
+                   #   serverless bundle), but email has no such constraint,
+                   #   and Resend/Gmail flag an inline data: image in HTML
+                   #   email as a deliverability risk (a real Resend
+                   #   "Needs attention" finding). The footer's "Powered by
+                   #   Cyber PolCo" credit (POWERED_BY) is now plain text,
+                   #   not a link to cyberpolco.com -- a different domain
+                   #   than the sending domain, also flagged directly;
+                   #   explicit user choice to keep the attribution text
+                   #   over dropping it or leaving the link live.
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;

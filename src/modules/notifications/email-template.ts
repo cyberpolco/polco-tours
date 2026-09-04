@@ -20,7 +20,16 @@
 // stack instead -- which is why every font-family below still lists a
 // close web-safe fallback (Arial for Archivo, Courier New for Special
 // Elite) rather than assuming the link always resolves.
-import { BRAND_LOGO_DATA_URI } from '@lib/brand-logo';
+// DR-239: a base64 data: URI was used here originally (BRAND_LOGO_DATA_URI,
+// same lib PDFs/opengraph-image use, since Vercel's output-file-tracer can't
+// reliably discover a runtime `fs` read against a public/ path from inside a
+// serverless bundle) -- fine for a PDF binary, but Resend/Gmail flag an
+// inline data: image in HTML email as a deliverability risk. Emails don't
+// have that bundling constraint (this is plain HTML delivered over SMTP, not
+// server-rendered into a binary), so a real hosted URL is both simpler and
+// safer here; other templates in this file already hardcode absolute
+// mufasasafaris.com URLs the same way (see FIND_BOOKING_URL in domain.ts).
+const BRAND_LOGO_URL = 'https://mufasasafaris.com/images/brand/mufasa-logo.png';
 
 const FONT_DISPLAY = "'Big Shoulders Stencil Display',Arial,Helvetica,sans-serif";
 // Exported: domain.ts's summaryTable() needs the same body-copy font for
@@ -69,7 +78,11 @@ const AUTOMATED_NOTICE = 'This is an automated message &mdash; please do not rep
 // footer legal line (CmsTextBlock key footer.legal, DR-204/214) -- fixed
 // here rather than a per-event param, same reasoning as SIGNATURE/
 // AUTOMATED_NOTICE above.
-const POWERED_BY = '<a href="https://www.cyberpolco.com" style="color:#8C7D78;text-decoration:underline;">www.cyberpolco.com</a>';
+// DR-239: plain text, not a link -- a hyperlink to a domain other than the
+// sending domain (mufasasafaris.com) inside an email body is a real
+// deliverability signal (Resend flagged it directly); the attribution text
+// itself stays, only the click-through is gone.
+const POWERED_BY = '<span style="color:#8C7D78;">www.cyberpolco.com</span>';
 
 export function renderBrandedEmail(opts: BrandedEmailOptions): string {
   const cta = opts.cta
@@ -103,7 +116,7 @@ export function renderBrandedEmail(opts: BrandedEmailOptions): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
             <tr>
               <td style="background-color:#3B1F3A;border-radius:8px 8px 0 0;padding:24px;" align="center">
-                <img src="${BRAND_LOGO_DATA_URI}" width="48" height="48" alt="" style="display:block;margin:0 auto 8px auto;border-radius:50%;" />
+                <img src="${BRAND_LOGO_URL}" width="48" height="48" alt="" style="display:block;margin:0 auto 8px auto;border-radius:50%;" />
                 <div style="font-family:${FONT_MONO};font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#F6EFE4;">${WORDMARK[opts.audience]}</div>
               </td>
             </tr>
