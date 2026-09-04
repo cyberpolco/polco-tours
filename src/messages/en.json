@@ -1502,11 +1502,7 @@
     "lateBookingRateDesc": "The lead-time threshold and surcharge applied when a guest books close to their travel date.",
     "addOnsSectionTitle": "Add-ons",
     "operationalRatesTitle": "Operational Rates",
-    "operationalRatesDesc": "Flat per-country rates for the photography, videography, translator, and visa assistance add-ons.",
-    "flightFaresTitle": "Flight Fares",
-    "flightFaresDesc": "Reference airports and per-route/airline/class prices behind the Flight Ticket add-on.",
-    "esimPlansTitle": "eSIM Plans",
-    "esimPlansDesc": "Per-country, per-data-allowance prices behind the eSIM add-on."
+    "operationalRatesDesc": "Rates for every guest-facing add-on (Photography, Videography, Translator, Visa Assistance, Flight Ticket, eSIM) plus every package cost-plus bucket."
   },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
@@ -1574,7 +1570,7 @@
     "adminCostsNotice": "A flat per-day administrative fee -- charged once for the whole group or per traveler, chosen per package/booking when its cost breakdown is set up.",
     "noAdminCostRates": "No admin cost rates yet.",
     "addonServices": "Add-on Services",
-    "addonServicesNotice": "Prices catalog add-ons (Photography, Videography, Translator, Visa assistance) by country -- an add-on with no rate configured for a booking's country is not offered to it.",
+    "addonServicesNotice": "Prices every guest-facing add-on. Photography, Videography, Translator, and Visa assistance are a flat price per country below -- an add-on with no rate configured for a booking's country is not offered to it. Flight Ticket (priced per route/airline/class) and eSIM (priced per country/data-allowance) are configured in their own sections further down, using the same Add-on picker.",
     "noAddonRates": "No add-on rates yet.",
     "addonService": "Add-on",
     "price": "Price"

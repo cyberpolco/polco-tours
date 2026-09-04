@@ -1502,11 +1502,7 @@
     "lateBookingRateDesc": "Le délai seuil et la majoration appliqués lorsqu'un client réserve proche de sa date de voyage.",
     "addOnsSectionTitle": "Suppléments",
     "operationalRatesTitle": "Tarifs opérationnels",
-    "operationalRatesDesc": "Tarifs forfaitaires par pays pour les suppléments photographie, vidéographie, traducteur et assistance visa.",
-    "flightFaresTitle": "Tarifs de billets d’avion",
-    "flightFaresDesc": "Aéroports de référence et prix par itinéraire/compagnie/classe pour le supplément Billet d'avion.",
-    "esimPlansTitle": "Forfaits eSIM",
-    "esimPlansDesc": "Prix par pays et par forfait de données pour le supplément eSIM."
+    "operationalRatesDesc": "Tarifs pour chaque supplément proposé aux voyageurs (photographie, vidéographie, traducteur, assistance visa, billet d'avion, eSIM) ainsi que chaque poste de coût des forfaits."
   },
   "StaffFinanceRates": {
     "eyebrow": "Finance",
@@ -1574,7 +1570,7 @@
     "adminCostsNotice": "Des frais administratifs forfaitaires par jour -- facturés une seule fois pour tout le groupe ou par voyageur, au choix lors de la configuration du calcul des coûts d'un circuit/réservation.",
     "noAdminCostRates": "Aucun frais administratif pour l'instant.",
     "addonServices": "Services complémentaires",
-    "addonServicesNotice": "Tarifie les services complémentaires du catalogue (Photographie, Vidéographie, Traducteur, Assistance visa) par pays -- un service sans tarif configuré pour le pays d'une réservation ne lui est pas proposé.",
+    "addonServicesNotice": "Tarifie chaque service complémentaire proposé aux voyageurs. Photographie, Vidéographie, Traducteur et Assistance visa ont un tarif forfaitaire par pays ci-dessous -- un service sans tarif configuré pour le pays d'une réservation ne lui est pas proposé. Billet d'avion (tarifé par itinéraire/compagnie/classe) et eSIM (tarifé par pays/forfait de données) se configurent dans leurs propres sections plus bas, via le même sélecteur de service.",
     "noAddonRates": "Aucun tarif de service complémentaire pour l'instant.",
     "addonService": "Service",
     "price": "Prix"

@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
-import { flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { requireStaffContext } from '@lib/staff-guard';
-import { financeService } from '@modules/finance';
+import { financeService, type AirportView } from '@modules/finance';
 import { itineraryService } from '@modules/itinerary';
 import { BackLink } from '@/components/ui/BackLink';
 import { Card } from '@/components/ui/Card';
@@ -13,10 +13,11 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { Table, TableHeaderRow, Td, Th, Tr } from '@/components/ui/Table';
 import { format, money } from '@lib/money';
+import { AddOnRateForm } from './add-on-rate-form';
 import {
   createActivityFeeAction,
-  createAddonRateAction,
   createAdminCostRateAction,
+  createAirportAction,
   createFoodBeverageRateAction,
   createHotelRateAction,
   createRestaurantRateAction,
@@ -25,6 +26,9 @@ import {
   deleteActivityFeeAction,
   deleteAddonRateAction,
   deleteAdminCostRateAction,
+  deleteAirportAction,
+  deleteEsimDataPlanRateAction,
+  deleteFlightFareRateAction,
   deleteFoodBeverageRateAction,
   deleteHotelRateAction,
   deleteRestaurantRateAction,
@@ -33,6 +37,9 @@ import {
   updateActivityFeeAction,
   updateAddonRateAction,
   updateAdminCostRateAction,
+  updateAirportAction,
+  updateEsimDataPlanRateAction,
+  updateFlightFareRateAction,
   updateFoodBeverageRateAction,
   updateHotelRateAction,
   updateRestaurantRateAction,
@@ -50,6 +57,32 @@ function countryOptions(tCountries: (code: string) => string) {
       ))}
     </>
   );
+}
+
+// Airport is worldwide reference data (a departure airport may sit outside
+// every one of the 5 operating countries) -- the full COUNTRY_CODES list,
+// not the narrower OPERATING_COUNTRY_CODES set every other Operational Rate's
+// country field uses. Same "large static reference dataset, deliberately
+// untranslated" exclusion CLAUDE.md's i18n section documents elsewhere.
+function worldCountryOptions() {
+  return (
+    <>
+      {COUNTRY_CODES.map((c) => (
+        <option key={c.alpha2} value={c.alpha2}>
+          {flagEmoji(c.alpha2)} {c.name}
+        </option>
+      ))}
+    </>
+  );
+}
+
+const OPERATING_COUNTRY_CODE_SET = new Set<string>(OPERATING_COUNTRY_CODES);
+function countryName(alpha2: string, tCountries: (code: string) => string): string {
+  return OPERATING_COUNTRY_CODE_SET.has(alpha2) ? tCountries(alpha2) : (COUNTRY_CODES_BY_ALPHA2[alpha2]?.name ?? alpha2);
+}
+
+function airportLabel(a: AirportView | undefined): string {
+  return a ? `${a.iataCode} — ${a.name}, ${a.city}` : '—';
 }
 
 const CURRENCY_OPTIONS = (
@@ -102,6 +135,20 @@ function EditDisclosure({ label, children }: { label: string; children: React.Re
 // but is rejected by financeService's explicit requireRateWriter check, so
 // those controls are hidden here too rather than dangling ones that would
 // 403 (same pattern as /staff/country-regulations).
+//
+// DR-243 (explicit user correction, reverses DR-240): Flight Fares
+// (Airport + FlightFareRate) and eSIM Plans (EsimDataPlanRate) are no
+// longer their own finance_config-gated pages linked from the Finance hub
+// -- they're rendered as extra cards on THIS page instead, directly below
+// the Add-on Services card, since the user considers them the same
+// "add-ons" grouping as Photography/Videography/Translator/Visa Assistance,
+// not a separate top-level destination. The old /staff/finance/rates/
+// flights and .../esim routes are removed; their Server Actions moved into
+// this page's own actions.ts (revalidating '/staff/finance/rates' instead
+// of their old standalone paths). Translation copy for these two sections
+// still reads from the StaffFlightFareRates/StaffEsimRates namespaces
+// (unchanged) rather than duplicating those strings into
+// StaffFinanceRates.
 interface Props {
   searchParams: Promise<{
     reapplied?: string;
@@ -116,25 +163,52 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('finance_config.read');
   const canWrite = ctx.roles.includes('SUPERADMIN');
   const t = await getTranslations('StaffFinanceRates');
+  const tFlights = await getTranslations('StaffFlightFareRates');
+  const tEsim = await getTranslations('StaffEsimRates');
   const tCountries = await getTranslations('Countries');
   const tAddons = await getTranslations('TripAddons');
   const params = await searchParams;
 
-  const [staffRates, hotelRates, restaurantRates, transportRates, foodBeverageRates, activityFees, adminCostRates, addonRates, hotels, restaurants, activities, sites] =
-    await Promise.all([
-      financeService.listStaffRates(ctx),
-      financeService.listHotelRates(ctx),
-      financeService.listRestaurantRates(ctx),
-      financeService.listTransportRates(ctx),
-      financeService.listFoodBeverageRates(ctx),
-      financeService.listActivityFees(ctx),
-      financeService.listAdminCostRates(ctx),
-      financeService.listAddonRates(ctx),
-      itineraryService.listHotels(ctx),
-      itineraryService.listRestaurants(ctx),
-      itineraryService.listActivities(ctx),
-      itineraryService.listSites(ctx),
-    ]);
+  const [
+    staffRates,
+    hotelRates,
+    restaurantRates,
+    transportRates,
+    foodBeverageRates,
+    activityFees,
+    adminCostRates,
+    addonRates,
+    airports,
+    flightFareRates,
+    esimRates,
+    hotels,
+    restaurants,
+    activities,
+    sites,
+  ] = await Promise.all([
+    financeService.listStaffRates(ctx),
+    financeService.listHotelRates(ctx),
+    financeService.listRestaurantRates(ctx),
+    financeService.listTransportRates(ctx),
+    financeService.listFoodBeverageRates(ctx),
+    financeService.listActivityFees(ctx),
+    financeService.listAdminCostRates(ctx),
+    financeService.listAddonRates(ctx),
+    financeService.listAirports(ctx),
+    financeService.listFlightFareRates(ctx),
+    financeService.listEsimDataPlanRates(ctx),
+    itineraryService.listHotels(ctx),
+    itineraryService.listRestaurants(ctx),
+    itineraryService.listActivities(ctx),
+    itineraryService.listSites(ctx),
+  ]);
+
+  const airportById = new Map(airports.map((a) => [a.id, a]));
+  const flightClassLabel: Record<string, string> = {
+    ECONOMY: tFlights('classECONOMY'),
+    BUSINESS: tFlights('classBUSINESS'),
+    FIRST: tFlights('classFIRST'),
+  };
 
   const hotelNameById = new Map(hotels.map((h) => [h.id, h.name]));
   const hotelOptions: SearchableOption[] = hotels.map((h) => ({
@@ -949,33 +1023,312 @@ export default async function FinanceRatesPage({ searchParams }: Props) {
             </tbody>
           </Table>
         )}
+
+        {/* DR-243 (explicit user correction, reverses DR-240): Flight Fares
+            and eSIM Plans live INSIDE this same Add-on Services card now --
+            not as separate cards on this page, and not as separate
+            finance_config-gated pages linked from the Finance hub. Airports
+            (a prerequisite reference list, not itself a priced add-on) and
+            the Flight Fare Rates / eSIM Plan Rates read-tables below each
+            keep their own table shape (a flight fare needs a route+airline+
+            class, an eSIM plan needs a data-allowance tier -- neither
+            flattens into AddonRate's country+code+price shape), just
+            nested under the one "Add-on Services" heading now. Creating a
+            new row of ANY of the six add-on types -- including Flight
+            Ticket/eSIM -- happens through the single AddOnRateForm at the
+            bottom of this card instead of a form-per-table. */}
+        <div className="mt-6 space-y-2 border-t border-rule pt-6">
+          <p className="eyebrow text-mist">{tFlights('airportsHeading')}</p>
+          <p className="mt-1 text-xs text-mist">{tFlights('airportsNotice')}</p>
+          {airports.length === 0 ? (
+            <p className="mt-2 text-sm text-mist">{tFlights('noAirports')}</p>
+          ) : (
+            <Table className="mt-2">
+              <thead>
+                <TableHeaderRow>
+                  <Th>{tFlights('iataCode')}</Th>
+                  <Th>{tFlights('airportName')}</Th>
+                  <Th>{tFlights('city')}</Th>
+                  <Th>{t('country')}</Th>
+                  <Th>{tFlights('active')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {airports.map((a) => (
+                  <Tr key={a.id}>
+                    <Td>
+                      <span className="font-mono text-sm font-semibold text-navy">{a.iataCode}</span>
+                    </Td>
+                    <Td>{a.name}</Td>
+                    <Td>{a.city}</Td>
+                    <Td>
+                      {flagEmoji(a.country)} {countryName(a.country, tCountries)}
+                    </Td>
+                    <Td>{a.active ? tFlights('activeYes') : tFlights('activeNo')}</Td>
+                    <Td>
+                      {canWrite && (
+                        <>
+                          <DeleteButton
+                            action={deleteAirportAction.bind(null, a.id)}
+                            removingLabel={t('removing')}
+                            removeConfirm={t('removeConfirm')}
+                            removeLabel={t('remove')}
+                          />
+                          <EditDisclosure label={t('edit')}>
+                            <form action={updateAirportAction.bind(null, a.id)} className="flex flex-wrap items-end gap-2">
+                              <input
+                                name="iataCode"
+                                defaultValue={a.iataCode}
+                                maxLength={3}
+                                minLength={3}
+                                required
+                                className="w-16 rounded-survey border border-rule px-2 py-2 text-sm uppercase"
+                              />
+                              <input
+                                name="name"
+                                defaultValue={a.name}
+                                required
+                                className="w-40 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <input
+                                name="city"
+                                defaultValue={a.city}
+                                required
+                                className="w-32 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <Select name="country" defaultValue={a.country} required className="text-sm">
+                                {worldCountryOptions()}
+                              </Select>
+                              <label className="flex items-center gap-1 text-xs text-ink">
+                                <input type="checkbox" name="active" defaultChecked={a.active} className="h-4 w-4" />
+                                {tFlights('active')}
+                              </label>
+                              <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                                {t('saveChanges')}
+                              </SubmitButton>
+                            </form>
+                          </EditDisclosure>
+                        </>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          {canWrite && (
+            <form action={createAirportAction} className="mt-3 flex flex-wrap items-end gap-3">
+              <FormField label={tFlights('iataCode')} htmlFor="iataCode">
+                <input
+                  name="iataCode"
+                  placeholder={tFlights('iataCodePlaceholder')}
+                  maxLength={3}
+                  minLength={3}
+                  required
+                  className="w-16 rounded-survey border border-rule px-2 py-2 text-sm uppercase"
+                />
+              </FormField>
+              <FormField label={tFlights('airportName')} htmlFor="name">
+                <input name="name" required className="w-40 rounded-survey border border-rule px-2 py-2 text-sm" />
+              </FormField>
+              <FormField label={tFlights('city')} htmlFor="city">
+                <input name="city" required className="w-32 rounded-survey border border-rule px-2 py-2 text-sm" />
+              </FormField>
+              <FormField label={t('country')} htmlFor="country">
+                <Select name="country" required className="text-sm">
+                  {worldCountryOptions()}
+                </Select>
+              </FormField>
+              <label className="flex items-center gap-1 pb-2 text-xs text-ink">
+                <input type="checkbox" name="active" defaultChecked className="h-4 w-4" />
+                {tFlights('active')}
+              </label>
+              <SubmitButton size="compact" pendingLabel={t('adding')}>
+                {t('add')}
+              </SubmitButton>
+            </form>
+          )}
+        </div>
+
+        <div className="mt-6 space-y-2 border-t border-rule pt-6">
+          <p className="eyebrow text-mist">{tFlights('flightFareRatesHeading')}</p>
+          <p className="mt-1 text-xs text-mist">{tFlights('flightFareRatesNotice')}</p>
+          {flightFareRates.length === 0 ? (
+            <p className="mt-2 text-sm text-mist">{tFlights('noFlightFareRates')}</p>
+          ) : (
+            <Table className="mt-2">
+              <thead>
+                <TableHeaderRow>
+                  <Th>{tFlights('origin')}</Th>
+                  <Th>{tFlights('destination')}</Th>
+                  <Th>{tFlights('airline')}</Th>
+                  <Th>{tFlights('flightClass')}</Th>
+                  <Th>{t('price')}</Th>
+                  <Th>{tFlights('validFrom')}</Th>
+                  <Th>{tFlights('validTo')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {flightFareRates.map((r) => (
+                  <Tr key={r.id}>
+                    <Td>{airportLabel(airportById.get(r.originAirportId))}</Td>
+                    <Td>{airportLabel(airportById.get(r.destinationAirportId))}</Td>
+                    <Td>{r.airline}</Td>
+                    <Td>{flightClassLabel[r.flightClass]}</Td>
+                    <Td>
+                      <span className="font-semibold text-navy">{format(money(r.priceMinor, r.currency))}</span>
+                    </Td>
+                    <Td>{r.validFrom.toLocaleDateString()}</Td>
+                    <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
+                    <Td>
+                      {canWrite && (
+                        <>
+                          <DeleteButton
+                            action={deleteFlightFareRateAction.bind(null, r.id)}
+                            removingLabel={t('removing')}
+                            removeConfirm={t('removeConfirm')}
+                            removeLabel={t('remove')}
+                          />
+                          <EditDisclosure label={t('edit')}>
+                            <form action={updateFlightFareRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                              <Select name="originAirportId" defaultValue={r.originAirportId} required className="text-sm">
+                                {airports.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {airportLabel(a)}
+                                  </option>
+                                ))}
+                              </Select>
+                              <Select name="destinationAirportId" defaultValue={r.destinationAirportId} required className="text-sm">
+                                {airports.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {airportLabel(a)}
+                                  </option>
+                                ))}
+                              </Select>
+                              <input
+                                name="airline"
+                                defaultValue={r.airline}
+                                required
+                                className="w-32 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <Select name="flightClass" defaultValue={r.flightClass} required className="text-sm">
+                                <option value="ECONOMY">{tFlights('classECONOMY')}</option>
+                                <option value="BUSINESS">{tFlights('classBUSINESS')}</option>
+                                <option value="FIRST">{tFlights('classFIRST')}</option>
+                              </Select>
+                              <input
+                                name="price"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                defaultValue={(r.priceMinor / 100).toFixed(2)}
+                                required
+                                className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                                {CURRENCY_OPTIONS}
+                              </Select>
+                              <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                                {t('saveChanges')}
+                              </SubmitButton>
+                            </form>
+                          </EditDisclosure>
+                        </>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          {canWrite && airports.length === 0 && <p className="mt-2 text-xs text-mist">{tFlights('noAirportsAvailable')}</p>}
+        </div>
+
+        <div className="mt-6 space-y-2 border-t border-rule pt-6">
+          <p className="eyebrow text-mist">{tEsim('title')}</p>
+          <p className="mt-1 text-xs text-mist">{tEsim('intro')}</p>
+          {esimRates.length === 0 ? (
+            <p className="text-sm text-mist">{tEsim('noneYet')}</p>
+          ) : (
+            <Table className="mt-2">
+              <thead>
+                <TableHeaderRow>
+                  <Th>{t('country')}</Th>
+                  <Th>{tEsim('dataAllowance')}</Th>
+                  <Th>{t('price')}</Th>
+                  <Th>{tEsim('validFrom')}</Th>
+                  <Th>{tEsim('validTo')}</Th>
+                  <Th />
+                </TableHeaderRow>
+              </thead>
+              <tbody>
+                {esimRates.map((r) => (
+                  <Tr key={r.id}>
+                    <Td>
+                      {flagEmoji(r.country)} {tCountries(r.country)}
+                    </Td>
+                    <Td>{tEsim('gbValue', { gb: r.dataAllowanceGb })}</Td>
+                    <Td>
+                      <span className="font-semibold text-navy">{format(money(r.priceMinor, r.currency))}</span>
+                    </Td>
+                    <Td>{r.validFrom.toLocaleDateString()}</Td>
+                    <Td>{r.validTo ? r.validTo.toLocaleDateString() : '—'}</Td>
+                    <Td>
+                      {canWrite && (
+                        <>
+                          <DeleteButton
+                            action={deleteEsimDataPlanRateAction.bind(null, r.id)}
+                            removingLabel={t('removing')}
+                            removeConfirm={t('removeConfirm')}
+                            removeLabel={t('remove')}
+                          />
+                          <EditDisclosure label={t('edit')}>
+                            <form action={updateEsimDataPlanRateAction.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                              <Select name="country" defaultValue={r.country} required className="text-sm">
+                                {countryOptions(tCountries)}
+                              </Select>
+                              <input
+                                name="dataAllowanceGb"
+                                type="number"
+                                step="1"
+                                min="1"
+                                defaultValue={r.dataAllowanceGb}
+                                required
+                                className="w-20 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <input
+                                name="price"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                defaultValue={(r.priceMinor / 100).toFixed(2)}
+                                required
+                                className="w-24 rounded-survey border border-rule px-2 py-2 text-sm"
+                              />
+                              <Select name="currency" defaultValue={r.currency} required className="text-sm">
+                                {CURRENCY_OPTIONS}
+                              </Select>
+                              <SubmitButton size="compact" pendingLabel={t('savingChanges')}>
+                                {t('saveChanges')}
+                              </SubmitButton>
+                            </form>
+                          </EditDisclosure>
+                        </>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </div>
+
         {canWrite && (
-          <form action={createAddonRateAction} className="mt-3 flex flex-wrap items-end gap-3">
-            <FormField label={t('country')} htmlFor="country">
-              <Select name="country" required className="text-sm">
-                {countryOptions(tCountries)}
-              </Select>
-            </FormField>
-            <FormField label={t('addonService')} htmlFor="code">
-              <Select name="code" required className="text-sm">
-                <option value="PHOTOGRAPHY">{tAddons('PHOTOGRAPHY')}</option>
-                <option value="VIDEOGRAPHY">{tAddons('VIDEOGRAPHY')}</option>
-                <option value="TRANSLATOR">{tAddons('TRANSLATOR')}</option>
-                <option value="VISA_ASSISTANCE">{tAddons('VISA_ASSISTANCE')}</option>
-              </Select>
-            </FormField>
-            <FormField label={t('price')} htmlFor="price">
-              <input name="price" type="number" step="0.01" min="0" required className="w-28 rounded-survey border border-rule px-2 py-2 text-sm" />
-            </FormField>
-            <FormField label={t('currency')} htmlFor="currency">
-              <Select name="currency" defaultValue="NAD" required className="text-sm">
-                {CURRENCY_OPTIONS}
-              </Select>
-            </FormField>
-            <SubmitButton size="compact" pendingLabel={t('adding')}>
-              {t('add')}
-            </SubmitButton>
-          </form>
+          <div className="mt-6 border-t border-rule pt-6">
+            <AddOnRateForm airports={airports.map((a) => ({ id: a.id, label: airportLabel(a) }))} />
+          </div>
         )}
       </Card>
       </Reveal>

@@ -7,6 +7,9 @@ import {
   CreateActivityFeeInput,
   CreateAddonRateInput,
   CreateAdminCostRateInput,
+  CreateAirportInput,
+  CreateEsimDataPlanRateInput,
+  CreateFlightFareRateInput,
   CreateFoodBeverageRateInput,
   CreateHotelRateInput,
   CreateRestaurantRateInput,
@@ -280,5 +283,109 @@ export async function updateAddonRateAction(id: string, formData: FormData): Pro
 export async function deleteAddonRateAction(id: string): Promise<void> {
   const ctx = await requireStaffContext('finance_config.write');
   await financeService.deleteAddonRate(ctx, id);
+  revalidatePath('/staff/finance/rates');
+}
+
+// DR-243 (moved from the now-removed /staff/finance/rates/flights and
+// .../esim standalone pages -- see this page's own comment): Airport,
+// FlightFareRate, and EsimDataPlanRate are rendered as extra cards on this
+// same Operational Rates page now, so their actions revalidate
+// '/staff/finance/rates' too. No reapply summary on any of these three,
+// same reasoning as AddonRate's own update action above -- none of them
+// are ever snapshotted into a cost breakdown; each is resolved live at
+// add-on selection time (src/lib/flight-fare-rate.ts / esim-rate.ts).
+export async function createAirportAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateAirportInput.parse({
+    iataCode: String(formData.get('iataCode') ?? ''),
+    name: String(formData.get('name') ?? '').trim(),
+    city: String(formData.get('city') ?? '').trim(),
+    country: String(formData.get('country') ?? ''),
+    active: formData.get('active') === 'on',
+  });
+  await financeService.createAirport(ctx, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function updateAirportAction(id: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateAirportInput.parse({
+    iataCode: String(formData.get('iataCode') ?? ''),
+    name: String(formData.get('name') ?? '').trim(),
+    city: String(formData.get('city') ?? '').trim(),
+    country: String(formData.get('country') ?? ''),
+    active: formData.get('active') === 'on',
+  });
+  await financeService.updateAirport(ctx, id, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function deleteAirportAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  await financeService.deleteAirport(ctx, id);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function createFlightFareRateAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateFlightFareRateInput.parse({
+    originAirportId: String(formData.get('originAirportId') ?? ''),
+    destinationAirportId: String(formData.get('destinationAirportId') ?? ''),
+    airline: String(formData.get('airline') ?? '').trim(),
+    flightClass: String(formData.get('flightClass') ?? ''),
+    priceMinor: decimalToMinor(formData, 'price'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.createFlightFareRate(ctx, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function updateFlightFareRateAction(id: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateFlightFareRateInput.parse({
+    originAirportId: String(formData.get('originAirportId') ?? ''),
+    destinationAirportId: String(formData.get('destinationAirportId') ?? ''),
+    airline: String(formData.get('airline') ?? '').trim(),
+    flightClass: String(formData.get('flightClass') ?? ''),
+    priceMinor: decimalToMinor(formData, 'price'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.updateFlightFareRate(ctx, id, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function deleteFlightFareRateAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  await financeService.deleteFlightFareRate(ctx, id);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function createEsimDataPlanRateAction(formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateEsimDataPlanRateInput.parse({
+    country: String(formData.get('country') ?? ''),
+    dataAllowanceGb: Number(formData.get('dataAllowanceGb')),
+    priceMinor: decimalToMinor(formData, 'price'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.createEsimDataPlanRate(ctx, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function updateEsimDataPlanRateAction(id: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  const input = CreateEsimDataPlanRateInput.parse({
+    country: String(formData.get('country') ?? ''),
+    dataAllowanceGb: Number(formData.get('dataAllowanceGb')),
+    priceMinor: decimalToMinor(formData, 'price'),
+    currency: String(formData.get('currency') ?? ''),
+  });
+  await financeService.updateEsimDataPlanRate(ctx, id, input);
+  revalidatePath('/staff/finance/rates');
+}
+
+export async function deleteEsimDataPlanRateAction(id: string): Promise<void> {
+  const ctx = await requireStaffContext('finance_config.write');
+  await financeService.deleteEsimDataPlanRate(ctx, id);
   revalidatePath('/staff/finance/rates');
 }

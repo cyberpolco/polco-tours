@@ -52,29 +52,18 @@ export default async function FinanceHubPage() {
     },
   ].filter((c): c is { href: string; title: string; description: string } => Boolean(c));
 
-  // DR-240: these three all price a guest-facing add-on (AddonService), not
-  // a package cost-plus bucket -- grouped under their own "Add-ons" heading
-  // instead of sitting flat alongside Tax Rates/Platform Rate/Coupons/Late
-  // Booking Rate above, which don't relate to add-ons at all. Flight
-  // Fares/eSIM Plans (DR-222) are still their own finance_config-gated
-  // pages, not extra sections on the existing Operational Rates page --
-  // same "card hub linking to independent pages" shape as every other entry
-  // here, just visually grouped now.
+  // DR-240 grouped Operational Rates/Flight Fares/eSIM Plans under their own
+  // "Add-ons" heading as three separate cards. DR-243 (explicit user
+  // correction) went further: Flight Fares and eSIM Plans aren't separate
+  // destinations at all anymore -- they're nested inside the Operational
+  // Rates page's own "Add-on Services" card now (finance/rates/page.tsx),
+  // right alongside Photography/Videography/Translator/Visa Assistance.
+  // Only one card is left in this "Add-ons" grouping as a result.
   const addOnCards = [
     canReadFinanceConfig && {
       href: '/staff/finance/rates',
       title: t('operationalRatesTitle'),
       description: t('operationalRatesDesc'),
-    },
-    canReadFinanceConfig && {
-      href: '/staff/finance/rates/flights',
-      title: t('flightFaresTitle'),
-      description: t('flightFaresDesc'),
-    },
-    canReadFinanceConfig && {
-      href: '/staff/finance/rates/esim',
-      title: t('esimPlansTitle'),
-      description: t('esimPlansDesc'),
     },
   ].filter((c): c is { href: string; title: string; description: string } => Boolean(c));
 
