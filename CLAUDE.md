@@ -1649,6 +1649,53 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   `db:seed` sequence CI does. Re-running e2e against the same un-reset
   local DB across attempts accumulates fixture rows with no dedup — use
   `db push --force-reset` or a fresh `initdb` between attempts.
+- **Never run an ad-hoc manual-verification script (a throwaway `tsx`
+  script calling a module's service functions directly, as opposed to a
+  real Vitest/Playwright test file) against the real seeded "Lam" org
+  without cleaning up in the same script, and never as a substitute for a
+  proper test.** Real incident, discovered 2026-09-04: over roughly two
+  months, a long series of past sessions' manual verification runs (naming
+  patterns like `TEST-LOOKUP-*`/`TEST-GUEST-DATES-*`/`TEST-RATING-*`/
+  `TEST-FIND-INV-*` packages, `superadmin-finance-*`/`sa-fbl-*`/
+  `delete-superadmin-*`/`e2e-staff-*`/`dr048-manual-check@example.test`
+  users) had accumulated **856 `@example.test` User rows** (including 29
+  live SUPERADMIN accounts) and **12 `TEST-*`-titled TourPackages** (plus
+  their cascaded Departures/Bookings/Travelers) directly in the real Lam
+  org (`00000000-0000-4000-8000-000000000001`) — not a throwaway org, the
+  one real operator's actual production data, visible on the live staff
+  dashboard as bookings/packages/users nobody had actually created. The
+  repo's real `tests/api/*.test.ts` Vitest suites were cleared of blame —
+  none hardcode the Lam org id, and the convention they follow
+  (`bookings-v2.api.test.ts`'s own `beforeAll`-created throwaway org +
+  `afterAll` cleanup) is correct. The pollution came entirely from
+  one-off verification scripts run directly against `DATABASE_URL` (which
+  points at the real shared Neon DB, per the `polco_app`/RLS gotchas
+  above) to "prove a feature works end-to-end" during past DR work,
+  written with an `@example.test` email convention but no cleanup step,
+  or a cleanup step that never ran. **Fixed** by a one-time
+  `tourPackage.deleteMany({ title: startsWith 'TEST-' })` (cascades
+  Departure/Booking/Traveler) + `user.deleteMany({ email: endsWith
+  '@example.test' })` (cascades Membership/DriverProfile/GuideProfile;
+  `Vehicle.owner` has no cascade and would have blocked deletion if any
+  test user owned one — none did) — both audited for cross-references
+  into legitimate data first (zero `Vehicle.ownerId`/`HotelRating`/
+  `RestaurantRating` hits; the only 11 `Booking.touristUserId` hits were
+  themselves under the same `TEST-*` packages, confirmed by joining
+  through before deleting). **`withOrg` has no timeout override** — a
+  bulk delete cascading across hundreds of rows blows past Prisma's
+  ~5s default interactive-transaction timeout (`P2028`, "Transaction not
+  found") well before Neon itself is the bottleneck; call
+  `prisma.$transaction(work, { timeout, maxWait })` directly (replicating
+  `withOrg`'s own `set_config('app.org_id', ...)` call) for any
+  future bulk/cascading operation, and always re-query actual row counts
+  afterward to confirm a partial failure didn't leave silent partial
+  state — Postgres itself rolled back cleanly here (verified: zero rows
+  changed) when the first timeout attempt failed, but that's Postgres's
+  guarantee, not something to assume without checking. Going forward: any
+  manual verification against the real Lam org must either run inside a
+  throwaway org (same as the real test suites already do) or delete
+  everything it created before the session ends — never leave `@example
+  .test`-style rows sitting in real business data "for later cleanup."
 - **A top nav/sidebar with every link visible in the initial viewport turns
   Next.js's default `<Link>` prefetching into a real-load multiplier** —
   real incident, 2026-08-18 (user-reported: "website is too slow, and it
