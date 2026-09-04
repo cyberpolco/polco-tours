@@ -1,6 +1,5 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
@@ -128,23 +127,6 @@ export async function deleteFaqEntryAction(id: string): Promise<void> {
   revalidatePath('/faq');
 }
 
-// Not wired to any specific page in v1 (no licensed photography exists yet,
-// OI-12) -- a SUPERADMIN uploads and gets a public URL back to use manually
-// wherever it's needed. Result carried via a redirect query param, same
-// "redirect with ?error=/?ok=" convention fleet's document-upload actions
-// already use, rather than a client-side fetch to a new route.
-export async function uploadCmsImageAction(formData: FormData): Promise<void> {
-  const ctx = await requireStaffContext('cms.write');
-  const locale = localeFromForm(formData);
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) {
-    redirect(`/staff/cms?locale=${locale}&error=missing_file`);
-  }
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const { url } = await cmsService.uploadImage(ctx, { contentType: file.type, sizeBytes: file.size, bytes });
-  redirect(`/staff/cms?locale=${locale}&uploadedUrl=${encodeURIComponent(url)}`);
-}
-
 // -------------------------------------------------------- Home hero (DR-163)
 const HOME_HERO_PAGE = 'home-hero';
 
@@ -199,10 +181,10 @@ export async function deleteHeroSlideAction(slotKey: string): Promise<void> {
 }
 
 /** Image path only -- small enough to proxy through this Server Action
- * (server-side sharp compression, same as uploadCmsImageAction above), just
- * returning the url instead of redirecting since it's called directly from
- * the client MediaPicker component, not a plain <form action>. Page-agnostic
- * (originally hero-slide-only; generalized so Gallery reuses it too). */
+ * (server-side sharp compression), returning the url directly since it's
+ * called from the client MediaPicker component, not a plain <form action>.
+ * Page-agnostic (originally hero-slide-only; generalized so Gallery reuses
+ * it too). */
 export async function uploadMediaImageAction(formData: FormData): Promise<{ url: string }> {
   const ctx = await requireStaffContext('cms.write');
   const file = formData.get('file');

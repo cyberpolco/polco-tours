@@ -46,22 +46,23 @@ import {
   updatePartnerAction,
   updateSocialLinkAction,
   updateTextBlockAction,
-  uploadCmsImageAction,
 } from './actions';
 import { MediaPicker } from './media-picker';
 import { PageTextEditor } from './page-text-editor';
 
 interface Props {
-  searchParams: Promise<{ locale?: string; uploadedUrl?: string; error?: string; tab?: string }>;
+  searchParams: Promise<{ locale?: string; tab?: string }>;
 }
 
 // Nav+footer order (DR-164), with `partners` (DR-185) and `social-links`
 // (DR-200) placed right after `home-hero` since both are a second section
 // of the same homepage/footer rather than their own guest route -- most
 // tabs' label keys already exist (section headings), except `faq` (its
-// heading is a dynamic "FAQ ({count})", not a
-// plain label) and `media` (the generic image-upload utility, reusing its
-// existing section heading key).
+// heading is a dynamic "FAQ ({count})", not a plain label). DR-243 removed
+// the trailing `media` tab (a generic "upload and copy the URL" utility,
+// DR-071) -- it had no consumer anywhere in the app; every real image slot
+// (hero, gallery, partners, package images) already gets its own
+// MediaPicker-backed upload wired directly to a field.
 const CMS_TABS = [
   { key: 'home-hero', labelKey: 'heroSectionTitle' },
   { key: 'home-map', labelKey: 'mapSectionTitle' },
@@ -79,7 +80,6 @@ const CMS_TABS = [
   { key: 'weather', labelKey: 'weatherSectionTitle' },
   { key: 'terms', labelKey: 'termsSectionTitle' },
   { key: 'emails', labelKey: 'emailsSectionTitle' },
-  { key: 'media', labelKey: 'imageUpload' },
 ] as const;
 type CmsTabKey = (typeof CMS_TABS)[number]['key'];
 const CMS_TAB_KEYS: readonly string[] = CMS_TABS.map((tabDef) => tabDef.key);
@@ -161,7 +161,7 @@ function DeleteButton({
 // already means SUPERADMIN -- canWrite is computed anyway, matching the
 // tax-rates page's "route passes, service still rejects" layering convention.
 export default async function CmsPage({ searchParams }: Props) {
-  const { locale: localeParam, uploadedUrl, error, tab: tabParam } = await searchParams;
+  const { locale: localeParam, tab: tabParam } = await searchParams;
   const locale: CmsLocale = localeParam === 'fr' ? 'fr' : 'en';
   const activeTab: CmsTabKey = (tabParam && CMS_TAB_KEYS.includes(tabParam) ? tabParam : 'home-hero') as CmsTabKey;
   const ctx = await requireStaffContext('cms.read');
@@ -1153,26 +1153,6 @@ export default async function CmsPage({ searchParams }: Props) {
         </div>
         )}
 
-        {activeTab === 'media' && canWrite && (
-          <section className="space-y-3">
-            <h2 className="font-semibold text-navy">{t('imageUpload')}</h2>
-            <p className="text-xs text-mist">{t('imageUploadNotice')}</p>
-            {uploadedUrl && (
-              <div className="rounded-card border border-forest/40 bg-forest/10 p-3">
-                <p className="text-xs text-mist">{t('uploaded')}</p>
-                <input readOnly value={uploadedUrl} className="mt-1 w-full rounded-survey border border-rule px-2 py-1.5 text-sm" />
-              </div>
-            )}
-            {error === 'missing_file' && <p className="text-sm text-amber">{t('chooseFileFirst')}</p>}
-            <form action={uploadCmsImageAction} className="flex flex-wrap items-end gap-3">
-              <input type="hidden" name="locale" value={locale} />
-              <input type="file" name="file" required accept="image/jpeg,image/png,image/webp" className="text-sm" />
-              <SubmitButton size="compact" pendingLabel={t('uploading')}>
-                {t('upload')}
-              </SubmitButton>
-            </form>
-          </section>
-        )}
         </Reveal>
       </div>
     </SidebarShell>

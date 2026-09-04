@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-243** (2026-09-04). This file used to carry a running
+Current through **DR-249** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -141,7 +141,7 @@ gaps a fresh Postgres would hit).
 | Database | Neon PostgreSQL (EU region, `eu-central-1`), Prisma `5.22.0` |
 | Auth | better-auth `1.6.23`, self-hosted (data in our DB). Multi-domain in production (DR-072) — `src/lib/auth-client.ts` has no hardcoded `baseURL` (falls back to `window.location.origin`); `src/lib/auth.ts`'s `trustedOrigins` allowlists every additional live custom domain beyond `BETTER_AUTH_URL`'s own origin, e.g. `mufasasafaris.com` |
 | Validation | zod `4.4.3` |
-| Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): About/FAQ images (DR-071), package images (DR-114), and Home hero images/videos (DR-163), passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`, exported from `src/lib/public-image-blob.ts`) rather than relying on the ambient default. Every image upload through this token is compressed to webp server-side first (DR-163, via `sharp`, see below); video (25MB cap, mp4/webm) uploads directly from the browser to this store instead, via `@vercel/blob/client`'s `upload()`/`handleUpload` (`api/v1/cms/media-upload/route.ts`) — necessary because that exceeds Vercel serverless functions' ~4.5MB request-body limit. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
+| Object storage | Vercel Blob `2.6.1`, region `fra1` — **two separate stores**, since a Blob store is public-or-private store-wide, not per-object (DR-130). `polco-tours-documents` (the original store, ambient default `BLOB_READ_WRITE_TOKEN`): passports (private, authenticated streaming route); visa decision documents land in Phase 2. `polco-tours-public-images` (added DR-130, Production+Preview only so far — OI-15): package images (DR-114), Home hero/Gallery/Partners images/videos (DR-163/167/185) — the DR-071 general-purpose "upload and copy the URL" utility this store originally launched with (never wired to About/FAQ or anything else) was removed DR-248, unused — passed its own explicit token (`PUBLIC_BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN`, exported from `src/lib/public-image-blob.ts`) rather than relying on the ambient default. Every image upload through this token is compressed to webp server-side first (DR-163, via `sharp`, see below); video (25MB cap, mp4/webm) uploads directly from the browser to this store instead, via `@vercel/blob/client`'s `upload()`/`handleUpload` (`api/v1/cms/media-upload/route.ts`) — necessary because that exceeds Vercel serverless functions' ~4.5MB request-body limit. The `next.config.mjs` `images.remotePatterns` allowlist has one entry for Blob's public host, matching either store's public URL shape |
 | Image processing | `sharp` `0.34.5` (DR-163) — was already an undeclared transitive dependency at this exact version; pinned explicitly per the version-pinning rule. `src/lib/public-image-blob.ts`'s `uploadPublicImage` always recompresses every public image upload to webp (max edge 2560px, quality 80) before storing, regardless of caller/input format — the one shared primitive every public image upload (cms, catalog package images, Home hero) already goes through, so this applies uniformly rather than per-caller. Since DR-183, also used by `(guest)/packages/[packageId]/opengraph-image.tsx` to re-encode a package's webp cover photo to PNG before handing it to `next/og`'s Satori renderer, which can't decode webp — that route needs `export const runtime = 'nodejs'` for `sharp`'s native bindings, unlike a typical Edge-default og-image route |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
@@ -742,9 +742,14 @@ src/
                    #   createFlightFareRateAction/createEsimDataPlanRateAction
                    #   instead of createAddonRateAction) -- same
                    #   finance_config.read/write + requireRateWriter gating
-                   #   as every other rate table, unchanged. The Finance
-                   #   hub's "Add-ons" section is left with a single card
-                   #   (Operational Rates) as a result. Three public no-ctx
+                   #   as every other rate table, unchanged. DR-243 left the
+                   #   Finance hub's "Add-ons" section with a single card
+                   #   (Operational Rates) as a result; DR-249 (explicit user
+                   #   correction) removed that now-pointless one-card
+                   #   heading entirely — Operational Rates is just another
+                   #   plain Finance card again, alongside Tax Rates/
+                   #   Platform Rate/Coupons/Late Booking Rate, same
+                   #   `finance_config.read` gate as before. Three public no-ctx
                    #   reads (listPublicAirports/
                    #   listPublicFlightFareOptions/listPublicEsimPlans) back
                    #   the guest/staff add-on-selection pickers. Deliberately
@@ -952,7 +957,18 @@ src/
                    #   editable fields inside (via withEmailFallback) were
                    #   actually locale-aware. Now reads the FR eyebrow when
                    #   `locale === 'fr'`, same selection withEmailFallback
-                   #   already used.
+                   #   already used. DR-248 removed /staff/cms's standalone
+                   #   "Media" tab (DR-071's uploadCmsImageAction — upload a
+                   #   file, get a public Blob URL back to paste manually,
+                   #   nothing ever consumed it) — every real image slot
+                   #   that shipped since (Home hero/Gallery/Partners via
+                   #   MediaPicker, package images via catalog's own
+                   #   uploadPackageImage) already gets its own upload wired
+                   #   directly to a field; About/FAQ, this utility's
+                   #   original target, never grew an image field at all.
+                   #   cmsService.uploadImage itself is untouched — still
+                   #   the primitive MediaPicker's uploadMediaImageAction
+                   #   calls for every one of those working uploads.
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
@@ -1485,12 +1501,14 @@ Surface these to the human — don't invent answers.
   scrape images to fill the rest. DR-073 (2026-08-05) closes the
   narrower "nothing real exists anywhere" gap for the homepage hero only:
   three licensed stock photos (Sossusvlei/Namibia, Virunga/DRC, Victoria
-  Falls/Zambia+Zimbabwe) now render in `HeroCarousel`. DR-071's `cms`
-  module (renamed from `content`, DR-162) image-upload primitive (public
-  Vercel Blob URL) remains unwired to `/gallery` or `TourPackage.imageUrls`
-  — still nothing real to attach
-  there; would need operator-supplied photos or a licensed stock budget
-  for that broader scope.
+  Falls/Zambia+Zimbabwe) now render in `HeroCarousel`. Both `/gallery`
+  (DR-167) and `TourPackage.imageUrls` (DR-114) now have their own real
+  upload path — DR-071's original generic "upload and copy the URL"
+  primitive that once stood in for this was unwired and has since been
+  removed (DR-248) — the remaining gap is purely a content one: still
+  nothing real to upload through either path beyond the one package
+  exception above and the homepage hero's 3 stock photos; would need
+  operator-supplied photos or a licensed stock budget to close it.
 - **OI-13 — RESOLVED 2026-08-08.** Google Cloud project + billing
   provisioned. Two keys, deliberately not one (a referrer-restricted key
   rejects server-to-server calls with no `Referer` header; an unrestricted
