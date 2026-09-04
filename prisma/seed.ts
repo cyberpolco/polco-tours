@@ -209,6 +209,13 @@ async function main() {
     { code: AddonCode.VIDEOGRAPHY, name: 'Videography', description: 'A dedicated videographer for the trip', priceMinor: 25000 },
     { code: AddonCode.TRANSLATOR, name: 'Translator', description: 'An on-tour translator/interpreter', priceMinor: 10000 },
     { code: AddonCode.VISA_ASSISTANCE, name: 'Visa assistance', description: 'Help preparing and lodging visa paperwork', priceMinor: 5000 },
+    // DR-238: FLIGHT_TICKET/ESIM's real price comes from FlightFareRate/
+    // EsimDataPlanRate (a guest-picked variant), resolved live in
+    // bookingService.setAddons (see that method's own DR-222 comment) --
+    // priceMinor here is a required-but-unused placeholder, never read for
+    // pricing these two codes.
+    { code: AddonCode.FLIGHT_TICKET, name: 'Flight ticket', description: 'A booked flight ticket for the trip', priceMinor: 0 },
+    { code: AddonCode.ESIM, name: 'eSIM data plan', description: 'A prepaid eSIM data plan for the trip', priceMinor: 0 },
   ];
   await withOrg(lam.id, async (tx) => {
     for (const a of addons) {

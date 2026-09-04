@@ -44,8 +44,11 @@ const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXUR
 
 // Mirrors booking/domain.ts's local ADDON_CODES -- kept in sync by hand,
 // same as that constant's own comment explains (catalog doesn't export a
-// validating vocabulary for AddonCode yet, only PACKAGE_TAGS).
-const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
+// validating vocabulary for AddonCode yet, only PACKAGE_TAGS). Includes
+// FLIGHT_TICKET/ESIM (DR-238) as plain interest picks, same as every other
+// code here -- the priced/variant picker for these two only exists later,
+// on a real booking's own add-ons step (DR-222).
+const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE', 'FLIGHT_TICKET', 'ESIM'] as const;
 
 const DESTINATION_CODES = OPERATING_COUNTRY_CODES;
 

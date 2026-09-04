@@ -386,6 +386,17 @@ describe('booking domain', () => {
       expect(result.success).toBe(false);
     });
 
+    // DR-238: FLIGHT_TICKET/ESIM (DR-222) were missing from this local
+    // vocabulary copy -- plan-my-trip's "interested in?" checklist couldn't
+    // express them and the server rejected them even if a client sent them.
+    it('accepts FLIGHT_TICKET and ESIM as preferredAddons values (DR-238)', () => {
+      const result = CreateTailorMadeInput.safeParse({
+        ...base,
+        preferredAddons: ['FLIGHT_TICKET', 'ESIM'],
+      });
+      expect(result.success).toBe(true);
+    });
+
     // DR-075: mandatory, not optional -- previously guests could skip
     // straight past residence/citizenship ("Prefer not to say"), leaving
     // staff with nothing to scope visa assistance from.

@@ -68,7 +68,10 @@ export interface VisaCandidateTravelerView {
 // (unlike PACKAGE_TAGS) since catalog/domain.ts doesn't itself export a
 // zod-validating constant for AddonCode yet (AddonService.code is only ever
 // staff-authored, never guest-submitted, so it never needed one before).
-const ADDON_CODES = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
+// FLIGHT_TICKET/ESIM (DR-222) are included here as plain interest picks too
+// (DR-238) -- this is preferredAddons, the plan-my-trip "interested in?"
+// list, distinct from SetAddonsInput's priced/variant-aware selection below.
+const ADDON_CODES = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE', 'FLIGHT_TICKET', 'ESIM'] as const;
 
 export interface BookingView {
   id: string;

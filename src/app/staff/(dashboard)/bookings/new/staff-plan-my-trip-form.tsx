@@ -23,8 +23,9 @@ interface StaffPlanMyTripSite {
 
 const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
-// Mirrors (guest)/plan-my-trip/plan-my-trip-form.tsx's local ADDON_CODES.
-const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE'] as const;
+// Mirrors (guest)/plan-my-trip/plan-my-trip-form.tsx's local ADDON_CODES,
+// including FLIGHT_TICKET/ESIM (DR-238).
+const ADDONS = ['PHOTOGRAPHY', 'VIDEOGRAPHY', 'TRANSLATOR', 'VISA_ASSISTANCE', 'FLIGHT_TICKET', 'ESIM'] as const;
 
 const DESTINATION_CODES = OPERATING_COUNTRY_CODES;
 
