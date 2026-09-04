@@ -145,7 +145,7 @@ gaps a fresh Postgres would hit).
 | Image processing | `sharp` `0.34.5` (DR-163) — was already an undeclared transitive dependency at this exact version; pinned explicitly per the version-pinning rule. `src/lib/public-image-blob.ts`'s `uploadPublicImage` always recompresses every public image upload to webp (max edge 2560px, quality 80) before storing, regardless of caller/input format — the one shared primitive every public image upload (cms, catalog package images, Home hero) already goes through, so this applies uniformly rather than per-caller. Since DR-183, also used by `(guest)/packages/[packageId]/opengraph-image.tsx` to re-encode a package's webp cover photo to PNG before handing it to `next/og`'s Satori renderer, which can't decode webp — that route needs `export const runtime = 'nodejs'` for `sharp`'s native bindings, unlike a typical Edge-default og-image route |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19); a sixth, `sweep-test-orgs`/DR-235 (hourly, purges leftover `tests/api/*.test.ts`-fixture organizations), is defined but not yet registered |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — six schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19; `sweep-test-orgs`/DR-235 hourly, purges leftover `tests/api/*.test.ts`-fixture organizations, registered 2026-09-04) |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -174,7 +174,7 @@ src/
     api/jobs/sweep-fleet-cooldowns/ # DR-107: hourly post-tour-cooldown resync endpoint, same shape
     api/jobs/purge-wizard-progress/ # DR-155: daily 30-day wizard-progress-tracking purge, same shape
     api/jobs/sweep-test-orgs/     # DR-235: hourly purge of leftover test-fixture
-                                  #   Organization rows, same shape (not yet registered)
+                                  #   Organization rows, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -1365,15 +1365,14 @@ serverless function bundle.
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
   re-running that script (idempotent — fixed `scheduleId`s update in place,
-  never duplicate). Five are registered and live today (confirmed via
-  `npm run qstash:register-schedule`'s own console output):
+  never duplicate). Six are registered and live today (confirmed via
+  `npm run qstash:register-schedule`'s own console output, and for
+  `sweep-test-orgs` a direct QStash API check confirming `isPaused: false`):
   `/api/jobs/sweep-bookings` (every 15 minutes), `/api/jobs/sweep-fleet-availability`
   (DR-082, daily), `/api/jobs/sweep-user-dormancy` (DR-084, daily),
-  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly), and
-  `/api/jobs/purge-wizard-progress` (DR-155, daily). A sixth,
-  `/api/jobs/sweep-test-orgs` (DR-235, hourly), is in the script but **not
-  yet registered** against the live QStash account — needs its own
-  `npm run qstash:register-schedule` run.
+  `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly),
+  `/api/jobs/purge-wizard-progress` (DR-155, daily), and
+  `/api/jobs/sweep-test-orgs` (DR-235, hourly, registered 2026-09-04).
 
 ## Roadmap (not yet built)
 
