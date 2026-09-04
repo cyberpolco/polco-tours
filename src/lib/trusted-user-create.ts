@@ -26,16 +26,33 @@ export interface TrustedUserCreateSignal {
   phone: string | null;
 }
 
-const storage = new AsyncLocalStorage<TrustedUserCreateSignal>();
+// DR-232, real production repro: constructing this at module TOP LEVEL
+// (as it originally was) crashes the moment a client bundle reachable from
+// auth/index.ts's barrel evaluates this module -- next.config.mjs's
+// client-only alias stubs `async_hooks` to `false`, so `AsyncLocalStorage`
+// is `undefined` in that bundle, and `new AsyncLocalStorage()` throws
+// immediately on module load, even though nothing on the client ever
+// calls withTrustedUserCreate/getTrustedUserCreateSignal. Unlike DR-163's
+// `sharp` (only ever called lazily inside a function body a client never
+// invokes), this constructor ran unconditionally at import time. Lazily
+// constructing it here, on first real use, means the client bundle can
+// still evaluate this module (defining these functions) without ever
+// touching the stubbed-out constructor, since neither function is ever
+// actually called from client code.
+let storage: AsyncLocalStorage<TrustedUserCreateSignal> | undefined;
+function getStorage(): AsyncLocalStorage<TrustedUserCreateSignal> {
+  storage ??= new AsyncLocalStorage<TrustedUserCreateSignal>();
+  return storage;
+}
 
 /** Runs `work` with `signal` visible to getTrustedUserCreateSignal() for
  * the duration of `work` (including everything it awaits) and nothing else. */
 export function withTrustedUserCreate<T>(signal: TrustedUserCreateSignal, work: () => Promise<T>): Promise<T> {
-  return storage.run(signal, work);
+  return getStorage().run(signal, work);
 }
 
 /** undefined for every public/guest signup and any unrelated request --
  * truthy only inside a withTrustedUserCreate(...) callback. */
 export function getTrustedUserCreateSignal(): TrustedUserCreateSignal | undefined {
-  return storage.getStore();
+  return getStorage().getStore();
 }
