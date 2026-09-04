@@ -31,7 +31,9 @@ export function EditUserForm({
       {state.error && <Alert tone="error">{state.error}</Alert>}
       <form action={formAction} className="space-y-4">
         <FormField label={t('name')} htmlFor="name">
-          <input name="name" defaultValue={user.name ?? ''} required className="w-full rounded-survey border border-rule px-3 py-2" />
+          {/* autocomplete="off" -- editing another staff account's details,
+              not the signed-in user's own profile. */}
+          <input name="name" defaultValue={user.name ?? ''} required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('email')} htmlFor="email">
           <input
@@ -39,6 +41,7 @@ export function EditUserForm({
             type="email"
             defaultValue={user.email}
             required
+            autoComplete="off"
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
@@ -47,6 +50,7 @@ export function EditUserForm({
             name="phone"
             defaultValue={user.phone ?? ''}
             placeholder="+264812345678"
+            autoComplete="off"
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
