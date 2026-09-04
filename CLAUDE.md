@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-229** (2026-09-03). This file used to carry a running
+Current through **DR-230** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -293,7 +293,14 @@ src/
                    #   reach. The findUserById retry-on-null loop in
                    #   createUser is kept (Membership-visibility-on-read is
                    #   still a real, separate race), just narrower in scope
-                   #   than before.
+                   #   than before. DR-230: DR-229's own first deploy failed
+                   #   the build (trusted-user-create.ts's node:async_hooks
+                   #   import is reachable from a client bundle via
+                   #   auth/index.ts's barrel, same DR-163 class of problem
+                   #   as sharp) — fixed by importing the bare async_hooks
+                   #   specifier instead plus a matching client-only
+                   #   next.config.mjs webpack alias, verified on a Preview
+                   #   deployment before merging to main. No behavior change.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a
@@ -1422,6 +1429,33 @@ These are still-relevant patterns, not one-off incident reports. Full
 incident history (including two production `users`-table wipes since fixed)
 lives in `docs/decisions/DECISION_LOG.md` and git history.
 
+- **A module's `index.ts` barrel forces webpack to resolve every re-exported
+  file's entire import graph before it can tree-shake anything away — a
+  server-only dependency anywhere in that graph breaks every `'use client'`
+  file that imports even one unrelated, pure-domain export from the same
+  barrel.** Two real incidents, same root cause: DR-163 (`sharp`, pulled in
+  transitively by `catalogService`/`insightsService`'s barrel export, broke
+  `InsightsDashboardClient.tsx` even though it never calls the
+  `sharp`-dependent method) and DR-229/230 (`node:async_hooks`, pulled in by
+  `authService`'s barrel export, broke `role-checkbox-group.tsx`/
+  `edit-user-form.tsx` even though they only import
+  `findIncompatibleRolePair`/`ASSIGNABLE_ROLES`). A bare Node builtin
+  (`fs`, `crypto`, etc.) usually fails silently/gets stubbed by webpack's
+  client-compiler defaults; a few (confirmed: any `node:`-prefixed import,
+  no built-in fallback at all) hard-fail the build outright
+  (`UnhandledSchemeError`) — and either way, this only surfaces at build
+  time, not typecheck/lint time. When adding a genuinely server-only
+  dependency to a module whose `index.ts` is also imported by any
+  `'use client'` file: (1) prefer a bare specifier over a `node:`-prefixed
+  one for any Node builtin: and (2) add a client-only
+  `next.config.mjs` `webpack()` alias-to-`false` for it (see the existing
+  `sharp`/`async_hooks` entries) — cheap insurance regardless of whether
+  the specific import happens to fail loudly or silently. Verify on a
+  Vercel Preview deployment (push to a throwaway branch first) before
+  merging a change like this to `main` — this class of failure doesn't
+  show up in `tsc`/`lint`/`vitest`, only in a real `next build`, and this
+  sandbox's own `npm run build` isn't a reliable substitute for a real
+  Vercel build (see the gotcha below).
 - **`authService.resolveSession()` resolves whatever session cookie the
   browser carries, with no staff-vs-guest distinction** — a guest-facing page
   or Server Action that calls it directly (rather than through
