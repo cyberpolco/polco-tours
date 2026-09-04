@@ -2,19 +2,19 @@
 
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
-import { UpdateDriverProfileInput, fleetService } from '@modules/fleet';
+import { LANGUAGE_CODES, UpdateDriverProfileInput, fleetService } from '@modules/fleet';
 
 export async function updateDriverProfileAction(driverProfileId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');
 
   const licenseExpiresAtRaw = String(formData.get('licenseExpiresAt') ?? '');
-  const languagesRaw = String(formData.get('languages') ?? '').trim();
   const input = UpdateDriverProfileInput.parse({
     licenseNumber: String(formData.get('licenseNumber') ?? '').trim(),
     licenseExpiresAt: licenseExpiresAtRaw || undefined,
-    languages: languagesRaw
-      ? languagesRaw.split(',').map((l) => l.trim().toLowerCase()).filter(Boolean)
-      : undefined,
+    // Always pass the array, even empty -- these are real checkboxes now,
+    // not a comma-typed field: unchecking every box must clear languages,
+    // same convention the guide profile update action already uses.
+    languages: formData.getAll('languages').filter((l): l is string => typeof l === 'string' && (LANGUAGE_CODES as readonly string[]).includes(l)),
     status: formData.get('status') || undefined,
   });
 

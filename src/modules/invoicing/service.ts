@@ -1,6 +1,6 @@
 // invoicing module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prisma/client';
+import type { Currency, InvoiceStatus, Locale, PaymentKind, PaymentStatus } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { bookingService, isBookingLocked, type BookingView, type CancellationRefundTier, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -10,7 +10,7 @@ import { catalogService } from '@modules/catalog';
 // Day Template countries the same way a standard package's own cost
 // breakdown already is.
 import { financeService } from '@modules/finance';
-import { notificationsService } from '@modules/notifications';
+import { notificationsService, type EmailAttachment } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
@@ -50,6 +50,60 @@ function resolveTourLead(travelers: Pick<TravelerView, 'firstName' | 'lastName' 
 function buildInvoicePdfFilename(bookingReference: string, status: InvoiceStatus, locale: PdfLocale): string {
   const kind = status === 'PAID' ? 'receipt' : 'invoice';
   return `${bookingReference}-${kind}-${locale}.pdf`;
+}
+
+// DR-250: the guest booking record's Locale enum ('EN'/'FR') vs. the PDF
+// renderer's own lowercase PdfLocale -- every existing PDF route/action
+// takes a PdfLocale directly from an explicit staff/guest choice, so this
+// mapping never had to exist before notifyPaymentSucceeded needed one.
+function toPdfLocale(locale: Locale): PdfLocale {
+  return locale === 'FR' ? 'fr' : 'en';
+}
+
+/** DR-250 (explicit user request): best-effort invoice/receipt PDF
+ * attachment for the PAYMENT_SUCCEEDED email -- same data + rendering as
+ * streamInvoicePdf, just built from data notifyPaymentSucceeded already has
+ * in scope instead of a fresh ctx-authenticated read. Returns `[]` (never
+ * throws) on any failure -- a PDF-rendering problem must never cost the
+ * guest the payment-confirmation email itself, same never-throws contract
+ * notifyPaymentSucceeded's own try/catch already extends over everything
+ * else in that function. */
+async function buildInvoicePdfAttachment(
+  organizationId: string,
+  bookingReference: string,
+  travelers: TravelerView[],
+  invoice: InvoiceView,
+  locale: Locale,
+): Promise<EmailAttachment[]> {
+  if (!canDownloadInvoicePdf(invoice.status)) return [];
+  const log = logger(newTraceId());
+  try {
+    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
+    const succeededPayments = (detail?.payments ?? []).filter((p) => p.status === 'SUCCEEDED');
+    const pdfLocale = toPdfLocale(locale);
+    const body = await renderInvoicePdf({
+      locale: pdfLocale,
+      status: invoice.status as Extract<InvoiceStatus, 'PARTIALLY_PAID' | 'PAID'>,
+      currency: invoice.currency,
+      bookingReference,
+      subtotalMinor: invoice.subtotalMinor,
+      discountMinor: invoice.discountMinor,
+      couponCode: invoice.couponCode,
+      taxMinor: invoice.taxMinor,
+      platformFeeMinor: invoice.platformFeeMinor,
+      totalMinor: invoice.totalMinor,
+      balanceMinor: invoice.balanceMinor,
+      payments: succeededPayments.map((p) => ({ kind: p.kind, amountMinor: p.amountMinor, createdAt: p.createdAt })),
+      tourLead: resolveTourLead(travelers),
+    });
+    return [{ filename: buildInvoicePdfFilename(bookingReference, invoice.status, pdfLocale), content: body }];
+  } catch (err) {
+    log.error('buildInvoicePdfAttachment failed -- sending PAYMENT_SUCCEEDED without the attachment', {
+      invoiceId: invoice.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
 }
 
 export interface BillingSummaryView {
@@ -174,7 +228,13 @@ async function applyPaymentOutcome(
  * blip) must never turn an already-successful payment into a 500 for the
  * guest. Same never-throws contract notificationsService.notify/notifyEmail
  * already guarantee one layer down; this extends it to the lookups above
- * them too. */
+ * them too.
+ *
+ * DR-250 (explicit user request): the email leg also attaches the invoice/
+ * receipt PDF (buildInvoicePdfAttachment, below) -- degrades to no
+ * attachment rather than no email on a rendering failure. Only the EMAIL
+ * leg gets one; the notify() fallback branch below has no attachment
+ * mechanism (WhatsApp/SMS), so it's plain text same as before this DR. */
 async function notifyPaymentSucceeded(
   ctx: AuthContext,
   organizationId: string,
@@ -204,7 +264,13 @@ async function notifyPaymentSucceeded(
     };
 
     if (email) {
-      await notificationsService.notifyEmail('PAYMENT_SUCCEEDED', email, tourist?.preferredLocale ?? 'EN', organizationId, notificationData);
+      const locale = tourist?.preferredLocale ?? 'EN';
+      // DR-250 (explicit user request): attach the invoice/receipt PDF to
+      // this email -- best-effort, see buildInvoicePdfAttachment's own
+      // comment for why a rendering failure degrades to no attachment
+      // rather than skipping the email entirely.
+      const attachments = await buildInvoicePdfAttachment(organizationId, booking.bookingReference, travelers, result.invoice, locale);
+      await notificationsService.notifyEmail('PAYMENT_SUCCEEDED', email, locale, organizationId, notificationData, attachments);
     } else {
       // Extremely rare (no traveler manifest and no booking-level contact
       // email at all) -- fall back to the old fallback chain rather than

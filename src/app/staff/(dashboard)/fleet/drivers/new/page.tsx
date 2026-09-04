@@ -1,10 +1,12 @@
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
+import { LANGUAGE_CODES, LANGUAGE_LABELS } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal } from '@/components/ui/Reveal';
+import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createDriverProfileAction } from './actions';
 
@@ -37,6 +39,16 @@ export default async function NewDriverPage({ searchParams }: Props) {
           <FormField label={t('licenseExpiresOn')} htmlFor="licenseExpiresAt" optional>
             <input name="licenseExpiresAt" type="date" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
+          <div>
+            <p className="mb-1 text-sm text-mist">{t('languagesLabel')}</p>
+            <div className="flex flex-wrap gap-2">
+              {LANGUAGE_CODES.map((code) => (
+                <SelectableCard key={code} type="checkbox" name="languages" value={code}>
+                  {LANGUAGE_LABELS[code]}
+                </SelectableCard>
+              ))}
+            </div>
+          </div>
           <SubmitButton>{t('addDriverSubmit')}</SubmitButton>
         </form>
       </Reveal>

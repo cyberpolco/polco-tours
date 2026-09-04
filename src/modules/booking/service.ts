@@ -562,9 +562,8 @@ export const bookingService = {
     const organizationId = requireOrg(ctx);
     const booking = await getOwnedBooking(ctx, organizationId, bookingId);
 
-    const deleted = await bookingRepository.softDelete(organizationId, bookingId);
-    if (!deleted) throw Errors.notFound('Booking not found');
-
+    // DR-241: audit BEFORE deleting -- hardDelete cascades immediately, so
+    // there's no post-delete row left to read bookingReference/status from.
     await audit({
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
@@ -574,6 +573,9 @@ export const bookingService = {
       organizationId,
       metadata: { bookingReference: booking.bookingReference, statusAtDeletion: booking.status },
     });
+
+    const deleted = await bookingRepository.hardDelete(organizationId, bookingId);
+    if (!deleted) throw Errors.notFound('Booking not found');
   },
 
   /** DR-028: the "Super Admin converts it into an operational itinerary"

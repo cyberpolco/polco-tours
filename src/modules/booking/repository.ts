@@ -234,11 +234,13 @@ async function sweepLifecycle(tx: TenantTx): Promise<string[]> {
     )
     RETURNING "departureId"
   `;
-  // DR-058: same lazy-sweep convention, not a scheduled job -- a
-  // soft-deleted booking (deletedAt set by softDelete) past the retention
-  // window gets permanently purged the next time anything touches this
-  // org's bookings, cascading (via the schema's onDelete: Cascade) to its
-  // Traveler/Invoice/Payment/BookingAddon/Itinerary/RatingCode/Review rows.
+  // DR-058 (superseded by DR-241 going forward -- see bookingRepository
+  // .hardDelete): a SUPERADMIN delete no longer sets deletedAt, so this can
+  // no longer find anything new. Left in place only to finish purging any
+  // rows soft-deleted before DR-241 shipped, cascading (via the schema's
+  // onDelete: Cascade) to their Traveler/Invoice/Payment/BookingAddon/
+  // Itinerary/RatingCode/Review rows. Safe to remove once
+  // BOOKING_DELETION_RETENTION_DAYS has elapsed since DR-241's rollout.
   await tx.$executeRaw`
     DELETE FROM bookings
     WHERE "deletedAt" IS NOT NULL AND "deletedAt" < now() - (${BOOKING_DELETION_RETENTION_DAYS} * interval '1 day')
@@ -309,11 +311,14 @@ export const bookingRepository = {
    * FULLY_PAID hasn't reached a real commitment yet; COMPLETED/CANCELLED/
    * REFUNDED are no longer "current"). A departure can have several
    * bookings sharing one Assignment -- true if ANY of them is active.
-   * DR-149: also excludes a soft-deleted booking (deletedAt set) -- softDelete
-   * never touches `status`, so a CONFIRMED/IN_PROGRESS booking that gets
-   * deleted (bookingService.deleteBooking, DR-058) would otherwise still
-   * read as "active" here forever, keeping its vehicle/driver/guide stuck at
-   * BOOKED even after the sync hook re-runs. */
+   * DR-149: also excludes a soft-deleted booking (deletedAt set) -- under
+   * DR-058's original soft-delete, a CONFIRMED/IN_PROGRESS booking that got
+   * deleted would otherwise still read as "active" here forever, keeping its
+   * vehicle/driver/guide stuck at BOOKED even after the sync hook re-runs.
+   * DR-241 made bookingService.deleteBooking an immediate hard delete
+   * instead (the row is simply gone, so this filter can no longer even
+   * match it), but the `deletedAt: null` guard is kept as defense-in-depth
+   * for any pre-DR-241 row still mid-purge. */
   async hasActiveBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
     return withOrg(organizationId, async (tx) => {
       const match = await tx.booking.findFirst({
@@ -588,21 +593,19 @@ export const bookingRepository = {
     throw new Error('unreachable');
   },
 
-  /** DR-058: sets `deletedAt`, hiding the booking from every read path in
-   * this module immediately (findById/findByBookingReference/listMine/
-   * listForOrg/listBookingsWithTravelersForDeparture all check it). The
-   * row and everything hanging off it (Traveler/Invoice/Payment/etc.)
-   * stays intact in Postgres until sweepLifecycle's retention purge
-   * removes it `BOOKING_DELETION_RETENTION_DAYS` days later -- soft
-   * delete, not an immediate hard delete, per explicit user choice. No
-   * status restriction: any booking, in any status, can be soft-deleted
+  /** DR-241: immediate, permanent hard delete -- explicit user reversal of
+   * DR-058's soft-delete-then-90-day-purge policy. Cascades (via the
+   * schema's onDelete: Cascade) to Traveler/Invoice/Payment/BookingAddon/
+   * Itinerary/RatingCode/Review/BookingCostBreakdown rows immediately, with
+   * no recovery window -- the deliberate tradeoff DR-058 originally
+   * flagged (real financial records gone instantly) is now accepted
+   * per explicit user confirmation. The `booking.deleted` audit log row
+   * (a separate, non-cascaded table) is the only surviving record. No
+   * status restriction: any booking, in any status, can be deleted
    * (SUPERADMIN-only, enforced in the service). */
-  async softDelete(organizationId: string, id: string): Promise<boolean> {
+  async hardDelete(organizationId: string, id: string): Promise<boolean> {
     return withOrg(organizationId, async (tx) => {
-      const result = await tx.booking.updateMany({
-        where: { id, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
+      const result = await tx.booking.deleteMany({ where: { id } });
       return result.count > 0;
     });
   },

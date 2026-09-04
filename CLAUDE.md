@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-249** (2026-09-04). This file used to carry a running
+Current through **DR-250** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -488,7 +488,12 @@ src/
                    #   User.email as a last resort). New invoicing → auth
                    #   runtime dependency (authService.getUser) — see "Module
                    #   dependency direction matters" below. PAYMENT_FAILED is
-                   #   unchanged, still on notify().
+                   #   unchanged, still on notify(). DR-250: that same EMAIL
+                   #   send now attaches the invoice/receipt PDF too (a new
+                   #   buildInvoicePdfAttachment helper, reusing
+                   #   renderInvoicePdf the same way streamInvoicePdf does),
+                   #   best-effort — a PDF-rendering failure degrades to no
+                   #   attachment, never to no email.
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
                    #   DR-205: 26 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
@@ -559,12 +564,38 @@ src/
                    #   than the sending domain, also flagged directly;
                    #   explicit user choice to keep the attribution text
                    #   over dropping it or leaving the link live.
+                   #   DR-250: notifyEmail/SendRequest gain an optional
+                   #   `attachments: EmailAttachment[]` (filename + Buffer,
+                   #   `notifications/domain.ts`) -- WhatsApp/SMS never see
+                   #   it (email-only concept). ResendEmailGateway
+                   #   base64-encodes it by hand into its raw `fetch` body
+                   #   (this repo talks to Resend's REST API directly, not
+                   #   their Node SDK, which would auto-encode a Buffer).
+                   #   First (and so far only) consumer: invoicing's
+                   #   PAYMENT_SUCCEEDED send, attaching the invoice/receipt
+                   #   PDF.
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
                    #   DR-082 adds availability/lastActiveAt (usage-recency,
-                   #   independent of each entity's own operational status)
-    assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule
+                   #   independent of each entity's own operational status).
+                   #   DR-245: GuideProfile.specialties moves from freeform
+                   #   String[] to the same PackageTag enum TourPackage.tags
+                   #   uses (new fleet -> catalog module dependency, PACKAGE_TAGS
+                   #   imported via catalog's index.ts, confirmed acyclic) --
+                   #   blocked on a DB-owner-permission db:push as of this
+                   #   writing (OI-18). DR-246: DriverProfile.languages and
+                   #   GuideProfile.languages move from freeform-typed text
+                   #   to a fixed 17-code checklist (fleet/domain.ts's
+                   #   LANGUAGE_CODES/LANGUAGE_LABELS) -- no schema change,
+                   #   zod-only, since this vocabulary isn't shared with any
+                   #   other module.
+    assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule.
+                   #   DR-247: recommendAssignment's guide ranking now factors
+                   #   in specialty-tag overlap (compareGuidesByMatch,
+                   #   specialtyOverlapCount) against the departure's package
+                   #   tags before falling back to averageRating (DR-037) as
+                   #   the tiebreaker -- drivers still rank by rating alone
     visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
                    #   SUPERADMIN can hard-delete an application
                    #   (isVisaDeleter), and deleteForBooking cascades that
@@ -1395,8 +1426,12 @@ serverless function bundle.
   stubbed) HTTP adapters behind a shared gateway interface, each degrading
   gracefully to "unavailable" when unconfigured. See Open Items for current
   per-channel credential status.
-- **Soft-delete + SUPERADMIN-only hard gates**: `Booking` (90-day retention
-  purge via the lazy sweep / QStash job), `Vehicle`/`DriverProfile`/
+- **Soft-delete + SUPERADMIN-only hard gates**: `Booking` — since DR-241,
+  reverses DR-058 — is an immediate, permanent hard delete (cascading to
+  Traveler/Invoice/Payment/BookingAddon/Itinerary/RatingCode/Review/
+  BookingCostBreakdown right away, no recovery window; the old 90-day
+  lazy-sweep purge is kept only to finish purging any booking soft-deleted
+  before DR-241 shipped). `Vehicle`/`DriverProfile`/
   `GuideProfile` (indefinite, no purge), a client (bare `TOURIST` contact
   record, DR-085 — additionally guarded by `src/lib/client-deletion.ts`:
   blocked unless every one of their bookings is `COMPLETED`-and-reviewed or
@@ -1545,6 +1580,17 @@ Surface these to the human — don't invent answers.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
+- **OI-18** (DR-245) `GuideProfile.specialties`'s column-type change
+  (freeform `String[]` -> `PackageTag[]`) is written to `prisma/schema.prisma`
+  and the app code already assumes it, but not yet applied to the shared
+  Neon DB — `prisma db push` failed with `must be owner of table
+  guide_profiles` against the `polco_app` credential in `.env` (same "no
+  single credential does both" gotcha as every other schema push in this
+  repo). Needs a `neondb_owner` connection string pasted directly by a human
+  (never written to a file) to actually run `npm run db:push` +
+  `npm run db:rls`. No production data loss risk — confirmed via a direct
+  query that no `GuideProfile` row had any `specialties` value at the time
+  this was written.
 **Resolved:** OI-17 (DR-222's schema change — `Airport`/`FlightFareRate`/
 `EsimDataPlanRate` tables, `BookingAddon`'s 5 new nullable columns — pushed
 to the shared Neon database via `npm run db:push` with the user's own

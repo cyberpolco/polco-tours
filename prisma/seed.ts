@@ -387,17 +387,23 @@ async function main() {
     });
   }
 
-  const guides: Array<{ email: string; name: string; languages: string[]; specialties: string[] }> = [
-    { email: 'guide1@polcotours.com', name: 'Maria Nghifikwa', languages: ['en'], specialties: ['Wildlife', 'Photography'] },
-    { email: 'guide2@polcotours.com', name: 'Helena Iipinge', languages: ['en'], specialties: ['Cultural Tours'] },
-    { email: 'guide3@polcotours.com', name: 'Ndeshi Amupolo', languages: ['en', 'af'], specialties: ['Desert Trekking'] },
-    { email: 'guide4@polcotours.com', name: 'Selma Uugwanga', languages: ['en'], specialties: ['Wildlife'] },
-    { email: 'guide5@polcotours.com', name: 'Tuyeni Nakale', languages: ['en'], specialties: ['Family Tours'] },
-    { email: 'guide6@polcotours.com', name: 'Chantal Mbuyi', languages: ['fr'], specialties: ['Gorilla Trekking'] },
-    { email: 'guide7@polcotours.com', name: 'Grace Kabeya', languages: ['fr'], specialties: ['Cultural Tours'] },
-    { email: 'guide8@polcotours.com', name: 'Aline Mwamba', languages: ['fr', 'en'], specialties: ['River Tours'] },
-    { email: 'guide9@polcotours.com', name: 'Bijoux Kasongo', languages: ['fr'], specialties: ['Wildlife'] },
-    { email: 'guide10@polcotours.com', name: 'Divine Ngoy', languages: ['fr'], specialties: ['Adventure'] },
+  // DR-245: specialties now draws from the PackageTag enum (same vocabulary
+  // as TourPackage.tags) instead of freeform descriptive strings -- each
+  // guide's old freeform value is mapped to its closest tag below (e.g.
+  // "Gorilla Trekking"/"Desert Trekking" -> the closest matching tag; a
+  // second freeform value with no tag equivalent, like guide1's
+  // "Photography", is simply dropped rather than forced into a tag it isn't).
+  const guides: Array<{ email: string; name: string; languages: string[]; specialties: PackageTag[] }> = [
+    { email: 'guide1@polcotours.com', name: 'Maria Nghifikwa', languages: ['en'], specialties: ['WILDLIFE'] },
+    { email: 'guide2@polcotours.com', name: 'Helena Iipinge', languages: ['en'], specialties: ['CULTURE'] },
+    { email: 'guide3@polcotours.com', name: 'Ndeshi Amupolo', languages: ['en', 'af'], specialties: ['ADVENTURE'] },
+    { email: 'guide4@polcotours.com', name: 'Selma Uugwanga', languages: ['en'], specialties: ['WILDLIFE'] },
+    { email: 'guide5@polcotours.com', name: 'Tuyeni Nakale', languages: ['en'], specialties: ['FAMILY'] },
+    { email: 'guide6@polcotours.com', name: 'Chantal Mbuyi', languages: ['fr'], specialties: ['WILDLIFE'] },
+    { email: 'guide7@polcotours.com', name: 'Grace Kabeya', languages: ['fr'], specialties: ['CULTURE'] },
+    { email: 'guide8@polcotours.com', name: 'Aline Mwamba', languages: ['fr', 'en'], specialties: ['ADVENTURE'] },
+    { email: 'guide9@polcotours.com', name: 'Bijoux Kasongo', languages: ['fr'], specialties: ['WILDLIFE'] },
+    { email: 'guide10@polcotours.com', name: 'Divine Ngoy', languages: ['fr'], specialties: ['ADVENTURE'] },
   ];
   for (const g of guides) {
     const user = await prisma.user.upsert({

@@ -270,6 +270,15 @@ describe('POST /api/v1/invoices/:invoiceId/payments', () => {
     // Proves the auto-succeed step's notify() call actually fired -- not a
     // real network call (mocked at the top of this file).
     expect(notificationSendMock).toHaveBeenCalled();
+    // DR-250: PAYMENT_SUCCEEDED's EMAIL send (the most recent call at this
+    // point -- it's the last thing applyPaymentOutcome does before this
+    // route returns) attaches the invoice PDF as a real Buffer, now that
+    // the invoice is PARTIALLY_PAID (canDownloadInvoicePdf allows it).
+    expect(notificationSendMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attachments: [expect.objectContaining({ filename: expect.stringMatching(/-invoice-en\.pdf$/), content: expect.any(Buffer) })],
+      }),
+    );
 
     const invoiceHeaders = await loginAs(touristAId);
     const invoiceReq = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice`, invoiceHeaders);
@@ -330,6 +339,12 @@ describe('POST /api/v1/payments/:paymentId/resolve', () => {
     const body = await res.json();
     expect(body.payment.status).toBe('SUCCEEDED');
     expect(body.payment.amountMinor).toBe(expected.balanceMinor);
+    // DR-250: now PAID -- the attached filename says "receipt", not "invoice".
+    expect(notificationSendMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        attachments: [expect.objectContaining({ filename: expect.stringMatching(/-receipt-en\.pdf$/), content: expect.any(Buffer) })],
+      }),
+    );
 
     const invoiceHeaders = await loginAs(touristAId);
     const invoiceReq = jsonRequest('GET', `http://localhost/api/v1/bookings/${bookingId}/invoice`, invoiceHeaders);

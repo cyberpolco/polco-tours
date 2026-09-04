@@ -12,6 +12,8 @@ export {
   UpdateGuideProfileInput,
   UpdateStarlinkKitInput,
   UpdateVehicleInput,
+  LANGUAGE_CODES,
+  LANGUAGE_LABELS,
   POST_TOUR_AVAILABILITY_DELAY_HOURS,
   complianceStatus,
   isWithinPostTourCooldown,

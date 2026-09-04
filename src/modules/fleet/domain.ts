@@ -1,6 +1,48 @@
 // fleet module — domain types & rules. Pure; no framework or DB imports.
-import type { AvailabilityStatus, Currency, DriverStatus, GuideStatus, Role, StarlinkStatus, VehicleStatus } from '@prisma/client';
+// DR-245: PACKAGE_TAGS is imported from @modules/catalog's public index.ts
+// (not reaching into catalog/domain.ts directly) so a guide's specialties
+// are drawn from the exact same controlled vocabulary as TourPackage.tags,
+// instead of the previous freeform string -- same "share the vocabulary via
+// index.ts" precedent booking/domain.ts's preferredTags already established
+// (DR-046). Confirmed acyclic: catalog imports nothing from fleet.
+import type { AvailabilityStatus, Currency, DriverStatus, GuideStatus, PackageTag, Role, StarlinkStatus, VehicleStatus } from '@prisma/client';
 import { z } from 'zod';
+import { PACKAGE_TAGS } from '@modules/catalog';
+
+// DR-246: explicit user direction -- both DriverProfile.languages and
+// GuideProfile.languages move from freeform-typed text to a fixed checklist.
+// The list covers the official/working language of each of the 5 operating
+// countries (en: NA/ZM/ZW/BW, fr: DRC) plus Afrikaans and Portuguese, major
+// local languages spoken in those countries' communities (not just with
+// guests), and major tourist source-market languages -- all three groups
+// were explicitly requested. Not backed by a Prisma enum (unlike
+// PackageTag/specialties, DR-245) since this vocabulary isn't shared with
+// any other module -- the `languages` column stays a plain String[]; only
+// this zod list changes, no schema/DB migration needed. A handful of these
+// (Bemba, Ndebele, Herero, Oshiwambo/Ndonga) have no real ISO 639-1
+// (2-letter) code, so the length-2 constraint the old freeform validation
+// used is dropped in favor of this fixed enum, which is a strictly stronger
+// check anyway.
+export const LANGUAGE_CODES = ['en', 'fr', 'af', 'pt', 'sw', 'ln', 'sn', 'nd', 'tn', 'bem', 'ny', 'ng', 'hz', 'de', 'es', 'it', 'zh'] as const;
+export const LANGUAGE_LABELS: Record<(typeof LANGUAGE_CODES)[number], string> = {
+  en: 'English',
+  fr: 'French',
+  af: 'Afrikaans',
+  pt: 'Portuguese',
+  sw: 'Swahili',
+  ln: 'Lingala',
+  sn: 'Shona',
+  nd: 'Ndebele',
+  tn: 'Setswana',
+  bem: 'Bemba',
+  ny: 'Nyanja',
+  ng: 'Oshiwambo (Ndonga)',
+  hz: 'Herero',
+  de: 'German',
+  es: 'Spanish',
+  it: 'Italian',
+  zh: 'Mandarin Chinese',
+};
 
 /** Genuinely destructive (Vehicle/DriverProfile/GuideProfile deletion has no
  * status-transition table and no way back within the app) -- SUPERADMIN-only,
@@ -71,14 +113,14 @@ export const CreateDriverProfileInput = z.object({
   userId: z.string().uuid(),
   licenseNumber: z.string().min(1).max(100),
   licenseExpiresAt: z.coerce.date().optional(),
-  languages: z.array(z.string().length(2)).optional(), // ISO-639-1
+  languages: z.array(z.enum(LANGUAGE_CODES)).optional(),
 });
 export type CreateDriverProfileInput = z.infer<typeof CreateDriverProfileInput>;
 
 export const UpdateDriverProfileInput = z.object({
   licenseNumber: z.string().min(1).max(100).optional(),
   licenseExpiresAt: z.coerce.date().optional(),
-  languages: z.array(z.string().length(2)).optional(),
+  languages: z.array(z.enum(LANGUAGE_CODES)).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
 });
 export type UpdateDriverProfileInput = z.infer<typeof UpdateDriverProfileInput>;
@@ -90,7 +132,11 @@ export interface GuideProfileView {
   organizationId: string;
   userId: string;
   languages: string[];
-  specialties: string[];
+  // DR-245: was freeform string[]; now the same PackageTag enum
+  // TourPackage.tags uses, so a guide's specialties can be matched directly
+  // against a package/departure's tags (see assignment/service.ts's
+  // recommendAssignment).
+  specialties: PackageTag[];
   status: GuideStatus;
   // Live-recomputed by the ratings module (DR-037) -- null until the first
   // Review, never incremented here. Written by userId, not this table's id
@@ -106,14 +152,14 @@ export interface GuideProfileView {
 
 export const CreateGuideProfileInput = z.object({
   userId: z.string().uuid(),
-  languages: z.array(z.string().length(2)).optional(), // ISO-639-1
-  specialties: z.array(z.string().min(1).max(50)).optional(),
+  languages: z.array(z.enum(LANGUAGE_CODES)).optional(),
+  specialties: z.array(z.enum(PACKAGE_TAGS)).optional(),
 });
 export type CreateGuideProfileInput = z.infer<typeof CreateGuideProfileInput>;
 
 export const UpdateGuideProfileInput = z.object({
-  languages: z.array(z.string().length(2)).optional(),
-  specialties: z.array(z.string().min(1).max(50)).optional(),
+  languages: z.array(z.enum(LANGUAGE_CODES)).optional(),
+  specialties: z.array(z.enum(PACKAGE_TAGS)).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED']).optional(),
 });
 export type UpdateGuideProfileInput = z.infer<typeof UpdateGuideProfileInput>;
@@ -236,7 +282,8 @@ export function computeAvailabilityStatus(isCurrentlyBooked: boolean, lastActive
 // Vehicle/DriverProfile/GuideProfile only -- StarlinkKit has no parallel
 // `availability` field today (only the separate ACTIVE/INACTIVE/MAINTENANCE
 // StarlinkStatus), left out of scope for this change.
-export const POST_TOUR_AVAILABILITY_DELAY_HOURS = 24;
+// DR-242: shortened 24h -> 2h, explicit user direction.
+export const POST_TOUR_AVAILABILITY_DELAY_HOURS = 2;
 const MS_PER_HOUR = 1000 * 60 * 60;
 
 /** True from the moment a departure ends until POST_TOUR_AVAILABILITY_DELAY_HOURS

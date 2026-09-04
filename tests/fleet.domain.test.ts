@@ -5,6 +5,7 @@ import {
   isFleetDeleter,
   isWithinPostTourCooldown,
   maintenanceRecencyScore,
+  POST_TOUR_AVAILABILITY_DELAY_HOURS,
   CreateDriverProfileInput,
   CreateGuideProfileInput,
   CreateVehicleInput,
@@ -104,6 +105,28 @@ describe('fleet domain', () => {
       const result = CreateDriverProfileInput.safeParse({ userId: 'not-a-uuid', licenseNumber: 'DL-001' });
       expect(result.success).toBe(false);
     });
+
+    // DR-246: languages now draws from a fixed LANGUAGE_CODES list instead
+    // of a freeform ISO-639-1-length(2) check -- accepts a 3-letter code
+    // from that list (e.g. "bem", Bemba, which has no real 2-letter
+    // ISO 639-1 code) and rejects anything not on the list at all.
+    it('accepts a valid fixed-list language, including a 3-letter one', () => {
+      const result = CreateDriverProfileInput.safeParse({
+        userId: '11111111-1111-4111-8111-111111111111',
+        licenseNumber: 'DL-001',
+        languages: ['en', 'bem'],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects a language not on the fixed list', () => {
+      const result = CreateDriverProfileInput.safeParse({
+        userId: '11111111-1111-4111-8111-111111111111',
+        licenseNumber: 'DL-001',
+        languages: ['klingon'],
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('CreateGuideProfileInput (DR-030)', () => {
@@ -111,9 +134,20 @@ describe('fleet domain', () => {
       const result = CreateGuideProfileInput.safeParse({
         userId: '11111111-1111-4111-8111-111111111111',
         languages: ['en', 'fr'],
-        specialties: ['wildlife', 'gorilla trekking'],
+        specialties: ['WILDLIFE', 'ADVENTURE'],
       });
       expect(result.success).toBe(true);
+    });
+
+    // DR-245: specialties now draws from the same PackageTag enum
+    // TourPackage.tags uses, not a freeform string -- an old-style
+    // freeform value like the pre-DR-245 "gorilla trekking" is rejected.
+    it('rejects a specialty that is not a real PackageTag value', () => {
+      const result = CreateGuideProfileInput.safeParse({
+        userId: '11111111-1111-4111-8111-111111111111',
+        specialties: ['gorilla trekking'],
+      });
+      expect(result.success).toBe(false);
     });
 
     it('accepts a guide profile with neither languages nor specialties', () => {
@@ -205,14 +239,19 @@ describe('fleet domain', () => {
       expect(isWithinPostTourCooldown(now, now)).toBe(true);
     });
 
-    it('is true partway through the 24h window', () => {
-      const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-      expect(isWithinPostTourCooldown(twelveHoursAgo, now)).toBe(true);
+    // DR-242: window shortened from 24h to 2h -- expressed via
+    // POST_TOUR_AVAILABILITY_DELAY_HOURS rather than a hardcoded number so
+    // this test doesn't go stale silently on a future change to that
+    // constant (the exact failure mode that made this test fail against
+    // this DR's own 24h -> 2h change).
+    it('is true partway through the cooldown window', () => {
+      const partway = new Date(now.getTime() - (POST_TOUR_AVAILABILITY_DELAY_HOURS / 2) * 60 * 60 * 1000);
+      expect(isWithinPostTourCooldown(partway, now)).toBe(true);
     });
 
-    it('is false once 24h have fully elapsed', () => {
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      expect(isWithinPostTourCooldown(twentyFourHoursAgo, now)).toBe(false);
+    it('is false once the cooldown window has fully elapsed', () => {
+      const fullyElapsed = new Date(now.getTime() - POST_TOUR_AVAILABILITY_DELAY_HOURS * 60 * 60 * 1000);
+      expect(isWithinPostTourCooldown(fullyElapsed, now)).toBe(false);
     });
 
     it('is false for a departure that has not ended yet', () => {

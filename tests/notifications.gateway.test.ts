@@ -62,6 +62,33 @@ describe('notification gateways', () => {
     });
   });
 
+  describe('attachments (DR-250)', () => {
+    it('base64-encodes a Buffer attachment into the Resend REST call body', async () => {
+      vi.stubEnv('RESEND_API_KEY', 'test-key');
+      fetchSpy.mockResolvedValue({ ok: true, json: async () => ({ id: 'resend-id' }) });
+      const gw = new ResendEmailGateway();
+
+      const content = Buffer.from('%PDF-1.7 fake pdf bytes');
+      await gw.send({ to: 'a@example.test', body: 'hi', attachments: [{ filename: 'invoice.pdf', content }] });
+
+      const [, requestInit] = fetchSpy.mock.calls[0]!;
+      const sentBody = JSON.parse(requestInit.body as string);
+      expect(sentBody.attachments).toEqual([{ filename: 'invoice.pdf', content: content.toString('base64') }]);
+    });
+
+    it('omits the attachments field entirely when none are given', async () => {
+      vi.stubEnv('RESEND_API_KEY', 'test-key');
+      fetchSpy.mockResolvedValue({ ok: true, json: async () => ({ id: 'resend-id' }) });
+      const gw = new ResendEmailGateway();
+
+      await gw.send({ to: 'a@example.test', body: 'hi' });
+
+      const [, requestInit] = fetchSpy.mock.calls[0]!;
+      const sentBody = JSON.parse(requestInit.body as string);
+      expect(sentBody.attachments).toBeUndefined();
+    });
+  });
+
   describe('retry policy', () => {
     it('retries once on a genuine failure', async () => {
       vi.stubEnv('RESEND_API_KEY', 'test-key');

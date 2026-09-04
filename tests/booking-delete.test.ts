@@ -7,11 +7,15 @@ import type { AuthContext } from '../src/modules/auth/domain';
 import type { Permission } from '../src/lib/rbac';
 
 /**
- * DR-058: SUPERADMIN-only, real (soft-then-purged) booking deletion --
- * any status, not just CANCELLED (explicit user choice). Own throwaway org
- * (not the shared primary org) since this test creates/soft-deletes/
- * backdates bookings directly via raw Prisma, which would be too invasive
- * to do against real shared data.
+ * DR-241 (reverses DR-058): SUPERADMIN-only, immediate hard-delete booking
+ * deletion -- any status, not just CANCELLED (explicit user choice carried
+ * over from DR-058). Own throwaway org (not the shared primary org) since
+ * this test creates/soft-deletes/backdates bookings directly via raw
+ * Prisma, which would be too invasive to do against real shared data. The
+ * retention-purge describe block below still exercises DR-058's original
+ * 90-day sweep, which is kept only to finish purging bookings that were
+ * soft-deleted before DR-241 shipped -- it is no longer reachable via
+ * bookingService.deleteBooking itself.
  */
 const admin = new PrismaClient();
 const suffix = `${Date.now()}`;
@@ -80,7 +84,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 }, 30_000);
 
-describe('bookingService.deleteBooking (DR-058)', () => {
+describe('bookingService.deleteBooking (DR-241, reverses DR-058)', () => {
   it('rejects a non-SUPERADMIN caller even with booking.delete somehow in their permission set', async () => {
     const bookingId = await createRawBooking('CANCELLED');
     const ctx = ctxFor(operatorId, ['TOUR_OPERATOR'], ['booking.delete']);
@@ -109,17 +113,16 @@ describe('bookingService.deleteBooking (DR-058)', () => {
     expect((err as Error).message).toMatch(/FORBIDDEN/);
   });
 
-  it('SUPERADMIN can soft-delete a booking in ANY status, not just CANCELLED', async () => {
+  it('SUPERADMIN hard-deletes a booking in ANY status, not just CANCELLED -- immediately, no deletedAt window', async () => {
     const bookingId = await createRawBooking('AWAITING_QUOTATION');
     const ctx = ctxFor(superadminId, ['SUPERADMIN']);
     await bookingService.deleteBooking(ctx, bookingId);
 
     const row = await withOrg(orgId, (tx) => tx.booking.findUnique({ where: { id: bookingId } }));
-    expect(row).not.toBeNull();
-    expect(row?.deletedAt).not.toBeNull();
+    expect(row).toBeNull();
   });
 
-  it('a soft-deleted booking disappears from every staff read path immediately', async () => {
+  it('a hard-deleted booking disappears from every staff read path immediately', async () => {
     const bookingId = await createRawBooking('CONFIRMED');
     const staffCtx = ctxFor(operatorId, ['TOUR_OPERATOR'], ['booking.read']);
 

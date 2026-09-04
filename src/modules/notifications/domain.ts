@@ -59,6 +59,15 @@ export interface RenderedMessage {
   body: string;
 }
 
+// DR-250: an email-only concept (a WhatsApp/SMS body has no attachment
+// mechanism) -- notifyEmail's attachments param is optional and simply
+// never set by any WhatsApp/SMS-only caller, so WhatsAppCloudGateway/
+// AfricasTalkingSmsGateway's own send() never needs to look at it.
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 export interface NotificationData {
   bookingId?: string;
   amountMinor?: number;

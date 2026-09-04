@@ -2,7 +2,7 @@
 // here. Nothing from gateway.ts is exported -- callers never see
 // channel-level detail.
 export { notificationsService } from './service';
-export type { NotificationData, NotificationEvent } from './domain';
+export type { EmailAttachment, NotificationData, NotificationEvent } from './domain';
 // DR-217: the /staff/cms Emails tab reads these coded defaults/grouping to
 // render its 27 template editors (prefill + placeholder hints) -- pure
 // data, no cms/DB coupling leaks back into this module.

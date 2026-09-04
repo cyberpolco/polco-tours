@@ -10,6 +10,7 @@ import {
   renderMessage,
   renderSmsMessage,
   resolveChannelOrder,
+  type EmailAttachment,
   type EmailTemplateOverrides,
   type NotificationChannel,
   type NotificationData,
@@ -138,13 +139,16 @@ export const notificationsService = {
     locale: Locale,
     organizationId: string,
     data: NotificationData,
+    // DR-250: optional, EMAIL-channel-only -- e.g. PAYMENT_SUCCEEDED attaches
+    // the invoice/receipt PDF. Every other caller simply omits it.
+    attachments?: EmailAttachment[],
   ): Promise<void> {
     const log = logger(newTraceId());
     const overrides = await getEmailOverrides(locale, log);
     const message = renderMessage(event, locale, data, overrides);
 
     try {
-      const { providerRef } = await gateways.EMAIL.send({ to: email, subject: message.subject, body: message.body });
+      const { providerRef } = await gateways.EMAIL.send({ to: email, subject: message.subject, body: message.body, attachments });
       await audit({
         action: 'notification.sent',
         resourceType: 'Notification',

@@ -7,12 +7,13 @@
 // attempt when its env var(s) are absent, which is how the
 // WhatsApp -> SMS -> email fallback chain degrades gracefully. Mirrors
 // invoicing/gateway.ts's interface-plus-singleton-export shape.
-import type { NotificationChannel } from './domain';
+import type { EmailAttachment, NotificationChannel } from './domain';
 
 export interface SendRequest {
   to: string;
   subject?: string;
   body: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface SendResult {
@@ -89,6 +90,13 @@ export class ResendEmailGateway extends BreakerGateway implements NotificationCh
             to: req.to,
             subject: req.subject ?? '',
             html: req.body,
+            // DR-250: this repo talks to Resend's plain REST API, not their
+            // Node SDK, which is why content needs an explicit base64
+            // encode here -- the SDK auto-encodes a Buffer, this raw fetch
+            // body doesn't.
+            ...(req.attachments && req.attachments.length > 0
+              ? { attachments: req.attachments.map((a) => ({ filename: a.filename, content: a.content.toString('base64') })) }
+              : {}),
           }),
           signal: AbortSignal.timeout(5000),
         });

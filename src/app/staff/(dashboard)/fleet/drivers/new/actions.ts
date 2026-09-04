@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
-import { CreateDriverProfileInput, fleetService } from '@modules/fleet';
+import { CreateDriverProfileInput, LANGUAGE_CODES, fleetService } from '@modules/fleet';
 
 // Same convention as staff booking-on-behalf-of-a-client (DR-014): the
 // DRIVER-role user must already have an account, found by email.
@@ -17,10 +17,12 @@ export async function createDriverProfileAction(formData: FormData): Promise<voi
   }
 
   const licenseExpiresAtRaw = String(formData.get('licenseExpiresAt') ?? '');
+  const languages = formData.getAll('languages').filter((l): l is string => typeof l === 'string' && (LANGUAGE_CODES as readonly string[]).includes(l));
   const input = CreateDriverProfileInput.parse({
     userId: user.id,
     licenseNumber: String(formData.get('licenseNumber') ?? '').trim(),
     licenseExpiresAt: licenseExpiresAtRaw || undefined,
+    languages: languages.length ? languages : undefined,
   });
 
   const driver = await fleetService.createDriverProfile(ctx, input);

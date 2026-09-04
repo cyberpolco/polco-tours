@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
-import { complianceStatus, fleetService } from '@modules/fleet';
+import { LANGUAGE_CODES, LANGUAGE_LABELS, complianceStatus, fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
@@ -10,6 +10,7 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
+import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { deleteDriverProfileAction, updateDriverProfileAction, uploadDriverDocumentAction } from './actions';
@@ -75,14 +76,16 @@ export default async function DriverDetailPage({ params, searchParams }: Props) 
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
-          <FormField label={t('languagesLabel')} htmlFor="languages" optional>
-            <input
-              name="languages"
-              defaultValue={driver.languages.join(', ')}
-              placeholder="en, fr"
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
+          <div>
+            <p className="mb-1 text-sm text-mist">{t('languagesLabel')}</p>
+            <div className="flex flex-wrap gap-2">
+              {LANGUAGE_CODES.map((code) => (
+                <SelectableCard key={code} type="checkbox" name="languages" value={code} defaultChecked={driver.languages.includes(code)}>
+                  {LANGUAGE_LABELS[code]}
+                </SelectableCard>
+              ))}
+            </div>
+          </div>
           <SubmitButton>{t('saveChanges')}</SubmitButton>
         </form>
       </Reveal>

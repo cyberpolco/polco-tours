@@ -10,16 +10,22 @@ import { PACKAGE_TAGS } from '@modules/catalog';
 
 export const HOLD_DURATION_MINUTES = 30;
 
-// DR-058: a soft-deleted booking (Booking.deletedAt) is permanently purged
-// this many days later, via the same lazy sweepLifecycle convention
-// repository.ts already uses for hold-expiry/status transitions -- no
-// scheduled job exists in this codebase, deliberately.
+// DR-058, superseded by DR-241: previously, a soft-deleted booking
+// (Booking.deletedAt) was permanently purged this many days later via the
+// lazy sweepLifecycle convention repository.ts uses for hold-expiry/status
+// transitions. DR-241 made a SUPERADMIN delete an immediate hard delete
+// instead -- this constant now only bounds how long any booking soft-deleted
+// before DR-241 shipped takes to finish purging; it is not consulted by the
+// current delete path at all.
 export const BOOKING_DELETION_RETENTION_DAYS = 90;
 
-/** Genuinely destructive (unlike every other booking mutation, this has no
- * status-transition table entry and no way back) -- SUPERADMIN-only, same
- * "route passes via the DB-editable permission matrix, service still
- * rejects" layering as isCountryRegulationWriter/isFinanceConfigWriter. */
+/** Genuinely destructive -- unlike every other booking mutation, this has no
+ * status-transition table entry and no way back: DR-241 made it an
+ * immediate hard delete (reversing DR-058's soft-delete-then-90-day-purge),
+ * cascading to Traveler/Invoice/Payment/BookingAddon/etc. with zero
+ * recovery, per explicit user confirmation. SUPERADMIN-only, same "route
+ * passes via the DB-editable permission matrix, service still rejects"
+ * layering as isCountryRegulationWriter/isFinanceConfigWriter. */
 export function isBookingDeleter(roles: Role[]): boolean {
   return roles.includes('SUPERADMIN');
 }

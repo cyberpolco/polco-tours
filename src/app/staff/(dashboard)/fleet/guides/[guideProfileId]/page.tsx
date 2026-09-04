@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
-import { complianceStatus, fleetService } from '@modules/fleet';
+import { LANGUAGE_CODES, LANGUAGE_LABELS, complianceStatus, fleetService } from '@modules/fleet';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
@@ -10,9 +10,15 @@ import { FormField } from '@/components/ui/FormField';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Reveal } from '@/components/ui/Reveal';
 import { Select } from '@/components/ui/Select';
+import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { AVAILABILITY_STATUS_TONE, COMPLIANCE_STATUS_TONE } from '@lib/status-tones';
 import { deleteGuideProfileAction, updateGuideProfileAction, uploadGuideDocumentAction } from './actions';
+
+// DR-245: same controlled vocabulary as TourPackage.tags -- kept as a local
+// literal tuple, same hand-duplicated-per-file convention the package setup
+// pages already use for PACKAGE_TAGS.
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
 
 interface Props {
   params: Promise<{ guideProfileId: string }>;
@@ -39,6 +45,7 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
   const latestCertification = documents.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
   const status = complianceStatus(latestCertification?.expiresAt ?? null, now);
   const t = await getTranslations('StaffGuides');
+  const tTags = await getTranslations('TripTags');
   const tAvailabilityStatus = await getTranslations('AvailabilityStatusLabel');
   const tComplianceStatus = await getTranslations('ComplianceStatusLabel');
 
@@ -62,22 +69,26 @@ export default async function GuideDetailPage({ params, searchParams }: Props) {
               <option value="SUSPENDED">SUSPENDED</option>
             </Select>
           </FormField>
-          <FormField label={t('languagesLabel')} htmlFor="languages" optional>
-            <input
-              name="languages"
-              defaultValue={guide.languages.join(', ')}
-              placeholder="en, fr"
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label={t('specialtiesLabel')} htmlFor="specialties" optional>
-            <input
-              name="specialties"
-              defaultValue={guide.specialties.join(', ')}
-              placeholder="wildlife, gorilla trekking"
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
+          <div>
+            <p className="mb-1 text-sm text-mist">{t('languagesLabel')}</p>
+            <div className="flex flex-wrap gap-2">
+              {LANGUAGE_CODES.map((code) => (
+                <SelectableCard key={code} type="checkbox" name="languages" value={code} defaultChecked={guide.languages.includes(code)}>
+                  {LANGUAGE_LABELS[code]}
+                </SelectableCard>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1 text-sm text-mist">{t('specialtiesLabel')}</p>
+            <div className="flex flex-wrap gap-2">
+              {PACKAGE_TAGS.map((tag) => (
+                <SelectableCard key={tag} type="checkbox" name="specialties" value={tag} defaultChecked={guide.specialties.includes(tag)}>
+                  {tTags(tag)}
+                </SelectableCard>
+              ))}
+            </div>
+          </div>
           <SubmitButton>{t('saveChanges')}</SubmitButton>
         </form>
       </Reveal>

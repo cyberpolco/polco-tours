@@ -37,7 +37,7 @@ beforeAll(async () => {
 
   await withOrg(orgId, async (tx) => {
     const guideProfile = await tx.guideProfile.create({
-      data: { organizationId: orgId, userId: guideAId, languages: ['en'], specialties: ['wildlife'] },
+      data: { organizationId: orgId, userId: guideAId, languages: ['en'], specialties: ['WILDLIFE'] },
     });
     guideProfileAId = guideProfile.id;
   });

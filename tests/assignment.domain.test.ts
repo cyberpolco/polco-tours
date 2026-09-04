@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
+import type { PackageTag } from '@prisma/client';
 import {
   capacityFitScore,
   combineVehicleScore,
   compareByRating,
+  compareGuidesByMatch,
   departuresOverlap,
   distanceScore,
+  specialtyOverlapCount,
   CreateAssignmentInput,
 } from '../src/modules/assignment/domain';
 
@@ -139,6 +142,35 @@ describe('assignment domain', () => {
 
     it('treats two unrated candidates as equal', () => {
       expect(compareByRating({ averageRating: null }, { averageRating: null })).toBe(0);
+    });
+  });
+
+  describe('specialtyOverlapCount (DR-247)', () => {
+    it('counts how many of a guide\'s specialties match the package tags', () => {
+      expect(specialtyOverlapCount(['WILDLIFE', 'CULTURE'], ['WILDLIFE', 'ADVENTURE'])).toBe(1);
+      expect(specialtyOverlapCount(['WILDLIFE', 'ADVENTURE'], ['WILDLIFE', 'ADVENTURE'])).toBe(2);
+    });
+
+    it('is 0 when there is no overlap, or either side is empty', () => {
+      expect(specialtyOverlapCount(['CULTURE'], ['WILDLIFE'])).toBe(0);
+      expect(specialtyOverlapCount([], ['WILDLIFE'])).toBe(0);
+      expect(specialtyOverlapCount(['WILDLIFE'], [])).toBe(0);
+    });
+  });
+
+  describe('compareGuidesByMatch (DR-247)', () => {
+    it('ranks a guide with more matching specialties above one with fewer, regardless of rating', () => {
+      const bestMatch: { specialties: PackageTag[]; averageRating: number } = { specialties: ['WILDLIFE', 'ADVENTURE'], averageRating: 3 };
+      const partialMatch: { specialties: PackageTag[]; averageRating: number } = { specialties: ['WILDLIFE'], averageRating: 5 };
+      const list = [partialMatch, bestMatch];
+      expect([...list].sort(compareGuidesByMatch(['WILDLIFE', 'ADVENTURE']))).toEqual([bestMatch, partialMatch]);
+    });
+
+    it('falls back to compareByRating when overlap is tied (including a bespoke departure with no package tags at all)', () => {
+      const higherRated: { specialties: PackageTag[]; averageRating: number } = { specialties: ['WILDLIFE'], averageRating: 5 };
+      const lowerRated: { specialties: PackageTag[]; averageRating: number } = { specialties: ['CULTURE'], averageRating: 3 };
+      const list = [lowerRated, higherRated];
+      expect([...list].sort(compareGuidesByMatch([]))).toEqual([higherRated, lowerRated]);
     });
   });
 });

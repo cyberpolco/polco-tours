@@ -1,4 +1,5 @@
 // assignment module — domain types & rules. Pure; no framework or DB imports.
+import type { PackageTag } from '@prisma/client';
 import { z } from 'zod';
 
 export interface AssignmentView {
@@ -80,11 +81,40 @@ export function combineVehicleScore(factors: VehicleScoreFactors): number {
 
 /** Ratings module (DR-037): descending by averageRating -- missing data
  * (never rated yet) sorts LAST, but is never excluded (spec: "may be
- * deprioritized," never a hard filter). Used to order both drivers and
- * guides in recommendAssignment now that rating data exists. */
+ * deprioritized," never a hard filter). Used to order drivers, and guides
+ * when no specialty signal applies (see compareGuidesByMatch below). */
 export function compareByRating(a: { averageRating: number | null }, b: { averageRating: number | null }): number {
   if (a.averageRating == null && b.averageRating == null) return 0;
   if (a.averageRating == null) return 1;
   if (b.averageRating == null) return -1;
   return b.averageRating - a.averageRating;
+}
+
+// DR-247: explicit user request -- recommendAssignment's guide ranking now
+// also factors in how well a guide's specialties (DR-245, the same
+// PackageTag enum) match the departure's own package tags, not rating
+// alone.
+
+/** How many of a guide's specialties this departure's package tags actually
+ * call for -- a bespoke (TAILOR_MADE, no linked TourPackage) departure has
+ * no tags at all, so this is always 0 for it, same as a guide with no
+ * specialties set. */
+export function specialtyOverlapCount(specialties: PackageTag[], packageTags: PackageTag[]): number {
+  const tagSet = new Set(packageTags);
+  return specialties.filter((s) => tagSet.has(s)).length;
+}
+
+/** Descending by specialty-tag overlap with this departure's package first,
+ * then compareByRating as the tiebreaker (both for genuine ties and for the
+ * bespoke-departure case where every candidate's overlap is 0, preserving
+ * the pre-DR-247 rating-only ordering exactly). Curried on packageTags since
+ * that's fixed per recommendAssignment call, not per candidate pair. */
+export function compareGuidesByMatch(
+  packageTags: PackageTag[],
+): (a: { specialties: PackageTag[]; averageRating: number | null }, b: { specialties: PackageTag[]; averageRating: number | null }) => number {
+  return (a, b) => {
+    const overlapDiff = specialtyOverlapCount(b.specialties, packageTags) - specialtyOverlapCount(a.specialties, packageTags);
+    if (overlapDiff !== 0) return overlapDiff;
+    return compareByRating(a, b);
+  };
 }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
 import { authService, type PublicUser } from '@modules/auth';
-import { fleetService, type GuideProfileView } from '@modules/fleet';
+import { LANGUAGE_LABELS, fleetService, type GuideProfileView } from '@modules/fleet';
 import { paginate } from '@lib/directory-filters';
 import { GUIDE_STATUS_TONE, AVAILABILITY_STATUS_TONE } from '@lib/status-tones';
 import { BackLink } from '@/components/ui/BackLink';
@@ -20,6 +20,11 @@ import { deleteGuideProfileAction } from './[guideProfileId]/actions';
 
 const PER_PAGE = 10;
 
+// DR-245: same controlled vocabulary as TourPackage.tags -- kept as a local
+// literal tuple, same hand-duplicated-per-file convention the package setup
+// pages already use for PACKAGE_TAGS.
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+
 interface Props {
   searchParams: Promise<{ q?: string; status?: string; availability?: string; specialty?: string; page?: string }>;
 }
@@ -35,21 +40,11 @@ function matchesQuery(g: GuideProfileView, user: PublicUser | null, query: strin
   );
 }
 
-// specialties are freeform tags (see fleet/domain.ts's own comment), so this
-// filter's options are derived from whatever's actually in the data, same
-// convention as the vehicles list page's "type" filter.
-function listSpecialties(guides: GuideProfileView[]): string[] {
-  const specialties = new Set<string>();
-  for (const g of guides) {
-    for (const s of g.specialties) specialties.add(s);
-  }
-  return [...specialties].sort();
-}
-
 export default async function GuidesListPage({ searchParams }: Props) {
   const ctx = await requireStaffContext('fleet.read');
   const params = await searchParams;
   const t = await getTranslations('StaffGuides');
+  const tTags = await getTranslations('TripTags');
   const tGuideStatus = await getTranslations('GuideStatusLabel');
   const tAvailabilityStatus = await getTranslations('AvailabilityStatusLabel');
   const q = params.q ?? '';
@@ -58,14 +53,13 @@ export default async function GuidesListPage({ searchParams }: Props) {
   const specialty = params.specialty ?? '';
 
   const allGuides = await fleetService.listGuideProfiles(ctx);
-  const specialtyOptions = listSpecialties(allGuides);
   const allUsers = await Promise.all(allGuides.map((g) => authService.getUser(g.userId)));
   const userByGuideId = new Map(allGuides.map((g, i) => [g.id, allUsers[i]]));
 
   const filtered = allGuides.filter((g) => {
     if (status && g.status !== status) return false;
     if (availability && g.availability !== availability) return false;
-    if (specialty && !g.specialties.includes(specialty)) return false;
+    if (specialty && !(g.specialties as string[]).includes(specialty)) return false;
     if (!matchesQuery(g, userByGuideId.get(g.id) ?? null, q)) return false;
     return true;
   });
@@ -118,9 +112,9 @@ export default async function GuidesListPage({ searchParams }: Props) {
           <FormField label={t('specialty')} htmlFor="specialty" optional>
             <Select name="specialty" defaultValue={specialty}>
               <option value="">{t('all')}</option>
-              {specialtyOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {PACKAGE_TAGS.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tTags(tag)}
                 </option>
               ))}
             </Select>
@@ -159,8 +153,8 @@ export default async function GuidesListPage({ searchParams }: Props) {
                   <Tr key={g.id}>
                     <Td>{user?.name ?? '—'}</Td>
                     <Td>{user?.email ?? '—'}</Td>
-                    <Td>{g.languages.join(', ') || '—'}</Td>
-                    <Td>{g.specialties.join(', ') || '—'}</Td>
+                    <Td>{g.languages.map((l) => LANGUAGE_LABELS[l as keyof typeof LANGUAGE_LABELS] ?? l).join(', ') || '—'}</Td>
+                    <Td>{g.specialties.map((s) => tTags(s)).join(', ') || '—'}</Td>
                     <Td>
                       <Badge tone={GUIDE_STATUS_TONE[g.status]}>{tGuideStatus(g.status)}</Badge>
                     </Td>

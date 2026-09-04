@@ -1230,10 +1230,13 @@ model GuideProfile {
   userId         String             @unique @db.Uuid
   // ISO-639-1 codes, e.g. ["en","fr"], same convention as DriverProfile.
   languages      String[]           @default([])
-  // Freeform (e.g. "wildlife", "gorilla trekking", "cultural") -- no fixed
-  // taxonomy specified, kept consistent with languages' flexible-array shape
-  // rather than inventing an unrequested enum.
-  specialties    String[]           @default([])
+  // DR-245: was freeform (e.g. "wildlife", "gorilla trekking", "cultural") --
+  // now the same PackageTag enum TourPackage.tags uses, a controlled
+  // vocabulary a guide's specialties can be matched against a package's tags
+  // with (see assignmentService.recommendAssignment). No production data
+  // existed in this column at the time of the change (confirmed via a
+  // direct query), so no migration/backfill was needed.
+  specialties    PackageTag[]       @default([])
   status         GuideStatus        @default(ACTIVE)
   // DR-082: usage-recency, independent of `status` -- see
   // AvailabilityStatus's own comment.

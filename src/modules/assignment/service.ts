@@ -14,6 +14,7 @@ import {
   capacityFitScore,
   combineVehicleScore,
   compareByRating,
+  compareGuidesByMatch,
   departuresOverlap,
   distanceScore,
   type AssignmentView,
@@ -182,16 +183,24 @@ export const assignmentService = {
    * Vehicles are hard-filtered to ACTIVE + capacity-fits + not conflicting,
    * then scored (capacity fit, maintenance recency, distance from pickup
    * when the data exists) and ranked. Drivers and guides are filtered the
-   * same way (ACTIVE + not conflicting), then sorted by averageRating
-   * (DR-037 -- unrated candidates sort last but are never excluded, per the
-   * spec's "may be deprioritized," not "excluded"). Guides are ranked here
-   * for the first time -- previously not listed at all in this
-   * recommendation output. The caller (staff UI) pre-selects the top pick;
-   * the admin can still choose any other eligible candidate instead. */
+   * same way (ACTIVE + not conflicting). Drivers are then sorted by
+   * averageRating alone (DR-037 -- unrated candidates sort last but are
+   * never excluded, per the spec's "may be deprioritized," not "excluded").
+   * Guides are sorted by compareGuidesByMatch (DR-247): specialty-tag
+   * overlap with the departure's own package tags first (DR-245's
+   * PackageTag-enum specialties), averageRating only as the tiebreaker --
+   * degrades to the old rating-only ordering for a bespoke (TAILOR_MADE)
+   * departure, which has no package tags to match against. The caller
+   * (staff UI) pre-selects the top pick; the admin can still choose any
+   * other eligible candidate instead. */
   async recommendAssignment(ctx: AuthContext, departureId: string): Promise<AssignmentRecommendation> {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
     const { departure } = await catalogService.getDepartureDetail(ctx, departureId);
+    // DR-247: a bespoke (TAILOR_MADE) departure has no linked TourPackage,
+    // hence no tags -- compareGuidesByMatch degrades to pure
+    // compareByRating for it, same as before this DR.
+    const packageTags = departure.tourPackageId ? (await catalogService.getPackage(ctx, departure.tourPackageId)).tags : [];
 
     const [allVehicles, allDrivers, allGuides] = await Promise.all([
       fleetService.listVehicles(ctx),
@@ -245,7 +254,7 @@ export const assignmentService = {
       if (await hasOverlappingAssignment(ctx, organizationId, departureId, departure, otherDepartureIds)) continue;
       eligibleGuides.push(guideProfile);
     }
-    eligibleGuides.sort(compareByRating);
+    eligibleGuides.sort(compareGuidesByMatch(packageTags));
 
     const vehicleIds = vehicleCandidates.map((c) => c.vehicle.id);
     const [maintenanceByVehicle, locationByVehicle] = await Promise.all([
