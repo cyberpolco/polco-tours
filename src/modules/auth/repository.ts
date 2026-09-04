@@ -79,6 +79,24 @@ export const authRepository = {
     return toPublicUser(u, await resolveRoles(u));
   },
 
+  /** DR-236, real production incident: `User.email`'s unique constraint
+   * applies regardless of `deletedAt` -- a deleted (even permanently
+   * deleted) account's email is still physically taken. createUser's own
+   * conflict check used to call the deletedAt-excluding findUserByEmail
+   * above, which reported a previously-used, now-deleted email as
+   * "available" -- signUpEmail's actual INSERT then failed on the DB's
+   * real unique index, but better-auth returned an optimistic success
+   * result with a never-persisted id, so the failure only surfaced later
+   * as a confusing Membership-insert foreign-key error ("Something went
+   * wrong") instead of a clear conflict message at the point that
+   * actually matters. Mirrors findUserByIdIncludingDeleted's existing
+   * "don't exclude deletedAt" precedent. */
+  async findUserByEmailIncludingDeleted(email: string): Promise<PublicUser | null> {
+    const u = await prisma.user.findUnique({ where: { email } });
+    if (!u) return null;
+    return toPublicUser(u, await resolveRoles(u));
+  },
+
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<PublicUser> {
     const u = await prisma.user.update({ where: { id: userId }, data: input });
     return toPublicUser(u, await resolveRoles(u));
@@ -278,9 +296,28 @@ export const authRepository = {
 
   /** DR-141: "Delete" -- unlike softDeleteUser above, this can never be
    * undone (authService.reactivateUser refuses once deletedPermanently is
-   * true). SUPERADMIN-only, gated one layer up in the service. */
+   * true). SUPERADMIN-only, gated one layer up in the service.
+   *
+   * DR-236, explicit user direction: a permanently deleted account must not
+   * keep its original email tied up forever -- `User.email` is a hard
+   * unique DB constraint that applies regardless of deletedAt, so without
+   * this rewrite, that email could never be used for any *new*, unrelated
+   * account again (a real production incident: a genuinely new user
+   * creation kept silently failing because the email had belonged to an
+   * account permanently deleted weeks earlier). Rewriting the email here
+   * only frees it up for reuse going forward -- it does not, and must not,
+   * reactivate this row (deletedPermanently still blocks that entirely);
+   * the original email is preserved in the audit log's own metadata
+   * (auth.user_deleted), not lost, just no longer occupying the unique
+   * slot on this now-dead row. Deliberately NOT applied to softDeleteUser
+   * above -- a merely Deactivated (not permanently deleted) account can
+   * still be reactivated, and doing so must keep resolving by its real
+   * email. */
   async permanentlyDeleteUser(userId: string): Promise<void> {
-    await prisma.user.update({ where: { id: userId }, data: { deletedAt: new Date(), deletedPermanently: true } });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date(), deletedPermanently: true, email: `deleted-${userId}@deleted.invalid` },
+    });
   },
 
   /** DR-084: scheduled-sweep entry point -- staff roles only (TOURIST

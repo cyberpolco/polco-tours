@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { prisma, withOrg } from '../../src/lib/db';
+import { resolvePermissionsForRoles } from '../../src/lib/rbac';
+import { authService, type AuthContext } from '../../src/modules/auth';
 import { loginAs } from '../helpers/test-auth';
 
 const { GET: listUsers, POST: createUser } = await import('../../src/app/api/v1/users/route');
@@ -171,6 +173,43 @@ describe('POST /api/v1/users', () => {
     const res = await createUser(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(409);
   });
+
+  it('DR-236: a permanently deleted account\'s email can be reused for a genuinely new account', async () => {
+    const toDelete = await admin.user.create({
+      data: { email: `dr236-reuse-${Date.now()}@example.test`, role: 'DRIVER', organizationId: orgId },
+    });
+    const originalEmail = toDelete.email;
+
+    const superadminCtx: AuthContext = {
+      userId: superadminId,
+      roles: ['SUPERADMIN'],
+      permissions: resolvePermissionsForRoles(['SUPERADMIN']),
+      organizationId: orgId,
+      sessionId: 'test-session-dr236',
+      mustChangePassword: false,
+    };
+    await authService.deleteUser(superadminCtx, toDelete.id);
+
+    // The deleted row's own email must no longer be the original -- freed
+    // for reuse, not left dangling on the DB's unique index forever.
+    const deletedRow = await admin.user.findUniqueOrThrow({ where: { id: toDelete.id } });
+    expect(deletedRow.email).not.toBe(originalEmail);
+    expect(deletedRow.deletedPermanently).toBe(true);
+
+    // A brand new account using the exact same original email must now
+    // succeed, not silently fail with a foreign-key crash further downstream.
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {
+      name: 'DR-236 Reuse',
+      email: originalEmail,
+      roles: ['TOUR_GUIDE'],
+    });
+    const res = await createUser(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.user.email).toBe(originalEmail);
+    expect(body.user.id).not.toBe(toDelete.id);
+  }, 60_000);
 
   it('rejects an empty roles array (422)', async () => {
     const headers = await loginAs(superadminId);

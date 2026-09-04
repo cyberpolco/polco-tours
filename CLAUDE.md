@@ -346,7 +346,26 @@ src/
                    #   its Membership rows) had already committed — a silent
                    #   ghost account with an undisplayed temporary password,
                    #   not an actual creation failure. Bumped to the same
-                   #   10-attempt/~7s budget.
+                   #   10-attempt/~7s budget. DR-236: DR-233 turned out not
+                   #   to be the user's actual bug — the real cause was
+                   #   createUser's email-conflict pre-check
+                   #   (findUserByEmail) treating any deletedAt-set row as
+                   #   "not found," so a previously-used-then-deleted email
+                   #   looked available, then genuinely failed on the DB's
+                   #   real unique constraint, with better-auth returning an
+                   #   optimistic never-persisted id instead of a clean
+                   #   error. Fixed with a new findUserByEmailIncludingDeleted
+                   #   check (clear, specific conflict message per deletion
+                   #   state) plus, per explicit user direction,
+                   #   permanentlyDeleteUser now rewrites its own row's email
+                   #   to a synthetic deleted-<id>@deleted.invalid value so a
+                   #   permanently deleted account's email is freed for a
+                   #   genuinely new account going forward (original email
+                   #   preserved in the auth.user_deleted audit metadata) —
+                   #   deliberately not applied to softDeleteUser/
+                   #   deleteClient, both still reactivatable/still needing
+                   #   their real email. 24 already-permanently-deleted rows
+                   #   in the real Lam org were backfilled the same way.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a

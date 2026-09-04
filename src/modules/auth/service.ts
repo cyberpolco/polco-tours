@@ -7,7 +7,6 @@ import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { withTransientRetry } from '@lib/db';
 import { Errors } from '@lib/errors';
-import { logger, newTraceId } from '@lib/logger';
 import { withTrustedUserCreate } from '@lib/trusted-user-create';
 import { authRepository } from './repository';
 import { computeStaffRosterSummary, isClientDirectoryViewer, isSuperAdmin } from './domain';
@@ -164,8 +163,30 @@ export const authService = {
     // function.
     const organizationId = ctx.organizationId;
 
-    const existing = await authRepository.findUserByEmail(input.email);
-    if (existing) throw Errors.conflict('A user with this email already exists');
+    // DR-236, real production incident: must check INCLUDING deleted rows --
+    // User.email's unique DB constraint applies regardless of deletedAt, so
+    // the plain (deletedAt-excluding) findUserByEmail used here previously
+    // reported a previously-used, now-deleted email as "available." The
+    // real signUpEmail insert then failed on that actual unique constraint,
+    // but better-auth returned an optimistic success result with a
+    // never-persisted id, surfacing minutes later as a confusing
+    // Membership-insert foreign-key crash ("Something went wrong") instead
+    // of a clear conflict message right here, at the point that actually
+    // matters.
+    const existing = await authRepository.findUserByEmailIncludingDeleted(input.email);
+    if (existing) {
+      // permanentlyDeleteUser (DR-236) rewrites its own row's email on
+      // delete specifically so this branch can't be hit by a NEW deletion
+      // going forward -- the deletedPermanently case below only remains
+      // reachable for a legacy row deleted before that fix shipped.
+      throw Errors.conflict(
+        existing.deletedPermanently
+          ? 'This email was previously used by a deleted account and cannot be reused for a new one.'
+          : existing.deletedAt
+            ? 'This email belongs to a deactivated account. Reactivate it instead of creating a new one.'
+            : 'A user with this email already exists',
+      );
+    }
 
     const primaryRole = input.roles[0];
     if (!primaryRole) throw Errors.validation('At least one role is required');
@@ -180,23 +201,6 @@ export const authService = {
       { role: primaryRole, organizationId, mustChangePassword: true, phone: input.phone ?? null },
       () => auth.api.signUpEmail({ body: { name: input.name, email: input.email, password: temporaryPassword } }),
     );
-    // DR-234 temporary diagnostic: same investigation as the hook log in
-    // src/lib/auth.ts -- confirms exactly what signUpEmail itself returned
-    // before finalizeAdminCreatedUser's Membership insert runs, and (via a
-    // direct read using the returned id) whether the row is visible from
-    // this same connection immediately after. Remove once root-caused.
-    const immediateCheck = await authRepository.findUserById(result.user.id).catch((e) => `threw: ${e}`);
-    logger(newTraceId()).info('createUser: signUpEmail result', {
-      callingAdminUserId: ctx.userId,
-      resultUserIdMatchesCallingAdmin: result.user.id === ctx.userId,
-      resultUserEmailMatchesCallingAdmin: result.user.email === undefined ? undefined : result.user.email,
-      resultUserId: result.user.id,
-      resultUserOrgId: (result.user as { organizationId?: unknown }).organizationId,
-      resultUserRole: (result.user as { role?: unknown }).role,
-      immediateCheckFound: immediateCheck !== null && typeof immediateCheck !== 'string',
-      immediateCheckError: typeof immediateCheck === 'string' ? immediateCheck : undefined,
-    });
-
     await authRepository.finalizeAdminCreatedUser(result.user.id, {
       roles: input.roles,
       organizationId,
@@ -335,6 +339,9 @@ export const authService = {
       resourceType: 'User',
       resourceId: userId,
       organizationId: ctx.organizationId ?? undefined,
+      // DR-236: permanentlyDeleteUser rewrites the row's own email to free
+      // it up for reuse -- record the real one here so it isn't lost.
+      metadata: { email: target.email },
     });
   },
 
