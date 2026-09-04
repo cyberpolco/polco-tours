@@ -187,6 +187,9 @@ export const authService = {
     // this same connection immediately after. Remove once root-caused.
     const immediateCheck = await authRepository.findUserById(result.user.id).catch((e) => `threw: ${e}`);
     logger(newTraceId()).info('createUser: signUpEmail result', {
+      callingAdminUserId: ctx.userId,
+      resultUserIdMatchesCallingAdmin: result.user.id === ctx.userId,
+      resultUserEmailMatchesCallingAdmin: result.user.email === undefined ? undefined : result.user.email,
       resultUserId: result.user.id,
       resultUserOrgId: (result.user as { organizationId?: unknown }).organizationId,
       resultUserRole: (result.user as { role?: unknown }).role,
