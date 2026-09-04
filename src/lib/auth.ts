@@ -2,6 +2,7 @@ import { APIError, betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { anonymous } from 'better-auth/plugins';
 import { prisma } from './db';
+import { logger, newTraceId } from './logger';
 import { getPrimaryOrgId } from './primary-org';
 import { getAuthRateLimitStorage } from './rate-limit';
 import { getTrustedUserCreateSignal } from './trusted-user-create';
@@ -145,6 +146,17 @@ export const authConfig = {
           // route's own hardcoded `emailVerified: false` because this hook's
           // merge happens later, inside createWithHooks.
           const trusted = getTrustedUserCreateSignal();
+          // DR-234 temporary diagnostic: production repro of admin user
+          // creation failing with a downstream Membership FK violation
+          // despite signUpEmail reporting success -- this line confirms
+          // whether the AsyncLocalStorage signal actually reaches this hook
+          // in the real Vercel serverless runtime (it does in every local/
+          // sandbox repro). Remove once root-caused.
+          logger(newTraceId()).info('user.create.before hook', {
+            trustedSignalPresent: !!trusted,
+            role: trusted?.role,
+            organizationId: trusted?.organizationId,
+          });
           if (trusted) {
             return {
               data: {

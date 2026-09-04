@@ -7,6 +7,7 @@ import { auth } from '@lib/auth';
 import { audit } from '@lib/audit';
 import { withTransientRetry } from '@lib/db';
 import { Errors } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
 import { withTrustedUserCreate } from '@lib/trusted-user-create';
 import { authRepository } from './repository';
 import { computeStaffRosterSummary, isClientDirectoryViewer, isSuperAdmin } from './domain';
@@ -179,6 +180,19 @@ export const authService = {
       { role: primaryRole, organizationId, mustChangePassword: true, phone: input.phone ?? null },
       () => auth.api.signUpEmail({ body: { name: input.name, email: input.email, password: temporaryPassword } }),
     );
+    // DR-234 temporary diagnostic: same investigation as the hook log in
+    // src/lib/auth.ts -- confirms exactly what signUpEmail itself returned
+    // before finalizeAdminCreatedUser's Membership insert runs, and (via a
+    // direct read using the returned id) whether the row is visible from
+    // this same connection immediately after. Remove once root-caused.
+    const immediateCheck = await authRepository.findUserById(result.user.id).catch((e) => `threw: ${e}`);
+    logger(newTraceId()).info('createUser: signUpEmail result', {
+      resultUserId: result.user.id,
+      resultUserOrgId: (result.user as { organizationId?: unknown }).organizationId,
+      resultUserRole: (result.user as { role?: unknown }).role,
+      immediateCheckFound: immediateCheck !== null && typeof immediateCheck !== 'string',
+      immediateCheckError: typeof immediateCheck === 'string' ? immediateCheck : undefined,
+    });
 
     await authRepository.finalizeAdminCreatedUser(result.user.id, {
       roles: input.roles,
