@@ -30,13 +30,16 @@ export function CreateUserForm({ assignableRoles }: { assignableRoles: readonly 
       )}
       <form action={formAction} className="space-y-4">
         <FormField label={t('name')} htmlFor="name">
-          <input name="name" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          {/* autocomplete="off" -- this enters a new account's details, not
+              the signed-in staff member's own profile, so the browser
+              shouldn't offer to fill in their saved name/email/phone here. */}
+          <input name="name" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('email')} htmlFor="email">
-          <input name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="email" type="email" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('phone')} htmlFor="phone" optional>
-          <input name="phone" placeholder="+264812345678" className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="phone" placeholder="+264812345678" autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <div>
           <p className="mb-1 text-sm text-mist">{t('rolesLabel')}</p>
