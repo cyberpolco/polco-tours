@@ -90,9 +90,26 @@ const nextConfig = {
   // this. Aliasing to `false` for the client compiler pass only stubs it
   // out to an empty module -- safe, since nothing in a client bundle ever
   // actually calls sharp-dependent code.
+  //
+  // DR-229: same class of problem, same fix -- src/lib/trusted-user-
+  // create.ts (Node's `async_hooks`) is server-only, but `authService`
+  // (auth/index.ts's barrel export) is one big exported object literal
+  // too, so a 'use client' file needing only pure domain exports from the
+  // same barrel (role-checkbox-group.tsx/edit-user-form.tsx, which import
+  // findIncompatibleRolePair/ASSIGNABLE_ROLES from @modules/auth) still
+  // pulls in service.ts's whole transitive import graph at webpack's
+  // module-resolution stage, before any dead-code elimination can drop
+  // the unused authService export. Real failed build confirmed the
+  // `node:async_hooks` URI-scheme form hard-fails resolution outright
+  // ("UnhandledSchemeError", no built-in fallback at all) -- the source
+  // import was changed to the bare `async_hooks` specifier instead (see
+  // trusted-user-create.ts), and this alias-to-false stub is the belt
+  // half of belt-and-suspenders, same as `sharp`'s: nothing in a client
+  // bundle ever actually calls AsyncLocalStorage-dependent code.
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.alias.sharp = false;
+      config.resolve.alias.async_hooks = false;
     }
     return config;
   },

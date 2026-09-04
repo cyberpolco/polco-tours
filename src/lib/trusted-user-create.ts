@@ -1,4 +1,13 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+// Bare specifier, not 'node:async_hooks' -- webpack has no built-in
+// handling for the `node:` URI scheme at all ("UnhandledSchemeError",
+// confirmed via a real failed build, DR-229 follow-up) and hard-fails
+// resolving it even in code that's never actually called, since a client
+// bundle reachable from auth/index.ts's barrel (role-checkbox-group.tsx/
+// edit-user-form.tsx) still needs this to resolve before webpack can
+// determine it's dead code -- see next.config.mjs's webpack() override
+// for the corresponding client-side alias-to-false stub, same DR-163
+// pattern as `sharp`.
+import { AsyncLocalStorage } from 'async_hooks';
 import type { Role } from '@prisma/client';
 
 /**
