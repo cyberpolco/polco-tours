@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-239** (2026-09-04). This file used to carry a running
+Current through **DR-240** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -720,8 +720,13 @@ src/
                    #   src/lib/flight-fare-rate.ts/esim-rate.ts, same
                    #   no-AuthContext public-read precedent as
                    #   src/lib/addon-rates.ts. Full staff CRUD at
-                   #   /staff/finance/rates/flights and .../esim (linked from
-                   #   the Finance hub), same finance_config.read/write +
+                   #   /staff/finance/rates/flights and .../esim (DR-240:
+                   #   grouped under the Finance hub's own "Add-ons" section,
+                   #   alongside Operational Rates -- the AddonRate CRUD --
+                   #   rather than sitting flat next to Tax Rates/Platform
+                   #   Rate/Coupons/Late Booking Rate, which aren't add-on
+                   #   related; still three independent finance_config-gated
+                   #   pages, not merged into one), same finance_config.read/write +
                    #   requireRateWriter gating as every other rate table;
                    #   three public no-ctx reads (listPublicAirports/
                    #   listPublicFlightFareOptions/listPublicEsimPlans) back

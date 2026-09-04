@@ -50,15 +50,22 @@ export default async function FinanceHubPage() {
       title: t('lateBookingRateTitle'),
       description: t('lateBookingRateDesc'),
     },
+  ].filter((c): c is { href: string; title: string; description: string } => Boolean(c));
+
+  // DR-240: these three all price a guest-facing add-on (AddonService), not
+  // a package cost-plus bucket -- grouped under their own "Add-ons" heading
+  // instead of sitting flat alongside Tax Rates/Platform Rate/Coupons/Late
+  // Booking Rate above, which don't relate to add-ons at all. Flight
+  // Fares/eSIM Plans (DR-222) are still their own finance_config-gated
+  // pages, not extra sections on the existing Operational Rates page --
+  // same "card hub linking to independent pages" shape as every other entry
+  // here, just visually grouped now.
+  const addOnCards = [
     canReadFinanceConfig && {
       href: '/staff/finance/rates',
       title: t('operationalRatesTitle'),
       description: t('operationalRatesDesc'),
     },
-    // DR-222: Airport/FlightFareRate and EsimDataPlanRate are their own
-    // finance_config-gated pages, not extra sections on the existing
-    // Operational Rates page -- same "card hub linking to independent
-    // pages" shape as every other entry here.
     canReadFinanceConfig && {
       href: '/staff/finance/rates/flights',
       title: t('flightFaresTitle'),
@@ -85,6 +92,21 @@ export default async function FinanceHubPage() {
             </Card>
           ))}
         </RevealGroup>
+        {addOnCards.length > 0 && (
+          <div className="space-y-4">
+            <p className="eyebrow text-mist">{t('addOnsSectionTitle')}</p>
+            <RevealGroup as="div" itemAs="div" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {addOnCards.map((c) => (
+                <Card key={c.href} interactive className="p-0">
+                  <Link href={c.href} className="block p-5">
+                    <h2 className="text-lg font-semibold text-navy">{c.title}</h2>
+                    <p className="mt-1 text-sm text-mist">{c.description}</p>
+                  </Link>
+                </Card>
+              ))}
+            </RevealGroup>
+          </div>
+        )}
       </div>
     </SidebarShell>
   );
