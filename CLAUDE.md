@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-232** (2026-09-03). This file used to carry a running
+Current through **DR-233** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -328,6 +328,18 @@ src/
                    #   issue as DR-230). Fixed by constructing it lazily on
                    #   first real call instead. See the sharpened Gotchas
                    #   entry on this exact alias-to-false pattern.
+                   #   DR-233: real production repro of DR-229's own
+                   #   flagged-but-unconfirmed residual risk — createUser's
+                   #   final findUserById read-back loop (proving the new
+                   #   account exists before returning it) only retried 4x/
+                   #   ~900ms, too short for the same Neon-pooler read lag
+                   #   DR-224/226 already had to budget ~7s for elsewhere in
+                   #   this chain. Exhausting it threw Errors.internal()
+                   #   ("Something went wrong") even though the account (and
+                   #   its Membership rows) had already committed — a silent
+                   #   ghost account with an undisplayed temporary password,
+                   #   not an actual creation failure. Bumped to the same
+                   #   10-attempt/~7s budget.
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a

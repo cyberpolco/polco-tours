@@ -212,17 +212,27 @@ export const authService = {
     // rows are still a genuinely separate write, and findUserById ->
     // resolveRoles reads them via yet another connection -- if that write
     // hasn't landed yet, resolveRoles silently returns just the primary
-    // role instead of throwing, so this retry-on-null loop stays. (A
-    // residual "does a User-row read itself still ever race the now-atomic
-    // User-row write" risk was investigated but not fully confirmed either
-    // way from code alone -- watch Vercel logs post-deploy for this loop's
-    // attempt count before assuming it can shrink further.)
+    // role instead of throwing, so this retry-on-null loop stays.
     // findUserById's prisma.user.findUnique returns null on a miss rather
     // than throwing P2025 -- so it slips past withTransientRetry/
     // isTransientDbError entirely, hence this separate retry-on-null loop
     // instead of reusing that helper.
+    //
+    // DR-233, real production repro: the residual risk DR-229 flagged as
+    // "not fully confirmed" (a User-row *read* racing the now-atomic
+    // User-row *write* across Neon's pooler) is real -- this loop's
+    // original 4-attempt/~900ms budget was exhausting in production,
+    // throwing Errors.internal() ("Something went wrong") to the staff
+    // member even though signUpEmail + finalizeAdminCreatedUser had both
+    // already committed successfully one function call above. The account
+    // (with every selected role) silently exists; only this final
+    // read-back and the one-time temporary-password display/email were
+    // lost. Bumped to DR-224/226's proven 10-attempt/~7s budget -- the
+    // same Neon-pooler-visibility-lag class of problem this exact call
+    // chain has now needed a bigger window for three separate times
+    // (DR-224, DR-226, this one).
     let user = await authRepository.findUserById(result.user.id);
-    for (let attempt = 1; !user && attempt < 4; attempt += 1) {
+    for (let attempt = 1; !user && attempt < 10; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, attempt * 150));
       user = await authRepository.findUserById(result.user.id);
     }
