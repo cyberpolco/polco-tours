@@ -211,6 +211,22 @@ describe('POST /api/v1/users', () => {
     expect(body.user.id).not.toBe(toDelete.id);
   }, 60_000);
 
+  it('DR-237: flags an email belonging to an existing tourist/guest record with a specific message', async () => {
+    const tourist = await admin.user.create({
+      data: { email: `dr237-tourist-${Date.now()}@example.test`, role: 'TOURIST', organizationId: orgId },
+    });
+    const headers = await loginAs(superadminId);
+    const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {
+      name: 'DR-237 Attempt',
+      email: tourist.email,
+      roles: ['TOUR_GUIDE'],
+    });
+    const res = await createUser(req, { params: Promise.resolve({}) });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.detail).toMatch(/guest\/tourist record/i);
+  });
+
   it('rejects an empty roles array (422)', async () => {
     const headers = await loginAs(superadminId);
     const req = jsonRequest('http://localhost/api/v1/users', headers, 'POST', {

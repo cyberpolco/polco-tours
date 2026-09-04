@@ -179,12 +179,23 @@ export const authService = {
       // delete specifically so this branch can't be hit by a NEW deletion
       // going forward -- the deletedPermanently case below only remains
       // reachable for a legacy row deleted before that fix shipped.
+      //
+      // DR-237, explicit user direction: a bare TOURIST record (DR-036 --
+      // a login-less contact row auto-created from a guest booking or a
+      // staff-entered client email, never a real account) collides on the
+      // same email-uniqueness constraint as everything else here, but
+      // "already exists" is misleading for it -- there's no login to
+      // conflict with, just a customer contact record. Flagged with its
+      // own specific message rather than silently lumped into the generic
+      // case, same precedent as the deactivated/deleted branches below.
       throw Errors.conflict(
         existing.deletedPermanently
           ? 'This email was previously used by a deleted account and cannot be reused for a new one.'
           : existing.deletedAt
             ? 'This email belongs to a deactivated account. Reactivate it instead of creating a new one.'
-            : 'A user with this email already exists',
+            : existing.role === 'TOURIST'
+              ? 'This email belongs to an existing guest/tourist record (from a booking), not a staff account.'
+              : 'A user with this email already exists',
       );
     }
 
@@ -376,8 +387,21 @@ export const authService = {
     if (!target) throw Errors.notFound('User not found');
 
     if (input.email && input.email !== target.email) {
-      const existing = await authRepository.findUserByEmail(input.email);
-      if (existing) throw Errors.conflict('A user with this email already exists');
+      // DR-236/DR-237: same conflict-check shape as createUser above -- see
+      // its comment for why this must check including deleted rows, and
+      // why a TOURIST record gets its own specific message.
+      const existing = await authRepository.findUserByEmailIncludingDeleted(input.email);
+      if (existing) {
+        throw Errors.conflict(
+          existing.deletedPermanently
+            ? 'This email was previously used by a deleted account and cannot be reused for a new one.'
+            : existing.deletedAt
+              ? 'This email belongs to a deactivated account. Reactivate it instead of reusing its email.'
+              : existing.role === 'TOURIST'
+                ? 'This email belongs to an existing guest/tourist record (from a booking), not a staff account.'
+                : 'A user with this email already exists',
+        );
+      }
     }
 
     const { roles, ...profileFields } = input;
