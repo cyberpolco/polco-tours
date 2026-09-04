@@ -45,6 +45,11 @@ const SCHEDULES = [
     path: '/api/jobs/purge-wizard-progress',
     cron: '0 5 * * *', // once daily -- DR-155's 30-day wizard-progress-tracking retention window
   },
+  {
+    scheduleId: 'polco-sweep-test-orgs',
+    path: '/api/jobs/sweep-test-orgs',
+    cron: '0 * * * *', // hourly -- DR-235's 1-hour staleness window needs the same tight polling as sweep-fleet-cooldowns
+  },
 ];
 
 async function main() {

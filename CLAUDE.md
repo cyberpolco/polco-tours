@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-233** (2026-09-04). This file used to carry a running
+Current through **DR-236** (2026-09-04). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -145,7 +145,7 @@ gaps a fresh Postgres would hit).
 | Image processing | `sharp` `0.34.5` (DR-163) — was already an undeclared transitive dependency at this exact version; pinned explicitly per the version-pinning rule. `src/lib/public-image-blob.ts`'s `uploadPublicImage` always recompresses every public image upload to webp (max edge 2560px, quality 80) before storing, regardless of caller/input format — the one shared primitive every public image upload (cms, catalog package images, Home hero) already goes through, so this applies uniformly rather than per-caller. Since DR-183, also used by `(guest)/packages/[packageId]/opengraph-image.tsx` to re-encode a package's webp cover photo to PNG before handing it to `next/og`'s Satori renderer, which can't decode webp — that route needs `export const runtime = 'nodejs'` for `sharp`'s native bindings, unlike a typical Edge-default og-image route |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19) |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — five schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19); a sixth, `sweep-test-orgs`/DR-235 (hourly, purges leftover `tests/api/*.test.ts`-fixture organizations), is defined but not yet registered |
 | Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat); WhatsApp still unconfigured (OI-06) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -173,6 +173,8 @@ src/
     api/jobs/sweep-user-dormancy/ # DR-084: daily 30-day-no-login sweep endpoint, same shape
     api/jobs/sweep-fleet-cooldowns/ # DR-107: hourly post-tour-cooldown resync endpoint, same shape
     api/jobs/purge-wizard-progress/ # DR-155: daily 30-day wizard-progress-tracking purge, same shape
+    api/jobs/sweep-test-orgs/     # DR-235: hourly purge of leftover test-fixture
+                                  #   Organization rows, same shape (not yet registered)
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -221,7 +223,12 @@ src/
                               #   checkout, so every automated notification
                               #   email silently stayed in English
                               #   regardless of what language the guest
-                              #   actually browsed/booked in)
+                              #   actually browsed/booked in),
+                              #   test-org-purge (DR-235: hourly safety-net
+                              #   GC for leftover tests/api/*.test.ts-fixture
+                              #   Organization rows — matches only the exact
+                              #   synthetic naming convention + isPrimary
+                              #   false + 1h+ old, never a real tenant org)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support.
                    #   DR-221: fixed a real bug where creating a 2+-role
@@ -374,6 +381,22 @@ src/
                    #   a new booking -> finance module dependency.
                    #   BookingAddonView also gains code/name, joined from
                    #   AddonService at read time.
+                   #   DR-236: FLIGHT_TICKET/ESIM were fully wired in the
+                   #   guest add-ons step (above) since DR-222, but never
+                   #   reachable anywhere upstream of it — the local
+                   #   ADDON_CODES vocabulary here (a hand-synced mirror of
+                   #   AddonCode, see this const's own comment) was never
+                   #   updated, so plan-my-trip's "interested in?" checklist
+                   #   couldn't express them and the server rejected them via
+                   #   zod even if a client sent them anyway. Now includes
+                   #   both. Separately, no AddonService catalog row of
+                   #   either code existed at all (prisma/seed.ts only ever
+                   #   seeded the original 4) — package setup's add-on
+                   #   checkboxes list any active AddonService row generically
+                   #   with no code filtering, so this alone was blocking
+                   #   both package setup and the guest picker from ever
+                   #   having anything to offer. Both gaps fixed without
+                   #   touching the already-working DR-222 picker itself.
                    #   DR-198: Booking.lateBookingSurchargeBp — snapshotted
                    #   at hold-creation time (finalizeHold, shared by
                    #   createHold/createHoldWithDates, against the
@@ -1323,12 +1346,15 @@ serverless function bundle.
   signature-verified route + its own entry in
   `scripts/register-qstash-schedule.ts`'s schedule list, registered by
   re-running that script (idempotent — fixed `scheduleId`s update in place,
-  never duplicate). Five exist today, all registered and live (confirmed via
+  never duplicate). Five are registered and live today (confirmed via
   `npm run qstash:register-schedule`'s own console output):
   `/api/jobs/sweep-bookings` (every 15 minutes), `/api/jobs/sweep-fleet-availability`
   (DR-082, daily), `/api/jobs/sweep-user-dormancy` (DR-084, daily),
   `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly), and
-  `/api/jobs/purge-wizard-progress` (DR-155, daily).
+  `/api/jobs/purge-wizard-progress` (DR-155, daily). A sixth,
+  `/api/jobs/sweep-test-orgs` (DR-235, hourly), is in the script but **not
+  yet registered** against the live QStash account — needs its own
+  `npm run qstash:register-schedule` run.
 
 ## Roadmap (not yet built)
 
