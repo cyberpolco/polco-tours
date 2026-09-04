@@ -69,13 +69,24 @@ function delay(ms: number): Promise<void> {
  * transaction -- had no retry at all, so a blip there could crash user
  * creation with a raw, uncaught Prisma error even after the user row (with
  * every selected role) had already committed successfully.
+ *
+ * `isRetryable` defaults to `isTransientDbError` (P2025/P2028 only) --
+ * deliberately narrow, since blindly retrying every Prisma error code could
+ * mask a real application bug for a caller this helper can't predict. A
+ * caller with a specific, understood reason to also retry a different code
+ * (e.g. finalizeAdminCreatedUser's P2003, DR-231) passes its own predicate
+ * rather than this broadening for every future caller.
  */
-export async function withTransientRetry<T>(work: () => Promise<T>, maxAttempts = 4): Promise<T> {
+export async function withTransientRetry<T>(
+  work: () => Promise<T>,
+  maxAttempts = 4,
+  isRetryable: (e: unknown) => boolean = isTransientDbError,
+): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await work();
     } catch (e) {
-      if (isTransientDbError(e) && attempt < maxAttempts) {
+      if (isRetryable(e) && attempt < maxAttempts) {
         await delay(attempt * 150);
         continue;
       }

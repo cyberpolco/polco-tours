@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-230** (2026-09-03). This file used to carry a running
+Current through **DR-231** (2026-09-03). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -301,6 +301,21 @@ src/
                    #   specifier instead plus a matching client-only
                    #   next.config.mjs webpack alias, verified on a Preview
                    #   deployment before merging to main. No behavior change.
+                   #   DR-231: the first real create-user attempt after
+                   #   DR-230 shipped still crashed — Membership.createMany's
+                   #   userId FK can race signUpEmail's now-atomic INSERT the
+                   #   same way the old User.update did (P2003 instead of
+                   #   P2025, since this is an INSERT+FK-check not an
+                   #   UPDATE), and isTransientDbError didn't recognize
+                   #   P2003 at all (zero retry, raw error leaked to the
+                   #   client). withTransientRetry now takes an optional
+                   #   isRetryable predicate (default unchanged, still just
+                   #   P2025/P2028) — finalizeAdminCreatedUser passes its own
+                   #   predicate adding P2003, justified narrowly since its
+                   #   userId came from signUpEmail one line above in the
+                   #   same function, at DR-224/226's 10-attempt/~7s budget
+                   #   (two real failures ~24s apart the same day argue
+                   #   against a smaller one).
     catalog/       # TourPackage (slug, DR-118) + PackageTag + Departure +
                    #   AddonService + PackageAddonService (DR-180: which
                    #   add-ons a package offers on the guest site — a

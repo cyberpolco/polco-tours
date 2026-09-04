@@ -182,19 +182,45 @@ export const authRepository = {
    * Retry budget is `withTransientRetry`'s shared default (4 attempts,
    * ~1.5s) -- DR-224/226's 10-attempt/~7s bump specifically compensated
    * for the now-removed User-row UPDATE race; this plain Membership
-   * insert never needed that budget. */
+   * insert never needed that budget.
+   *
+   * DR-231, real production repro the same day DR-229/230 shipped: this
+   * createMany's `userId` foreign key can ALSO race signUpEmail's INSERT
+   * across the same pooled-connection visibility lag every prior DR in
+   * this chain has hit -- surfacing here as P2003 "Foreign key constraint
+   * violated" rather than P2025, since this is an INSERT+FK-check, not an
+   * UPDATE. `isTransientDbError` deliberately doesn't cover P2003 globally
+   * (a real FK violation elsewhere could be a genuine bug, not a timing
+   * issue) -- but here specifically, `userId` is a value this same
+   * function's caller just received back from a `signUpEmail` call one
+   * line above `finalizeAdminCreatedUser` runs, so a P2003 against that
+   * exact id can only mean "not visible yet," never "doesn't exist."
+   *
+   * Retry budget bumped to 10 attempts/~7s (matching DR-224/226's own
+   * emergency budget) rather than the shared 4-attempt/~1.5s default --
+   * two consecutive real production attempts hit this exact P2003 roughly
+   * 24s apart the same day this code shipped, evidence this specific
+   * window needs the same patience the User-row race once did, not proof
+   * it's rare. */
   async finalizeAdminCreatedUser(userId: string, input: { roles: Role[]; organizationId: string }): Promise<void> {
+    const isRetryable = (e: unknown): boolean => {
+      const code = typeof e === 'object' && e !== null ? (e as { code?: string }).code : undefined;
+      return isTransientDbError(e) || code === 'P2003';
+    };
     try {
-      await withTransientRetry(() =>
-        withOrg(input.organizationId, (tx) =>
-          tx.membership.createMany({
-            data: input.roles.map((role) => ({ userId, organizationId: input.organizationId, role })),
-            skipDuplicates: true,
-          }),
-        ),
+      await withTransientRetry(
+        () =>
+          withOrg(input.organizationId, (tx) =>
+            tx.membership.createMany({
+              data: input.roles.map((role) => ({ userId, organizationId: input.organizationId, role })),
+              skipDuplicates: true,
+            }),
+          ),
+        10,
+        isRetryable,
       );
     } catch (e) {
-      if (isTransientDbError(e)) throw Errors.internal();
+      if (isRetryable(e)) throw Errors.internal();
       throw e;
     }
   },
