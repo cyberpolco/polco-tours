@@ -67,8 +67,11 @@ export interface ScoredVehicle {
 
 export interface AssignmentRecommendation {
   vehicles: ScoredVehicle[]; // eligible only, sorted desc by score
-  drivers: DriverProfileView[]; // eligible, sorted desc by averageRating (DR-037; unrated sorts last, never excluded)
-  guides: GuideProfileView[]; // eligible, sorted the same way (DR-037) -- guides were never listed here before
+  // eligible, sorted desc by averageRating (DR-037; unrated sorts last, never
+  // excluded) -- EXCEPT DR-252 moves the top guide's own DriverProfile (if
+  // they have an eligible one) to the front, ahead of rating order.
+  drivers: DriverProfileView[];
+  guides: GuideProfileView[]; // eligible, sorted by compareGuidesByMatch (DR-247)
   recommendedVehicleId: string | null;
   recommendedDriverId: string | null;
   recommendedGuideId: string | null; // a GuideProfile's userId (Assignment.guideUserId references User directly)
@@ -192,7 +195,9 @@ export const assignmentService = {
    * degrades to the old rating-only ordering for a bespoke (TAILOR_MADE)
    * departure, which has no package tags to match against. The caller
    * (staff UI) pre-selects the top pick; the admin can still choose any
-   * other eligible candidate instead. */
+   * other eligible candidate instead. DR-252: if the top guide also holds
+   * an eligible DriverProfile of their own, they're moved to the front of
+   * the driver list/pick too -- see this function's own inline comment. */
   async recommendAssignment(ctx: AuthContext, departureId: string): Promise<AssignmentRecommendation> {
     assertCan(ctx, 'assignment.write');
     const organizationId = requireOrg(ctx);
@@ -278,13 +283,29 @@ export const assignmentService = {
     });
     scoredVehicles.sort((a, b) => b.score - a.score);
 
+    // DR-252 (explicit user request): if the top-recommended guide also
+    // holds an eligible DriverProfile of their own (ROLE_COMPATIBILITY,
+    // DR-221, allows one person to hold both DRIVER and TOUR_GUIDE), prefer
+    // recommending that same person as the driver too, over whoever merely
+    // has the highest averageRating -- one person doing both jobs is a real,
+    // common staffing pattern for a small tour operator. Falls back to the
+    // plain highest-rated driver when the top guide has no DriverProfile at
+    // all, or has one that isn't currently eligible (SUSPENDED, or already
+    // conflicting with another departure) -- same as before this DR.
+    const topGuide = eligibleGuides[0];
+    const dualRoleDriverIndex = topGuide ? eligibleDrivers.findIndex((d) => d.userId === topGuide.userId) : -1;
+    const orderedDrivers =
+      dualRoleDriverIndex > 0
+        ? [eligibleDrivers[dualRoleDriverIndex]!, ...eligibleDrivers.slice(0, dualRoleDriverIndex), ...eligibleDrivers.slice(dualRoleDriverIndex + 1)]
+        : eligibleDrivers;
+
     return {
       vehicles: scoredVehicles,
-      drivers: eligibleDrivers,
+      drivers: orderedDrivers,
       guides: eligibleGuides,
       recommendedVehicleId: scoredVehicles[0]?.vehicle.id ?? null,
-      recommendedDriverId: eligibleDrivers[0]?.id ?? null,
-      recommendedGuideId: eligibleGuides[0]?.userId ?? null,
+      recommendedDriverId: orderedDrivers[0]?.id ?? null,
+      recommendedGuideId: topGuide?.userId ?? null,
     };
   },
 

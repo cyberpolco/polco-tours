@@ -18,7 +18,7 @@ import { deleteGuideProfileAction, updateGuideProfileAction, uploadGuideDocument
 // DR-245: same controlled vocabulary as TourPackage.tags -- kept as a local
 // literal tuple, same hand-duplicated-per-file convention the package setup
 // pages already use for PACKAGE_TAGS.
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 interface Props {
   params: Promise<{ guideProfileId: string }>;

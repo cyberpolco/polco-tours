@@ -68,7 +68,7 @@ export interface DepartureView {
 // Exported (DR-046) so booking/domain.ts can validate Booking.preferredTags
 // against the same vocabulary without hand-duplicating it -- modules only
 // share data through index.ts, never by reaching into each other's domain.ts.
-export const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+export const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 // DR-114 (extended to 5 countries, DR-218): country/countries restricted to
 // the operating countries (OPERATING_COUNTRY_CODES) -- previously an

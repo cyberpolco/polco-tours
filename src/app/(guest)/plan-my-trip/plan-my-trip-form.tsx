@@ -40,7 +40,7 @@ export interface PlanMyTripSite {
   country: string;
 }
 
-const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 // Mirrors booking/domain.ts's local ADDON_CODES -- kept in sync by hand,
 // same as that constant's own comment explains (catalog doesn't export a

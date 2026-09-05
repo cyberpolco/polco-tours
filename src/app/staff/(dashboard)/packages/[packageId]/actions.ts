@@ -9,7 +9,7 @@ import { logger, newTraceId } from '@lib/logger';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
 
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 export async function updatePackageAction(packageId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');

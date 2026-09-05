@@ -21,7 +21,7 @@ interface StaffPlanMyTripSite {
   country: string;
 }
 
-const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 // Mirrors (guest)/plan-my-trip/plan-my-trip-form.tsx's local ADDON_CODES,
 // including FLIGHT_TICKET/ESIM (DR-238).

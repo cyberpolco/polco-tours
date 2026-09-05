@@ -207,4 +207,33 @@ describe('fleet v2: maintenance records + Starlink kits (DR-029)', () => {
     expect(body.guides.map((g: { userId: string }) => g.userId)).not.toContain(deletedGuideUser.id);
     expect(body.recommendedGuideId).not.toBe(deletedGuideUser.id);
   }, 30_000);
+
+  // DR-252 (explicit user request): when the top-recommended guide also
+  // holds their own eligible DriverProfile, they should be recommended as
+  // the driver too -- even over someone else with a strictly higher
+  // averageRating, since one person doing both jobs is preferred.
+  it('prefers the top guide\'s own DriverProfile as the recommended driver, over a higher-rated unrelated driver', async () => {
+    const dualUser = await admin.user.create({
+      data: { email: `fleetv2-dual-${Date.now()}@example.test`, role: 'TOUR_GUIDE', organizationId: orgId },
+    });
+    const [dualDriverProfile] = await withOrg(orgId, (tx) =>
+      Promise.all([
+        tx.driverProfile.create({ data: { organizationId: orgId, userId: dualUser.id, licenseNumber: 'FLEETV2-DUAL-DL', status: 'ACTIVE' } }),
+        tx.guideProfile.create({ data: { organizationId: orgId, userId: dualUser.id, status: 'ACTIVE' } }),
+      ]),
+    );
+    // Deliberately outranks the dual-role person on rating alone, to prove
+    // the pairing preference (not rating) is what wins.
+    await withOrg(orgId, (tx) => tx.driverProfile.update({ where: { id: driverProfileId }, data: { averageRating: 5, ratingCount: 1 } }));
+
+    const headers = await loginAs(operatorId);
+    const req = new NextRequest(`http://localhost/api/v1/departures/${departureId}/recommend-assignment`, { headers });
+    const res = await recommendAssignment(req, { params: Promise.resolve({ departureId }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    expect(body.recommendedGuideId).toBe(dualUser.id);
+    expect(body.recommendedDriverId).toBe(dualDriverProfile.id);
+    expect(body.drivers[0].id).toBe(dualDriverProfile.id);
+  }, 30_000);
 });

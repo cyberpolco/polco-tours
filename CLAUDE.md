@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-250** (2026-09-04). This file used to carry a running
+Current through **DR-253** (2026-09-05). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -583,19 +583,32 @@ src/
                    #   String[] to the same PackageTag enum TourPackage.tags
                    #   uses (new fleet -> catalog module dependency, PACKAGE_TAGS
                    #   imported via catalog's index.ts, confirmed acyclic) --
-                   #   blocked on a DB-owner-permission db:push as of this
-                   #   writing (OI-18). DR-246: DriverProfile.languages and
+                   #   pushed live to the shared Neon DB (OI-18 resolved).
+                   #   DR-246: DriverProfile.languages and
                    #   GuideProfile.languages move from freeform-typed text
                    #   to a fixed 17-code checklist (fleet/domain.ts's
                    #   LANGUAGE_CODES/LANGUAGE_LABELS) -- no schema change,
                    #   zod-only, since this vocabulary isn't shared with any
-                   #   other module.
+                   #   other module. DR-251: updating either profile's
+                   #   languages now syncs the other, for the same person
+                   #   holding both a DriverProfile and a GuideProfile
+                   #   (ROLE_COMPATIBILITY, DR-221) -- only when the update
+                   #   actually touches languages, two sequential (not one
+                   #   atomic) writes. DR-253: PackageTag (see catalog/'s own
+                   #   comment) gains 5 new values, extending this module's
+                   #   specialties vocabulary too.
     assignment/    # Assignment (Departure -> vehicle/driver/guide), overlap rule.
                    #   DR-247: recommendAssignment's guide ranking now factors
                    #   in specialty-tag overlap (compareGuidesByMatch,
                    #   specialtyOverlapCount) against the departure's package
                    #   tags before falling back to averageRating (DR-037) as
-                   #   the tiebreaker -- drivers still rank by rating alone
+                   #   the tiebreaker -- drivers still rank by rating alone.
+                   #   DR-252: the recommended driver now also prefers the
+                   #   top guide's own DriverProfile, when they have an
+                   #   eligible one, over a merely higher-rated unrelated
+                   #   driver -- one person guiding and driving is a real
+                   #   staffing pattern; degrades to the old rating-only
+                   #   pick when the top guide has no eligible DriverProfile.
     visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
                    #   SUPERADMIN can hard-delete an application
                    #   (isVisaDeleter), and deleteForBooking cascades that
@@ -1580,18 +1593,12 @@ Surface these to the human — don't invent answers.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-- **OI-18** (DR-245) `GuideProfile.specialties`'s column-type change
-  (freeform `String[]` -> `PackageTag[]`) is written to `prisma/schema.prisma`
-  and the app code already assumes it, but not yet applied to the shared
-  Neon DB — `prisma db push` failed with `must be owner of table
-  guide_profiles` against the `polco_app` credential in `.env` (same "no
-  single credential does both" gotcha as every other schema push in this
-  repo). Needs a `neondb_owner` connection string pasted directly by a human
-  (never written to a file) to actually run `npm run db:push` +
-  `npm run db:rls`. No production data loss risk — confirmed via a direct
-  query that no `GuideProfile` row had any `specialties` value at the time
-  this was written.
-**Resolved:** OI-17 (DR-222's schema change — `Airport`/`FlightFareRate`/
+**Resolved:** OI-18 (DR-245's `GuideProfile.specialties` column-type change —
+pushed to the shared Neon DB via `npm run db:push` with the user's own pasted
+`neondb_owner` credential, then `npm run db:rls` reapplied clean (150
+statements); 10 seeded rows holding pre-DR-245 freeform values were mapped to
+their closest `PackageTag` and restored rather than lost — 2026-09-04),
+OI-17 (DR-222's schema change — `Airport`/`FlightFareRate`/
 `EsimDataPlanRate` tables, `BookingAddon`'s 5 new nullable columns — pushed
 to the shared Neon database via `npm run db:push` with the user's own
 pasted `neondb_owner` credential, then `npm run db:rls` reapplied clean

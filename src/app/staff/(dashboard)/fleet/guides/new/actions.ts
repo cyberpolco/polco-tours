@@ -8,7 +8,7 @@ import { CreateGuideProfileInput, LANGUAGE_CODES, fleetService } from '@modules/
 // DR-245: same controlled vocabulary as TourPackage.tags -- kept as a local
 // literal tuple, same hand-duplicated-per-file convention the package setup
 // actions (packages/new/actions.ts) already use for PACKAGE_TAGS.
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 // Same convention as staff booking-on-behalf-of-a-client (DR-014) and the
 // driver profile equivalent: the TOUR_GUIDE-role user must already have an

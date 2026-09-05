@@ -539,7 +539,12 @@
     "FAMILY": "Famille",
     "CULTURE": "Culture",
     "LUXURY": "Luxe",
-    "BUDGET": "Économique"
+    "BUDGET": "Économique",
+    "CAMPING": "Camping",
+    "ADRENALINE": "Adrénaline",
+    "BIRDWATCHING": "Observation des oiseaux",
+    "HONEYMOON": "Lune de miel",
+    "SELF_DRIVE": "Autotour"
   },
   "TripAddons": {
     "PHOTOGRAPHY": "Photographie",

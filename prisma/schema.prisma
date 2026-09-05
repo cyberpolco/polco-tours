@@ -143,6 +143,9 @@ enum FlightClass {
 }
 
 // Powers the public "tailor your trip" quiz's interest-matching (DR-016).
+// DR-253 (explicit user request, 3 of them chosen from a shortlist):
+// CAMPING/ADRENALINE/BIRDWATCHING/HONEYMOON/SELF_DRIVE added -- also the
+// same vocabulary GuideProfile.specialties draws from (DR-245).
 enum PackageTag {
   WILDLIFE
   ADVENTURE
@@ -151,6 +154,11 @@ enum PackageTag {
   CULTURE
   LUXURY
   BUDGET
+  CAMPING
+  ADRENALINE
+  BIRDWATCHING
+  HONEYMOON
+  SELF_DRIVE
 }
 
 // Fleet + compliance (DR-017, Phase 2 Increment 1).
@@ -497,12 +505,20 @@ model CmsMediaItem {
   name            String? // gallery sites only -- staff-editable display name
   country         String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
   platform        String? // social-links only -- one of CMS_SOCIAL_PLATFORMS
+  slug            String? // gallery sites only -- staff-editable, human-readable id
+                          // for the site's shareable /gallery/[slug] link (DR-251);
+                          // null until staff sets one, falls back to slotKey
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   updatedByUserId String?  @db.Uuid
 
   @@unique([page, slotKey])
+  // Postgres treats multiple NULLs as distinct, so any number of
+  // not-yet-slugged items can coexist under one page with no conflict --
+  // this only actually constrains once two items on the same page both set
+  // the same real slug.
+  @@unique([page, slug])
   @@index([page, sortOrder])
   @@map("cms_media_items")
 }

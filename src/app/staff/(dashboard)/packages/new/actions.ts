@@ -8,7 +8,7 @@ import { logger, newTraceId } from '@lib/logger';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { CreatePackageInput, catalogService } from '@modules/catalog';
 
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 export async function createPackageAction(formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('catalog.write');

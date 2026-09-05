@@ -8,7 +8,7 @@ import { LANGUAGE_CODES, UpdateGuideProfileInput, fleetService } from '@modules/
 // language list -- kept as local literal tuples, same hand-duplicated-
 // per-file convention the package setup actions already use for
 // PACKAGE_TAGS.
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 export async function updateGuideProfileAction(guideProfileId: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('fleet.write');

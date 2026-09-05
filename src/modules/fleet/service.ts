@@ -120,8 +120,20 @@ export const fleetService = {
     input: UpdateDriverProfileInput,
   ): Promise<DriverProfileView> {
     assertCan(ctx, 'fleet.write');
-    const updated = await fleetRepository.updateDriverProfile(requireOrg(ctx), driverProfileId, input);
+    const organizationId = requireOrg(ctx);
+    const updated = await fleetRepository.updateDriverProfile(organizationId, driverProfileId, input);
     if (!updated) throw Errors.notFound('Driver profile not found');
+    // DR-251 (explicit user request): a person's spoken languages don't
+    // change depending on which hat (DRIVER vs. TOUR_GUIDE) they're wearing
+    // -- if the same User also holds a GuideProfile, keep its languages in
+    // sync rather than letting the two drift apart. Only when this update
+    // actually touches languages (not on every unrelated field change).
+    if (input.languages !== undefined) {
+      const guideProfile = await fleetRepository.findGuideProfileByUserId(organizationId, updated.userId);
+      if (guideProfile) {
+        await fleetRepository.updateGuideProfile(organizationId, guideProfile.id, { languages: input.languages });
+      }
+    }
     return updated;
   },
 
@@ -273,8 +285,17 @@ export const fleetService = {
     input: UpdateGuideProfileInput,
   ): Promise<GuideProfileView> {
     assertCan(ctx, 'fleet.write');
-    const updated = await fleetRepository.updateGuideProfile(requireOrg(ctx), guideProfileId, input);
+    const organizationId = requireOrg(ctx);
+    const updated = await fleetRepository.updateGuideProfile(organizationId, guideProfileId, input);
     if (!updated) throw Errors.notFound('Guide profile not found');
+    // DR-251: symmetric to updateDriverProfile's own sync above -- keep the
+    // same person's DriverProfile languages in sync too, when both exist.
+    if (input.languages !== undefined) {
+      const driverProfile = await fleetRepository.findDriverProfileByUserId(organizationId, updated.userId);
+      if (driverProfile) {
+        await fleetRepository.updateDriverProfile(organizationId, driverProfile.id, { languages: input.languages });
+      }
+    }
     return updated;
   },
 

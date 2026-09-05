@@ -12,7 +12,7 @@ import { SelectableCard } from '@/components/ui/SelectableCard';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { createPackageAction } from './actions';
 
-const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET'] as const;
+const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
 interface Props {
   searchParams: Promise<{ error?: string; detail?: string }>;
