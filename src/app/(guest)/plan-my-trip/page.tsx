@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
+import Image from 'next/image';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
-import { TravelBackdrop } from '@/components/ui/TravelBackdrop';
+import { Card } from '@/components/ui/Card';
 import PlanMyTripForm, { type PlanMyTripSite } from './plan-my-trip-form';
 
 // DR-198: same best-effort convention as book-package/[packageId]/page.tsx's
@@ -61,12 +62,23 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
     .map((item) => ({ name: item.name!, country: item.country! }));
 
   return (
-    <div className="relative">
-      <TravelBackdrop />
-      <p className="eyebrow mt-4 text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
-      <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
-      <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
-      <PlanMyTripForm initialDestination={initialDestination} sites={sites} lateBookingRate={lateBookingRate} />
-    </div>
+    // Explicit user request: a photo behind the whole wizard, with every
+    // step sitting on top inside one big, slightly translucent card --
+    // same full-bleed treatment /find-booking uses, just sized for a
+    // 9-step form rather than a two-field lookup. This replaces the
+    // TravelBackdrop line-art wallpaper that used to sit here; a photo and
+    // that motif layer would compete, so the backdrop is now /packages'
+    // alone. The card wraps the heading too, so nothing needs recoloring
+    // for contrast against the photo.
+    <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden px-4 py-12 sm:px-8 sm:py-16">
+      <Image src="/images/hero/sossusvlei.png" alt="" fill priority sizes="100vw" className="object-cover" />
+      <div className="absolute inset-0 bg-ink/25" />
+      <Card className="relative mx-auto w-full max-w-4xl bg-bone/85">
+        <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
+        <p className="mt-1 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
+        <PlanMyTripForm initialDestination={initialDestination} sites={sites} lateBookingRate={lateBookingRate} />
+      </Card>
+    </section>
   );
 }
