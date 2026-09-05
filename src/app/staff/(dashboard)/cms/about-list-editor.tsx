@@ -74,6 +74,7 @@ export async function AboutListEditor({ section, entries, locale, canWrite }: Ab
                         <input
                           name="numericValue"
                           type="number"
+                          required
                           min={0}
                           defaultValue={entry.numericValue ?? ''}
                           className={INPUT}
@@ -147,7 +148,7 @@ export async function AboutListEditor({ section, entries, locale, canWrite }: Ab
               </FormField>
               {showNumber && (
                 <FormField label={t('aboutStatValueLabel')} htmlFor={`new-numericValue-${section}`}>
-                  <input name="numericValue" type="number" min={0} className={INPUT} />
+                  <input name="numericValue" type="number" required min={0} className={INPUT} />
                 </FormField>
               )}
             </div>

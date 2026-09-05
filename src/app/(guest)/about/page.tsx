@@ -82,13 +82,20 @@ export default async function AboutPage() {
   const missionText = resolveText(blocks, locale, 'about.mission');
   const valuesText = resolveText(blocks, locale, 'about.values');
 
-  const stats = resolveList(statRows, ABOUT_STAT_DEFAULTS[locale], (row) => ({
-    heading: row.heading,
-    numericValue: row.numericValue ?? 0,
-    prefix: row.prefix,
-    suffix: row.suffix,
-    animate: row.animate,
-  }));
+  // A stat with no number saved yet is skipped rather than published as a
+  // "0" -- `numericValue` is nullable because the timeline/values sections
+  // share this table and never use it, so a blank one is reachable here.
+  const stats = resolveList(
+    statRows.filter((row) => row.numericValue !== null),
+    ABOUT_STAT_DEFAULTS[locale],
+    (row) => ({
+      heading: row.heading,
+      numericValue: row.numericValue ?? 0,
+      prefix: row.prefix,
+      suffix: row.suffix,
+      animate: row.animate,
+    }),
+  );
   const timeline = resolveList(timelineRows, ABOUT_TIMELINE_DEFAULTS[locale], (row) => ({
     marker: row.marker ?? '',
     heading: row.heading,

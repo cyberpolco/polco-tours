@@ -1067,7 +1067,8 @@ src/
                    #   src/app/(guest)/about/defaults.ts, which /staff/cms's
                    #   About tab also prefills its editors from (same
                    #   convention as DR-207's Terms/DR-225's Footer legal).
-                   #   Schema NOT yet pushed to the shared Neon DB (OI-20).
+                   #   Schema applied live to the shared Neon DB (OI-20
+                   #   resolved).
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
@@ -1666,18 +1667,21 @@ Surface these to the human — don't invent answers.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-- **OI-20** (DR-256) The new `cms_about_entries` table (`CmsAboutEntry`)
-  has **not** been applied to the shared Neon DB. `schema.prisma` and the
-  generated Prisma Client are updated and the app typechecks/lints clean
-  against them, but the table doesn't exist in Postgres — so `/about` and
-  `/staff/cms?tab=about` will throw rather than degrade gracefully until
-  it does. This is genuinely blocking, not a degraded-mode gap. Apply via
-  `npm run db:push` (or, if the Prisma CLI can't reach Neon's direct host
-  from the sandbox as in DR-253/DR-254, the equivalent `CREATE TABLE` +
-  its two indexes through `psql` over the pooler host), then re-run
-  `npm run db:rls` to confirm no regression — no new policy is needed,
-  this table is platform-wide with no `organizationId`.
-**Resolved:** OI-19 (DR-254's `CmsMediaItem.slug` column + its
+**Resolved:** OI-20 (DR-256's `cms_about_entries` table — `prisma db push`
+and even `prisma migrate diff` couldn't reach Neon from this sandbox
+(`P1001`, the same CLI-level flakiness DR-253/DR-254 hit), while `psql` on
+the identical pooler URL connected instantly, so the table was created by
+hand: `CREATE TABLE` + its unique/lookup indexes + `GRANT SELECT, INSERT,
+UPDATE, DELETE ... TO polco_app` (a **new table needs its own grant** — a
+new *column* inherits the table's, which is why DR-253/DR-254 didn't need
+this step). Verified by `\d`, by a full INSERT/SELECT/UPDATE/DELETE
+round-trip run as the real `polco_app` runtime role inside a rolled-back
+transaction (0 rows left behind, per the "never leave verification rows in
+the real Lam org" gotcha), and by confirming `relrowsecurity`/
+`relforcerowsecurity` are both false — matching every sibling `cms_*`
+table — with the DB's 38 RLS policies untouched. `npm run db:rls` was not
+re-run: it goes through Prisma (same P1001), and this DR added only a
+comment to `prisma/rls.sql`, no statements — 2026-09-05), OI-19 (DR-254's `CmsMediaItem.slug` column + its
 `@@unique([page, slug])` index — `prisma db push` itself couldn't reach
 Neon's direct (non-pooler) host from this sandbox (the same class of
 flakiness DR-253 also hit for its own schema change that same session), so
