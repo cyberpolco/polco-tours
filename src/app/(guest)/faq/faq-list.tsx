@@ -97,7 +97,10 @@ export function FaqList({ faqs }: Props) {
         className="mt-6 w-full max-w-xs rounded-pill border border-rule px-4 py-1.5 text-sm transition-colors focus:border-amber focus:outline-none"
       />
       {filtered.length === 0 ? (
-        <div className="mt-6">
+        // Same translucent card backing as FaqCard -- this sits over the
+        // full-bleed hero photo too, and text-mist alone was unreadable
+        // against it with no background behind it.
+        <Card as="div" className="mt-6 bg-bone/80">
           <p className="text-mist">{t('noResults', { query })}</p>
           <p className="mt-2 text-sm text-mist">
             {t('stillHaveQuestion')}{' '}
@@ -106,7 +109,7 @@ export function FaqList({ faqs }: Props) {
             </Link>
             .
           </p>
-        </div>
+        </Card>
       ) : (
         // Explicit user request: two columns, some questions left, some
         // right -- a CSS multi-column flow (not a grid) since these cards
