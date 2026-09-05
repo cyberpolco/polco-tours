@@ -41,6 +41,20 @@ function jsonRequest(url: string, headers: Headers, method: string, body?: unkno
   return new NextRequest(url, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined });
 }
 
+// Relative to "now", not hardcoded calendar literals -- a fixed date
+// eventually becomes real history as the calendar advances, at which point
+// createAssignment's hasDepartureEnded guard starts 409-ing every test
+// against that departure (a real incident this exact file hit once real
+// time caught up to its original 2026-09 literals). Preserves the original
+// fixture's exact day-deltas (A/B overlap by design, C doesn't overlap A,
+// D/E overlap each other the same way A/B do), just anchored 60 days out
+// from whenever the suite actually runs.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FIXTURE_BASE = Date.now() + 60 * DAY_MS;
+function daysFromBase(days: number): Date {
+  return new Date(FIXTURE_BASE + days * DAY_MS);
+}
+
 beforeAll(async () => {
   const org = await admin.organization.create({
     data: { name: `ASSIGN-API-TEST-${Date.now()}`, countries: ['NA'], status: 'VERIFIED' },
@@ -73,13 +87,13 @@ beforeAll(async () => {
     });
     const [depA, depB, depC] = await Promise.all([
       tx.departure.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-09-01'), endDate: new Date('2026-09-05'), capacity: 5, status: 'SCHEDULED' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: daysFromBase(0), endDate: daysFromBase(4), capacity: 5, status: 'SCHEDULED' },
       }),
       tx.departure.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-09-03'), endDate: new Date('2026-09-08'), capacity: 5, status: 'SCHEDULED' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: daysFromBase(2), endDate: daysFromBase(7), capacity: 5, status: 'SCHEDULED' },
       }),
       tx.departure.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-10-01'), endDate: new Date('2026-10-05'), capacity: 5, status: 'SCHEDULED' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: daysFromBase(30), endDate: daysFromBase(34), capacity: 5, status: 'SCHEDULED' },
       }),
     ]);
     departureAId = depA.id;
@@ -110,10 +124,10 @@ beforeAll(async () => {
 
     const [depD, depE] = await Promise.all([
       tx.departure.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-11-01'), endDate: new Date('2026-11-05'), capacity: 5, status: 'SCHEDULED' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: daysFromBase(61), endDate: daysFromBase(65), capacity: 5, status: 'SCHEDULED' },
       }),
       tx.departure.create({
-        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: new Date('2026-11-03'), endDate: new Date('2026-11-08'), capacity: 5, status: 'SCHEDULED' },
+        data: { organizationId: orgId, tourPackageId: pkg.id, startDate: daysFromBase(63), endDate: daysFromBase(68), capacity: 5, status: 'SCHEDULED' },
       }),
     ]);
     departureDId = depD.id;
@@ -228,7 +242,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
 
   it('rejects double-booking the same vehicle+driver on an overlapping departure (409)', async () => {
     // departureA already has activeVehicleId/activeDriverProfileId assigned (first test above).
-    // departureB's dates (Sep 3-8) overlap departureA's (Sep 1-5).
+    // departureB's dates overlap departureA's (both relative to FIXTURE_BASE, see daysFromBase above).
     const headers = await loginAs(operatorId);
     const req = jsonRequest(
       `http://localhost/api/v1/departures/${departureBId}/assignments`,
@@ -241,7 +255,7 @@ describe('POST /api/v1/departures/:departureId/assignments', () => {
   });
 
   it('allows the same vehicle+driver on a non-overlapping departure (201)', async () => {
-    // departureC (Oct 1-5) does not overlap departureA (Sep 1-5).
+    // departureC does not overlap departureA (30 days later, see daysFromBase above).
     const headers = await loginAs(operatorId);
     const req = jsonRequest(
       `http://localhost/api/v1/departures/${departureCId}/assignments`,
@@ -293,9 +307,9 @@ describe('POST /api/v1/departures/:departureId/assignments -- guide ACTIVE-statu
   });
 
   it('rejects double-booking the same guide on an overlapping departure (409)', async () => {
-    // Assign activeGuideId to departureD (Nov 1-5) via a fresh vehicle/driver
+    // Assign activeGuideId to departureD via a fresh vehicle/driver
     // pair scoped just to this test, then try to assign the same guide to
-    // departureE (Nov 3-8, overlapping) -- that second attempt must 409.
+    // departureE (overlapping departureD, see daysFromBase above) -- that second attempt must 409.
     const vehicle = await withOrg(orgId, (tx) =>
       tx.vehicle.create({ data: { organizationId: orgId, plateNumber: `GUIDE-OVERLAP-${Date.now()}`, make: 'Toyota', model: 'Hilux', vehicleType: '4x4', seatCapacity: 5, status: 'ACTIVE' } }),
     );
