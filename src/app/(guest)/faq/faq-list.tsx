@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { CmsFaqEntryView } from '@modules/cms';
@@ -99,16 +98,11 @@ export function FaqList({ faqs }: Props) {
       {filtered.length === 0 ? (
         // Same translucent card backing as FaqCard -- this sits over the
         // full-bleed hero photo too, and text-mist alone was unreadable
-        // against it with no background behind it.
+        // against it with no background behind it. The "still have a
+        // question?" prompt is deliberately not repeated here -- the page
+        // already carries it once at the bottom (page.tsx).
         <Card as="div" className="mt-6 bg-bone/80">
           <p className="text-mist">{t('noResults', { query })}</p>
-          <p className="mt-2 text-sm text-mist">
-            {t('stillHaveQuestion')}{' '}
-            <Link href="/contact" className="text-forest hover:underline">
-              {t('getInTouch')}
-            </Link>
-            .
-          </p>
         </Card>
       ) : (
         // Explicit user request: two columns, some questions left, some
