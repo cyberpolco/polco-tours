@@ -1679,9 +1679,13 @@ round-trip run as the real `polco_app` runtime role inside a rolled-back
 transaction (0 rows left behind, per the "never leave verification rows in
 the real Lam org" gotcha), and by confirming `relrowsecurity`/
 `relforcerowsecurity` are both false — matching every sibling `cms_*`
-table — with the DB's 38 RLS policies untouched. `npm run db:rls` was not
-re-run: it goes through Prisma (same P1001), and this DR added only a
-comment to `prisma/rls.sql`, no statements — 2026-09-05), OI-19 (DR-254's `CmsMediaItem.slug` column + its
+table. `npm run db:rls` was then re-run successfully on a retry
+(**"Applied 150 RLS statements"**, the same count as DR-222/DR-245's clean
+reapplies) with the DB's 38 policies unchanged before and after — the
+`P1001` really is intermittent, so **retry it before concluding Prisma
+can't reach Neon**; the same retry also turned the whole DB-backed `cms`
+suite green (5 files / 69 tests), which had been failing minutes earlier
+purely on connectivity — 2026-09-05), OI-19 (DR-254's `CmsMediaItem.slug` column + its
 `@@unique([page, slug])` index — `prisma db push` itself couldn't reach
 Neon's direct (non-pooler) host from this sandbox (the same class of
 flakiness DR-253 also hit for its own schema change that same session), so
