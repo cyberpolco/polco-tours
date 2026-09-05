@@ -24,7 +24,7 @@ function FaqCard({ question, answer }: { question: string; answer: string }) {
   const reduceMotion = useReducedMotionSafe();
 
   return (
-    <Card as="div" interactive className="mb-4 break-inside-avoid">
+    <Card as="div" interactive className="mb-4 break-inside-avoid bg-bone/80">
       <dt>
         <button
           type="button"

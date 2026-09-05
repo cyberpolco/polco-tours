@@ -3,7 +3,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
-import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
 import { FaqList } from './faq-list';
 
@@ -23,11 +22,15 @@ export default async function FaqPage() {
   return (
     <Reveal>
       <div>
-        {/* Same full-bleed hero-photo treatment as /find-booking -- explicit
-            user request. Breaks out of the page's normal max-w-7xl container;
-            eyebrow/title sit inside a slightly translucent card on top rather
-            than reworking their colors for on-photo contrast. */}
-        <section className="relative left-1/2 right-1/2 -mx-[50vw] flex min-h-[20rem] w-screen items-center justify-center overflow-hidden px-4 py-16 sm:min-h-[24rem] sm:px-8">
+        <p className="eyebrow text-mist">{t('eyebrow')}</p>
+        <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
+
+        {/* Full-bleed hero photo behind the search box + question cards
+            (not the title above) -- explicit user request. Breaks out of
+            the page's normal max-w-7xl container; the cards themselves
+            (faq-list.tsx's FaqCard) are given a slightly translucent
+            background so the photo shows through behind them. */}
+        <section className="relative left-1/2 right-1/2 -mx-[50vw] mt-6 w-screen overflow-hidden px-4 py-10 sm:px-8">
           <Image
             src="/images/hero/faq-hero.jpg"
             alt=""
@@ -36,23 +39,19 @@ export default async function FaqPage() {
             sizes="100vw"
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-ink/25" />
-          <Card className="relative w-full max-w-md bg-bone/85 text-center">
-            <p className="eyebrow text-mist">{t('eyebrow')}</p>
-            <h1 className="mt-1 text-2xl font-bold text-navy">{t('title')}</h1>
-          </Card>
+          <div className="absolute inset-0 bg-ink/10" />
+          <div className="relative mx-auto max-w-7xl">
+            {faqs.length === 0 ? <p className="text-mist">{t('noQuestions')}</p> : <FaqList faqs={faqs} />}
+          </div>
         </section>
 
-        <div className="mt-10">
-          {faqs.length === 0 ? <p className="text-mist">{t('noQuestions')}</p> : <FaqList faqs={faqs} />}
-          <p className="mt-6 max-w-3xl text-sm text-mist">
-            {t('stillHaveQuestion')}{' '}
-            <Link href="/contact" className="text-forest hover:underline">
-              {t('getInTouch')}
-            </Link>
-            .
-          </p>
-        </div>
+        <p className="mt-6 max-w-3xl text-sm text-mist">
+          {t('stillHaveQuestion')}{' '}
+          <Link href="/contact" className="text-forest hover:underline">
+            {t('getInTouch')}
+          </Link>
+          .
+        </p>
       </div>
     </Reveal>
   );
