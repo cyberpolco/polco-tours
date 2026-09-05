@@ -54,12 +54,20 @@ beforeAll(async () => {
         status: 'PUBLISHED_AVAILABLE',
       },
     });
+    // Relative to "now", not hardcoded -- a fixed past-tense literal date
+    // eventually becomes real history as the calendar advances, at which
+    // point bookingRepository.sweepLifecycle's lazy CONFIRMED -> IN_PROGRESS
+    // -> COMPLETED transitions silently lock this booking before the test
+    // ever runs, turning every "can change trip date (200)" case here into
+    // a 409 with no code change involved at all (a real incident this
+    // exact test hit once real time caught up to its original 2026-09
+    // literals). Comfortably in the future, both legs.
     const departure = await tx.departure.create({
       data: {
         organizationId: orgId,
         tourPackageId: pkg.id,
-        startDate: new Date('2026-09-01'),
-        endDate: new Date('2026-09-05'),
+        startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 35 * 24 * 60 * 60 * 1000),
         capacity: 5,
         status: 'SCHEDULED',
       },
