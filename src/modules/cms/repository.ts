@@ -49,6 +49,7 @@ function toCmsMediaItemView(r: CmsMediaItem): CmsMediaItemView {
     name: r.name,
     country: r.country,
     platform: r.platform as CmsSocialPlatform | null,
+    slug: r.slug,
     sortOrder: r.sortOrder,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -153,11 +154,32 @@ export const cmsRepository = {
         name: input.name ?? null,
         country: input.country ?? null,
         platform: input.platform ?? null,
+        slug: input.slug ?? null,
         sortOrder: input.sortOrder,
         updatedByUserId,
       },
     });
     return toCmsMediaItemView(row);
+  },
+  /** Resolves a gallery site's shareable-link identifier -- staff's editable
+   * `slug` if it matches, else the server-generated `slotKey` (DR-254) --
+   * so an item with no slug set yet still has a working share link, and an
+   * existing slotKey-shaped link never breaks once a slug is added later. */
+  async getMediaItemBySlugOrSlotKey(page: string, identifier: string): Promise<CmsMediaItemView | null> {
+    const row = await prisma.cmsMediaItem.findFirst({ where: { page, OR: [{ slug: identifier }, { slotKey: identifier }] } });
+    return row ? toCmsMediaItemView(row) : null;
+  },
+  /** Whether another item on the same page already has this slug -- checked
+   * before a write since this table carries no organizationId/RLS at all
+   * (a plain SELECT is reliable here, unlike the RLS-scoped anti-pattern
+   * CLAUDE.md's Gotchas section documents for `polco_app`-connected tenant
+   * tables). `excludeSlotKey` lets an update re-save its own unchanged slug. */
+  async isSlugTaken(page: string, slug: string, excludeSlotKey?: string): Promise<boolean> {
+    const row = await prisma.cmsMediaItem.findFirst({
+      where: { page, slug, ...(excludeSlotKey ? { slotKey: { not: excludeSlotKey } } : {}) },
+      select: { id: true },
+    });
+    return row !== null;
   },
   async updateMediaItem(
     page: string,

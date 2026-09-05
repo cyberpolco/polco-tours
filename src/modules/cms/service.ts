@@ -151,6 +151,9 @@ export const cmsService = {
    * own, so (page, slotKey) can never collide with an existing slot. */
   async createMediaItem(ctx: AuthContext, page: string, input: CreateCmsMediaItemInput): Promise<CmsMediaItemView> {
     requireCmsWriter(ctx);
+    if (input.slug && (await cmsRepository.isSlugTaken(page, input.slug))) {
+      throw Errors.validation('That slug is already in use on this page');
+    }
     const slotKey = crypto.randomUUID();
     const item = await cmsRepository.createMediaItem(page, slotKey, input, ctx.userId);
     await audit({
@@ -165,6 +168,9 @@ export const cmsService = {
   },
   async updateMediaItem(ctx: AuthContext, page: string, slotKey: string, input: UpdateCmsMediaItemInput): Promise<CmsMediaItemView> {
     requireCmsWriter(ctx);
+    if (input.slug && (await cmsRepository.isSlugTaken(page, input.slug, slotKey))) {
+      throw Errors.validation('That slug is already in use on this page');
+    }
     const item = await cmsRepository.updateMediaItem(page, slotKey, input, ctx.userId);
     if (!item) throw Errors.notFound('Media item not found');
     await audit({
@@ -275,6 +281,14 @@ export const cmsService = {
 
   async listPublicMediaItems(page: string): Promise<CmsMediaItemView[]> {
     return cmsRepository.listMediaItems(page);
+  },
+
+  /** Backs a single gallery site's shareable link -- its own page.tsx
+   * (metadata) and opengraph-image.tsx (the image half of the preview).
+   * Resolves the staff-editable `slug` first, falling back to the raw
+   * `slotKey` so a link shared before a slug was set keeps working. */
+  async getPublicMediaItem(page: string, identifier: string): Promise<CmsMediaItemView | null> {
+    return cmsRepository.getMediaItemBySlugOrSlotKey(page, identifier);
   },
 
   async listPublicOperatingCountries(): Promise<CmsOperatingCountryView[]> {

@@ -237,6 +237,9 @@ export async function updateGallerySiteAction(slotKey: string, formData: FormDat
     name: String(formData.get('name') ?? '') || null,
     country: String(formData.get('country') ?? '') || null,
     description: String(formData.get('description') ?? '') || null,
+    // DR-254: staff-editable shareable-link id. Lowercased so a staff typo
+    // like "Masai-Mara" doesn't fail SLUG_PATTERN's lowercase-only check.
+    slug: String(formData.get('slug') ?? '').trim().toLowerCase() || null,
     sortOrder: Number(formData.get('sortOrder') ?? 0),
   });
   await cmsService.updateMediaItem(ctx, GALLERY_PAGE, slotKey, input);

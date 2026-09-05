@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-253** (2026-09-05). This file used to carry a running
+Current through **DR-254** (2026-09-05). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -1013,6 +1013,23 @@ src/
                    #   cmsService.uploadImage itself is untouched — still
                    #   the primitive MediaPicker's uploadMediaImageAction
                    #   calls for every one of those working uploads.
+                   #   DR-254: a gallery site's CmsMediaItem gains `slug`
+                   #   (nullable, `@@unique([page, slug])` alongside the
+                   #   existing `@@unique([page, slotKey])`) — a
+                   #   staff-editable, human-readable id for the site's
+                   #   shareable /gallery/[identifier] link, editable
+                   #   right in the existing per-site form on /staff/cms's
+                   #   Gallery tab. cmsService.getPublicMediaItem(page,
+                   #   identifier) resolves either the slug or the raw
+                   #   slotKey in one query
+                   #   (cmsRepository.getMediaItemBySlugOrSlotKey) so a link
+                   #   shared before a slug was set keeps working once one
+                   #   is added later; createMediaItem/updateMediaItem
+                   #   reject a slug already used on the same page
+                   #   (cmsRepository.isSlugTaken, a plain pre-write SELECT
+                   #   — reliable here since CmsMediaItem carries no
+                   #   organizationId/RLS at all). Schema change pushed
+                   #   live to the shared Neon DB (OI-19 resolved).
     weather/       # Guest /weather pages (DR-113), no repository.ts (owns
                    #   no table — town list is src/lib/weather-towns.ts, a
                    #   static config). gateway.ts calls Google Maps
@@ -1593,7 +1610,15 @@ Surface these to the human — don't invent answers.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-**Resolved:** OI-18 (DR-245's `GuideProfile.specialties` column-type change —
+**Resolved:** OI-19 (DR-254's `CmsMediaItem.slug` column + its
+`@@unique([page, slug])` index — `prisma db push` itself couldn't reach
+Neon's direct (non-pooler) host from this sandbox (the same class of
+flakiness DR-253 also hit for its own schema change that same session), so
+this was applied directly via `psql` over the pooler host with the user's
+own pasted `neondb_owner` credential instead — a plain `ALTER TABLE ...
+ADD COLUMN` + `CREATE UNIQUE INDEX`, confirmed via `\d` and by rerunning
+`tests/cms-media-item.service.test.ts`'s slug suite against the real DB
+(all passing) — 2026-09-05), OI-18 (DR-245's `GuideProfile.specialties` column-type change —
 pushed to the shared Neon DB via `npm run db:push` with the user's own pasted
 `neondb_owner` credential, then `npm run db:rls` reapplied clean (150
 statements); 10 seeded rows holding pre-DR-245 freeform values were mapped to

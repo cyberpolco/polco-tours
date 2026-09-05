@@ -153,6 +153,20 @@ describe('cms domain', () => {
       expect(result.platform).toBe('facebook');
       expect(result.url).toBe('https://facebook.com/mufasasafaris');
     });
+
+    it('accepts a valid slug (DR-254) and explicitly clearing it to null', () => {
+      const set = UpdateCmsMediaItemInput.parse({ slug: 'masai-mara' });
+      expect(set.slug).toBe('masai-mara');
+      const cleared = UpdateCmsMediaItemInput.parse({ slug: null });
+      expect(cleared.slug).toBeNull();
+    });
+
+    it('rejects a slug with uppercase letters, spaces, or a leading/trailing/double hyphen', () => {
+      expect(() => UpdateCmsMediaItemInput.parse({ slug: 'Masai-Mara' })).toThrow();
+      expect(() => UpdateCmsMediaItemInput.parse({ slug: 'masai mara' })).toThrow();
+      expect(() => UpdateCmsMediaItemInput.parse({ slug: '-masai-mara' })).toThrow();
+      expect(() => UpdateCmsMediaItemInput.parse({ slug: 'masai--mara' })).toThrow();
+    });
   });
 
   describe('CreateCmsOperatingCountryInput (DR-202)', () => {

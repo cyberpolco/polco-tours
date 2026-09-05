@@ -83,4 +83,35 @@ describe('cmsService -- CmsMediaItem (RBAC-gated)', () => {
   it('deleting a non-existent slide throws not-found', async () => {
     await expect(cmsService.deleteMediaItem(superadmin, TEST_PAGE, 'does-not-exist')).rejects.toThrow();
   });
+
+  // DR-254: staff-editable shareable-link slug for a gallery site.
+  describe('slug (DR-254)', () => {
+    it('getPublicMediaItem resolves an item by its slug, and still by its raw slotKey', async () => {
+      const created = await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 0, slug: 'masai-mara' });
+      const bySlug = await cmsService.getPublicMediaItem(TEST_PAGE, 'masai-mara');
+      expect(bySlug?.slotKey).toBe(created.slotKey);
+      const bySlotKey = await cmsService.getPublicMediaItem(TEST_PAGE, created.slotKey);
+      expect(bySlotKey?.slug).toBe('masai-mara');
+    });
+
+    it('rejects creating a second item with a slug already used on the same page', async () => {
+      await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 0, slug: 'victoria-falls' });
+      await expect(cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 1, slug: 'victoria-falls' })).rejects.toThrow();
+    });
+
+    it('rejects updating an item to a slug already used by a different item, but allows re-saving its own unchanged slug', async () => {
+      const a = await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 0, slug: 'etosha-a' });
+      const b = await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 1, slug: 'etosha-b' });
+
+      await expect(cmsService.updateMediaItem(superadmin, TEST_PAGE, b.slotKey, { slug: 'etosha-a' })).rejects.toThrow();
+      await expect(cmsService.updateMediaItem(superadmin, TEST_PAGE, a.slotKey, { slug: 'etosha-a' })).resolves.toMatchObject({ slug: 'etosha-a' });
+    });
+
+    it('leaves two items with no slug set (both null) uncontended', async () => {
+      const a = await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 0 });
+      const b = await cmsService.createMediaItem(superadmin, TEST_PAGE, { sortOrder: 1 });
+      expect(a.slug).toBeNull();
+      expect(b.slug).toBeNull();
+    });
+  });
 });

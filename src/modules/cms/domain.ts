@@ -95,6 +95,20 @@ export function isValidCmsVideoContentType(contentType: string): boolean {
 // country regulations, etc.), not a fresh vocabulary.
 export const GALLERY_COUNTRY_CODES = OPERATING_COUNTRY_CODES;
 
+// A gallery site's shareable-link identifier (DR-254) -- staff-editable,
+// distinct from the server-generated `slotKey`. Lowercase letters/digits
+// with single hyphens between words (no leading/trailing/double hyphens),
+// same shape as a typical URL slug elsewhere on the web.
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const slugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(SLUG_PATTERN, 'Use lowercase letters, numbers, and single hyphens only (e.g. "masai-mara")')
+  .nullable()
+  .optional();
+
 // Social links only (DR-200, page='social-links') -- a fixed, closed set
 // matching the hand-drawn SVG icons the guest footer already knows how to
 // render (src/app/(guest)/footer.tsx). Adding a 6th platform is a code
@@ -131,6 +145,7 @@ export interface CmsMediaItemView {
   name: string | null;
   country: string | null;
   platform: CmsSocialPlatform | null;
+  slug: string | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
@@ -145,6 +160,7 @@ export const CreateCmsMediaItemInput = z.object({
   name: z.string().min(1).max(200).nullable().optional(),
   country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
   platform: z.enum(CMS_SOCIAL_PLATFORMS).nullable().optional(),
+  slug: slugSchema,
   sortOrder: z.number().int().nonnegative().default(0),
 });
 export type CreateCmsMediaItemInput = z.infer<typeof CreateCmsMediaItemInput>;
@@ -157,6 +173,7 @@ export const UpdateCmsMediaItemInput = z.object({
   name: z.string().min(1).max(200).nullable().optional(),
   country: z.enum(GALLERY_COUNTRY_CODES).nullable().optional(),
   platform: z.enum(CMS_SOCIAL_PLATFORMS).nullable().optional(),
+  slug: slugSchema,
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type UpdateCmsMediaItemInput = z.infer<typeof UpdateCmsMediaItemInput>;

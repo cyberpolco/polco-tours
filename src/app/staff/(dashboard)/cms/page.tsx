@@ -774,6 +774,16 @@ export default async function CmsPage({ searchParams }: Props) {
                           className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm"
                         />
                       </FormField>
+                      <FormField label={t('slugLabel')} htmlFor={`slug-${item.slotKey}`}>
+                        <input
+                          name="slug"
+                          defaultValue={item.slug ?? ''}
+                          placeholder="masai-mara"
+                          pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                          className="w-full rounded-survey border border-rule px-2 py-1.5 text-sm lowercase"
+                        />
+                      </FormField>
+                      <p className="-mt-1 text-xs text-mist">{t('slugHint')}</p>
                       <div className="flex items-end gap-3">
                         <FormField label={t('order')} htmlFor={`sortOrder-${item.slotKey}`}>
                           <input

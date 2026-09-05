@@ -45,7 +45,7 @@ export default async function GalleryPage() {
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-1 max-w-2xl text-sm text-mist">{cms?.body ?? t('subhead')}</p>
-        <GalleryGrid sites={sites} closeLabel={t('close')} />
+        <GalleryGrid sites={sites} closeLabel={t('close')} shareLabel={t('share')} linkCopiedLabel={t('linkCopied')} />
       </div>
     </Reveal>
   );

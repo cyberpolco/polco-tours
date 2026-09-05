@@ -199,7 +199,10 @@
     "eyebrow": "Galerie",
     "title": "Vos prochaines destinations",
     "subhead": "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur une image pour l'agrandir, ou sur le nom d'une destination pour commencer à planifier votre voyage.",
-    "close": "Fermer"
+    "close": "Fermer",
+    "share": "Partager",
+    "linkCopied": "Lien copié !",
+    "backToGallery": "Retour à la galerie"
   },
   "Countries": {
     "NA": "Namibie",
@@ -2042,6 +2045,8 @@
     "descriptionLabel": "Description",
     "siteNameLabel": "Nom du site",
     "countryLabel": "Pays",
+    "slugLabel": "Identifiant du lien partageable",
+    "slugHint": "Lettres minuscules, chiffres et tirets uniquement (ex. « masai-mara »). Laissez vide pour partager le lien généré automatiquement.",
     "addSite": "Ajouter un site",
     "removeSite": "Supprimer le site",
     "removeSiteConfirm": "Supprimer ce site de la galerie ? Cette action est irréversible.",

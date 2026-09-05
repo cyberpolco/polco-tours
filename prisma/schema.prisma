@@ -506,7 +506,7 @@ model CmsMediaItem {
   country         String? // gallery sites only -- one of OPERATING_COUNTRY_CODES
   platform        String? // social-links only -- one of CMS_SOCIAL_PLATFORMS
   slug            String? // gallery sites only -- staff-editable, human-readable id
-                          // for the site's shareable /gallery/[slug] link (DR-251);
+                          // for the site's shareable /gallery/[slug] link (DR-254);
                           // null until staff sets one, falls back to slotKey
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
