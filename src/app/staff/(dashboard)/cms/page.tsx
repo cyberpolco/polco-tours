@@ -971,10 +971,9 @@ export default async function CmsPage({ searchParams }: Props) {
             sectionTitle={t('aboutMdPersonSectionTitle')}
             eyebrowLabel={t('aboutMdRoleLabel')}
             titleLabel={t('aboutMdNameLabel')}
-            bodyLabel={t('aboutMdQuoteLabel')}
             savingLabel={t('saving')}
             saveLabel={t('save')}
-            bodyRows={3}
+            showBody={false}
           />
 
           <section className="space-y-3">

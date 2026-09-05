@@ -107,7 +107,16 @@ export default async function AboutPage() {
   }));
 
   const mdPhotoUrl = mdMedia.find((item) => item.mediaType === 'image' && item.url)?.url ?? null;
-  const introParagraphs = intro.body.split('\n\n').filter(Boolean);
+  // A plain HTML <textarea>'s submitted value normalizes every line break to
+  // CRLF (\r\n), not \n -- a blank line staff enters as \n\n in the CMS
+  // editor round-trips as \r\n\r\n, which a bare split('\n\n') never
+  // matches, collapsing every paragraph into one. Normalize first, then
+  // split on any run of 2+ newlines.
+  const introParagraphs = intro.body
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
 
   return (
     <div className="space-y-16 sm:space-y-20">
@@ -119,7 +128,7 @@ export default async function AboutPage() {
             {intro.title}
           </h1>
           <div className="mt-4 h-[3px] w-14 rounded-full bg-amber" />
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 sm:gap-10">
+          <div className={`mt-6 grid gap-6 ${introParagraphs.length > 1 ? 'sm:grid-cols-2 sm:gap-10' : ''}`}>
             {introParagraphs.map((paragraph, i) => (
               <p key={i} className={i === 0 ? 'text-lg text-ink' : 'text-ink'}>
                 {paragraph}
@@ -217,9 +226,6 @@ export default async function AboutPage() {
                 </p>
                 {mdPerson.eyebrow && <p className="eyebrow mt-2 text-gold">{mdPerson.eyebrow}</p>}
                 <p className="mt-4 max-w-prose text-bone/90">{mdText.body}</p>
-                <blockquote className="mt-5 border-l-[3px] border-amber pl-4 text-lg italic text-white">
-                  {mdPerson.body}
-                </blockquote>
               </div>
             </div>
           </div>
