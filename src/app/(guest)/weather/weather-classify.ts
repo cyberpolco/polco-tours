@@ -19,25 +19,28 @@ export function classifyCondition(conditionText: string): ConditionCategory {
   return 'clear';
 }
 
-// A restrained gray/green wash so a card carrying an icon/animation reads as
-// its own themed surface rather than blending into the page, without the
-// sunset palette's warm tones (gold/amber/navy) fighting the icon colors --
-// only `clear` gets a (pale) color at all, via the `forest` token's soft
-// green; every other condition is a plain gray, darkening with severity.
-// Plain string classes (not computed per-render) so Tailwind's static
-// analysis picks them up -- this is the one place outside
-// tailwind.config.ts itself that needs every class spelled out literally.
+// A restrained wash so a card carrying an icon/animation reads as its own
+// themed surface, without the sunset palette's warm tones (gold/amber/navy)
+// fighting the icon colors -- only `clear` gets a color at all, via the
+// `forest` token's soft green; every other condition is neutral, darkening
+// with severity. These gradients now sit on top of a translucent glass card
+// over a photo (weather-glass.ts), so the opacities are much lower than a
+// wash on a solid bone page would need -- anything heavier turns the glass
+// opaque and defeats the effect. Plain string classes (not computed
+// per-render) so Tailwind's static analysis picks them up -- this is the one
+// place outside tailwind.config.ts itself that needs every class spelled out
+// literally.
 export function weatherCardTint(category: ConditionCategory): string {
   switch (category) {
     case 'clear':
-      return 'bg-gradient-to-br from-forest-soft via-forest/10 to-transparent';
+      return 'bg-gradient-to-br from-forest-soft/30 via-forest/10 to-transparent';
     case 'cloudy':
-      return 'bg-gradient-to-br from-gray-200/70 via-gray-100/40 to-transparent';
+      return 'bg-gradient-to-br from-white/25 via-white/10 to-transparent';
     case 'rain':
-      return 'bg-gradient-to-br from-gray-400/30 via-gray-300/25 to-transparent';
+      return 'bg-gradient-to-br from-slate-300/25 via-slate-200/10 to-transparent';
     case 'storm':
-      return 'bg-gradient-to-br from-gray-600/30 via-gray-500/20 to-transparent';
+      return 'bg-gradient-to-br from-slate-700/35 via-slate-600/15 to-transparent';
     case 'snow':
-      return 'bg-gradient-to-br from-gray-100/80 via-gray-50/50 to-transparent';
+      return 'bg-gradient-to-br from-white/40 via-white/15 to-transparent';
   }
 }

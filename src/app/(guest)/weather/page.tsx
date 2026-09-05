@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import Image from 'next/image';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
@@ -8,6 +9,15 @@ import { Card } from '@/components/ui/Card';
 import { Reveal } from '@/components/ui/Reveal';
 import { WeatherAnimation } from './weather-animation';
 import { classifyCondition, weatherCardTint } from './weather-classify';
+import {
+  GLASS_CARD,
+  GLASS_HEADING,
+  GLASS_MUTED,
+  WEATHER_HERO_IMAGE,
+  WEATHER_INNER,
+  WEATHER_SCRIM,
+  WEATHER_SECTION,
+} from './weather-glass';
 
 const COUNTRY_ORDER = OPERATING_COUNTRY_CODES;
 
@@ -31,46 +41,57 @@ export default async function WeatherPage() {
 
   return (
     <Reveal>
-      <div>
-        <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
-        <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-mist">{cms?.body ?? t('subhead')}</p>
+      <section className={WEATHER_SECTION}>
+        <Image src={WEATHER_HERO_IMAGE} alt="" fill priority sizes="100vw" className="object-cover" />
+        <div className={WEATHER_SCRIM} />
+        <div className={WEATHER_INNER}>
+          <p className={`eyebrow ${GLASS_MUTED}`}>{cms?.eyebrow ?? t('eyebrow')}</p>
+          <h1 className={`mt-1 text-2xl font-bold ${GLASS_HEADING}`}>{cms?.title ?? t('title')}</h1>
+          <p className={`mt-1 max-w-2xl text-sm ${GLASS_MUTED}`}>{cms?.body ?? t('subhead')}</p>
 
-        {COUNTRY_ORDER.map((country) => {
-          const countryTowns = towns.filter((town) => town.country === country);
-          if (countryTowns.length === 0) return null;
+          {COUNTRY_ORDER.map((country) => {
+            const countryTowns = towns.filter((town) => town.country === country);
+            if (countryTowns.length === 0) return null;
 
-          return (
-            <div key={country} className="mt-8">
-              <h2 className="eyebrow text-forest">{tCountries(country)}</h2>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {countryTowns.map((town) => {
-                  const tint = town.current ? weatherCardTint(classifyCondition(town.current.conditionText)) : '';
-                  return (
-                    <Card key={town.slug} as="div" interactive className={['p-0 overflow-hidden', tint].filter(Boolean).join(' ')}>
-                      <Link href={`/weather/${town.slug}`} className="flex items-center gap-3 p-4">
-                        {town.current && (
-                          <WeatherAnimation conditionText={town.current.conditionText} size="compact" className="w-14 shrink-0 shadow-card" />
-                        )}
-                        <div>
-                          <p className="font-semibold text-navy">{town.name}</p>
-                          {town.current ? (
-                            <p className="mt-1 text-sm text-mist">
-                              {Math.round(town.current.temperatureCelsius)}°C · {town.current.conditionText}
-                            </p>
-                          ) : (
-                            <p className="mt-1 text-sm text-mist">{t('summaryUnavailable')}</p>
+            return (
+              <div key={country} className="mt-8">
+                {/* Gold rather than the page's usual forest -- a dark green
+                    heading disappears against the photo. */}
+                <h2 className="eyebrow text-gold">{tCountries(country)}</h2>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {countryTowns.map((town) => {
+                    const tint = town.current ? weatherCardTint(classifyCondition(town.current.conditionText)) : '';
+                    return (
+                      <Card
+                        key={town.slug}
+                        as="div"
+                        interactive
+                        className={['p-0 overflow-hidden', GLASS_CARD, tint].filter(Boolean).join(' ')}
+                      >
+                        <Link href={`/weather/${town.slug}`} className="flex items-center gap-3 p-4">
+                          {town.current && (
+                            <WeatherAnimation conditionText={town.current.conditionText} size="compact" className="w-14 shrink-0 shadow-card" />
                           )}
-                        </div>
-                      </Link>
-                    </Card>
-                  );
-                })}
+                          <div>
+                            <p className={`font-semibold ${GLASS_HEADING}`}>{town.name}</p>
+                            {town.current ? (
+                              <p className={`mt-1 text-sm ${GLASS_MUTED}`}>
+                                {Math.round(town.current.temperatureCelsius)}°C · {town.current.conditionText}
+                              </p>
+                            ) : (
+                              <p className={`mt-1 text-sm ${GLASS_MUTED}`}>{t('summaryUnavailable')}</p>
+                            )}
+                          </div>
+                        </Link>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </section>
     </Reveal>
   );
 }
