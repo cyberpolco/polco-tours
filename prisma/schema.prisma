@@ -550,6 +550,47 @@ model CmsOperatingCountry {
   @@map("cms_operating_countries")
 }
 
+// The /about page's three staff-editable repeating lists (DR-256): the
+// "At a glance" stat row, the "Our story" timeline, and the "Our values"
+// cards. One table with a `section` discriminator rather than three, since
+// all three share the same add/edit/remove/reorder shape and one staff
+// editor tab -- same "one table, nullable per-type columns" precedent
+// CmsMediaItem already sets for its four different `page` values.
+//
+// Unlike CmsMediaItem/CmsOperatingCountry (no locale at all), this carries
+// `locale` and follows CmsFaqEntry's convention: EN and FR are independent
+// rows with their own text and sortOrder. `slotKey` is what pairs a row
+// with its translation -- the two locales' rows share it, so the guest page
+// can fall back to the EN row when an FR one hasn't been written yet.
+//
+// Which columns a section actually uses:
+//   stat     -- heading (label), numericValue, prefix/suffix, animate
+//   timeline -- marker (the year, "2007" or "Today"), heading, body
+//   value    -- heading, body
+// Platform-wide, no organizationId/RLS, same precedent as every other cms
+// table above.
+model CmsAboutEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  section         String // 'stat' | 'timeline' | 'value'
+  locale          String   @default("en")
+  slotKey         String // stable per-entry id, shared across locales
+  heading         String
+  body            String?  @db.Text
+  marker          String? // timeline year -- free text, not an Int ("Today")
+  numericValue    Int? // stat count-up target
+  prefix          String? // stat "~"
+  suffix          String? // stat "+"
+  animate         Boolean  @default(true) // false = render the value verbatim
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?  @db.Uuid
+
+  @@unique([section, locale, slotKey])
+  @@index([section, locale, sortOrder])
+  @@map("cms_about_entries")
+}
+
 // Platform-wide reference data, one row per country (Immigration Module,
 // DR-034) -- NOT tenant-scoped (no organizationId), same "objective fact
 // about a country, not operator-owned data" reasoning as TaxRate above; no

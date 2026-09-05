@@ -5,9 +5,12 @@ import { z } from 'zod';
 import { requireStaffContext } from '@lib/staff-guard';
 import {
   cmsService,
+  CMS_ABOUT_SECTIONS,
   CMS_SOCIAL_PLATFORMS,
+  CreateCmsAboutEntryInput,
   CreateCmsFaqEntryInput,
   CreateCmsOperatingCountryInput,
+  UpdateCmsAboutEntryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
   UpdateCmsOperatingCountryInput,
@@ -26,6 +29,16 @@ function localeFromForm(formData: FormData): CmsLocale {
 // Contact's two office blocks share the /contact page with Contact's own
 // intro key.
 const GUEST_PATH_BY_TEXT_KEY: Record<string, string> = {
+  // DR-256 split /about from one flat `about` key into nine section keys.
+  about: '/about',
+  'about.stats': '/about',
+  'about.story': '/about',
+  'about.md': '/about',
+  'about.md.person': '/about',
+  'about.vm': '/about',
+  'about.vision': '/about',
+  'about.mission': '/about',
+  'about.values': '/about',
   packages: '/packages',
   'plan-my-trip': '/plan-my-trip',
   'find-booking': '/find-booking',
@@ -46,6 +59,7 @@ const GUEST_PATHS_BY_MEDIA_PAGE: Record<string, string[]> = {
   // wizard's "sites to visit" step (DR-167), guest and staff both.
   gallery: ['/gallery', '/plan-my-trip', '/staff/bookings/new'],
   partners: ['/'],
+  'about-md': ['/about'],
 };
 
 function revalidateMediaPage(page: string): void {
@@ -60,25 +74,13 @@ function revalidateMediaPage(page: string): void {
   for (const path of GUEST_PATHS_BY_MEDIA_PAGE[page] ?? []) revalidatePath(path);
 }
 
-export async function updateTextBlockAction(formData: FormData): Promise<void> {
-  const ctx = await requireStaffContext('cms.write');
-  const locale = localeFromForm(formData);
-  const input = UpdateCmsTextBlockInput.parse({
-    key: 'about',
-    locale,
-    title: String(formData.get('title') ?? ''),
-    body: String(formData.get('body') ?? ''),
-  });
-  await cmsService.updateTextBlock(ctx, input);
-  revalidatePath('/staff/cms');
-  revalidatePath('/about');
-}
-
 /** Generic page-intro editor (eyebrow/title/body) reused across every
- * "thin" guest page (Packages, Plan my trip, Find booking, Contact incl.
- * its two office blocks, Rate, Weather, Terms) -- one action for all of
- * them, keyed by the CmsTextBlock `key` itself, same as `updateTextBlockAction`
- * above but not hardcoded to 'about'. */
+ * "thin" guest page (About incl. its nine section blocks since DR-256,
+ * Packages, Plan my trip, Find booking, Contact incl. its two office
+ * blocks, Rate, Weather, Terms) -- one action for all of them, keyed by the
+ * CmsTextBlock `key` itself. Replaced the old `updateTextBlockAction`,
+ * which was the same thing hardcoded to the single flat 'about' key and
+ * had no eyebrow field. */
 export async function updatePageTextAction(key: string, formData: FormData): Promise<void> {
   const ctx = await requireStaffContext('cms.write');
   const locale = localeFromForm(formData);
@@ -125,6 +127,93 @@ export async function deleteFaqEntryAction(id: string): Promise<void> {
   await cmsService.deleteFaqEntry(ctx, id);
   revalidatePath('/staff/cms');
   revalidatePath('/faq');
+}
+
+// ------------------------------------------------------ About lists (DR-256)
+// The /about page's stats/timeline/values rows. `section` arrives as a bound
+// argument rather than a form field, but is still parsed rather than trusted
+// -- it reaches the DB as a plain string column, so a bad value would create
+// rows in a section that no page ever reads.
+const AboutSection = z.enum(CMS_ABOUT_SECTIONS);
+
+/** Optional numeric fields come back from FormData as '' when left blank;
+ * Number('') is 0, which would silently write a real zero. */
+function optionalNumber(formData: FormData, field: string): number | null {
+  const raw = String(formData.get(field) ?? '').trim();
+  return raw === '' ? null : Number(raw);
+}
+
+function optionalText(formData: FormData, field: string): string | null {
+  return String(formData.get(field) ?? '').trim() || null;
+}
+
+export async function createAboutEntryAction(section: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const parsedSection = AboutSection.parse(section);
+  const existing = await cmsService.listAboutEntries(ctx, parsedSection, localeFromForm(formData));
+  const nextSortOrder = existing.reduce((max, entry) => Math.max(max, entry.sortOrder), -1) + 1;
+  const input = CreateCmsAboutEntryInput.parse({
+    heading: String(formData.get('heading') ?? ''),
+    body: optionalText(formData, 'body'),
+    marker: optionalText(formData, 'marker'),
+    numericValue: optionalNumber(formData, 'numericValue'),
+    prefix: optionalText(formData, 'prefix'),
+    suffix: optionalText(formData, 'suffix'),
+    animate: formData.get('animate') !== null,
+    sortOrder: nextSortOrder,
+  });
+  await cmsService.createAboutEntry(ctx, parsedSection, input);
+  revalidatePath('/staff/cms');
+  revalidatePath('/about');
+}
+
+export async function updateAboutEntryAction(section: string, slotKey: string, formData: FormData): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const parsedSection = AboutSection.parse(section);
+  const input = UpdateCmsAboutEntryInput.parse({
+    heading: String(formData.get('heading') ?? ''),
+    body: optionalText(formData, 'body'),
+    marker: optionalText(formData, 'marker'),
+    numericValue: optionalNumber(formData, 'numericValue'),
+    prefix: optionalText(formData, 'prefix'),
+    suffix: optionalText(formData, 'suffix'),
+    // An unchecked checkbox submits nothing at all, so its absence is the
+    // 'off' signal -- there is no false value to read.
+    animate: formData.get('animate') !== null,
+    sortOrder: Number(formData.get('sortOrder') ?? 0),
+  });
+  await cmsService.updateAboutEntry(ctx, parsedSection, localeFromForm(formData), slotKey, input);
+  revalidatePath('/staff/cms');
+  revalidatePath('/about');
+}
+
+export async function deleteAboutEntryAction(section: string, slotKey: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteAboutEntry(ctx, AboutSection.parse(section), slotKey);
+  revalidatePath('/staff/cms');
+  revalidatePath('/about');
+}
+
+// The Managing Director portrait -- a single CmsMediaItem rather than a list,
+// but it still needs a row to exist before MediaPicker's setMediaItemAction
+// can attach a url to it, hence the same "add the empty slot first, then
+// upload into it" two-step every other media page uses.
+const ABOUT_MD_PAGE = 'about-md';
+
+export async function createAboutMdPhotoSlotAction(): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  const existing = await cmsService.listMediaItems(ctx, ABOUT_MD_PAGE);
+  if (existing.length > 0) return;
+  await cmsService.createMediaItem(ctx, ABOUT_MD_PAGE, { sortOrder: 0 });
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(ABOUT_MD_PAGE);
+}
+
+export async function deleteAboutMdPhotoAction(slotKey: string): Promise<void> {
+  const ctx = await requireStaffContext('cms.write');
+  await cmsService.deleteMediaItem(ctx, ABOUT_MD_PAGE, slotKey);
+  revalidatePath('/staff/cms');
+  revalidateMediaPage(ABOUT_MD_PAGE);
 }
 
 // -------------------------------------------------------- Home hero (DR-163)

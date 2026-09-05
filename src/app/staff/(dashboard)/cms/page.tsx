@@ -11,6 +11,7 @@ import {
 } from '@modules/cms';
 import { EMAIL_TEMPLATE_DEFAULTS, EMAIL_TEMPLATE_GROUPS, EMAIL_TEMPLATE_TOKENS } from '@modules/notifications';
 import { AFRICA_COUNTRIES } from '@lib/africa-country-ids';
+import { ABOUT_TEXT_DEFAULTS, type AboutTextKey } from '@/app/(guest)/about/defaults';
 import {
   FALLBACK_FOOTER_LEGAL_LABEL,
   FALLBACK_FOOTER_LEGAL_TEMPLATE,
@@ -24,13 +25,16 @@ import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { SETTINGS_ITEMS } from '../settings-items';
 import { SidebarShell } from '../sidebar-shell';
+import { AboutListEditor } from './about-list-editor';
 import {
+  createAboutMdPhotoSlotAction,
   createFaqEntryAction,
   createGallerySiteAction,
   createHeroSlideAction,
   createOperatingCountryAction,
   createPartnerAction,
   createSocialLinkAction,
+  deleteAboutMdPhotoAction,
   deleteFaqEntryAction,
   deleteGallerySiteAction,
   deleteHeroSlideAction,
@@ -45,7 +49,6 @@ import {
   updateOperatingCountryAction,
   updatePartnerAction,
   updateSocialLinkAction,
-  updateTextBlockAction,
 } from './actions';
 import { MediaPicker } from './media-picker';
 import { PageTextEditor } from './page-text-editor';
@@ -113,6 +116,31 @@ function withTermsFallback(
   );
 }
 
+// DR-256: same prefill reasoning as withTermsFallback above, sourced from
+// the guest page's own coded defaults so an unconfigured install shows the
+// staff editor exactly what the guest is currently being served.
+const ABOUT_MD_PAGE = 'about-md';
+
+function withAboutFallback(
+  rows: Map<string, CmsTextBlockView>,
+  key: AboutTextKey,
+  locale: CmsLocale,
+): CmsTextBlockView {
+  const fallback = ABOUT_TEXT_DEFAULTS[locale][key];
+  return (
+    rows.get(key) ?? {
+      id: '',
+      key,
+      locale,
+      title: fallback.title,
+      body: fallback.body,
+      eyebrow: fallback.eyebrow,
+      updatedAt: new Date(0),
+      updatedByUserId: null,
+    }
+  );
+}
+
 // DR-217: same prefill reasoning as withTermsFallback above, sourced from
 // notifications' EMAIL_TEMPLATE_DEFAULTS instead of a messages/*.json coded
 // default -- notify()/notifyEmail() fall back to that exact same table when
@@ -168,7 +196,11 @@ export default async function CmsPage({ searchParams }: Props) {
   const canWrite = ctx.roles.includes('SUPERADMIN');
 
   const [
-    about,
+    aboutTextRows,
+    aboutStats,
+    aboutTimeline,
+    aboutValues,
+    aboutMdMedia,
     faqs,
     heroItems,
     packagesText,
@@ -193,7 +225,14 @@ export default async function CmsPage({ searchParams }: Props) {
     footerLegalText,
     emailOverrideRows,
   ] = await Promise.all([
-    cmsService.getTextBlock(ctx, 'about', locale),
+    // DR-256: /about is nine section blocks + three repeating lists, so one
+    // prefix read here rather than nine getTextBlock calls -- same reasoning
+    // as the Emails tab's own `email.` prefix read below.
+    cmsService.listTextBlocksByKeyPrefix(ctx, 'about', locale),
+    cmsService.listAboutEntries(ctx, 'stat', locale),
+    cmsService.listAboutEntries(ctx, 'timeline', locale),
+    cmsService.listAboutEntries(ctx, 'value', locale),
+    cmsService.listMediaItems(ctx, ABOUT_MD_PAGE),
     cmsService.listFaqEntries(ctx, locale),
     cmsService.listMediaItems(ctx, 'home-hero'),
     cmsService.getTextBlock(ctx, 'packages', locale),
@@ -223,6 +262,9 @@ export default async function CmsPage({ searchParams }: Props) {
     cmsService.listTextBlocksByKeyPrefix(ctx, 'email.', locale),
   ]);
   const emailOverridesByKey = new Map(emailOverrideRows.map((row) => [row.key, row]));
+  const aboutBlocks = new Map(aboutTextRows.map((row) => [row.key, row]));
+  const aboutMdPhotoUrl = aboutMdMedia.find((item) => item.mediaType === 'image' && item.url)?.url ?? null;
+  const aboutMdSlotKey = aboutMdMedia[0]?.slotKey ?? null;
   const availableCountriesToAdd = AFRICA_COUNTRIES.filter(
     (country) => !operatingCountries.some((c) => c.countryCode === country.alpha2),
   );
@@ -863,36 +905,174 @@ export default async function CmsPage({ searchParams }: Props) {
         )}
 
         {activeTab === 'about' && (
-        <section className="space-y-3">
-          <h2 className="font-semibold text-navy">{t('aboutPage')}</h2>
-          {canWrite ? (
-            <form action={updateTextBlockAction} className="space-y-3">
-              <input type="hidden" name="locale" value={locale} />
-              <FormField label={t('aboutTitle')} htmlFor="title">
-                <input
-                  name="title"
-                  required
-                  defaultValue={about?.title ?? ''}
-                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-                />
-              </FormField>
-              <FormField label={t('aboutBody')} htmlFor="body">
-                <textarea
-                  name="body"
-                  required
-                  rows={8}
-                  defaultValue={about?.body ?? ''}
-                  className="w-full rounded-survey border border-rule px-3 py-2 text-sm"
-                />
-              </FormField>
-              <SubmitButton size="compact" pendingLabel={t('saving')}>
-                {t('saveAboutPage')}
-              </SubmitButton>
-            </form>
-          ) : (
-            <p className="text-mist">{about ? about.body : t('noAboutContent')}</p>
-          )}
-        </section>
+        <div className="space-y-8">
+          <PageTextEditor
+            cmsKey="about"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutIntroSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('aboutIntroBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={8}
+          />
+
+          <PageTextEditor
+            cmsKey="about.stats"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.stats', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutStatsHeadingSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('aboutScreenReaderTitleLabel')}
+            bodyLabel={t('aboutBadgeLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={2}
+          />
+          <AboutListEditor section="stat" entries={aboutStats} locale={locale} canWrite={canWrite} />
+
+          <PageTextEditor
+            cmsKey="about.story"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.story', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutStoryHeadingSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={2}
+          />
+          <AboutListEditor section="timeline" entries={aboutTimeline} locale={locale} canWrite={canWrite} />
+
+          <PageTextEditor
+            cmsKey="about.md"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.md', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutMdHeadingSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('aboutMdBioLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={6}
+          />
+          <PageTextEditor
+            cmsKey="about.md.person"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.md.person', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutMdPersonSectionTitle')}
+            eyebrowLabel={t('aboutMdRoleLabel')}
+            titleLabel={t('aboutMdNameLabel')}
+            bodyLabel={t('aboutMdQuoteLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={3}
+          />
+
+          <section className="space-y-3">
+            <h2 className="font-semibold text-navy">{t('aboutMdPhotoSectionTitle')}</h2>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-mist">{t('mediaLabel')}</p>
+                {aboutMdPhotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- staff preview only, arbitrary Blob URL
+                  <img src={aboutMdPhotoUrl} alt="" className="h-24 w-24 rounded-full object-cover" />
+                ) : (
+                  <p className="text-xs text-mist">{t('noMediaYet')}</p>
+                )}
+              </div>
+              {canWrite &&
+                (aboutMdSlotKey ? (
+                  <div className="space-y-2">
+                    <MediaPicker
+                      page={ABOUT_MD_PAGE}
+                      slotKey={aboutMdSlotKey}
+                      uploadingLabel={t('uploadingMedia')}
+                      chooseFileLabel={t('chooseMdPhotoFile')}
+                      errorLabel={t('mediaUploadError')}
+                    />
+                    <DeleteButton
+                      action={deleteAboutMdPhotoAction.bind(null, aboutMdSlotKey)}
+                      removingLabel={t('removing')}
+                      removeConfirm={t('removeMdPhotoConfirm')}
+                      removeLabel={t('removeMdPhoto')}
+                    />
+                  </div>
+                ) : (
+                  <form action={createAboutMdPhotoSlotAction}>
+                    <SubmitButton size="compact" pendingLabel={t('adding')}>
+                      {t('addMdPhotoSlot')}
+                    </SubmitButton>
+                  </form>
+                ))}
+            </div>
+          </section>
+
+          <PageTextEditor
+            cmsKey="about.vm"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.vm', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutVmHeadingSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={2}
+          />
+          <PageTextEditor
+            cmsKey="about.vision"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.vision', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutVisionSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('aboutCardTitleLabel')}
+            bodyLabel={t('aboutCardBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            showEyebrow={false}
+            bodyRows={3}
+          />
+          <PageTextEditor
+            cmsKey="about.mission"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.mission', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutMissionSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('aboutCardTitleLabel')}
+            bodyLabel={t('aboutCardBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            showEyebrow={false}
+            bodyRows={3}
+          />
+
+          <PageTextEditor
+            cmsKey="about.values"
+            locale={locale}
+            current={withAboutFallback(aboutBlocks, 'about.values', locale)}
+            canWrite={canWrite}
+            sectionTitle={t('aboutValuesHeadingSectionTitle')}
+            eyebrowLabel={t('eyebrowLabel')}
+            titleLabel={t('pageTitleLabel')}
+            bodyLabel={t('pageBodyLabel')}
+            savingLabel={t('saving')}
+            saveLabel={t('save')}
+            bodyRows={2}
+          />
+          <AboutListEditor section="value" entries={aboutValues} locale={locale} canWrite={canWrite} />
+        </div>
         )}
 
         {activeTab === 'faq' && (

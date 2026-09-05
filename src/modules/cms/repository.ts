@@ -5,9 +5,11 @@
 // names are unchanged (`site_content`/`faq_entries`, via @@map) even though
 // the Prisma model names were renamed in DR-162 -- a pure TS-facing rename,
 // not a migration, so no data was at risk.
-import type { CmsFaqEntry, CmsMediaItem, CmsOperatingCountry, CmsTextBlock } from '@prisma/client';
+import type { CmsAboutEntry, CmsFaqEntry, CmsMediaItem, CmsOperatingCountry, CmsTextBlock } from '@prisma/client';
 import { prisma } from '@lib/db';
 import type {
+  CmsAboutEntryView,
+  CmsAboutSection,
   CmsFaqEntryView,
   CmsLocale,
   CmsMediaItemView,
@@ -15,9 +17,11 @@ import type {
   CmsOperatingCountryView,
   CmsSocialPlatform,
   CmsTextBlockView,
+  CreateCmsAboutEntryInput,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
   CreateCmsOperatingCountryInput,
+  UpdateCmsAboutEntryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
   UpdateCmsOperatingCountryInput,
@@ -66,6 +70,26 @@ function toCmsOperatingCountryView(r: CmsOperatingCountry): CmsOperatingCountryV
     currency: r.currency,
     population: r.population,
     areaKm2: r.areaKm2,
+    sortOrder: r.sortOrder,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    updatedByUserId: r.updatedByUserId,
+  };
+}
+
+function toCmsAboutEntryView(r: CmsAboutEntry): CmsAboutEntryView {
+  return {
+    id: r.id,
+    section: r.section as CmsAboutSection,
+    locale: r.locale as CmsLocale,
+    slotKey: r.slotKey,
+    heading: r.heading,
+    body: r.body,
+    marker: r.marker,
+    numericValue: r.numericValue,
+    prefix: r.prefix,
+    suffix: r.suffix,
+    animate: r.animate,
     sortOrder: r.sortOrder,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -237,5 +261,79 @@ export const cmsRepository = {
     if (!existing) return null;
     await prisma.cmsOperatingCountry.delete({ where: { id } });
     return toCmsOperatingCountryView(existing);
+  },
+
+  // -------------------------------------------------- CmsAboutEntry (DR-256)
+  async listAboutEntries(section: CmsAboutSection, locale: CmsLocale): Promise<CmsAboutEntryView[]> {
+    const rows = await prisma.cmsAboutEntry.findMany({ where: { section, locale }, orderBy: { sortOrder: 'asc' } });
+    return rows.map(toCmsAboutEntryView);
+  },
+  /** Writes one row per locale under a single slotKey, so an entry always
+   * exists in both languages (prefilled with the same text) and staff only
+   * has to translate it, never remember to add it twice. */
+  async createAboutEntryForLocales(
+    section: CmsAboutSection,
+    slotKey: string,
+    locales: readonly CmsLocale[],
+    input: CreateCmsAboutEntryInput,
+    updatedByUserId: string,
+  ): Promise<CmsAboutEntryView[]> {
+    const rows = await prisma.$transaction(
+      locales.map((locale) =>
+        prisma.cmsAboutEntry.create({
+          data: {
+            section,
+            locale,
+            slotKey,
+            heading: input.heading,
+            body: input.body ?? null,
+            marker: input.marker ?? null,
+            numericValue: input.numericValue ?? null,
+            prefix: input.prefix ?? null,
+            suffix: input.suffix ?? null,
+            animate: input.animate,
+            sortOrder: input.sortOrder,
+            updatedByUserId,
+          },
+        }),
+      ),
+    );
+    return rows.map(toCmsAboutEntryView);
+  },
+  async updateAboutEntry(
+    section: CmsAboutSection,
+    locale: CmsLocale,
+    slotKey: string,
+    input: UpdateCmsAboutEntryInput,
+    updatedByUserId: string,
+  ): Promise<CmsAboutEntryView | null> {
+    const existing = await prisma.cmsAboutEntry.findUnique({
+      where: { section_locale_slotKey: { section, locale, slotKey } },
+    });
+    if (!existing) return null;
+    const row = await prisma.cmsAboutEntry.update({
+      where: { section_locale_slotKey: { section, locale, slotKey } },
+      data: { ...input, updatedByUserId },
+    });
+    return toCmsAboutEntryView(row);
+  },
+  /** Applies the locale-invariant half of an update (order, number, affixes)
+   * to this entry's other-language rows -- see cmsService.updateAboutEntry. */
+  async syncAboutEntryInvariants(
+    section: CmsAboutSection,
+    slotKey: string,
+    data: Pick<UpdateCmsAboutEntryInput, 'numericValue' | 'prefix' | 'suffix' | 'animate' | 'sortOrder'>,
+    updatedByUserId: string,
+  ): Promise<void> {
+    await prisma.cmsAboutEntry.updateMany({ where: { section, slotKey }, data: { ...data, updatedByUserId } });
+  },
+  /** Removes every locale's row for this entry -- same "a removed item
+   * shouldn't leave orphaned per-locale rows behind" reasoning as
+   * deleteTextBlocksByKey above. Returns the rows that were deleted. */
+  async deleteAboutEntry(section: CmsAboutSection, slotKey: string): Promise<CmsAboutEntryView[]> {
+    const existing = await prisma.cmsAboutEntry.findMany({ where: { section, slotKey } });
+    if (existing.length === 0) return [];
+    await prisma.cmsAboutEntry.deleteMany({ where: { section, slotKey } });
+    return existing.map(toCmsAboutEntryView);
   },
 };

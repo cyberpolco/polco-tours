@@ -7,14 +7,19 @@ import { assertCan } from '@lib/rbac';
 import {
   cmsImageExtension,
   isValidCmsImageUpload,
+  SUPPORTED_LOCALES,
+  type CmsAboutEntryView,
+  type CmsAboutSection,
   type CmsFaqEntryView,
   type CmsLocale,
   type CmsMediaItemView,
   type CmsOperatingCountryView,
   type CmsTextBlockView,
+  type CreateCmsAboutEntryInput,
   type CreateCmsFaqEntryInput,
   type CreateCmsMediaItemInput,
   type CreateCmsOperatingCountryInput,
+  type UpdateCmsAboutEntryInput,
   type UpdateCmsFaqEntryInput,
   type UpdateCmsMediaItemInput,
   type UpdateCmsOperatingCountryInput,
@@ -257,6 +262,85 @@ export const cmsService = {
     });
   },
 
+  // -------------------------------------------------- CmsAboutEntry (DR-256)
+  // The /about page's three repeating lists (stats, timeline, values). One
+  // section's list in one language; the guest page falls back to its coded
+  // defaults when a section has no rows at all, same convention as every
+  // other CmsTextBlock-backed page.
+  async listAboutEntries(ctx: AuthContext, section: CmsAboutSection, locale: CmsLocale): Promise<CmsAboutEntryView[]> {
+    assertCan(ctx, 'cms.read');
+    return cmsRepository.listAboutEntries(section, locale);
+  },
+  /** Creates the entry in every supported locale at once under one
+   * server-generated slotKey, both prefilled with the same text -- staff
+   * then translates the other language in place rather than having to
+   * remember to add a matching row. Same "callers never choose their own
+   * slotKey" convention as createMediaItem. */
+  async createAboutEntry(ctx: AuthContext, section: CmsAboutSection, input: CreateCmsAboutEntryInput): Promise<CmsAboutEntryView[]> {
+    requireCmsWriter(ctx);
+    const slotKey = crypto.randomUUID();
+    const entries = await cmsRepository.createAboutEntryForLocales(section, slotKey, SUPPORTED_LOCALES, input, ctx.userId);
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.about_entry_created',
+      resourceType: 'CmsAboutEntry',
+      resourceId: entries[0]?.id,
+      metadata: { section, slotKey },
+    });
+    return entries;
+  },
+  /** Text (heading/body/marker) is written only to the locale being edited;
+   * the structural fields are pushed to this entry's other-language rows too,
+   * so reordering or renumbering in one language can't silently leave the
+   * other list in a different order with a different figure. */
+  async updateAboutEntry(
+    ctx: AuthContext,
+    section: CmsAboutSection,
+    locale: CmsLocale,
+    slotKey: string,
+    input: UpdateCmsAboutEntryInput,
+  ): Promise<CmsAboutEntryView> {
+    requireCmsWriter(ctx);
+    const entry = await cmsRepository.updateAboutEntry(section, locale, slotKey, input, ctx.userId);
+    if (!entry) throw Errors.notFound('About entry not found');
+    await cmsRepository.syncAboutEntryInvariants(
+      section,
+      slotKey,
+      {
+        numericValue: entry.numericValue,
+        prefix: entry.prefix,
+        suffix: entry.suffix,
+        animate: entry.animate,
+        sortOrder: entry.sortOrder,
+      },
+      ctx.userId,
+    );
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.about_entry_updated',
+      resourceType: 'CmsAboutEntry',
+      resourceId: entry.id,
+      metadata: { section, locale, slotKey },
+    });
+    return entry;
+  },
+  async deleteAboutEntry(ctx: AuthContext, section: CmsAboutSection, slotKey: string): Promise<void> {
+    requireCmsWriter(ctx);
+    const deleted = await cmsRepository.deleteAboutEntry(section, slotKey);
+    const [first] = deleted;
+    if (!first) throw Errors.notFound('About entry not found');
+    await audit({
+      actorUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      action: 'cms.about_entry_deleted',
+      resourceType: 'CmsAboutEntry',
+      resourceId: first.id,
+      metadata: { section, slotKey, locales: deleted.map((e) => e.locale) },
+    });
+  },
+
   // ---------------------------------------------------------- public (DR-071)
   // No ctx/session exists for these callers -- the public /about, /faq, and
   // (DR-163) homepage hero. Mirrors catalogService's listPublicPackages/etc:
@@ -293,5 +377,9 @@ export const cmsService = {
 
   async listPublicOperatingCountries(): Promise<CmsOperatingCountryView[]> {
     return cmsRepository.listOperatingCountries();
+  },
+
+  async listPublicAboutEntries(section: CmsAboutSection, locale: CmsLocale): Promise<CmsAboutEntryView[]> {
+    return cmsRepository.listAboutEntries(section, locale);
   },
 };

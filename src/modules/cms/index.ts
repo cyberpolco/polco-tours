@@ -2,9 +2,11 @@
 export { cmsService } from './service';
 export type { UploadCmsImageInput } from './service';
 export {
+  CMS_ABOUT_SECTIONS,
   CMS_SOCIAL_PLATFORM_LABELS,
   CMS_SOCIAL_PLATFORMS,
   CMS_VIDEO_CONTENT_TYPES,
+  CreateCmsAboutEntryInput,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
   CreateCmsOperatingCountryInput,
@@ -12,6 +14,7 @@ export {
   isValidCmsVideoContentType,
   MAX_CMS_VIDEO_SIZE_BYTES,
   SUPPORTED_LOCALES,
+  UpdateCmsAboutEntryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
   UpdateCmsOperatingCountryInput,
@@ -19,6 +22,8 @@ export {
   MAX_CMS_IMAGE_SIZE_BYTES,
 } from './domain';
 export type {
+  CmsAboutEntryView,
+  CmsAboutSection,
   CmsLocale,
   CmsFaqEntryView,
   CmsMediaItemView,

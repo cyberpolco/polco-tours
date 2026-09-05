@@ -229,3 +229,68 @@ export const UpdateCmsOperatingCountryInput = z.object({
   sortOrder: z.number().int().nonnegative().optional(),
 });
 export type UpdateCmsOperatingCountryInput = z.infer<typeof UpdateCmsOperatingCountryInput>;
+
+// CmsAboutEntry (DR-256) -- the /about page's three staff-editable repeating
+// lists. A plain zod-validated string like `mediaType`/`country` above, not a
+// Postgres enum, so a fourth section later stays a code-only change.
+export const CMS_ABOUT_SECTIONS = ['stat', 'timeline', 'value'] as const;
+export type CmsAboutSection = (typeof CMS_ABOUT_SECTIONS)[number];
+
+// Which columns each section actually uses -- the rest stay null. `marker`
+// is free text rather than an Int because the timeline's last entry is
+// "Today"/"Aujourd'hui", not a year, and it's translated like any other
+// label. `numericValue` is the stat's count-up target; `animate: false`
+// renders it verbatim instead (the "Established 2019" stat, which would
+// otherwise count up from zero through four nonsense years).
+export interface CmsAboutEntryView {
+  id: string;
+  section: CmsAboutSection;
+  locale: CmsLocale;
+  slotKey: string;
+  heading: string;
+  body: string | null;
+  marker: string | null;
+  numericValue: number | null;
+  prefix: string | null;
+  suffix: string | null;
+  animate: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedByUserId: string | null;
+}
+
+/** `section`/`locale`/`slotKey` aren't part of this input -- a caller always
+ * creates within one known section, and creating an entry writes one row per
+ * supported locale under a single server-generated slotKey (see
+ * cmsService.createAboutEntry), so neither is the caller's to choose. Same
+ * "callers never pick their own slotKey" convention as CreateCmsMediaItemInput. */
+export const CreateCmsAboutEntryInput = z.object({
+  heading: z.string().min(1).max(200),
+  body: z.string().max(1000).nullable().optional(),
+  marker: z.string().max(40).nullable().optional(),
+  numericValue: z.number().int().nonnegative().nullable().optional(),
+  prefix: z.string().max(4).nullable().optional(),
+  suffix: z.string().max(4).nullable().optional(),
+  animate: z.boolean().default(true),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+export type CreateCmsAboutEntryInput = z.infer<typeof CreateCmsAboutEntryInput>;
+
+export const UpdateCmsAboutEntryInput = z.object({
+  heading: z.string().min(1).max(200).optional(),
+  body: z.string().max(1000).nullable().optional(),
+  marker: z.string().max(40).nullable().optional(),
+  numericValue: z.number().int().nonnegative().nullable().optional(),
+  prefix: z.string().max(4).nullable().optional(),
+  suffix: z.string().max(4).nullable().optional(),
+  animate: z.boolean().optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+});
+export type UpdateCmsAboutEntryInput = z.infer<typeof UpdateCmsAboutEntryInput>;
+
+/** The fields that describe the entry itself rather than its wording, so an
+ * edit in one locale keeps them in step across the other (see
+ * cmsService.updateAboutEntry). Reordering the EN list must reorder the FR
+ * one too, and a stat's number is the same figure in both languages. */
+export const LOCALE_INVARIANT_ABOUT_FIELDS = ['numericValue', 'prefix', 'suffix', 'animate', 'sortOrder'] as const;

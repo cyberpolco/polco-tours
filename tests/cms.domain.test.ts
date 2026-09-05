@@ -1,15 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import {
+  CreateCmsAboutEntryInput,
   CreateCmsFaqEntryInput,
   CreateCmsMediaItemInput,
   CreateCmsOperatingCountryInput,
   isValidCmsImageUpload,
   isValidCmsVideoContentType,
+  UpdateCmsAboutEntryInput,
   UpdateCmsFaqEntryInput,
   UpdateCmsMediaItemInput,
   UpdateCmsOperatingCountryInput,
   UpdateCmsTextBlockInput,
 } from '../src/modules/cms/domain';
+import {
+  ABOUT_STAT_DEFAULTS,
+  ABOUT_TEXT_DEFAULTS,
+  ABOUT_TEXT_KEYS,
+  ABOUT_TIMELINE_DEFAULTS,
+  ABOUT_VALUE_DEFAULTS,
+} from '../src/app/(guest)/about/defaults';
 
 describe('cms domain', () => {
   describe('UpdateCmsTextBlockInput', () => {
@@ -197,6 +206,90 @@ describe('cms domain', () => {
     it('has no countryCode field -- identity is fixed at create time', () => {
       const result = UpdateCmsOperatingCountryInput.parse({ capital: 'Gaborone' });
       expect('countryCode' in result).toBe(false);
+    });
+  });
+
+  describe('CreateCmsAboutEntryInput (DR-256)', () => {
+    it('accepts a stat entry and defaults animate/sortOrder', () => {
+      const result = CreateCmsAboutEntryInput.parse({ heading: 'Tours guided', numericValue: 300, prefix: '~' });
+      expect(result.numericValue).toBe(300);
+      expect(result.prefix).toBe('~');
+      expect(result.animate).toBe(true);
+      expect(result.sortOrder).toBe(0);
+    });
+
+    it('accepts a timeline entry, whose marker is free text rather than a year', () => {
+      const result = CreateCmsAboutEntryInput.parse({ marker: 'Today', heading: 'Five countries', body: 'Operating across five countries.' });
+      expect(result.marker).toBe('Today');
+      expect(result.numericValue).toBeUndefined();
+    });
+
+    it('requires a heading', () => {
+      expect(() => CreateCmsAboutEntryInput.parse({ heading: '' })).toThrow();
+      expect(() => CreateCmsAboutEntryInput.parse({ body: 'orphaned body' })).toThrow();
+    });
+
+    it('rejects a negative stat value', () => {
+      expect(() => CreateCmsAboutEntryInput.parse({ heading: 'Countries', numericValue: -1 })).toThrow();
+    });
+
+    it('has no section/locale/slotKey field -- the service assigns all three', () => {
+      const result = CreateCmsAboutEntryInput.parse({ heading: 'Local expertise' });
+      expect('section' in result).toBe(false);
+      expect('locale' in result).toBe(false);
+      expect('slotKey' in result).toBe(false);
+    });
+  });
+
+  describe('UpdateCmsAboutEntryInput (DR-256)', () => {
+    it('accepts a partial update', () => {
+      const result = UpdateCmsAboutEntryInput.parse({ sortOrder: 3 });
+      expect(result.sortOrder).toBe(3);
+      expect(result.heading).toBeUndefined();
+    });
+
+    it('allows clearing an optional field to null rather than only omitting it', () => {
+      const result = UpdateCmsAboutEntryInput.parse({ suffix: null, marker: null });
+      expect(result.suffix).toBeNull();
+      expect(result.marker).toBeNull();
+    });
+
+    it('still rejects an empty heading when one is supplied', () => {
+      expect(() => UpdateCmsAboutEntryInput.parse({ heading: '' })).toThrow();
+    });
+  });
+
+  // The guest page falls back to these per locale, so a section present in
+  // one language but not the other would render a different number of
+  // stats/entries depending on the visitor's cookie.
+  describe('about page coded defaults (DR-256)', () => {
+    it('has matching EN/FR entry counts for every list', () => {
+      expect(ABOUT_STAT_DEFAULTS.fr).toHaveLength(ABOUT_STAT_DEFAULTS.en.length);
+      expect(ABOUT_TIMELINE_DEFAULTS.fr).toHaveLength(ABOUT_TIMELINE_DEFAULTS.en.length);
+      expect(ABOUT_VALUE_DEFAULTS.fr).toHaveLength(ABOUT_VALUE_DEFAULTS.en.length);
+    });
+
+    it('keeps each stat figure identical across locales -- only the label is translated', () => {
+      ABOUT_STAT_DEFAULTS.en.forEach((stat, i) => {
+        const fr = ABOUT_STAT_DEFAULTS.fr[i];
+        expect(fr?.numericValue).toBe(stat.numericValue);
+        expect(fr?.suffix).toBe(stat.suffix);
+        expect(fr?.animate).toBe(stat.animate);
+      });
+    });
+
+    it('defines every text key in both locales, with a two-paragraph intro', () => {
+      for (const key of ABOUT_TEXT_KEYS) {
+        expect(ABOUT_TEXT_DEFAULTS.en[key].title).not.toBe('');
+        expect(ABOUT_TEXT_DEFAULTS.fr[key].title).not.toBe('');
+      }
+      expect(ABOUT_TEXT_DEFAULTS.en.about.body.split('\n\n')).toHaveLength(2);
+      expect(ABOUT_TEXT_DEFAULTS.fr.about.body.split('\n\n')).toHaveLength(2);
+    });
+
+    it('carries no HTML -- the guest page renders these as plain React text', () => {
+      const everyBody = ABOUT_TEXT_KEYS.flatMap((key) => [ABOUT_TEXT_DEFAULTS.en[key].body, ABOUT_TEXT_DEFAULTS.fr[key].body]);
+      for (const body of everyBody) expect(body).not.toMatch(/<[a-z]/i);
     });
   });
 });
