@@ -71,7 +71,7 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
     // alone. The card wraps the heading too, so nothing needs recoloring
     // for contrast against the photo.
     <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden px-4 py-12 sm:px-8 sm:py-16">
-      <Image src="/images/hero/sossusvlei.png" alt="" fill priority sizes="100vw" className="object-cover" />
+      <Image src="/images/hero/nile-crocodile.jpg" alt="" fill priority sizes="100vw" className="object-cover" />
       <div className="absolute inset-0 bg-ink/25" />
       <Card className="relative mx-auto w-full max-w-4xl bg-bone/85">
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
