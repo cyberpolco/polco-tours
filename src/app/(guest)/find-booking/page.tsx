@@ -27,10 +27,10 @@ export default async function FindBookingPage() {
   return (
     <Reveal>
       {/* This page is otherwise just a two-field lookup form -- explicit
-          user request for a large, slightly blurred photo behind it, full
-          -bleed (breaking out of the page's normal max-w-7xl container)
-          since there's little else to fill the section. The existing
-          eyebrow/title/subhead/form sit unchanged inside a solid card on
+          user request for a large photo behind it, full-bleed (breaking
+          out of the page's normal max-w-7xl container) since there's
+          little else to fill the section. The existing eyebrow/title/
+          subhead/form sit unchanged inside a slightly translucent card on
           top, rather than reworking their colors for on-photo contrast. */}
       <section className="relative left-1/2 right-1/2 -mx-[50vw] flex min-h-[26rem] w-screen items-center justify-center overflow-hidden px-4 py-16 sm:min-h-[32rem] sm:px-8">
         <Image
@@ -39,10 +39,10 @@ export default async function FindBookingPage() {
           fill
           priority
           sizes="100vw"
-          className="scale-105 object-cover blur-sm"
+          className="object-cover"
         />
         <div className="absolute inset-0 bg-ink/25" />
-        <Card className="relative w-full max-w-md bg-bone">
+        <Card className="relative w-full max-w-md bg-bone/85">
           <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
           <p className="mt-2 text-sm text-mist">{cms?.body ?? t('subhead')}</p>
