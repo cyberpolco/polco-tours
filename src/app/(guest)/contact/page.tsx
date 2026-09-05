@@ -59,7 +59,10 @@ export default async function ContactPage() {
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-4 max-w-2xl text-mist">{cms?.body ?? t('intro')}</p>
 
-        <div className="mt-8 max-w-2xl">
+        {/* Full width, matching the quick-links and offices grids below --
+            the intro paragraph above keeps its own narrower measure, since
+            that's prose and this is a form. */}
+        <div className="mt-8">
           <ContactForm />
         </div>
 
