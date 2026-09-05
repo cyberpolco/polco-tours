@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { ArrowRightIcon, MailIcon, MapPinIcon, QuestionIcon, StarOutlineIcon, TicketIcon } from './contact-icons';
 import { ContactBody } from './linkify-contact';
+import { ContactForm } from './ContactForm';
 
 // Same direct-cookie-read convention as (guest)/about/page.tsx.
 async function resolveLocale(): Promise<CmsLocale> {
@@ -57,6 +58,10 @@ export default async function ContactPage() {
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>
         <p className="mt-4 max-w-2xl text-mist">{cms?.body ?? t('intro')}</p>
+
+        <div className="mt-8 max-w-2xl">
+          <ContactForm />
+        </div>
 
         <h2 className="eyebrow mt-10 text-forest">{t('quickLinksEyebrow')}</h2>
         <RevealGroup className="mt-3 grid gap-4 sm:grid-cols-3" itemClassName="h-full">

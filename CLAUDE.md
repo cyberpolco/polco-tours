@@ -41,7 +41,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-254** (2026-09-05). This file used to carry a running
+Current through **DR-255** (2026-09-05). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -495,7 +495,7 @@ src/
                    #   best-effort — a PDF-rendering failure degrades to no
                    #   attachment, never to no email.
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
-                   #   DR-205: 26 NotificationEvent kinds (up from 11) across
+                   #   DR-205: 28 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
                    #   event plus staff assignment/password/account-status
                    #   events; every email renders through a shared branded
@@ -518,7 +518,7 @@ src/
                    #   what it builds. DR-217: every email event's eyebrow/
                    #   heading/body copy (subject/CTA/layout stay code-driven)
                    #   is staff-editable via cms's CmsTextBlock (key
-                   #   `email.<TEMPLATE_KEY>`, 27 keys -- PAYMENT_SUCCEEDED
+                   #   `email.<TEMPLATE_KEY>`, 29 keys -- PAYMENT_SUCCEEDED
                    #   splits into _DEPOSIT/_FULL, the one event whose default
                    #   copy genuinely branches rather than just filling an
                    #   optional word), degrading to the coded
@@ -573,7 +573,14 @@ src/
                    #   their Node SDK, which would auto-encode a Buffer).
                    #   First (and so far only) consumer: invoicing's
                    #   PAYMENT_SUCCEEDED send, attaching the invoice/receipt
-                   #   PDF.
+                   #   PDF. DR-255: 2 new events for the new `contact`
+                   #   module's guest form -- CONTACT_FORM_RECEIVED
+                   #   (staff-facing, POLCO Tours branding, not in
+                   #   GUEST_EVENTS, no SMS_TEMPLATES entry, same as
+                   #   VISA_QUEUE_NEW_APPLICATION) and
+                   #   CONTACT_FORM_CONFIRMATION (guest-facing, in
+                   #   GUEST_EVENTS, sent via notifyEmail directly, never
+                   #   through notify()'s fallback chain, links to /faq).
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -1044,6 +1051,18 @@ src/
                    #   ratings' submitRating shape) identified by a
                    #   lightweight cookie, not a real better-auth session;
                    #   purgeOldEvents backs the new daily QStash purge job
+    contact/       # Guest /contact form (DR-255) -- validate + rate-limit +
+                   #   notify only, no persistence, no repository.ts (same
+                   #   shape as notifications/insights/tracking/weather).
+                   #   Alerts SUPERADMIN+TOUR_OPERATOR on every submission
+                   #   (plus VISA_FACILITATOR when topic is Visa &
+                   #   Immigration) via notificationsService.notify, and
+                   #   emails the guest a CONTACT_FORM_CONFIRMATION receipt
+                   #   via notifyEmail. Honeypot field (silently faked
+                   #   success, no notification sent) +
+                   #   assertWriteNotRateLimited (action='contact.submit',
+                   #   60min/5 attempts) guard spam; no CAPTCHA, no new
+                   #   external service.
   middleware.ts    # trace id + locale
 prisma/
   schema.prisma        # data model
@@ -1130,6 +1149,12 @@ and still imports nothing from `notifications`. `notifications/domain.ts`
 itself stays pure (no DB/framework import, per the module template
 convention) — the `cms` read happens only in service.ts, which passes the
 fetched overrides into `domain.ts`'s `renderMessage` as a plain argument.
+Since DR-255, `contact` (new module, no `repository.ts`) depends on `auth`
+(`authService.listUsersByRole`, to resolve the SUPERADMIN/TOUR_OPERATOR
+ops-leadership set, plus `VISA_FACILITATOR` when the guest's topic is Visa
+& Immigration) and on `notifications` (`notify`/`notifyEmail`) — both
+confirmed acyclic: `auth` imports nothing from `contact`, and
+`notifications` itself only imports `{auth, cms}`, never `contact`.
 
 ---
 

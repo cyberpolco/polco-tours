@@ -156,6 +156,28 @@
     "emailPending": "E-mail — à venir",
     "phonePending": "Téléphone — à venir"
   },
+  "ContactForm": {
+    "faqNudge": "Vous cherchez une réponse rapide ? Consultez d'abord notre FAQ.",
+    "faqLink": "Consulter la FAQ",
+    "nameLabel": "Nom",
+    "emailLabel": "E-mail",
+    "phoneLabel": "Téléphone",
+    "topicLabel": "De quoi s'agit-il ?",
+    "topicPlaceholder": "Choisissez un sujet",
+    "topic": {
+      "GENERAL_INQUIRY": "Demande générale",
+      "BOOKING_QUESTION": "Question sur une réservation",
+      "VISA_IMMIGRATION": "Visa et immigration",
+      "PARTNERSHIP_MEDIA": "Partenariat / média",
+      "OTHER": "Autre"
+    },
+    "messageLabel": "Message",
+    "submit": "Envoyer le message",
+    "sending": "Envoi en cours…",
+    "successTitle": "Message envoyé",
+    "successBody": "Merci de nous avoir contactés — nous vous répondrons bientôt.",
+    "successFaqNudge": "En attendant, notre FAQ contient peut-être déjà votre réponse."
+  },
   "GuestError": {
     "eyebrow": "Un problème est survenu",
     "title": "Nous avons rencontré un imprévu",

@@ -47,7 +47,9 @@ export type NotificationEvent =
   | 'STAFF_ACCOUNT_REACTIVATED'
   | 'ASSIGNMENT_NOTICE_DRIVER'
   | 'ASSIGNMENT_NOTICE_GUIDE'
-  | 'ASSIGNMENT_NOTICE_VEHICLE_OWNER';
+  | 'ASSIGNMENT_NOTICE_VEHICLE_OWNER'
+  | 'CONTACT_FORM_RECEIVED'
+  | 'CONTACT_FORM_CONFIRMATION';
 
 export interface NotificationRecipient {
   phone: string | null;
@@ -90,6 +92,11 @@ export interface NotificationData {
   vehicleLabel?: string; // ASSIGNMENT_NOTICE_*
   driverName?: string; // ASSIGNMENT_NOTICE_GUIDE / ASSIGNMENT_NOTICE_VEHICLE_OWNER
   guideName?: string; // ASSIGNMENT_NOTICE_DRIVER
+  contactName?: string; // CONTACT_FORM_RECEIVED / CONTACT_FORM_CONFIRMATION
+  contactEmail?: string; // CONTACT_FORM_RECEIVED
+  contactPhone?: string; // CONTACT_FORM_RECEIVED
+  contactTopic?: string; // CONTACT_FORM_RECEIVED -- a ContactTopic enum value, humanized in TEMPLATES
+  contactMessage?: string; // CONTACT_FORM_RECEIVED
 }
 
 const FALLBACK_ORDER: NotificationChannel[] = ['WHATSAPP', 'SMS', 'EMAIL'];
@@ -123,6 +130,7 @@ const GUEST_EVENTS = new Set<NotificationEvent>([
   'RATING_THANK_YOU',
   'TAILOR_MADE_REQUEST_RECEIVED',
   'ITINERARY_APPROVED',
+  'CONTACT_FORM_CONFIRMATION',
 ]);
 
 function audienceFor(event: NotificationEvent): 'guest' | 'staff' {
@@ -481,6 +489,38 @@ export const EMAIL_TEMPLATE_DEFAULTS: Record<string, Record<Locale, EmailTemplat
       bodyTemplate: 'Votre véhicule {{vehicleLabel}} a été planifié pour le départ du {{startDate}} ({{country}}). Chauffeur : {{driverName}}.',
     },
   },
+  // DR-255: CONTACT_FORM_RECEIVED alerts SUPERADMIN+TOUR_OPERATOR (plus
+  // VISA_FACILITATOR when the guest's topic is Visa & Immigration) that a
+  // new /contact submission arrived; CONTACT_FORM_CONFIRMATION is the
+  // guest's own auto-reply receipt. Neither is persisted anywhere --
+  // contact/service.ts's submitContactMessage validates + rate-limits +
+  // notifies only, by explicit user decision.
+  CONTACT_FORM_RECEIVED: {
+    EN: {
+      eyebrow: 'Contact form',
+      heading: 'New message from the contact form',
+      bodyTemplate: 'From: {{contactName}} ({{contactEmail}}{{contactPhoneClause}})\nTopic: {{contactTopic}}\n\n{{contactMessage}}',
+    },
+    FR: {
+      eyebrow: 'Formulaire de contact',
+      heading: 'Nouveau message via le formulaire de contact',
+      bodyTemplate: 'De : {{contactName}} ({{contactEmail}}{{contactPhoneClause}})\nSujet : {{contactTopic}}\n\n{{contactMessage}}',
+    },
+  },
+  CONTACT_FORM_CONFIRMATION: {
+    EN: {
+      eyebrow: 'Message received',
+      heading: 'Thanks for reaching out, {{contactName}}',
+      bodyTemplate:
+        "We've received your message and will get back to you soon. In the meantime, you may find your answer already on our FAQ page.",
+    },
+    FR: {
+      eyebrow: 'Message bien reçu',
+      heading: 'Merci de nous avoir contactés, {{contactName}}',
+      bodyTemplate:
+        "Nous avons bien reçu votre message et reviendrons vers vous rapidement. En attendant, vous trouverez peut-être déjà votre réponse dans notre FAQ.",
+    },
+  },
 };
 
 /** Which {{tokens}} a template key's body may reference -- shown as a hint
@@ -514,6 +554,8 @@ export const EMAIL_TEMPLATE_TOKENS: Record<string, readonly string[]> = {
   ASSIGNMENT_NOTICE_DRIVER: ['startDate', 'country', 'vehicleLabel', 'guideName'],
   ASSIGNMENT_NOTICE_GUIDE: ['startDate', 'country', 'driverName', 'vehicleLabel'],
   ASSIGNMENT_NOTICE_VEHICLE_OWNER: ['vehicleLabel', 'startDate', 'country', 'driverName'],
+  CONTACT_FORM_RECEIVED: ['contactName', 'contactEmail', 'contactPhoneClause', 'contactTopic', 'contactMessage'],
+  CONTACT_FORM_CONFIRMATION: ['contactName'],
 };
 
 /** Grouping for the staff /staff/cms Emails tab -- `groupKey` (not a
@@ -533,6 +575,7 @@ export const EMAIL_TEMPLATE_GROUPS: Array<{ groupKey: string; keys: string[] }> 
   { groupKey: 'tripPlanning', keys: ['TAILOR_MADE_REQUEST_RECEIVED', 'ITINERARY_APPROVED'] },
   { groupKey: 'staffAccounts', keys: ['STAFF_PASSWORD_ISSUED', 'STAFF_PASSWORD_RESET', 'STAFF_ACCOUNT_DEACTIVATED', 'STAFF_ACCOUNT_REACTIVATED'] },
   { groupKey: 'staffAssignments', keys: ['ASSIGNMENT_NOTICE_DRIVER', 'ASSIGNMENT_NOTICE_GUIDE', 'ASSIGNMENT_NOTICE_VEHICLE_OWNER'] },
+  { groupKey: 'contact', keys: ['CONTACT_FORM_RECEIVED', 'CONTACT_FORM_CONFIRMATION'] },
 ];
 
 function escapeHtml(value: string): string {
@@ -629,6 +672,20 @@ const FIND_BOOKING_URL = 'https://mufasasafaris.com/find-booking';
 const STAFF_LOGIN_URL = '/staff/login';
 const STAFF_SCHEDULE_URL = '/staff/schedule';
 const STAFF_VISA_QUEUE_URL = '/staff/visa-queue';
+const FAQ_URL = 'https://mufasasafaris.com/faq';
+
+// Humanized labels for ContactData.contactTopic -- the raw ContactTopic enum
+// value (e.g. 'VISA_IMMIGRATION') is never shown to a reader directly.
+const CONTACT_TOPIC_LABELS: Record<string, { EN: string; FR: string }> = {
+  GENERAL_INQUIRY: { EN: 'General inquiry', FR: 'Demande générale' },
+  BOOKING_QUESTION: { EN: 'Booking question', FR: 'Question sur une réservation' },
+  VISA_IMMIGRATION: { EN: 'Visa & immigration', FR: 'Visa et immigration' },
+  PARTNERSHIP_MEDIA: { EN: 'Partnership / media', FR: 'Partenariat / média' },
+  OTHER: { EN: 'Other', FR: 'Autre' },
+};
+function contactTopicLabel(topic: string | undefined, locale: Locale): string {
+  return (topic && CONTACT_TOPIC_LABELS[topic]?.[locale]) ?? topic ?? '-';
+}
 
 const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
   BOOKING_CONFIRMED: {
@@ -1142,6 +1199,60 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
           ov,
         ),
       ),
+    }),
+  },
+  CONTACT_FORM_RECEIVED: {
+    EN: (d, ov) => ({
+      subject: 'New message from the contact form',
+      body: brand(
+        'CONTACT_FORM_RECEIVED',
+        resolveContent(
+          'CONTACT_FORM_RECEIVED',
+          'EN',
+          {
+            contactName: d.contactName ?? 'A guest',
+            contactEmail: d.contactEmail ?? '',
+            contactPhoneClause: d.contactPhone ? `, ${d.contactPhone}` : '',
+            contactTopic: contactTopicLabel(d.contactTopic, 'EN'),
+            contactMessage: d.contactMessage ?? '',
+          },
+          ov,
+        ),
+      ),
+    }),
+    FR: (d, ov) => ({
+      subject: 'Nouveau message via le formulaire de contact',
+      body: brand(
+        'CONTACT_FORM_RECEIVED',
+        resolveContent(
+          'CONTACT_FORM_RECEIVED',
+          'FR',
+          {
+            contactName: d.contactName ?? 'Un visiteur',
+            contactEmail: d.contactEmail ?? '',
+            contactPhoneClause: d.contactPhone ? `, ${d.contactPhone}` : '',
+            contactTopic: contactTopicLabel(d.contactTopic, 'FR'),
+            contactMessage: d.contactMessage ?? '',
+          },
+          ov,
+        ),
+      ),
+    }),
+  },
+  CONTACT_FORM_CONFIRMATION: {
+    EN: (d, ov) => ({
+      subject: 'We received your message',
+      body: brand('CONTACT_FORM_CONFIRMATION', {
+        ...resolveContent('CONTACT_FORM_CONFIRMATION', 'EN', { contactName: d.contactName ?? 'there' }, ov),
+        cta: { label: 'Browse FAQs', url: FAQ_URL },
+      }),
+    }),
+    FR: (d, ov) => ({
+      subject: 'Nous avons bien reçu votre message',
+      body: brand('CONTACT_FORM_CONFIRMATION', {
+        ...resolveContent('CONTACT_FORM_CONFIRMATION', 'FR', { contactName: d.contactName ?? '' }, ov),
+        cta: { label: 'Consulter la FAQ', url: FAQ_URL },
+      }),
     }),
   },
 };

@@ -156,6 +156,28 @@
     "emailPending": "Email — on its way",
     "phonePending": "Phone — on its way"
   },
+  "ContactForm": {
+    "faqNudge": "Looking for a quick answer? Check our FAQ first.",
+    "faqLink": "Visit the FAQ",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone",
+    "topicLabel": "What's this about?",
+    "topicPlaceholder": "Choose a topic",
+    "topic": {
+      "GENERAL_INQUIRY": "General inquiry",
+      "BOOKING_QUESTION": "Booking question",
+      "VISA_IMMIGRATION": "Visa & immigration",
+      "PARTNERSHIP_MEDIA": "Partnership / media",
+      "OTHER": "Other"
+    },
+    "messageLabel": "Message",
+    "submit": "Send message",
+    "sending": "Sending…",
+    "successTitle": "Message sent",
+    "successBody": "Thanks for reaching out — we'll get back to you soon.",
+    "successFaqNudge": "While you wait, our FAQ may already have your answer."
+  },
   "GuestError": {
     "eyebrow": "Something went wrong",
     "title": "We've hit a rough patch",
