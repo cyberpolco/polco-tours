@@ -9,7 +9,10 @@
 // important modifier which one wins comes down to Tailwind's generated
 // class order rather than intent.
 
-export const WEATHER_HERO_IMAGE = '/images/hero/sossusvlei.png';
+// Named -aerial to distinguish it from the pre-existing victoria-falls.png,
+// which is a different (ground-level, gorge-and-bridge) shot still used by
+// the homepage carousel.
+export const WEATHER_HERO_IMAGE = '/images/hero/victoria-falls-aerial.jpg';
 
 /** Full-bleed: breaks out of the guest layout's max-w-7xl container so the
  * photo spans the viewport, same trick /find-booking and /plan-my-trip use. */
