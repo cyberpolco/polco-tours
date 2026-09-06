@@ -163,46 +163,24 @@ export async function finalizeAddonsAction(_bookingId: string, formData: FormDat
   }
 }
 
-export async function uploadPassportAction(travelerId: string, formData: FormData): Promise<void> {
+/** Records a passport the browser uploaded directly to Blob (DR-216/DR-257).
+ * Only `pathname` crosses from the client and it is not trusted -- the
+ * documents module re-reads the stored file's own content type and size and
+ * revalidates them before writing anything. */
+export async function recordPassportAction(travelerId: string, pathname: string): Promise<void> {
   const bookingId = await currentSetupBookingId();
   if (!bookingId) redirect('/complete-booking');
 
-  const file = formData.get('passport');
-  if (!(file instanceof File) || file.size === 0) {
-    redirect('/complete-booking/setup/passport?error=missing_file');
-  }
-
-  // NOTE (DR-216): this still proxies the file through a Server Action, so a
-  // PDF over Next's ~4.5MB body ceiling fails before documents/domain.ts's
-  // own 10MB check ever runs -- same limitation the session-gated upload
-  // has. Moving both to a direct browser-to-Blob client upload is its own
-  // task; @vercel/blob 2.6.1 does support private-store client uploads.
-  const bytes = Buffer.from(await file.arrayBuffer());
   const booking = await bookingService.getForBookingSetup(bookingId);
-  const doc = await documentsService.uploadPassportForGuest(booking.organizationId, booking.touristUserId, {
-    contentType: file.type,
-    sizeBytes: file.size,
-    bytes,
-  });
+  const doc = await documentsService.recordUploadedPassport(booking.organizationId, booking.touristUserId, pathname);
   await bookingService.setTravelerPassportForBookingLookup(bookingId, travelerId, doc.id);
 
   // The session-gated twin also fires visaService.autoSubmitOnPassportUpload
   // here. That call is ctx-gated and already best-effort (DR-060) with a
   // documented fallback -- /staff/visa-queue's "Needs application"
-  // reconciliation view -- so rather than invent a no-ctx twin for it, this
-  // flow leans on that same fallback and a facilitator picks it up.
-  const travelers = await bookingService.listTravelersForBookingSetup(bookingId);
-  redirect(travelers.some((t) => !t.passportDocumentId) ? '/complete-booking/setup/passport' : '/complete-booking/setup');
+  // reconciliation view -- so this flow leans on that same fallback.
 }
 
-/** Pays the booking's invoice. Runs the existing, already-tested invoicing
- * chain (getOrCreateInvoiceForBooking -> initiatePayment -> auto-succeed,
- * DR-074's stub) under the guest's own rebuilt context rather than a second
- * no-ctx copy of the money maths -- see src/lib/booking-setup-context.ts.
- *
- * DPO is still stubbed (OI-01), so initiatePayment marks the payment
- * succeeded immediately; when a real gateway lands this becomes a redirect
- * to its hosted page and the rest of this flow is unchanged. */
 export async function payAction(kind: PaymentKind): Promise<void> {
   const bookingId = await currentSetupBookingId();
   if (!bookingId) redirect('/complete-booking');

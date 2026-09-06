@@ -3,14 +3,12 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
 import { bookingService } from '@modules/booking';
-import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
-import { FormField } from '@/components/ui/FormField';
 import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { getBookingWizardSteps } from '../../../booking-wizard-steps';
-import { uploadPassportAction } from './actions';
+import { recordPassportAction } from './actions';
+import { PassportUploadForm } from '../../../passport-upload-form';
 
 // Real per-guest data, not a link-share target -- kept out of search
 // indexing (defense-in-depth on data already gated by requireGuestContext/
@@ -20,7 +18,6 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 interface Props {
   params: Promise<{ bookingId: string }>;
-  searchParams: Promise<{ error?: string }>;
 }
 
 // Only reachable at all once Visa Assistance was picked at the Add-ons step
@@ -28,9 +25,8 @@ interface Props {
 // passport uploaded, not just the tour lead (a change from the original
 // tour-lead-only rule). Uploads one traveler at a time, looping back here
 // until none are left.
-export default async function PassportPage({ params, searchParams }: Props) {
+export default async function PassportPage({ params }: Props) {
   const { bookingId } = await params;
-  const { error } = await searchParams;
   const ctx = await requireGuestContext();
   const [booking, travelers] = await Promise.all([
     bookingService.getById(ctx, bookingId),
@@ -63,23 +59,10 @@ export default async function PassportPage({ params, searchParams }: Props) {
         <p className="mt-1 text-sm text-mist">
           {t('uploadNotice', { remaining, total: travelers.length })}
         </p>
-        {error === 'missing_file' && (
-          <div className="mt-3">
-            <Alert tone="error">{t('choosePdfFile')}</Alert>
-          </div>
-        )}
-        <form action={uploadPassportAction.bind(null, bookingId, nextTraveler.id)} className="mt-6 space-y-4">
-          <FormField label={t('passportPdfLabel')} htmlFor="passport">
-            <input
-              type="file"
-              name="passport"
-              accept="application/pdf"
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-amber/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-navy"
-            />
-          </FormField>
-          <SubmitButton pendingLabel={t('uploading')}>{t('uploadAndContinue')}</SubmitButton>
-        </form>
+        <PassportUploadForm
+          recordAction={recordPassportAction.bind(null, bookingId, nextTraveler.id)}
+          nextHref={remaining > 1 ? `/booking/${bookingId}/passport` : `/booking/${bookingId}`}
+        />
       </div>
     </Reveal>
   );

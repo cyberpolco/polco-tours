@@ -2,28 +2,21 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { bookingService } from '@modules/booking';
-import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
-import { FormField } from '@/components/ui/FormField';
 import { Reveal } from '@/components/ui/Reveal';
 import { StepIndicator } from '@/components/ui/StepIndicator';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { getBookingWizardSteps } from '../../../booking-wizard-steps';
-import { currentSetupBookingId, uploadPassportAction } from '../../actions';
+import { currentSetupBookingId, recordPassportAction } from '../../actions';
+import { PassportUploadForm } from '../../../passport-upload-form';
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-interface Props {
-  searchParams: Promise<{ error?: string }>;
-}
-
 // One traveller at a time, looping until none are left -- same shape as the
 // session-gated booking/[bookingId]/passport page.
-export default async function SetupPassportPage({ searchParams }: Props) {
+export default async function SetupPassportPage() {
   const bookingId = await currentSetupBookingId();
   if (!bookingId) redirect('/complete-booking');
 
-  const { error } = await searchParams;
   const [booking, travelers] = await Promise.all([
     bookingService.getForBookingSetup(bookingId),
     bookingService.listTravelersForBookingSetup(bookingId),
@@ -47,23 +40,10 @@ export default async function SetupPassportPage({ searchParams }: Props) {
           {t('passportTitle', { firstName: nextTraveler.firstName, lastName: nextTraveler.lastName })}
         </h1>
         <p className="mt-1 text-sm text-mist">{t('uploadNotice', { remaining, total: travelers.length })}</p>
-        {error === 'missing_file' && (
-          <div className="mt-3">
-            <Alert tone="error">{t('choosePdfFile')}</Alert>
-          </div>
-        )}
-        <form action={uploadPassportAction.bind(null, nextTraveler.id)} className="mt-6 space-y-4">
-          <FormField label={t('passportPdfLabel')} htmlFor="passport">
-            <input
-              type="file"
-              name="passport"
-              accept="application/pdf"
-              required
-              className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-amber/10 file:px-3 file:py-1 file:text-sm file:font-semibold file:text-navy"
-            />
-          </FormField>
-          <SubmitButton pendingLabel={t('uploading')}>{t('uploadAndContinue')}</SubmitButton>
-        </form>
+        <PassportUploadForm
+          recordAction={recordPassportAction.bind(null, nextTraveler.id)}
+          nextHref={remaining > 1 ? '/complete-booking/setup/passport' : '/complete-booking/setup'}
+        />
       </div>
     </Reveal>
   );

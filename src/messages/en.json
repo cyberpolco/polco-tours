@@ -481,7 +481,8 @@
     "choosePdfFile": "Choose a PDF file to upload.",
     "passportPdfLabel": "Passport (PDF)",
     "uploading": "Uploading…",
-    "uploadAndContinue": "Upload & continue"
+    "uploadAndContinue": "Upload & continue",
+    "uploadFailed": "That upload didn't save. Please try again."
   },
   "BookingVisaPage": {
     "backToBooking": "back to your booking",

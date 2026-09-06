@@ -106,6 +106,51 @@ export const documentsService = {
     return toSummary(doc);
   },
 
+  /** DR-257/DR-216: records a passport the BROWSER uploaded straight to Blob
+   * (api/v1/documents/passport-upload), rather than one proxied through a
+   * Server Action. Only the pathname crosses from the client, and it is not
+   * trusted: the real content type and size are read back off the stored
+   * object and revalidated against the same isValidDocumentUpload rule the
+   * proxied path uses, so a caller cannot register an oversized or
+   * non-PDF file by lying about it. A pathname that fails is rejected and
+   * the orphaned blob is left for cleanup rather than being recorded. */
+  async recordUploadedPassport(
+    organizationId: string,
+    uploadedByUserId: string,
+    pathname: string,
+  ): Promise<DocumentSummary> {
+    let inspected;
+    try {
+      inspected = await blobGateway.inspect(pathname);
+    } catch (err) {
+      if (err instanceof BlobGatewayError) throw Errors.validation('That upload could not be found');
+      throw err;
+    }
+
+    if (!isValidDocumentUpload('PASSPORT', inspected.contentType, inspected.sizeBytes)) {
+      throw Errors.validation('Invalid PASSPORT upload (unsupported content type or size)');
+    }
+
+    const doc = await documentsRepository.create(organizationId, {
+      kind: 'PASSPORT',
+      blobPathname: inspected.pathname,
+      contentType: inspected.contentType,
+      sizeBytes: inspected.sizeBytes,
+      uploadedByUserId,
+    });
+
+    await audit({
+      actorUserId: uploadedByUserId,
+      action: 'document.uploaded',
+      resourceType: 'Document',
+      resourceId: doc.id,
+      organizationId,
+      metadata: { channel: 'direct_blob_upload' },
+    });
+
+    return toSummary(doc);
+  },
+
   /** DR-257: uploadPassport's no-session twin for the guest
    * /complete-booking flow. This module deliberately learns nothing about
    * bookings -- the caller has already proved, via the booking_setup

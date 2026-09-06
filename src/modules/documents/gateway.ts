@@ -10,7 +10,7 @@
 // URL + access logging" real: nothing is ever exposed to the browser, every
 // server-side fetch is auditable (service.ts logs it), and there is no
 // standing public link to leak.
-import { get, put } from '@vercel/blob';
+import { get, head, put } from '@vercel/blob';
 
 export class BlobGatewayError extends Error {}
 
@@ -22,9 +22,20 @@ export interface DownloadResult {
   body: ReadableStream<Uint8Array>;
 }
 
+export interface InspectResult {
+  pathname: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface BlobGateway {
   upload(pathname: string, body: Buffer, contentType: string): Promise<UploadResult>;
   download(pathname: string): Promise<DownloadResult>;
+  /** DR-257: the real content type + size of an object the BROWSER uploaded
+   * directly (see api/v1/documents/passport-upload). The client hands back a
+   * pathname it could have lied about, so the file's own metadata is read
+   * from the store rather than trusted from the request. */
+  inspect(pathname: string): Promise<InspectResult>;
 }
 
 class VercelBlobGateway implements BlobGateway {
@@ -35,6 +46,17 @@ class VercelBlobGateway implements BlobGateway {
     } catch {
       throw new BlobGatewayError('Passport upload failed');
     }
+  }
+
+  async inspect(pathname: string): Promise<InspectResult> {
+    let result;
+    try {
+      result = await head(pathname);
+    } catch {
+      throw new BlobGatewayError('Passport lookup failed');
+    }
+    if (!result) throw new BlobGatewayError('Passport lookup failed');
+    return { pathname: result.pathname, contentType: result.contentType, sizeBytes: result.size };
   }
 
   async download(pathname: string): Promise<DownloadResult> {

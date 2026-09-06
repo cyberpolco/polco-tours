@@ -481,7 +481,8 @@
     "choosePdfFile": "Choisissez un fichier PDF à télécharger.",
     "passportPdfLabel": "Passeport (PDF)",
     "uploading": "Téléchargement…",
-    "uploadAndContinue": "Télécharger et continuer"
+    "uploadAndContinue": "Télécharger et continuer",
+    "uploadFailed": "Le téléversement n'a pas abouti. Veuillez réessayer."
   },
   "BookingVisaPage": {
     "backToBooking": "retour à votre réservation",
