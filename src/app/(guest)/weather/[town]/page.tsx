@@ -37,24 +37,28 @@ export default async function WeatherTownPage({ params }: Props) {
 
   return (
     <Reveal>
-      {/* Same glass-over-photo treatment as the /weather index -- a town
-          detail left on the plain bone page would read as a different site
-          entirely once you clicked through from a glass card. */}
+      {/* Same glass-over-photo treatment as the /weather index (sm+ only,
+          see weather-glass.ts) -- a town detail left looking plain would
+          read as a different site entirely once you clicked through from a
+          glass card. */}
       <section className={WEATHER_SECTION}>
-        <Image src={WEATHER_HERO_IMAGE} alt="" fill priority sizes="100vw" className="object-cover" />
+        {/* Hidden below sm (explicit user request) -- object-cover on a
+            fixed-aspect hero photo read as overstretched/zoomed-in on a
+            phone viewport rather than a deliberate backdrop. */}
+        <Image src={WEATHER_HERO_IMAGE} alt="" fill priority sizes="100vw" className="hidden object-cover sm:block" />
         <div className={WEATHER_SCRIM} />
         <div className={WEATHER_INNER}>
-          {/* The 'dark' tone exists for exactly this: a back chip on a dark
-              surface. The default 'light' one is a bone pill that would sit
-              on the photo looking like a stray sticker. */}
-          <BackLink href="/weather" tone="dark">
+          {/* 'photo' tone: light (the page's default bone pill) below sm,
+              where there's no photo behind it; dark at sm+, where a light
+              pill would sit on the photo looking like a stray sticker. */}
+          <BackLink href="/weather" tone="photo">
             {t('backToWeather')}
           </BackLink>
           <p className={`mt-4 eyebrow ${GLASS_MUTED}`}>{tCountries(town.country)}</p>
           <h1 className={`mt-1 text-2xl font-bold ${GLASS_HEADING}`}>{town.name}</h1>
 
           <div className="mt-6">
-            <p className="eyebrow text-gold">{t('currentConditions')}</p>
+            <p className="eyebrow text-forest sm:text-gold">{t('currentConditions')}</p>
             {town.current ? (
               <>
                 <WeatherAnimation conditionText={town.current.conditionText} size="full" className="mt-2 shadow-lift" />
@@ -95,7 +99,7 @@ export default async function WeatherTownPage({ params }: Props) {
 
           {town.forecast && town.forecast.length > 0 && (
             <div className="mt-6">
-              <p className="eyebrow text-gold">{t('forecast')}</p>
+              <p className="eyebrow text-forest sm:text-gold">{t('forecast')}</p>
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 {town.forecast.map((day) => (
                   <Card key={day.date} className={`text-center ${GLASS_CARD}`}>
@@ -113,7 +117,7 @@ export default async function WeatherTownPage({ params }: Props) {
           )}
 
           <div className="mt-6">
-            <p className="eyebrow text-gold">{t('seasonalNotes')}</p>
+            <p className="eyebrow text-forest sm:text-gold">{t('seasonalNotes')}</p>
             <p className={`mt-2 text-sm ${GLASS_MUTED}`}>{tSeasonalNotes(town.slug)}</p>
           </div>
         </div>

@@ -31,17 +31,21 @@ export default async function FindBookingPage() {
           out of the page's normal max-w-7xl container) since there's
           little else to fill the section. The existing eyebrow/title/
           subhead/form sit unchanged inside a slightly translucent card on
-          top, rather than reworking their colors for on-photo contrast. */}
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] flex min-h-[26rem] w-screen items-center justify-center overflow-hidden px-4 py-16 sm:min-h-[32rem] sm:px-8">
+          top, rather than reworking their colors for on-photo contrast.
+          Photo (and the full-bleed breakout itself) is sm+ only -- explicit
+          user request: object-cover on this fixed-aspect photo read as
+          overstretched/zoomed-in on a phone viewport rather than a
+          deliberate backdrop. */}
+      <section className="relative flex items-center justify-center overflow-hidden py-16 sm:left-1/2 sm:right-1/2 sm:-mx-[50vw] sm:min-h-[32rem] sm:w-screen sm:px-8">
         <Image
           src="/images/hero/zambezi-sunset-canoe.jpg"
           alt=""
           fill
           priority
           sizes="100vw"
-          className="object-cover"
+          className="hidden object-cover sm:block"
         />
-        <div className="absolute inset-0 bg-ink/25" />
+        <div className="absolute inset-0 hidden bg-ink/25 sm:block" />
         <Card className="relative w-full max-w-md bg-bone/85">
           <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
           <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>

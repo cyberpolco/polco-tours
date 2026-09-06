@@ -69,10 +69,12 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
     // TravelBackdrop line-art wallpaper that used to sit here; a photo and
     // that motif layer would compete, so the backdrop is now /packages'
     // alone. The card wraps the heading too, so nothing needs recoloring
-    // for contrast against the photo.
-    <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden px-4 py-12 sm:px-8 sm:py-16">
-      <Image src="/images/hero/nile-crocodile.jpg" alt="" fill priority sizes="100vw" className="object-cover" />
-      <div className="absolute inset-0 bg-ink/25" />
+    // for contrast against the photo. Photo (and the full-bleed breakout
+    // itself) is sm+ only, same explicit user request as /find-booking --
+    // overstretched/zoomed-in on a phone viewport otherwise.
+    <section className="relative overflow-hidden py-12 sm:left-1/2 sm:right-1/2 sm:-mx-[50vw] sm:w-screen sm:px-8 sm:py-16">
+      <Image src="/images/hero/nile-crocodile.jpg" alt="" fill priority sizes="100vw" className="hidden object-cover sm:block" />
+      <div className="absolute inset-0 hidden bg-ink/25 sm:block" />
       <Card className="relative mx-auto w-full max-w-4xl bg-bone/85">
         <p className="eyebrow text-mist">{cms?.eyebrow ?? t('eyebrow')}</p>
         <h1 className="mt-1 text-2xl font-bold text-navy">{cms?.title ?? t('title')}</h1>

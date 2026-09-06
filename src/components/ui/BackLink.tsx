@@ -24,14 +24,16 @@ export function BackChevron() {
   );
 }
 
-type BackTone = 'light' | 'dark';
+type BackTone = 'light' | 'dark' | 'photo';
 
 // 'light' (the default) is for the bone/light-surface chrome every guest
 // route and the staff dashboard shell use -- hover shifts to forest so "back"
 // stays visually distinct from the amber primary-CTA color used everywhere
-// else on light pages. 'dark' is for the one caller on a navy surface
+// else on light pages. 'dark' is for a caller permanently on a navy surface
 // (staff/login) -- hover shifts to amber there instead, matching the accent
-// already established on that page's dark chrome.
+// already established on that page's dark chrome. 'photo' is for a caller
+// whose dark surface only exists at sm+ (a hero photo hidden on mobile, see
+// weather/[town]/page.tsx) -- 'light' below that breakpoint, 'dark' above it.
 const TONE_STYLES: Record<BackTone, { container: string; badge: string }> = {
   light: {
     container:
@@ -42,6 +44,11 @@ const TONE_STYLES: Record<BackTone, { container: string; badge: string }> = {
     container:
       'border-bone/20 bg-bone/10 text-bone hover:border-amber/40 hover:bg-amber/10 hover:text-amber focus-visible:ring-amber/60 focus-visible:ring-offset-navy',
     badge: 'border-bone/20 bg-bone/10 text-bone',
+  },
+  photo: {
+    container:
+      'border-rule bg-bone/60 text-forest hover:border-forest/40 hover:bg-forest/10 focus-visible:ring-amber/60 focus-visible:ring-offset-bone sm:border-bone/20 sm:bg-bone/10 sm:text-bone sm:hover:border-amber/40 sm:hover:bg-amber/10 sm:hover:text-amber sm:focus-visible:ring-offset-navy',
+    badge: 'border-rule bg-bone text-forest sm:border-bone/20 sm:bg-bone/10 sm:text-bone',
   },
 };
 

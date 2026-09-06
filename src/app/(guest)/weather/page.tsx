@@ -42,7 +42,10 @@ export default async function WeatherPage() {
   return (
     <Reveal>
       <section className={WEATHER_SECTION}>
-        <Image src={WEATHER_HERO_IMAGE} alt="" fill priority sizes="100vw" className="object-cover" />
+        {/* Hidden below sm (explicit user request) -- object-cover on a
+            fixed-aspect hero photo read as overstretched/zoomed-in on a
+            phone viewport rather than a deliberate backdrop. */}
+        <Image src={WEATHER_HERO_IMAGE} alt="" fill priority sizes="100vw" className="hidden object-cover sm:block" />
         <div className={WEATHER_SCRIM} />
         <div className={WEATHER_INNER}>
           <p className={`eyebrow ${GLASS_MUTED}`}>{cms?.eyebrow ?? t('eyebrow')}</p>
@@ -55,9 +58,10 @@ export default async function WeatherPage() {
 
             return (
               <div key={country} className="mt-8">
-                {/* Gold rather than the page's usual forest -- a dark green
-                    heading disappears against the photo. */}
-                <h2 className="eyebrow text-gold">{tCountries(country)}</h2>
+                {/* Gold at sm+, where the photo's behind it -- a dark green
+                    heading disappears there. Back to the page's usual forest
+                    below sm, where there's no photo (see weather-glass.ts). */}
+                <h2 className="eyebrow text-forest sm:text-gold">{tCountries(country)}</h2>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {countryTowns.map((town) => {
                     const tint = town.current ? weatherCardTint(classifyCondition(town.current.conditionText)) : '';
