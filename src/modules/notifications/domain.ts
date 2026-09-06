@@ -690,9 +690,13 @@ const COMPLETE_BOOKING_URL = 'https://mufasasafaris.com/complete-booking';
 function completeBookingUrl(bookingReference: string): string {
   return bookingReference ? `${COMPLETE_BOOKING_URL}?ref=${encodeURIComponent(bookingReference)}` : COMPLETE_BOOKING_URL;
 }
-const STAFF_LOGIN_URL = '/staff/login';
-const STAFF_SCHEDULE_URL = '/staff/schedule';
-const STAFF_VISA_QUEUE_URL = '/staff/visa-queue';
+// Absolute, like every other CTA URL in this file -- a relative path has no
+// origin to resolve against inside an HTML email (no containing document,
+// no <base> tag), so it either fails to open or resolves against the mail
+// client's own origin instead of mufasasafaris.com.
+const STAFF_LOGIN_URL = 'https://mufasasafaris.com/staff/login';
+const STAFF_SCHEDULE_URL = 'https://mufasasafaris.com/staff/schedule';
+const STAFF_VISA_QUEUE_URL = 'https://mufasasafaris.com/staff/visa-queue';
 const FAQ_URL = 'https://mufasasafaris.com/faq';
 
 // Humanized labels for ContactData.contactTopic -- the raw ContactTopic enum
