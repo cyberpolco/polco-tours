@@ -133,6 +133,21 @@ async function resolveBookingCountryForLookup(organizationId: string, booking: B
   throw Errors.conflict('This booking has no destination country');
 }
 
+/** DR-261: the reference date resolveCancellationRefundTier weighs against
+ * -- shared by cancelForBookingLookup (guest self-service) and cancel
+ * (staff-initiated), so both channels compute the exact same tier for the
+ * exact same booking. Departure.startDate for PREDEFINED_PACKAGE (read via
+ * the no-ctx *ForBookingLookup helper -- no ctx needed either way, since
+ * this is a read of the departure's own trip dates, not a permissioned
+ * action), or Booking.customTravelStart for TAILOR_MADE. */
+async function resolveCancellationReferenceDate(organizationId: string, booking: BookingView): Promise<Date | null> {
+  if (booking.origin === 'PREDEFINED_PACKAGE' && booking.departureId) {
+    const tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId);
+    return tripSummary?.startDate ?? null;
+  }
+  return booking.customTravelStart;
+}
+
 /** DR-180: which TourPackage this booking's add-ons step should curate
  * against. PREDEFINED_PACKAGE resolves it via the departure; TAILOR_MADE has
  * none until customizedPackageId is set post-quote (DR-108) -- null in that
@@ -699,17 +714,29 @@ export const bookingService = {
     return getOwnedBooking(ctx, organizationId, bookingId);
   },
 
-  async cancel(ctx: AuthContext, bookingId: string): Promise<BookingView> {
+  /** DR-261: computes the same system refund tier a guest self-service
+   * cancel would (resolveCancellationRefundTier, same reference-date
+   * helper), even though staff -- not the guest -- clicks the button here.
+   * Staff's role is approving/paying out the refund, never overriding the
+   * calculation (see cancelBookingAction, which snapshots it onto the
+   * invoice via invoicingService.recordCancellationRefund right after this
+   * returns -- that composition can't live here, since booking must not
+   * depend on invoicing). */
+  async cancel(ctx: AuthContext, bookingId: string): Promise<{ booking: BookingView; refundTier: CancellationRefundTier }> {
     assertCan(ctx, 'booking.cancel');
     const organizationId = requireOrg(ctx);
 
-    await getOwnedBooking(ctx, organizationId, bookingId);
+    const booking = await getOwnedBooking(ctx, organizationId, bookingId);
+    const referenceDate = await resolveCancellationReferenceDate(organizationId, booking);
+    const refundTier = resolveCancellationRefundTier(referenceDate, booking.status);
     // Cancelling also retires this booking's bookingReference (freeing it
     // for reuse by a future booking) -- see
     // bookingRepository.cancelAndReleaseReference. The notification below
     // deliberately uses `previousReference`, the code the guest actually
     // knows, not the freshly regenerated one now sitting on the row.
-    const result = await transition(() => bookingRepository.cancelAndReleaseReference(organizationId, bookingId));
+    const result = await transition(() =>
+      bookingRepository.cancelAndReleaseReference(organizationId, bookingId, { refundTier }),
+    );
     if (!result) throw Errors.notFound('Booking not found');
     const { booking: updated, previousReference } = result;
     await audit({
@@ -719,12 +746,12 @@ export const bookingService = {
       resourceType: 'Booking',
       resourceId: updated.id,
       organizationId,
-      metadata: { previousBookingReference: previousReference },
+      metadata: { previousBookingReference: previousReference, channel: 'staff', refundTier },
     });
     await notifyGuest('BOOKING_CANCELLED', organizationId, updated, {
       bookingId: previousReference,
     });
-    return updated;
+    return { booking: updated, refundTier };
   },
 
   /** Staff-only, mirrors payment.resolve's fraud-prevention posture (a
@@ -1301,16 +1328,8 @@ export const bookingService = {
 
     const booking = await verifyGuestForBooking(organizationId, input, CANCELLABLE_BOOKING_STATUSES);
 
-    // The reference date to weigh the refund tier against: a real
-    // Departure.startDate for PREDEFINED_PACKAGE, or the booking's own
-    // customTravelStart for TAILOR_MADE (null until quoted -- resolves to
-    // the most generous tier via resolveCancellationRefundTier).
-    let referenceDate: Date | null = booking.customTravelStart;
-    if (booking.origin === 'PREDEFINED_PACKAGE' && booking.departureId) {
-      const tripSummary = await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId);
-      referenceDate = tripSummary?.startDate ?? null;
-    }
-    const refundTier = resolveCancellationRefundTier(referenceDate);
+    const referenceDate = await resolveCancellationReferenceDate(organizationId, booking);
+    const refundTier = resolveCancellationRefundTier(referenceDate, booking.status);
 
     const result = await transition(() =>
       bookingRepository.cancelAndReleaseReference(organizationId, booking.id, {

@@ -82,29 +82,26 @@ export function splitDeposit(totalMinor: number): { depositMinor: number; balanc
   return { depositMinor, balanceMinor: totalMinor - depositMinor };
 }
 
-/** Cancellation & Refund Policy (DR-207, see /terms): turns a
- * CancellationRefundTier (snapshotted onto Booking.cancellationRefundTier
- * at cancel time -- resolveCancellationRefundTier in the booking module)
- * into a real minor-unit refund amount. `paidMinor` is the sum of this
- * invoice's SUCCEEDED payments, `depositMinor` is the invoice's own
- * snapshot field -- both already in hand from InvoiceView/PaymentView, no
- * new query. FULL_MINUS_DEPOSIT keeps the deposit and refunds the rest of
- * whatever was actually paid; the other tiers are a straight percentage of
- * what was actually paid, not of totalMinor -- a guest can never be
- * refunded more than they paid (e.g. a booking cancelled before any
- * payment succeeded refunds 0 regardless of tier). */
-export function computeCancellationRefundAmountMinor(
-  tier: CancellationRefundTier,
-  paidMinor: number,
-  depositMinor: number,
-): number {
+/** Cancellation & Refund Policy (DR-207, updated DR-261, see /terms): turns
+ * a CancellationRefundTier (snapshotted onto Booking.cancellationRefundTier
+ * at cancel time -- resolveCancellationRefundTier in the booking module,
+ * which already refuses to return anything but NONE unless the booking
+ * reached full payment) into a real minor-unit refund amount. Every tier is
+ * a straight percentage of the booking's own total package price
+ * (`totalMinor`, the invoice's own snapshot field), never of amount
+ * actually paid -- the fully-paid gate one layer up means paidMinor and
+ * totalMinor are already equal whenever a non-NONE tier is even possible,
+ * so there's nothing left to additionally cap here. FULL_MINUS_DEPOSIT is
+ * 70% (equivalently: the full total minus the non-refundable 30% deposit,
+ * the ceiling any tier can ever pay out). */
+export function computeCancellationRefundAmountMinor(tier: CancellationRefundTier, totalMinor: number): number {
   switch (tier) {
     case 'FULL_MINUS_DEPOSIT':
-      return Math.max(0, paidMinor - depositMinor);
+      return Math.round(totalMinor * 0.7);
     case 'FIFTY_PERCENT':
-      return Math.round(paidMinor * 0.5);
+      return Math.round(totalMinor * 0.5);
     case 'TWENTY_FIVE_PERCENT':
-      return Math.round(paidMinor * 0.25);
+      return Math.round(totalMinor * 0.25);
     case 'NONE':
       return 0;
   }

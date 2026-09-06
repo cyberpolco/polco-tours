@@ -213,7 +213,7 @@
       },
       "cancellation": {
         "title": "Politique d'annulation et de remboursement",
-        "body": "Vous pouvez annuler une réservation vous-même, à tout moment, depuis Retrouver ma réservation — recherchez votre réservation, confirmez votre e-mail et indiquez le motif, et votre remboursement est calculé automatiquement selon le tableau ci-dessous.\n\n60 jours ou plus avant le départ : remboursement intégral de ce que vous avez payé, moins votre acompte.\nEntre 30 et 59 jours avant le départ : 50 % de ce que vous avez payé.\nEntre 14 et 29 jours avant le départ : 25 % de ce que vous avez payé.\nMoins de 14 jours avant le départ, ou absence au départ : aucun remboursement.\n\nVotre acompte représente 30 % du prix total. Il correspond à des frais que nous engageons à l'avance en votre nom auprès des hôtels, véhicules et guides ; c'est donc la seule partie de votre paiement qui n'est jamais remboursée une fois versée.\n\nSi c'est nous qui devons annuler votre voyage — par exemple en raison d'une alerte sécurité dans la région visitée — vous recevez un remboursement intégral, sans déduction.\n\nLes frais d'assistance visa et tout frais gouvernemental de visa ne sont jamais remboursables, quelle que soit l'issue de votre demande de visa.\n\nUne fois votre annulation confirmée, notre équipe procède au remboursement sur votre moyen de paiement d'origine."
+        "body": "Vous pouvez annuler une réservation vous-même, à tout moment, depuis Retrouver ma réservation — recherchez votre réservation, confirmez votre e-mail et indiquez le motif, et votre remboursement est calculé automatiquement selon le tableau ci-dessous.\n\nLes paliers de remboursement ci-dessous ne s'appliquent qu'une fois votre réservation payée intégralement. Si seul l'acompte a été versé au moment de l'annulation, aucun remboursement n'est dû — l'acompte lui-même n'est jamais remboursé, quel que soit par ailleurs le délai avant le départ.\n\nPour une réservation payée intégralement, sur la base du prix total du forfait :\n51 jours ou plus avant le départ : 70 % remboursés.\nEntre 41 et 50 jours avant le départ : 50 % remboursés.\nEntre 21 et 40 jours avant le départ : 25 % remboursés.\n20 jours ou moins avant le départ, ou absence au départ : aucun remboursement.\n\nVotre acompte représente 30 % du prix total. Il correspond à des frais que nous engageons à l'avance en votre nom auprès des hôtels, véhicules et guides ; c'est donc la seule partie de votre paiement qui n'est jamais remboursée une fois versée — c'est aussi pourquoi 70 % est le maximum jamais remboursable, quel que soit le délai avant le départ.\n\nSi c'est nous qui devons annuler votre voyage — par exemple en raison d'une alerte sécurité dans la région visitée — vous recevez un remboursement intégral, sans déduction.\n\nLes frais d'assistance visa et tout frais gouvernemental de visa ne sont jamais remboursables, quelle que soit l'issue de votre demande de visa.\n\nUne fois votre annulation confirmée, notre équipe procède au remboursement sur votre moyen de paiement d'origine."
       }
     }
   },
@@ -712,10 +712,10 @@
       "notFound": "Nous n'avons pas pu vérifier cette réservation — vérifiez votre e-mail et votre nom de famille, ou contactez-nous."
     },
     "tierLabel": {
-      "FULL_MINUS_DEPOSIT": "un remboursement intégral de ce que vous avez payé, moins l'acompte",
-      "FIFTY_PERCENT": "un remboursement de 50 % de ce que vous avez payé",
-      "TWENTY_FIVE_PERCENT": "un remboursement de 25 % de ce que vous avez payé",
-      "NONE": "aucun remboursement (selon notre politique à ce stade avant le départ)"
+      "FULL_MINUS_DEPOSIT": "un remboursement de 70 % du prix total du forfait (remboursement intégral moins l'acompte non remboursable)",
+      "FIFTY_PERCENT": "un remboursement de 50 % du prix total du forfait",
+      "TWENTY_FIVE_PERCENT": "un remboursement de 25 % du prix total du forfait",
+      "NONE": "aucun remboursement (selon notre politique à ce stade avant le départ, ou parce que le paiement intégral n'a pas encore été effectué)"
     }
   },
   "RatePage": {
@@ -844,9 +844,9 @@
     "refundAmount": "Montant du remboursement",
     "downloadRefundNote": "Télécharger l'avis de remboursement (PDF)",
     "cancellationTierLabel": {
-      "FULL_MINUS_DEPOSIT": "Remboursement intégral, moins l'acompte",
-      "FIFTY_PERCENT": "50 % du montant payé",
-      "TWENTY_FIVE_PERCENT": "25 % du montant payé",
+      "FULL_MINUS_DEPOSIT": "70 % du prix total du forfait (moins l'acompte)",
+      "FIFTY_PERCENT": "50 % du prix total du forfait",
+      "TWENTY_FIVE_PERCENT": "25 % du prix total du forfait",
       "NONE": "Aucun remboursement"
     },
     "deleting": "Suppression…",

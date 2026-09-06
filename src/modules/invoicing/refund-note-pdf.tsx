@@ -47,15 +47,15 @@ const OPERATING_COUNTRIES: Record<PdfLocale, string> = {
 
 const TIER_LABELS: Record<PdfLocale, Record<CancellationRefundTier, string>> = {
   en: {
-    FULL_MINUS_DEPOSIT: 'Full refund of amount paid, minus the deposit',
-    FIFTY_PERCENT: '50% of amount paid',
-    TWENTY_FIVE_PERCENT: '25% of amount paid',
+    FULL_MINUS_DEPOSIT: '70% of total package price (full refund minus the non-refundable deposit)',
+    FIFTY_PERCENT: '50% of total package price',
+    TWENTY_FIVE_PERCENT: '25% of total package price',
     NONE: 'No refund',
   },
   fr: {
-    FULL_MINUS_DEPOSIT: 'Remboursement intégral du montant payé, moins l’acompte',
-    FIFTY_PERCENT: '50 % du montant payé',
-    TWENTY_FIVE_PERCENT: '25 % du montant payé',
+    FULL_MINUS_DEPOSIT: '70 % du prix total du forfait (remboursement intégral moins l’acompte non remboursable)',
+    FIFTY_PERCENT: '50 % du prix total du forfait',
+    TWENTY_FIVE_PERCENT: '25 % du prix total du forfait',
     NONE: 'Aucun remboursement',
   },
 };
@@ -68,6 +68,7 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     cancelledOn: 'Cancelled on',
     reason: 'Reason given',
     summary: 'Refund Summary',
+    totalPrice: 'Total package price',
     amountPaid: 'Amount paid to date',
     tier: 'Applicable policy tier',
     refundAmount: 'Refund amount',
@@ -80,6 +81,7 @@ const LABELS: Record<PdfLocale, Record<string, string>> = {
     cancelledOn: 'Annulée le',
     reason: 'Motif indiqué',
     summary: 'Résumé du remboursement',
+    totalPrice: 'Prix total du forfait',
     amountPaid: 'Montant payé à ce jour',
     tier: 'Palier de politique applicable',
     refundAmount: 'Montant du remboursement',
@@ -93,6 +95,12 @@ export interface RefundNotePdfInput {
   cancelledAt: Date;
   reason: string;
   currency: Currency;
+  // DR-261: the refund base -- every tier is a percentage of this, not of
+  // paidMinor below.
+  totalMinor: number;
+  // Shown for reference only (confirms the booking was fully paid, since
+  // that's a precondition for any non-NONE tier) -- no longer part of the
+  // refund calculation itself.
   paidMinor: number;
   tier: CancellationRefundTier;
   refundAmountMinor: number;
@@ -178,6 +186,10 @@ export async function renderRefundNotePdf(input: RefundNotePdfInput): Promise<Bu
         </View>
 
         <Text style={styles.sectionHeading}>{t.summary}</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>{t.totalPrice}</Text>
+          <Text style={styles.rowValue}>{fmt(input.totalMinor)}</Text>
+        </View>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>{t.amountPaid}</Text>
           <Text style={styles.rowValue}>{fmt(input.paidMinor)}</Text>
