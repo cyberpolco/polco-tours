@@ -21,7 +21,7 @@
     "ratingAriaLabel": "{rating} out of 5 stars"
   },
   "MaintenanceBanner": {
-    "message": "This site is currently undergoing maintenance and major updates — nothing shown here is operational yet, including payment: no booking made here is actually charged."
+    "message": "This site is currently undergoing minor updates — online payment isn't wired up yet, so no booking made here is actually charged."
   },
   "StaffNav": {
     "bookings": "Bookings",

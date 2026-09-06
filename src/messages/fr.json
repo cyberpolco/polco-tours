@@ -21,7 +21,7 @@
     "ratingAriaLabel": "{rating} sur 5 étoiles"
   },
   "MaintenanceBanner": {
-    "message": "Ce site est actuellement en maintenance et fait l'objet de mises à jour majeures — rien de ce qui est présenté ici n'est encore opérationnel, y compris le paiement : aucune réservation effectuée ici n'est réellement débitée."
+    "message": "Ce site fait actuellement l'objet de mises à jour mineures — le paiement en ligne n'est pas encore activé, donc aucune réservation effectuée ici n'est réellement débitée."
   },
   "StaffNav": {
     "bookings": "Réservations",
