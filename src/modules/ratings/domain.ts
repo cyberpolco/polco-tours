@@ -10,7 +10,9 @@ export interface RatingCodeView {
   organizationId: string;
   bookingId: string;
   code: string;
-  issuedByUserId: string;
+  // Null for a system-issued code (DR-261's automatic sweep) -- see the
+  // schema.prisma comment on RatingCode.issuedByUserId.
+  issuedByUserId: string | null;
   issuedAt: Date;
   expiresAt: Date;
   usedAt: Date | null;
@@ -91,6 +93,33 @@ export function isRatingCodeUsable(rc: Pick<RatingCodeView, 'usedAt' | 'expiresA
  * Booking.status alone can't tell you "paid in full." */
 export function canIssueRatingCode(params: { invoiceStatus: InvoiceStatus | null; alreadyIssued: boolean }): boolean {
   return params.invoiceStatus === 'PAID' && !params.alreadyIssued;
+}
+
+/** Automatic-issuance precondition (DR-261, explicit user request: fire the
+ * night before a tour ends, regardless of payment status) -- deliberately
+ * does NOT check invoice status, unlike canIssueRatingCode above, which
+ * stays exactly as-is for the manual staff-issued path. Still excludes a
+ * cancelled/refunded booking (its tour isn't actually happening) and one
+ * that already has a code. */
+export function canAutoIssueRatingCode(params: { bookingStatus: BookingStatus; alreadyIssued: boolean }): boolean {
+  if (params.alreadyIssued) return false;
+  return params.bookingStatus !== 'CANCELLED' && params.bookingStatus !== 'REFUNDED';
+}
+
+/** DR-261: every operating country (Namibia, the DRC region operated in
+ * (Lubumbashi), Zambia, Zimbabwe, Botswana) currently sits at a fixed UTC+2
+ * offset with no DST -- so "21:00 local" reduces to a single fixed UTC cron
+ * time (19:00 UTC, see scripts/register-qstash-schedule.ts) rather than a
+ * real per-country timezone lookup. Revisit this if a future operating
+ * country outside that offset is added. Returns the [start, end) UTC range
+ * for "tomorrow" relative to `now` -- a range match, not exact-equality,
+ * since Departure.endDate/Booking.customTravelEnd aren't guaranteed to be
+ * normalized to UTC midnight (computeDepartureEndDate only shifts the
+ * calendar day, not the time-of-day it inherits from Departure.startDate). */
+export function tomorrowUtcDayRange(now: Date): { start: Date; end: Date } {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2));
+  return { start, end };
 }
 
 /** Guest-side precondition for submitting a rating -- the spec's "Rating

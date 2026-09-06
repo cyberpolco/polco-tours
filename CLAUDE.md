@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-261** (2026-09-06). This file used to carry a running
+Current through **DR-262** (2026-09-06). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -148,7 +148,7 @@ gaps a fresh Postgres would hit).
 | Image processing | `sharp` `0.34.5` (DR-163) — was already an undeclared transitive dependency at this exact version; pinned explicitly per the version-pinning rule. `src/lib/public-image-blob.ts`'s `uploadPublicImage` always recompresses every public image upload to webp (max edge 2560px, quality 80) before storing, regardless of caller/input format — the one shared primitive every public image upload (cms, catalog package images, Home hero) already goes through, so this applies uniformly rather than per-caller. Since DR-183, also used by `(guest)/packages/[packageId]/opengraph-image.tsx` to re-encode a package's webp cover photo to PNG before handing it to `next/og`'s Satori renderer, which can't decode webp — that route needs `export const runtime = 'nodejs'` for `sharp`'s native bindings, unlike a typical Edge-default og-image route |
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
-| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — six schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19; `sweep-test-orgs`/DR-235 hourly, purges leftover `tests/api/*.test.ts`-fixture organizations, registered 2026-09-04) |
+| Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — seven schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19; `sweep-test-orgs`/DR-235 hourly, purges leftover `tests/api/*.test.ts`-fixture organizations, registered 2026-09-04; `sweep-rating-code-issuance`/DR-261 daily at 19:00 UTC, registered 2026-09-06) |
 | Email / WA / SMS | Resend · Baileys (WhatsApp) · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat). WhatsApp is `baileys` `6.7.24` (DR-258, explicit user choice over the originally-planned Meta WhatsApp Business Cloud API) — an unofficial, QR-paired WhatsApp Web client, run as its own always-on process (`whatsapp-bridge/` at the repo root, **not** a dependency of this Next.js app) since it needs a persistent WebSocket a Vercel serverless function can't hold open; `notifications/gateway.ts`'s `BaileysWhatsAppGateway` is a plain HTTP client to that bridge (`WHATSAPP_BRIDGE_URL`/`WHATSAPP_BRIDGE_SECRET`), never a direct `baileys` import. No host is provisioned yet and no number is paired (OI-21/OI-22) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
@@ -178,6 +178,8 @@ src/
     api/jobs/purge-wizard-progress/ # DR-155: daily 30-day wizard-progress-tracking purge, same shape
     api/jobs/sweep-test-orgs/     # DR-235: hourly purge of leftover test-fixture
                                   #   Organization rows, same shape
+    api/jobs/sweep-rating-code-issuance/ # DR-261: daily (19:00 UTC) automatic
+                                  #   Rating Code issuance sweep, same shape
     staff/
       login/, forbidden/       # outside the auth gate
       change-password/         # forced first-login flow (mustChangePassword) + voluntary visit
@@ -472,9 +474,9 @@ src/
                    #   precedent as lateBookingSurchargeBp above;
                    #   reason/contactEmail stay guest-self-service-only
                    #   (null for a staff-initiated cancel or the guest's own
-                   #   30s-grace-window cancel buttons — see DR-261 directly
+                   #   30s-grace-window cancel buttons — see DR-262 directly
                    #   below for why refundTier itself is no longer among
-                   #   them). DR-261 (explicit user request): revised
+                   #   them). DR-262 (explicit user request): revised
                    #   Cancellation & Refund Policy — every tier is now a
                    #   percentage of the booking's total package price
                    #   (never of amount actually paid), and only ever
@@ -535,7 +537,7 @@ src/
                    #   computed from Booking.cancellationRefundTier via
                    #   computeCancellationRefundAmountMinor once any cancel
                    #   path resolves a tier (originally guest-only via
-                   #   /find-booking; DR-261 below extends this to every
+                   #   /find-booking; DR-262 below extends this to every
                    #   cancel path), same "rate on Booking, money on
                    #   Invoice" split as lateBookingSurchargeBp/
                    #   lateBookingSurchargeMinor above; refund-note-pdf.tsx
@@ -548,11 +550,11 @@ src/
                    #   can always regenerate the same PDF on demand
                    #   (streamRefundNotePdf, /api/v1/bookings/[bookingId]/
                    #   refund-note-pdf) from the booking detail page.
-                   #   DR-261: computeCancellationRefundAmountMinor now
+                   #   DR-262: computeCancellationRefundAmountMinor now
                    #   takes just (tier, totalMinor) — every tier is a
                    #   straight percentage of the booking's total package
                    #   price, not of amount actually paid (see booking/'s
-                   #   own DR-261 comment for the full policy + full-payment
+                   #   own DR-262 comment for the full policy + full-payment
                    #   gate); refund-note-pdf.tsx gains a totalMinor line
                    #   ("Total package price") above the existing paidMinor
                    #   line, the latter kept for reference only, no longer
@@ -901,7 +903,32 @@ src/
                    #   staff-only hotel/restaurant ratings; DR-148: SUPERADMIN
                    #   can hard-delete an individual Review (isRatingDeleter),
                    #   cascading its subject ratings and recomputing every
-                   #   affected aggregate
+                   #   affected aggregate. DR-261 (explicit user request): a
+                   #   second, automatic Rating Code trigger alongside the
+                   #   existing manual staff button (issueRatingCode,
+                   #   unchanged) — fires the night before a tour ends, at
+                   #   21:00 in every operating country's fixed UTC+2 offset
+                   #   (no DST anywhere in NA/DRC-east/ZM/ZW/BW, so this is
+                   #   one fixed daily QStash cron at 19:00 UTC, not a real
+                   #   per-country timezone lookup), emailing the tour lead
+                   #   directly. Deliberately bypasses the manual path's
+                   #   invoice-PAID gate (explicit user decision — sends
+                   #   regardless of payment status). RatingCode.issuedByUserId
+                   #   is now nullable — null means system-issued. New no-ctx
+                   #   runAutomaticRatingCodeIssuance() (same "no user/
+                   #   permission concept for the platform's own scheduler"
+                   #   precedent as bookingService.runScheduledSweep) backs
+                   #   the new api/jobs/sweep-rating-code-issuance route; the
+                   #   shared create+audit+notify logic was extracted into a
+                   #   private createAndSendRatingCode helper so the manual
+                   #   and automatic paths don't duplicate the actual send.
+                   #   Uses a new no-ctx bookingService.listBookingsWithTourEndingOn
+                   #   (not a new module dependency — ratings already depends
+                   #   on booking) to find each org's due bookings; the
+                   #   already-issued exclusion stays in ratings itself
+                   #   (RatingCode is this module's own table). Schema
+                   #   pushed live and QStash schedule registered 2026-09-06
+                   #   (OI-23 resolved) — the automatic sweep is live.
     insights/      # Live-polling (30s), Redis-cached executive dashboard
                    #   (DR-155), no repository.ts (owns no table) — composes
                    #   booking/invoicing/assignment/fleet/ratings/visa/auth
@@ -1737,7 +1764,9 @@ serverless function bundle.
   (DR-082, daily), `/api/jobs/sweep-user-dormancy` (DR-084, daily),
   `/api/jobs/sweep-fleet-cooldowns` (DR-107, hourly),
   `/api/jobs/purge-wizard-progress` (DR-155, daily), and
-  `/api/jobs/sweep-test-orgs` (DR-235, hourly, registered 2026-09-04).
+  `/api/jobs/sweep-test-orgs` (DR-235, hourly, registered 2026-09-04). A
+  seventh, `/api/jobs/sweep-rating-code-issuance` (DR-261, daily at 19:00
+  UTC), was registered 2026-09-06 (OI-23 resolved).
 
 ## Roadmap (not yet built)
 
@@ -1868,7 +1897,15 @@ serverless function bundle.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-**Resolved:** OI-20 (DR-256's `cms_about_entries` table — `prisma db push`
+**Resolved:** OI-23 (DR-261's `RatingCode.issuedByUserId` nullable schema
+change pushed to the shared Neon DB via `npm run db:push` with a
+user-provided `neondb_owner` credential — first attempt hit the same
+transient `P1001` Neon-pooler flakiness documented elsewhere in this file,
+succeeded on retry; `npm run db:rls` reapplied clean, 150 statements, same
+count as every prior clean reapply. `npm run qstash:register-schedule`
+(explicit user authorization) registered all 7 schedules against
+production, including the new `polco-sweep-rating-code-issuance` — 2026-09-06),
+OI-20 (DR-256's `cms_about_entries` table — `prisma db push`
 and even `prisma migrate diff` couldn't reach Neon from this sandbox
 (`P1001`, the same CLI-level flakiness DR-253/DR-254 hit), while `psql` on
 the identical pooler URL connected instantly, so the table was created by

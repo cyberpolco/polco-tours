@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  canAutoIssueRatingCode,
   canIssueRatingCode,
   canSubmitRating,
   generateRatingCode,
@@ -7,6 +8,7 @@ import {
   ratingCodeExpiryFromTourEnd,
   RatingCodeLookupInput,
   SubmitRatingInput,
+  tomorrowUtcDayRange,
 } from '../src/modules/ratings/domain';
 
 describe('ratings domain', () => {
@@ -58,6 +60,44 @@ describe('ratings domain', () => {
 
     it('blocks re-issuing once a code already exists', () => {
       expect(canIssueRatingCode({ invoiceStatus: 'PAID', alreadyIssued: true })).toBe(false);
+    });
+  });
+
+  describe('canAutoIssueRatingCode (DR-261)', () => {
+    it('allows auto-issuing regardless of invoice status, unlike canIssueRatingCode', () => {
+      expect(canAutoIssueRatingCode({ bookingStatus: 'CONFIRMED', alreadyIssued: false })).toBe(true);
+      expect(canAutoIssueRatingCode({ bookingStatus: 'AWAITING_DEPOSIT', alreadyIssued: false })).toBe(true);
+    });
+
+    it('blocks re-issuing once a code already exists', () => {
+      expect(canAutoIssueRatingCode({ bookingStatus: 'CONFIRMED', alreadyIssued: true })).toBe(false);
+    });
+
+    it('blocks a cancelled or refunded booking -- its tour is not happening', () => {
+      expect(canAutoIssueRatingCode({ bookingStatus: 'CANCELLED', alreadyIssued: false })).toBe(false);
+      expect(canAutoIssueRatingCode({ bookingStatus: 'REFUNDED', alreadyIssued: false })).toBe(false);
+    });
+  });
+
+  describe('tomorrowUtcDayRange (DR-261)', () => {
+    it('returns the [start, end) UTC range for the calendar day after `now`', () => {
+      const now = new Date('2026-06-01T19:00:00Z');
+      const { start, end } = tomorrowUtcDayRange(now);
+      expect(start.toISOString()).toBe('2026-06-02T00:00:00.000Z');
+      expect(end.toISOString()).toBe('2026-06-03T00:00:00.000Z');
+    });
+
+    it('correctly rolls over a month/year boundary', () => {
+      const { start, end } = tomorrowUtcDayRange(new Date('2025-12-31T19:00:00Z'));
+      expect(start.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+      expect(end.toISOString()).toBe('2026-01-02T00:00:00.000Z');
+    });
+
+    it('is unaffected by a non-midnight time-of-day on `now`', () => {
+      const a = tomorrowUtcDayRange(new Date('2026-06-01T00:00:01Z'));
+      const b = tomorrowUtcDayRange(new Date('2026-06-01T23:59:59Z'));
+      expect(a.start.toISOString()).toBe(b.start.toISOString());
+      expect(a.end.toISOString()).toBe(b.end.toISOString());
     });
   });
 

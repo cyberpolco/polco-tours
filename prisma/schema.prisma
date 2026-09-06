@@ -1909,7 +1909,10 @@ model RatingCode {
   organizationId String    @db.Uuid
   bookingId      String    @unique @db.Uuid
   code           String    @unique
-  issuedByUserId String    @db.Uuid
+  // Null means system-issued (DR-261's automatic 24h-before-tour-end sweep)
+  // -- there is no human issuer for that path. Always set for a
+  // staff-issued code (ratingsService.issueRatingCode).
+  issuedByUserId String?   @db.Uuid
   issuedAt       DateTime  @default(now())
   expiresAt      DateTime
   usedAt         DateTime?
