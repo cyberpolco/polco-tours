@@ -1,26 +1,30 @@
 // ratings module — service. Business logic; orchestrates repository + rbac +
 // cross-module composition. Callable by other modules ONLY through index.ts
 // (module boundary rule).
+import type { Role } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
 import { assignmentService } from '@modules/assignment';
-import { bookingService } from '@modules/booking';
+import { bookingService, type BookingView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { fleetService } from '@modules/fleet';
 import { invoicingService } from '@modules/invoicing';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
-import { resolveGuestContact } from '@lib/guest-contact';
+import { resolveGuestContact, type GuestContact } from '@lib/guest-contact';
+import { logger, newTraceId } from '@lib/logger';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
 import { assertCan } from '@lib/rbac';
 import {
+  canAutoIssueRatingCode,
   canIssueRatingCode,
   canSubmitRating,
   isRatingCodeUsable,
   isRatingDeleter,
   ratingCodeExpiryFromTourEnd,
+  tomorrowUtcDayRange,
   type RatableDriver,
   type RatableGuide,
   type OrganizationRatingSummary,
@@ -43,6 +47,65 @@ function requireOrg(ctx: AuthContext): string {
 async function resolveTourEndDate(booking: { departureId: string | null; customTravelEnd: Date | null }): Promise<Date | null> {
   if (!booking.departureId) return booking.customTravelEnd;
   return (await catalogService.getDepartureWindow(booking.departureId))?.endDate ?? null;
+}
+
+/** Shared tail of issueRatingCode (manual) and runAutomaticRatingCodeIssuance
+ * (DR-261, automatic) -- create the row, audit it, send RATING_CODE_ISSUED.
+ * `issuedByUserId`/`actorRole` null/undefined means system-issued (no human
+ * actor to audit against, same "no actor" shape as this file's own
+ * rating.lookup_failed/rating.submitted audit calls). The caller resolves
+ * `contact` itself since that needs a ctx-gated bookingService.listTravelers
+ * call for the manual path but a no-ctx bookingService.resolveGuestContactForBooking
+ * call for the automatic path -- this helper stays ctx-agnostic. */
+async function createAndSendRatingCode(
+  organizationId: string,
+  booking: BookingView,
+  opts: { issuedByUserId: string | null; actorRole?: Role; tourEndDate: Date; contact: GuestContact },
+): Promise<RatingCodeView> {
+  const ratingCode = await ratingsRepository.createRatingCode(organizationId, {
+    bookingId: booking.id,
+    issuedByUserId: opts.issuedByUserId,
+    expiresAt: ratingCodeExpiryFromTourEnd(opts.tourEndDate),
+  });
+
+  await audit({
+    actorUserId: opts.issuedByUserId ?? undefined,
+    actorRole: opts.actorRole,
+    action: 'rating.code_issued',
+    resourceType: 'RatingCode',
+    resourceId: ratingCode.id,
+    organizationId,
+    ...(opts.issuedByUserId ? {} : { metadata: { auto: true } }),
+  });
+
+  // DR-223 (fixes a real bug): the previous version sent via notify()
+  // (resolves the anonymous-checkout User.email, a synthetic placeholder
+  // for a PREDEFINED_PACKAGE booking) plus a "guaranteed copy" that only
+  // checked Booking.contactEmail -- which is null for a PREDEFINED_PACKAGE
+  // booking (only ever set for TAILOR_MADE, DR-047), so that safety net
+  // silently never fired for the common case. No SMS template exists for
+  // this event either (an intentional design choice, not a gap this DR
+  // revisits -- confirmed with the user), so email is the only deliverable
+  // channel; getting the address right is what actually matters.
+  if (opts.contact.email) {
+    await notificationsService.notifyEmail(
+      'RATING_CODE_ISSUED',
+      opts.contact.email,
+      opts.contact.locale,
+      organizationId,
+      { bookingId: booking.bookingReference, ratingCode: ratingCode.code },
+    );
+  } else {
+    // Extremely rare (no traveler manifest and no booking-level contact
+    // email at all) -- fall back to notify()'s User-lookup chain rather
+    // than silently dropping the notification (charter rule 8).
+    await notificationsService.notify('RATING_CODE_ISSUED', booking.touristUserId, organizationId, {
+      bookingId: booking.bookingReference,
+      ratingCode: ratingCode.code,
+    });
+  }
+
+  return ratingCode;
 }
 
 // Same threshold/window as booking's own guest-lookup rate limit
@@ -161,57 +224,63 @@ export const ratingsService = {
       throw Errors.conflict('Cannot issue a Rating Code before this booking has travel dates set');
     }
 
-    const ratingCode = await ratingsRepository.createRatingCode(organizationId, {
-      bookingId,
-      issuedByUserId: ctx.userId,
-      expiresAt: ratingCodeExpiryFromTourEnd(tourEndDate),
-    });
-
-    await audit({
-      actorUserId: ctx.userId,
-      actorRole: ctx.roles[0],
-      action: 'rating.code_issued',
-      resourceType: 'RatingCode',
-      resourceId: ratingCode.id,
-      organizationId,
-    });
-    // DR-223 (fixes a real bug): the previous version sent via notify()
-    // (resolves the anonymous-checkout User.email, a synthetic placeholder
-    // for a PREDEFINED_PACKAGE booking) plus a "guaranteed copy" that only
-    // checked Booking.contactEmail -- which is null for a
-    // PREDEFINED_PACKAGE booking (only ever set for TAILOR_MADE, DR-047),
-    // so that safety net silently never fired for the common case. No SMS
-    // template exists for this event either (an intentional design choice,
-    // not a gap this DR revisits -- confirmed with the user), so email is
-    // the only deliverable channel; getting the address right is what
-    // actually matters. Same DR-194 fallback chain as
-    // invoicing.notifyPaymentSucceeded (DR-215) / visa.contactTraveler
-    // (DR-209) / booking.cancelForBookingLookup (DR-207): the tour lead
-    // Traveler's own email, then Booking.contactEmail, then the tourist's
-    // own User.email only as a last resort.
+    // Same DR-194 fallback chain as invoicing.notifyPaymentSucceeded
+    // (DR-215) / visa.contactTraveler (DR-209) / booking.cancelForBookingLookup
+    // (DR-207): the tour lead Traveler's own email, then Booking.contactEmail,
+    // then the tourist's own User.email only as a last resort.
     const travelers = await bookingService.listTravelers(ctx, bookingId);
     const tourist = await authService.getUser(booking.touristUserId);
-    const { email } = resolveGuestContact({ booking, travelers, tourist });
+    const contact = resolveGuestContact({ booking, travelers, tourist });
 
-    if (email) {
-      await notificationsService.notifyEmail(
-        'RATING_CODE_ISSUED',
-        email,
-        tourist?.preferredLocale ?? 'EN',
-        organizationId,
-        { bookingId: booking.bookingReference, ratingCode: ratingCode.code },
-      );
-    } else {
-      // Extremely rare (no traveler manifest and no booking-level contact
-      // email at all) -- fall back to notify()'s User-lookup chain rather
-      // than silently dropping the notification (charter rule 8).
-      await notificationsService.notify('RATING_CODE_ISSUED', booking.touristUserId, organizationId, {
-        bookingId: booking.bookingReference,
-        ratingCode: ratingCode.code,
-      });
+    return createAndSendRatingCode(organizationId, booking, {
+      issuedByUserId: ctx.userId,
+      actorRole: ctx.roles[0],
+      tourEndDate,
+      contact,
+    });
+  },
+
+  /** DR-261 (explicit user request): fires the night before a tour ends, at
+   * 21:00 in every operating country's fixed UTC+2 offset (19:00 UTC -- see
+   * domain.ts's tomorrowUtcDayRange comment), addressed to the tour lead.
+   * No `ctx` -- there is no user/permission concept for "the platform's own
+   * scheduler," same precedent as bookingService.runScheduledSweep. Call
+   * only from the QStash-signature-verified job route
+   * (src/app/api/jobs/sweep-rating-code-issuance/route.ts). Deliberately
+   * bypasses canIssueRatingCode's invoice-PAID gate (explicit user decision
+   * -- the manual staff path above is unaffected and still requires PAID);
+   * canAutoIssueRatingCode is the real gate here. One booking's failure
+   * must never abort the rest of the sweep (charter rule 8), so each is
+   * wrapped individually. */
+  async runAutomaticRatingCodeIssuance(): Promise<{ organizationsSwept: number; issuedCount: number }> {
+    const { start, end } = tomorrowUtcDayRange(new Date());
+    const organizationIds = await ratingsRepository.listAllOrganizationIds();
+    let issuedCount = 0;
+
+    for (const organizationId of organizationIds) {
+      const dueBookings = await bookingService.listBookingsWithTourEndingOn(organizationId, start, end);
+      for (const booking of dueBookings) {
+        try {
+          const existing = await ratingsRepository.findRatingCodeByBookingId(organizationId, booking.id);
+          if (!canAutoIssueRatingCode({ bookingStatus: booking.status, alreadyIssued: !!existing })) continue;
+
+          const tourEndDate = await resolveTourEndDate(booking);
+          if (!tourEndDate) continue;
+
+          const contact = await bookingService.resolveGuestContactForBooking(organizationId, booking);
+          await createAndSendRatingCode(organizationId, booking, { issuedByUserId: null, tourEndDate, contact });
+          issuedCount++;
+        } catch (err) {
+          logger(newTraceId()).error('automatic rating-code issuance failed for booking', {
+            organizationId,
+            bookingId: booking.id,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
     }
 
-    return ratingCode;
+    return { organizationsSwept: organizationIds.length, issuedCount };
   },
 
   /** Booking-detail page's data source for the "Rating Code" panel -- same

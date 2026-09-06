@@ -50,6 +50,11 @@ const SCHEDULES = [
     path: '/api/jobs/sweep-test-orgs',
     cron: '0 * * * *', // hourly -- DR-235's 1-hour staleness window needs the same tight polling as sweep-fleet-cooldowns
   },
+  {
+    scheduleId: 'polco-sweep-rating-code-issuance',
+    path: '/api/jobs/sweep-rating-code-issuance',
+    cron: '0 19 * * *', // 19:00 UTC = 21:00 in every operating country's fixed UTC+2 offset (no DST) -- see ratings/domain.ts's tomorrowUtcDayRange comment (DR-261)
+  },
 ];
 
 async function main() {

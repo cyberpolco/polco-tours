@@ -2,7 +2,7 @@
 // prisma.ratingCode/review/reviewSubjectRating (and, for the org-wide
 // aggregate, prisma.organization) for this module.
 import type { RatingCode, RatingSubjectType, Review, ReviewSubjectRating } from '@prisma/client';
-import { withOrg } from '@lib/db';
+import { prisma, withOrg } from '@lib/db';
 import { generateRatingCode } from './domain';
 import type { ReviewSubjectRatingView, ReviewView, RatingCodeView } from './domain';
 
@@ -62,7 +62,7 @@ export interface RatingAggregate {
 export const ratingsRepository = {
   async createRatingCode(
     organizationId: string,
-    params: { bookingId: string; issuedByUserId: string; expiresAt: Date },
+    params: { bookingId: string; issuedByUserId: string | null; expiresAt: Date },
   ): Promise<RatingCodeView> {
     return withOrg(organizationId, async (tx) => {
       const rc = await tx.ratingCode.create({
@@ -193,5 +193,13 @@ export const ratingsRepository = {
       });
       return { averageRating: org.averageRating ?? 0, ratingCount: org.ratingCount };
     });
+  },
+
+  /** DR-261: cross-org enumeration for the automatic Rating Code issuance
+   * sweep -- same "organizations has no RLS, plain findMany is fine"
+   * precedent as bookingRepository.sweepAllOrganizations. */
+  async listAllOrganizationIds(): Promise<string[]> {
+    const orgs = await prisma.organization.findMany({ select: { id: true } });
+    return orgs.map((o) => o.id);
   },
 };

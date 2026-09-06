@@ -523,6 +523,30 @@ export const bookingRepository = {
     });
   },
 
+  /** DR-261: backs ratingsService's automatic Rating Code issuance sweep
+   * (24h-before-tour-end trigger, called per-org in a cross-org loop, same
+   * trust boundary as sweepAllOrganizations above). A PREDEFINED_PACKAGE
+   * booking matches via its Departure's endDate; a not-yet-converted
+   * TAILOR_MADE booking via its own customTravelEnd. Range match, not
+   * exact-equality, since neither date is guaranteed normalized to UTC
+   * midnight (see ratings/domain.ts's tomorrowUtcDayRange comment).
+   * Excludes CANCELLED/REFUNDED -- a cancelled tour isn't happening. */
+  async listBookingsWithTourEndingOn(organizationId: string, dayStart: Date, dayEnd: Date): Promise<BookingView[]> {
+    return withOrg(organizationId, async (tx) => {
+      const rows = await tx.booking.findMany({
+        where: {
+          deletedAt: null,
+          status: { notIn: ['CANCELLED', 'REFUNDED'] },
+          OR: [
+            { departureId: null, customTravelEnd: { gte: dayStart, lt: dayEnd } },
+            { departure: { endDate: { gte: dayStart, lt: dayEnd } } },
+          ],
+        },
+      });
+      return rows.map(toBookingView);
+    });
+  },
+
   async updateStatus(organizationId: string, id: string, to: BookingStatus): Promise<BookingView | null> {
     return withOrg(organizationId, async (tx) => {
       await sweepLifecycle(tx);

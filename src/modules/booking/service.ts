@@ -1560,6 +1560,13 @@ export const bookingService = {
     return bookingRepository.findByBookingReference(organizationId, bookingReference);
   },
 
+  /** No-ctx (DR-261): platform-scheduler-only, same trust boundary as
+   * runScheduledSweep -- backs ratingsService's automatic Rating Code
+   * issuance sweep (24h-before-tour-end trigger). */
+  async listBookingsWithTourEndingOn(organizationId: string, dayStart: Date, dayEnd: Date): Promise<BookingView[]> {
+    return bookingRepository.listBookingsWithTourEndingOn(organizationId, dayStart, dayEnd);
+  },
+
   /** Guest "find my booking" add-ons list (no-ctx) -- mirrors
    * getBookingForRating's "*ForBookingLookup" convention above. No name
    * resolution here (BookingAddonView has no human-readable name); the
