@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,15 @@ interface Props {
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Reuses the exact eyebrow/subhead this page already renders -- see
+// plan-my-trip/page.tsx's generateMetadata comment for why.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('RatePage');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('rate', locale);
+  return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('subhead') };
 }
 
 // Customer Ratings & Feedback (DR-037) -- same plain-GET-form, no-session

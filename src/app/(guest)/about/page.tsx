@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { cookies } from 'next/headers';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { cmsService, type CmsAboutEntryView, type CmsLocale, type CmsTextBlockView } from '@modules/cms';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import {
@@ -36,6 +37,20 @@ async function resolveLocale(): Promise<CmsLocale> {
 // renders the placeholder monogram instead. Note OI-15 -- that upload
 // works on Production/Preview but not local `npm run dev`.
 const MD_PHOTO_PAGE = 'about-md';
+
+// This page already has its own dedicated opengraph-image.tsx (the "at a
+// glance" stats plate) but was still falling back to the (guest)/layout.tsx
+// generic title/description -- reuses the hero section's own text (cms
+// override, i18n default, key="about") the same way, description truncated
+// to that section's opening paragraph.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('about', locale);
+  const fallback = ABOUT_TEXT_DEFAULTS[locale].about;
+  const title = cms?.title ?? fallback.title;
+  const body = cms?.body ?? fallback.body;
+  return { title, description: body.split('\n\n')[0] };
+}
 
 function resolveText(
   blocks: Map<string, CmsTextBlockView>,

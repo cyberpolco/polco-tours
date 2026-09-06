@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
@@ -22,6 +23,17 @@ import { PackageCard } from './package-card';
 // without this, Next tries to prerender "/" at build time and fails wherever
 // DATABASE_URL isn't available at build (this sandbox, and possibly CI).
 export const dynamic = 'force-dynamic';
+
+// Title stays the (guest)/layout.tsx default (the brand name is already the
+// right title for "/") -- only the description is overridden here, since
+// the layout's own default ("Tourism OS Powered by Cyber PolCo.") is shared
+// by every other page that hasn't set its own. Composed from copy already
+// on this page (HomePage.heroSlide1Lede) plus the operating-country list,
+// not fabricated.
+export const metadata: Metadata = {
+  description:
+    'Book real trips across Namibia, the DRC, Zambia, Zimbabwe and Botswana — no guest account needed, one of our staff plans it with you.',
+};
 
 // Replaces the Phase-0 placeholder that used to live at src/app/page.tsx --
 // this route group (DR-016) is the real product surface it deferred to.

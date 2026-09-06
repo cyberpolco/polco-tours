@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
@@ -8,6 +9,12 @@ import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { formatOrPending } from '@lib/money';
 import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
 import BookingForm from './booking-form';
+
+// Real per-guest data, not a link-share target -- kept out of search
+// indexing (defense-in-depth on data already gated by requireGuestContext/
+// lookup credentials, not a security fix by itself). No dynamic title/
+// description/OG image work spent on this page for the same reason.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // DR-198: best-effort -- an unconfigured rate (e.g. before seed.ts has run)
 // just means no live warning is shown, never a crashed booking-start page.

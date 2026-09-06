@@ -140,7 +140,7 @@
   "Contact": {
     "eyebrow": "Contact",
     "title": "Contactez-nous",
-    "intro": "Nos deux bureaux sont indiqués ci-dessous — les coordonnées complètes arrivent bientôt, merci de votre patience.",
+    "intro": "Nos deux bureaux sont indiqués ci-dessous, ou envoyez-nous un message directement via le formulaire.",
     "quickLinksEyebrow": "Besoin d'une réponse plus rapide ?",
     "quickLinkCta": "Y accéder",
     "quickFindBookingTitle": "Vérifier une réservation existante",
@@ -220,7 +220,7 @@
   "Gallery": {
     "eyebrow": "Galerie",
     "title": "Vos prochaines destinations",
-    "subhead": "De vraies photos de nos destinations arrivent bientôt — en attendant, ce sont des illustrations, pas des clichés. Cliquez sur une image pour l'agrandir, ou sur le nom d'une destination pour commencer à planifier votre voyage.",
+    "subhead": "Chaque destination est présentée ici sous forme d'illustration — cliquez sur une image pour l'agrandir, ou sur le nom d'une destination pour commencer à planifier votre voyage.",
     "close": "Fermer",
     "share": "Partager",
     "linkCopied": "Lien copié !",

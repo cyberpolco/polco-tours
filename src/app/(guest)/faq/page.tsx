@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import Image from 'next/image';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { Reveal } from '@/components/ui/Reveal';
@@ -12,6 +13,18 @@ import { FaqList } from './faq-list';
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// FaqPage's own eyebrow/title aren't cms-overridable (only the entries
+// themselves are, via CmsFaqEntry) -- title reuses the page's own i18n
+// heading verbatim. Description borrows Contact's quickFaqBody -- already
+// on this site describing this exact page ("Common questions about
+// bookings, payments, and travel"), rather than writing a second, separate
+// line that could drift from it.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('FaqPage');
+  const tContact = await getTranslations('Contact');
+  return { title: t('title'), description: tContact('quickFaqBody') };
 }
 
 export default async function FaqPage() {

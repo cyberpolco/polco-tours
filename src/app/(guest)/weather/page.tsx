@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
@@ -25,6 +26,17 @@ const COUNTRY_ORDER = OPERATING_COUNTRY_CODES;
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Reuses the exact eyebrow/subhead this page already renders -- see
+// plan-my-trip/page.tsx's generateMetadata comment for why. A real town
+// (/weather/[town]) gets its own dynamic title/description instead of
+// inheriting this one -- see that segment's own generateMetadata.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('WeatherPage');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('weather', locale);
+  return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('subhead') };
 }
 
 // Fully public, no requireGuestContext -- same shape as about/faq/gallery

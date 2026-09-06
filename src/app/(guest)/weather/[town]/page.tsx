@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { weatherService } from '@modules/weather';
@@ -19,6 +20,25 @@ import {
 
 interface Props {
   params: Promise<{ town: string }>;
+}
+
+// Dynamic per town, same convention as packages/[packageId]'s/
+// gallery/[identifier]'s generateMetadata -- title names the actual town,
+// description mentions the country too since a bare town name alone (e.g.
+// "Windhoek") isn't self-explanatory out of context the way a package/site
+// name is. No live current-conditions figures in either -- those can be
+// null/stale by the time a cached social preview is actually shown, unlike
+// the page itself, which is always rendered fresh.
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { town: slug } = await params;
+  const town = await weatherService.getPublicTownWeather(slug);
+  if (!town) return {};
+  const tCountries = await getTranslations('Countries');
+  const country = tCountries(town.country);
+  return {
+    title: `Weather in ${town.name}`,
+    description: `Current conditions, 7-day forecast, and seasonal travel notes for ${town.name}, ${country}.`,
+  };
 }
 
 // Fully public, no requireGuestContext (DR-113) -- notFound() for an

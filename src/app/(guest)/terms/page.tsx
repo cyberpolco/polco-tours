@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { Reveal } from '@/components/ui/Reveal';
@@ -15,6 +16,19 @@ type TabKey = (typeof TABS)[number];
 
 interface Props {
   searchParams: Promise<{ tab?: string }>;
+}
+
+// Same title regardless of ?tab= -- a shared link to /terms shouldn't read
+// differently per tab. Description is the Terms of Service section's own
+// opening sentence (cms override, i18n default, same as the page body
+// itself) -- the one paragraph on this page that actually introduces the
+// company, rather than new copy written just for this.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Terms');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('terms.tos', locale);
+  const body = cms?.body ?? t('sections.tos.body');
+  return { title: t('title'), description: body.split('\n\n')[0] };
 }
 
 // DR-207: real content, in 4 sections tabbed via a plain ?tab= query param

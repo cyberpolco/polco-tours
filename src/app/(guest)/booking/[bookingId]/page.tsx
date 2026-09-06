@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
@@ -20,6 +21,12 @@ import { getBookingWizardSteps } from '../../booking-wizard-steps';
 import { acceptQuotationAction, applyCouponAction, initiatePaymentAction, removeCouponAction } from './actions';
 import { CancelBookingButton } from './cancel-booking-button';
 import { CancelRequestButton } from './cancel-request-button';
+
+// Real per-guest data, not a link-share target -- kept out of search
+// indexing (defense-in-depth on data already gated by requireGuestContext/
+// lookup credentials, not a security fix by itself). No dynamic title/
+// description/OG image work spent on this page for the same reason.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // Anything but the terminal/in-flight statuses (IN_PROGRESS/COMPLETED/
 // CANCELLED/REFUNDED, plus unreachable DRAFT) can still be cancelled by the

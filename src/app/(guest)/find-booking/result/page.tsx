@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { assignmentService } from '@modules/assignment';
@@ -28,6 +29,12 @@ import {
   VISA_FEE_PAYMENT_STATUS_TONE,
   VISA_STATUS_TONE,
 } from '@lib/status-tones';
+
+// Real per-guest data, not a link-share target -- kept out of search
+// indexing (defense-in-depth on data already gated by requireGuestContext/
+// lookup credentials, not a security fix by itself). No dynamic title/
+// description/OG image work spent on this page for the same reason.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const OPERATING_COUNTRY_CODE_SET = new Set<string>(OPERATING_COUNTRY_CODES);
 

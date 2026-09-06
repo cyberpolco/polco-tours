@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale, type CmsMediaItemView } from '@modules/cms';
 import type { OperatingCountryCode } from '@lib/country-codes';
@@ -19,6 +20,17 @@ export interface GallerySite extends CmsMediaItemView {
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Reuses the exact eyebrow/subhead this page already renders -- see
+// plan-my-trip/page.tsx's generateMetadata comment for why. A real gallery
+// site (/gallery/[identifier]) already has its own dynamic metadata,
+// unaffected by this.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Gallery');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('gallery', locale);
+  return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('subhead') };
 }
 
 // No destination/hotel/package photography was licensed at all originally

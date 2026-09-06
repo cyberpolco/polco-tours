@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
@@ -13,6 +14,12 @@ import { SubmitButton } from '@/components/ui/SubmitButton';
 import { formatOrPending } from '@lib/money';
 import { VISA_FEE_PAYMENT_STATUS_TONE, VISA_STATUS_TONE } from '@lib/status-tones';
 import { resubmitVisaAction } from './actions';
+
+// Real per-guest data, not a link-share target -- kept out of search
+// indexing (defense-in-depth on data already gated by requireGuestContext/
+// lookup credentials, not a security fix by itself). No dynamic title/
+// description/OG image work spent on this page for the same reason.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 interface Props {
   params: Promise<{ bookingId: string }>;

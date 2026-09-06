@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Image from 'next/image';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
@@ -29,6 +30,18 @@ interface Props {
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Reuses the exact eyebrow/subhead this page already renders (cms override,
+// i18n default) rather than separate SEO copy -- a staff edit to the page's
+// own text keeps the <title>/description in step automatically, same
+// "single source of truth" convention packages/[packageId]'s and
+// gallery/[identifier]'s generateMetadata already use for a dynamic field.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('PlanMyTripPage');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('plan-my-trip', locale);
+  return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('subhead') };
 }
 
 // Mirrors plan-my-trip-form.tsx's own local DESTINATIONS codes -- kept in

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +13,15 @@ import { ContactForm } from './ContactForm';
 async function resolveLocale(): Promise<CmsLocale> {
   const store = await cookies();
   return store.get('locale')?.value === 'fr' ? 'fr' : 'en';
+}
+
+// Reuses the exact eyebrow/intro this page already renders -- see
+// plan-my-trip/page.tsx's generateMetadata comment for why.
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('Contact');
+  const locale = await resolveLocale();
+  const cms = await cmsService.getPublicTextBlock('contact', locale);
+  return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('intro') };
 }
 
 // Two offices, real staff-entered address/email/phone (OI-02/03 resolved
