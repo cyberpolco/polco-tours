@@ -552,6 +552,30 @@ export const invoicingService = {
     return invoice?.status ?? null;
   },
 
+  /** DR-259 (explicit user request): lets `src/lib/booking-confirmed-notice
+   * .ts` -- a cross-module orchestrator one level up (booking must never
+   * depend on invoicing, would be circular, see CLAUDE.md's "Module
+   * dependency direction matters") -- attach the same invoice/receipt PDF
+   * PAYMENT_SUCCEEDED's email already gets (DR-250) to the BOOKING_CONFIRMED
+   * notice too. Thin public wrapper around the existing private
+   * buildInvoicePdfAttachment: no-ctx (same trust boundary as
+   * getInvoiceStatusForBooking above), degrades to `[]` when no invoice
+   * exists yet or it isn't in a downloadable status, and never throws (a
+   * PDF-rendering failure must not cost the booking-confirmed notice
+   * itself, same charter-rule-8 posture buildInvoicePdfAttachment already
+   * has for PAYMENT_SUCCEEDED). */
+  async getInvoicePdfAttachmentForBooking(
+    organizationId: string,
+    bookingId: string,
+    bookingReference: string,
+    travelers: TravelerView[],
+    locale: Locale,
+  ): Promise<EmailAttachment[]> {
+    const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
+    if (!invoice) return [];
+    return buildInvoicePdfAttachment(organizationId, bookingReference, travelers, invoice, locale);
+  },
+
   /** Guest "find my booking" price/payment summary (no-ctx) -- same trust
    * boundary as getInvoiceStatusForBooking above. totalMinor/depositMinor/
    * balanceMinor already include the platform fee (DR-127); this just omits

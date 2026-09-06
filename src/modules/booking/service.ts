@@ -633,9 +633,12 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
-    await notifyGuest('BOOKING_CONFIRMED', organizationId, updated, {
-      bookingId: updated.bookingReference,
-    });
+    // DR-259: the BOOKING_CONFIRMED notice itself moved to
+    // src/lib/booking-confirmed-notice.ts, called from the route/Server
+    // Action layer right after this returns -- it needs invoicing's invoice
+    // PDF (booking must never depend on invoicing, would be circular) and
+    // always sends over BOTH email and WhatsApp, not the plain
+    // notifyGuest() this used to call here. See that file's own comment.
     return updated;
   },
 

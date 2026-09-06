@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveChannelOrder, renderMessage, renderSmsMessage, type NotificationEvent } from '../src/modules/notifications/domain';
+import { resolveChannelOrder, renderMessage, renderSmsMessage, withWhatsAppDisclaimer, type NotificationEvent } from '../src/modules/notifications/domain';
 
 // Every event with a plain-text (WhatsApp/SMS) template -- kept in sync
 // manually with domain.ts's SMS_TEMPLATES map; the "no SMS template" test
@@ -225,6 +225,61 @@ describe('notifications domain', () => {
     it('never renders a plain-text body for the email-only staff password events', () => {
       expect(renderSmsMessage('STAFF_PASSWORD_ISSUED', 'EN', DATA)).toBeNull();
       expect(renderSmsMessage('STAFF_PASSWORD_RESET', 'EN', DATA)).toBeNull();
+    });
+
+    // DR-259 (explicit user request): BOOKING_CONFIRMED's WhatsApp/SMS body
+    // now carries the same trip/dates/travelers detail PAYMENT_SUCCEEDED's
+    // email already shows.
+    describe('BOOKING_CONFIRMED detail block (DR-259)', () => {
+      const bookingData = {
+        bookingId: 'bk_42',
+        seats: 4,
+        tripTitle: 'The Nomad Loop',
+        tripCountry: 'Namibia',
+        travelStart: new Date('2027-03-10T00:00:00Z'),
+        travelEnd: new Date('2027-03-20T00:00:00Z'),
+      };
+
+      it('includes trip, dates, and traveler count when present (EN)', () => {
+        const body = renderSmsMessage('BOOKING_CONFIRMED', 'EN', bookingData);
+        expect(body).toContain('bk_42');
+        expect(body).toContain('The Nomad Loop (Namibia)');
+        expect(body).toContain('Travelers: 4');
+      });
+
+      it('includes trip, dates, and traveler count when present (FR)', () => {
+        const body = renderSmsMessage('BOOKING_CONFIRMED', 'FR', bookingData);
+        expect(body).toContain('bk_42');
+        expect(body).toContain('The Nomad Loop (Namibia)');
+        expect(body).toContain('Voyageurs : 4');
+      });
+
+      it('omits detail lines it has no data for, without throwing', () => {
+        const body = renderSmsMessage('BOOKING_CONFIRMED', 'EN', { bookingId: 'bk_1' });
+        expect(body).toContain('bk_1');
+        expect(body).not.toContain('Trip:');
+        expect(body).not.toContain('Travelers:');
+      });
+
+      it('falls back to a generic "custom trip" line for a TAILOR_MADE booking with no package title', () => {
+        const body = renderSmsMessage('BOOKING_CONFIRMED', 'EN', { bookingId: 'bk_2', tripCountry: 'Zambia' });
+        expect(body).toContain('Custom trip to Zambia');
+      });
+    });
+  });
+
+  describe('withWhatsAppDisclaimer (DR-259)', () => {
+    it('appends the Cyber PolCo / Mufasa Safaris & Tours disclaimer with the real contact number, in the given locale', () => {
+      const en = withWhatsAppDisclaimer('Original message', 'EN');
+      const fr = withWhatsAppDisclaimer('Original message', 'FR');
+
+      expect(en.startsWith('Original message')).toBe(true);
+      expect(en).toContain('Cyber PolCo');
+      expect(en).toContain('Mufasa Safaris & Tours');
+      expect(en).toContain('+264 81 27 23 921');
+      expect(en).not.toBe(fr);
+      expect(fr).toContain('Cyber PolCo');
+      expect(fr).toContain('+264 81 27 23 921');
     });
   });
 });

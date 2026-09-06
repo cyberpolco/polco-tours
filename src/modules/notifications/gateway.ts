@@ -1,12 +1,19 @@
 // notifications module — real (not permanently-stubbed) HTTP adapters for
-// Resend/WhatsApp Cloud API/Africa's Talking, wrapped per charter rule 8
+// Resend/Baileys (WhatsApp)/Africa's Talking, wrapped per charter rule 8
 // (timeouts, retries, circuit breaker, graceful degradation). Resend +
 // Africa's Talking credentials wired 2026-07-15, resolving OI-05/07 locally
-// (not yet in Vercel/Production); WhatsApp/OI-06 stays unconfigured on
-// purpose. Each adapter throws ChannelUnavailableError before any network
-// attempt when its env var(s) are absent, which is how the
+// (not yet in Vercel/Production). Each adapter throws ChannelUnavailableError
+// before any network attempt when its env var(s) are absent, which is how the
 // WhatsApp -> SMS -> email fallback chain degrades gracefully. Mirrors
 // invoicing/gateway.ts's interface-plus-singleton-export shape.
+//
+// DR-258: WhatsApp is Baileys (an unofficial WhatsApp Web client), not the
+// Meta WhatsApp Business Cloud API OI-06 originally planned for. Baileys
+// needs a persistent WebSocket held open against a real paired WhatsApp
+// account -- incompatible with a Vercel serverless function -- so it runs as
+// its own always-on process (see whatsapp-bridge/ at the repo root) and this
+// gateway is a plain HTTP client to that bridge's `/send` endpoint, not a
+// direct Baileys import. Never import the `baileys` package from this app.
 import type { EmailAttachment, NotificationChannel } from './domain';
 
 export interface SendRequest {
@@ -112,31 +119,48 @@ export class ResendEmailGateway extends BreakerGateway implements NotificationCh
   }
 }
 
-export class WhatsAppCloudGateway extends BreakerGateway implements NotificationChannelGateway {
+export class BaileysWhatsAppGateway extends BreakerGateway implements NotificationChannelGateway {
   async send(req: SendRequest): Promise<SendResult> {
     if (this.isBreakerOpen()) throw new ChannelUnavailableError('WHATSAPP circuit open');
-    const token = process.env.WHATSAPP_CLOUD_API_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    if (!token || !phoneNumberId) throw new ChannelUnavailableError('WhatsApp Cloud API not configured');
+    const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL;
+    const secret = process.env.WHATSAPP_BRIDGE_SECRET;
+    if (!bridgeUrl || !secret) throw new ChannelUnavailableError('WhatsApp bridge not configured');
+
+    // DR-259: only the FIRST attachment is ever sent -- the one real use
+    // case (the invoice/receipt PDF) is always exactly one file; the bridge
+    // sends it as a WhatsApp document message with `req.body` as its
+    // caption, in place of a plain text message.
+    const attachment = req.attachments?.[0];
 
     try {
       const json = await withRetry(async () => {
-        const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+        const res = await fetch(`${bridgeUrl.replace(/\/$/, '')}/send`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messaging_product: 'whatsapp',
             to: req.to,
-            type: 'text',
-            text: { body: req.body },
+            message: req.body,
+            ...(attachment
+              ? {
+                  document: {
+                    filename: attachment.filename,
+                    // Every attachment this app produces is a PDF (invoice/
+                    // receipt, itinerary, package summary) -- no caller has
+                    // ever needed another file type, so this stays hardcoded
+                    // rather than threaded through as its own field.
+                    mimeType: 'application/pdf',
+                    contentBase64: attachment.content.toString('base64'),
+                  },
+                }
+              : {}),
           }),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(10_000),
         });
-        if (!res.ok) throw new Error(`WhatsApp Cloud API responded ${res.status}`);
-        return (await res.json()) as { messages: { id: string }[] };
+        if (!res.ok) throw new Error(`WhatsApp bridge responded ${res.status}`);
+        return (await res.json()) as { id: string };
       });
       this.recordSuccess();
-      return { providerRef: json.messages[0]?.id ?? 'unknown' };
+      return { providerRef: json.id };
     } catch (err) {
       this.recordFailure();
       throw err;
@@ -176,7 +200,7 @@ export class AfricasTalkingSmsGateway extends BreakerGateway implements Notifica
 }
 
 export const gateways: Record<NotificationChannel, NotificationChannelGateway> = {
-  WHATSAPP: new WhatsAppCloudGateway(),
+  WHATSAPP: new BaileysWhatsAppGateway(),
   SMS: new AfricasTalkingSmsGateway(),
   EMAIL: new ResendEmailGateway(),
 };

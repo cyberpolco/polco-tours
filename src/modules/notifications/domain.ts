@@ -61,10 +61,14 @@ export interface RenderedMessage {
   body: string;
 }
 
-// DR-250: an email-only concept (a WhatsApp/SMS body has no attachment
-// mechanism) -- notifyEmail's attachments param is optional and simply
-// never set by any WhatsApp/SMS-only caller, so WhatsAppCloudGateway/
-// AfricasTalkingSmsGateway's own send() never needs to look at it.
+// DR-250: originally an email-only concept (a WhatsApp/SMS body had no
+// attachment mechanism) -- AfricasTalkingSmsGateway's own send() still
+// never looks at this. DR-259 extends it to WHATSAPP too:
+// BaileysWhatsAppGateway.send() sends the first attachment as a WhatsApp
+// document message (caption = the text body) when one is present, which is
+// why the name stays generic rather than "EmailAttachment" being renamed --
+// it's really "the one PDF a notification carries," not email-specific
+// anymore.
 export interface EmailAttachment {
   filename: string;
   content: Buffer;
@@ -1287,10 +1291,37 @@ type SmsTemplate = (data: NotificationData) => string;
 // raw HTML (the bug this map's expansion fixes, DR-205). Not part of
 // DR-217's CMS-editable scope (explicit user request was about email
 // templates only) -- these stay coded.
+// DR-259 (explicit user request): BOOKING_CONFIRMED's WhatsApp/SMS body
+// carries the same trip/dates/travelers detail PAYMENT_SUCCEEDED's HTML
+// email already shows via summaryTable -- this is plain text, so a simple
+// line-per-fact block instead of an HTML table. Kept local to this one
+// template rather than factored into a shared helper: PAYMENT_SUCCEEDED's
+// own SMS entry deliberately stays a one-line receipt (out of scope here,
+// not touched), so there's no second caller yet to justify one.
+function bookingConfirmedDetailLines(d: NotificationData, intlLocale: 'en-US' | 'fr-FR'): string[] {
+  const trip = d.tripTitle
+    ? `${d.tripTitle}${d.tripCountry ? ` (${d.tripCountry})` : ''}`
+    : d.tripCountry
+      ? intlLocale === 'fr-FR'
+        ? `Voyage sur mesure en ${d.tripCountry}`
+        : `Custom trip to ${d.tripCountry}`
+      : null;
+  const dates = formatDateRange(d.travelStart, d.travelEnd, intlLocale);
+  const lines: string[] = [];
+  if (trip) lines.push(intlLocale === 'fr-FR' ? `Voyage : ${trip}` : `Trip: ${trip}`);
+  if (dates) lines.push(intlLocale === 'fr-FR' ? `Dates : ${dates}` : `Dates: ${dates}`);
+  if (d.seats) lines.push(intlLocale === 'fr-FR' ? `Voyageurs : ${d.seats}` : `Travelers: ${d.seats}`);
+  return lines;
+}
+
 const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplate>>> = {
   BOOKING_CONFIRMED: {
-    EN: (d) => `MUFASA SAFARIS & TOURS: Booking ${d.bookingId} confirmed. See you soon!`,
-    FR: (d) => `MUFASA SAFARIS & TOURS : réservation ${d.bookingId} confirmée. À bientôt !`,
+    EN: (d) =>
+      [`MUFASA SAFARIS & TOURS: Your booking is confirmed!`, `Reference: ${d.bookingId}`, ...bookingConfirmedDetailLines(d, 'en-US'), `See you soon!`].join('\n'),
+    FR: (d) =>
+      [`MUFASA SAFARIS & TOURS : votre réservation est confirmée !`, `Référence : ${d.bookingId}`, ...bookingConfirmedDetailLines(d, 'fr-FR'), `À bientôt !`].join(
+        '\n',
+      ),
   },
   BOOKING_CANCELLED: {
     EN: (d) => `MUFASA SAFARIS & TOURS: Booking ${d.bookingId} has been cancelled.`,
@@ -1402,4 +1433,23 @@ const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplat
 
 export function renderSmsMessage(event: NotificationEvent, locale: Locale, data: NotificationData): string | null {
   return SMS_TEMPLATES[event]?.[locale]?.(data) ?? null;
+}
+
+// DR-259 (explicit user request): every WhatsApp send -- regardless of
+// event -- must disclose that Cyber PolCo operates the number on Mufasa
+// Safaris & Tours' behalf, tell the recipient not to reply to it, and give
+// a real contact number instead. Deliberately NOT part of SMS_TEMPLATES
+// (SMS has no equivalent requirement) and NOT staff-editable via cms's
+// email.* override mechanism (DR-217's scope was email copy only) -- this
+// is a fixed compliance line, appended by every WHATSAPP-channel call site
+// in service.ts after resolving the event's own template body, never
+// baked into a per-event template itself so it can't be missed by a future
+// event that forgets to include it.
+const WHATSAPP_DISCLAIMER: Record<Locale, string> = {
+  EN: 'This automated message is managed by Cyber PolCo on behalf of Mufasa Safaris & Tours. Please do not reply to this number -- for assistance, contact us directly at +264 81 27 23 921.',
+  FR: 'Ce message automatique est géré par Cyber PolCo pour le compte de Mufasa Safaris & Tours. Merci de ne pas répondre à ce numéro -- pour toute assistance, contactez-nous directement au +264 81 27 23 921.',
+};
+
+export function withWhatsAppDisclaimer(body: string, locale: Locale): string {
+  return `${body}\n\n${WHATSAPP_DISCLAIMER[locale]}`;
 }

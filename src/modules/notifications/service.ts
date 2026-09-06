@@ -10,6 +10,7 @@ import {
   renderMessage,
   renderSmsMessage,
   resolveChannelOrder,
+  withWhatsAppDisclaimer,
   type EmailAttachment,
   type EmailTemplateOverrides,
   type NotificationChannel,
@@ -86,7 +87,11 @@ export const notificationsService = {
     // `order`), not an error.
     function bodyFor(channel: NotificationChannel): string | null {
       if (channel === 'EMAIL') return message.body;
-      return renderSmsMessage(event, locale, data);
+      const body = renderSmsMessage(event, locale, data);
+      if (body === null) return null;
+      // DR-259: every WHATSAPP send carries the fixed Cyber PolCo /
+      // Mufasa Safaris & Tours disclaimer -- SMS does not.
+      return channel === 'WHATSAPP' ? withWhatsAppDisclaimer(body, locale) : body;
     }
 
     for (const channel of order) {
@@ -197,8 +202,10 @@ export const notificationsService = {
 
     const log = logger(newTraceId());
     for (const channel of ['WHATSAPP', 'SMS'] as const) {
+      // DR-259: the WHATSAPP leg (only) carries the fixed disclaimer.
+      const body = channel === 'WHATSAPP' ? withWhatsAppDisclaimer(smsBody, locale) : smsBody;
       try {
-        const { providerRef } = await gateways[channel].send({ to: recipient.phone, body: smsBody });
+        const { providerRef } = await gateways[channel].send({ to: recipient.phone, body });
         await audit({
           action: 'notification.sent',
           resourceType: 'Notification',
@@ -265,6 +272,65 @@ export const notificationsService = {
         metadata: { event, attemptedChannels: ['SMS'] },
       });
       log.error('notification failed', { event, channel: 'SMS', message: err instanceof Error ? err.message : String(err) });
+    }
+  },
+
+  /**
+   * DR-259 (explicit user request): send the SAME full notification over
+   * BOTH EMAIL and WHATSAPP independently -- unlike notify()'s single
+   * fallback chain (stop at first success) and unlike
+   * notifyEmailWithHeadsUp's short WhatsApp/SMS nudge alongside the real
+   * email content, this is for an event whose WhatsApp copy IS the real
+   * content in its own right (full trip details, the invoice/receipt PDF
+   * attached as a WhatsApp document when a phone number resolves). Neither
+   * channel blocks or substitutes for the other, and a WhatsApp failure has
+   * no SMS fallback here -- SMS has no attachment support and this event's
+   * whole point is the detail + PDF, not a shorter substitute for it; email
+   * remains the guaranteed channel (charter rule 8). Takes an explicit
+   * {email, phone} recipient, not a userId, same "caller already resolved
+   * the real contact" precedent as notifyEmail/notifyEmailWithHeadsUp.
+   */
+  async notifyEmailAndWhatsApp(
+    event: NotificationEvent,
+    recipient: { email: string | null; phone: string | null },
+    locale: Locale,
+    organizationId: string,
+    data: NotificationData,
+    attachments?: EmailAttachment[],
+  ): Promise<void> {
+    if (recipient.email) {
+      await notificationsService.notifyEmail(event, recipient.email, locale, organizationId, data, attachments);
+    }
+
+    if (!recipient.phone) return;
+    const body = renderSmsMessage(event, locale, data);
+    if (body === null) return;
+
+    const log = logger(newTraceId());
+    try {
+      const { providerRef } = await gateways.WHATSAPP.send({
+        to: recipient.phone,
+        body: withWhatsAppDisclaimer(body, locale),
+        attachments,
+      });
+      await audit({
+        action: 'notification.sent',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, channel: 'WHATSAPP', providerRef },
+      });
+      log.info('notification sent', { event, channel: 'WHATSAPP' });
+    } catch (err) {
+      await audit({
+        action: 'notification.failed',
+        resourceType: 'Notification',
+        organizationId,
+        metadata: { event, attemptedChannels: ['WHATSAPP'] },
+      });
+      log.warn('WhatsApp notification failed (no fallback for this send shape -- email above is the guaranteed channel)', {
+        event,
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   },
 };

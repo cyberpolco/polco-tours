@@ -143,3 +143,87 @@ describe('notificationsService.notifyEmailWithHeadsUp', () => {
     expect(smsSend).toHaveBeenCalledTimes(1);
   });
 });
+
+// DR-259: notifyEmailAndWhatsApp sends the SAME full content over both
+// EMAIL and WHATSAPP independently -- unlike notifyEmailWithHeadsUp's short
+// nudge, and with no SMS fallback if WhatsApp fails (email is the
+// guaranteed channel for this send shape).
+describe('notificationsService.notifyEmailAndWhatsApp (DR-259)', () => {
+  beforeEach(() => {
+    getUser.mockReset();
+    auditMock.mockReset();
+    whatsappSend.mockReset();
+    smsSend.mockReset();
+    emailSend.mockReset();
+  });
+
+  it('sends both a full email and a full WhatsApp message (with the disclaimer, and any attachment) when both resolve', async () => {
+    emailSend.mockResolvedValue({ providerRef: 'email_1' });
+    whatsappSend.mockResolvedValue({ providerRef: 'wamid_1' });
+    const attachments = [{ filename: 'invoice.pdf', content: Buffer.from('%PDF-1.7') }];
+
+    await notificationsService.notifyEmailAndWhatsApp(
+      'BOOKING_CONFIRMED',
+      { email: 'lead@example.test', phone: '+15551234567' },
+      'EN',
+      'org1',
+      { bookingId: 'bk_42' },
+      attachments,
+    );
+
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(emailSend.mock.calls[0]?.[0]?.to).toBe('lead@example.test');
+    expect(emailSend.mock.calls[0]?.[0]?.attachments).toBe(attachments);
+
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(whatsappSend.mock.calls[0]?.[0]?.to).toBe('+15551234567');
+    expect(whatsappSend.mock.calls[0]?.[0]?.attachments).toBe(attachments);
+    const whatsappBody = whatsappSend.mock.calls[0]?.[0]?.body as string;
+    expect(whatsappBody).toContain('bk_42');
+    expect(whatsappBody).toContain('Cyber PolCo');
+    expect(smsSend).not.toHaveBeenCalled();
+  });
+
+  it('still attempts WhatsApp even though the email succeeded (not a fallback chain)', async () => {
+    emailSend.mockResolvedValue({ providerRef: 'email_1' });
+    whatsappSend.mockResolvedValue({ providerRef: 'wamid_1' });
+
+    await notificationsService.notifyEmailAndWhatsApp('BOOKING_CONFIRMED', { email: 'lead@example.test', phone: '+15551234567' }, 'EN', 'org1', {
+      bookingId: 'bk_42',
+    });
+
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fall back to SMS when WhatsApp fails -- email is the guaranteed channel for this shape', async () => {
+    emailSend.mockResolvedValue({ providerRef: 'email_1' });
+    whatsappSend.mockRejectedValue(new Error('whatsapp unconfigured'));
+
+    await notificationsService.notifyEmailAndWhatsApp('BOOKING_CONFIRMED', { email: 'lead@example.test', phone: '+15551234567' }, 'EN', 'org1', {
+      bookingId: 'bk_42',
+    });
+
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(smsSend).not.toHaveBeenCalled();
+  });
+
+  it('sends only the email when there is no phone on file', async () => {
+    emailSend.mockResolvedValue({ providerRef: 'email_1' });
+
+    await notificationsService.notifyEmailAndWhatsApp('BOOKING_CONFIRMED', { email: 'lead@example.test', phone: null }, 'EN', 'org1', { bookingId: 'bk_42' });
+
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(whatsappSend).not.toHaveBeenCalled();
+  });
+
+  it('sends only WhatsApp when there is no email on file', async () => {
+    whatsappSend.mockResolvedValue({ providerRef: 'wamid_1' });
+
+    await notificationsService.notifyEmailAndWhatsApp('BOOKING_CONFIRMED', { email: null, phone: '+15551234567' }, 'EN', 'org1', { bookingId: 'bk_42' });
+
+    expect(emailSend).not.toHaveBeenCalled();
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+  });
+});

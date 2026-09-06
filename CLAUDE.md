@@ -44,7 +44,12 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-256** (2026-09-05). This file used to carry a running
+Current through **DR-259** (2026-09-06) — **except DR-257**, which was
+committed (`ff62f75`, "Let guests accept a quotation and finish setup from
+the email") without the matching `DECISION_LOG.md`/`CLAUDE.md` update the
+living-document mandate requires; that gap predates this session and
+wasn't authored here, so it's flagged rather than backfilled with
+unverified content — still needs its own pass. This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -149,7 +154,7 @@ gaps a fresh Postgres would hit).
 | Payments | DPO Pay (hosted page, v6, SAQ-A) — stubbed behind a `PaymentGateway` interface, commercial terms still open (OI-01) |
 | Cache / rate limiting | Upstash Redis `@upstash/redis 1.38.0` — live in production (`src/lib/rate-limit.ts`) |
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — six schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19; `sweep-test-orgs`/DR-235 hourly, purges leftover `tests/api/*.test.ts`-fixture organizations, registered 2026-09-04) |
-| Email / WA / SMS | Resend · WhatsApp Cloud API · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat); WhatsApp still unconfigured (OI-06) |
+| Email / WA / SMS | Resend · Baileys (WhatsApp) · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat). WhatsApp is `baileys` `6.7.24` (DR-258, explicit user choice over the originally-planned Meta WhatsApp Business Cloud API) — an unofficial, QR-paired WhatsApp Web client, run as its own always-on process (`whatsapp-bridge/` at the repo root, **not** a dependency of this Next.js app) since it needs a persistent WebSocket a Vercel serverless function can't hold open; `notifications/gateway.ts`'s `BaileysWhatsAppGateway` is a plain HTTP client to that bridge (`WHATSAPP_BRIDGE_URL`/`WHATSAPP_BRIDGE_SECRET`), never a direct `baileys` import. No host is provisioned yet and no number is paired (OI-21/OI-22) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
 | Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
@@ -231,7 +236,19 @@ src/
                               #   GC for leftover tests/api/*.test.ts-fixture
                               #   Organization rows — matches only the exact
                               #   synthetic naming convention + isPrimary
-                              #   false + 1h+ old, never a real tenant org)
+                              #   false + 1h+ old, never a real tenant org),
+                              #   booking-confirmed-notice (DR-259:
+                              #   cross-module orchestrator — booking +
+                              #   catalog + invoicing + notifications, one
+                              #   level up from all four since booking must
+                              #   never depend on invoicing — sends the
+                              #   BOOKING_CONFIRMED notice over BOTH email
+                              #   and WhatsApp with a full trip/dates/
+                              #   travelers detail block and the invoice/
+                              #   receipt PDF attached, called from the
+                              #   booking-confirm route/Server Action right
+                              #   after bookingService.confirm() succeeds,
+                              #   same convention as fleet-availability)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support.
                    #   DR-221: fixed a real bug where creating a 2+-role
@@ -444,7 +461,15 @@ src/
                    #   lateBookingSurchargeBp above — null for a
                    #   staff-initiated cancel or the guest's own existing
                    #   30s-grace-window cancel buttons, neither of which
-                   #   collects this
+                   #   collects this. DR-259: `confirm()` itself no longer
+                   #   sends the BOOKING_CONFIRMED notice (used to, via the
+                   #   plain email-only-unless-no-email `notifyGuest`
+                   #   helper still used by this module's other events) --
+                   #   that moved to `src/lib/booking-confirmed-notice.ts`,
+                   #   called from the confirm route/Server Action layer,
+                   #   since it needs invoicing's invoice PDF (booking must
+                   #   never depend on invoicing) and always sends over
+                   #   BOTH email and WhatsApp, not a single fallback chain
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
                    #   applied via a shared computeInvoiceAmounts helper);
@@ -496,7 +521,14 @@ src/
                    #   buildInvoicePdfAttachment helper, reusing
                    #   renderInvoicePdf the same way streamInvoicePdf does),
                    #   best-effort — a PDF-rendering failure degrades to no
-                   #   attachment, never to no email.
+                   #   attachment, never to no email. DR-259: a new public,
+                   #   no-ctx `getInvoicePdfAttachmentForBooking` wraps the
+                   #   same (still-private) `buildInvoicePdfAttachment` so
+                   #   `src/lib/booking-confirmed-notice.ts` — a cross-module
+                   #   orchestrator one level up, since booking must never
+                   #   depend on invoicing — can attach the identical PDF to
+                   #   the BOOKING_CONFIRMED notice too, same
+                   #   degrades-to-`[]`-on-failure contract.
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
                    #   DR-205: 28 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
@@ -584,6 +616,52 @@ src/
                    #   CONTACT_FORM_CONFIRMATION (guest-facing, in
                    #   GUEST_EVENTS, sent via notifyEmail directly, never
                    #   through notify()'s fallback chain, links to /faq).
+                   #   DR-258: WHATSAPP's gateway (BaileysWhatsAppGateway,
+                   #   gateway.ts) is now a plain HTTP client to a separate
+                   #   always-on Baileys bridge process (whatsapp-bridge/ at
+                   #   the repo root, its own package.json -- `baileys`
+                   #   never enters this app's dependency/build graph),
+                   #   replacing the old direct WhatsApp Cloud API call
+                   #   (`WHATSAPP_CLOUD_API_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID`
+                   #   -> `WHATSAPP_BRIDGE_URL`/`WHATSAPP_BRIDGE_SECRET`) --
+                   #   same NotificationChannelGateway shape, same
+                   #   breaker/retry/timeout, same graceful-degradation
+                   #   contract when unconfigured/unreachable. Explicit user
+                   #   choice over the Cloud API (OI-06, now decided
+                   #   against) despite Baileys being an unofficial client
+                   #   with real ban risk and needing its own always-on host
+                   #   -- deployed to Fly.io (`fra` region) and paired to a
+                   #   real dedicated business number, both confirmed live
+                   #   end-to-end (OI-21/OI-22 resolved) -- see
+                   #   whatsapp-bridge/README.md.
+                   #   DR-259 (explicit user request): every WHATSAPP send
+                   #   now appends a fixed compliance disclaimer
+                   #   (`withWhatsAppDisclaimer`, domain.ts) naming Cyber
+                   #   PolCo as the number's operator on Mufasa Safaris &
+                   #   Tours' behalf, telling the recipient not to reply,
+                   #   and giving a real contact number -- applied at every
+                   #   WHATSAPP-channel call site (`notify`'s `bodyFor`,
+                   #   `notifyEmailWithHeadsUp`'s WhatsApp leg, and the new
+                   #   `notifyEmailAndWhatsApp` below), never baked into a
+                   #   per-event template so a future event can't omit it
+                   #   by accident. Also: `EmailAttachment` (despite the
+                   #   name, kept for historical reasons) is no longer
+                   #   email-only -- `BaileysWhatsAppGateway.send()` sends
+                   #   the first attachment as a WhatsApp document message
+                   #   (caption = the text body) when one is present;
+                   #   `AfricasTalkingSmsGateway` still ignores it (SMS has
+                   #   no attachment mechanism). New
+                   #   `notificationsService.notifyEmailAndWhatsApp` sends
+                   #   the SAME full content over both EMAIL and WHATSAPP
+                   #   independently (unlike `notify()`'s single fallback
+                   #   chain, and unlike `notifyEmailWithHeadsUp`'s short
+                   #   nudge) -- first (and so far only) consumer: the new
+                   #   `src/lib/booking-confirmed-notice.ts` (see `lib/`
+                   #   above), which also enriched `BOOKING_CONFIRMED`'s own
+                   #   plain-text template with a trip/dates/travelers
+                   #   detail block (mirrors `PAYMENT_SUCCEEDED`'s HTML
+                   #   summary table, just line-per-fact since WhatsApp/SMS
+                   #   is plain text).
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -1112,6 +1190,10 @@ docs/decisions/         # DECISION_LOG.md — the DR-007 living record (canonica
 docs/design-package/    # NOT in repo yet — see the note under Living-document mandate
 docs/openapi.yaml       # keep current with routes
 .github/                # CI workflow + PR template (enforces the DR gate)
+whatsapp-bridge/        # DR-258: standalone always-on Baileys WhatsApp
+                        #   bridge -- own package.json, deployed separately
+                        #   from Vercel (see its own README.md). Not part of
+                        #   this app's dependency tree.
 ```
 
 **New module = copy the `auth/` shape:** `domain.ts` (pure types/rules, no
@@ -1553,7 +1635,9 @@ serverless function bundle.
 ## Roadmap (not yet built)
 
 - **Phase 1 remainder:** real DPO payment integration (OI-01, blocked on
-  commercial terms), WhatsApp notifications (OI-06).
+  commercial terms), WhatsApp notifications — code is done (DR-258,
+  `whatsapp-bridge/`), blocked on provisioning an always-on host (OI-21) and
+  pairing a dedicated business number (OI-22).
 - **Phase 2 remainder:** real Starlink API integration for live fleet
   location (OI-09, currently staff-entered only), CRM.
 - **Phase 3:** real ML/AI-driven assignment recommendation and analytics
@@ -1605,8 +1689,26 @@ Surface these to the human — don't invent answers.
   <info@mufasasafaris.com>"` is set locally and must also be set in Vercel
   Production + Preview — real recipients no longer 403; the account is no
   longer sandboxed to only `cyberpolco@gmail.com`.
-- **OI-06** WhatsApp Cloud API access (Meta Business verification, phone
-  number) — not yet configured. Blocks real WhatsApp notifications.
+- **OI-06 — DECIDED AGAINST 2026-09-06 (DR-258).** Explicit user request:
+  WhatsApp uses Baileys instead of the Cloud API this item tracked — closed
+  as a changed decision, not a resolution. See OI-21/OI-22 for what Baileys
+  itself still needs before it's live.
+- **OI-21 — RESOLVED 2026-09-06 (DR-258).** `polco-whatsapp-bridge` deployed
+  live to Fly.io (`fra` region, `whatsapp_auth` persistent volume,
+  `min_machines_running = 1`/`auto_stop_machines = false` so it never scales
+  to zero); `WHATSAPP_BRIDGE_SECRET` staged as a Fly secret.
+  `WHATSAPP_BRIDGE_URL`/`WHATSAPP_BRIDGE_SECRET` are set in Vercel Production
+  + Preview and local `.env` — not live in the deployed app itself yet,
+  since none of this session's code has been pushed/deployed (Vercel bakes
+  env vars in at build time, so they'll take effect on the next real
+  deploy carrying this DR's code, not before).
+- **OI-22 — RESOLVED 2026-09-06 (DR-258).** A real dedicated business
+  WhatsApp number was paired via the bridge's `/qr` endpoint (a first
+  attempt hit a transient "Can't link new devices right now" from WhatsApp's
+  own side, most likely short-lived throttling from testing several QR
+  codes in quick succession — a retry a short while later succeeded).
+  `/health` confirms `connected: true`; a real end-to-end send (DR-259: with
+  a PDF document attachment too) was confirmed delivered.
 - **OI-07** Africa's Talking SMS: confirmed live and working, but the
   account balance is very low (`USD 0.0621` as of last check) — likely good
   for only 1-2 real sends before it starts failing (gracefully). Top up
@@ -1710,8 +1812,10 @@ Redis — real credentials live in production since 2026-07-22), OI-11
 (Upstash QStash — real credentials + registered schedule live in production
 since 2026-07-22), OI-13 (Google Maps browser + server keys provisioned and
 live since 2026-08-08), OI-05 (`mufasasafaris.com` verified as a Resend
-sending domain — 2026-08-30). See `docs/decisions/DECISION_LOG.md` for how
-each was closed.
+sending domain — 2026-08-30), OI-21 (`polco-whatsapp-bridge` deployed live
+to Fly.io, env vars set in Vercel — 2026-09-06), OI-22 (a real business
+WhatsApp number paired, end-to-end send confirmed — 2026-09-06). See
+`docs/decisions/DECISION_LOG.md` for how each was closed.
 
 ---
 

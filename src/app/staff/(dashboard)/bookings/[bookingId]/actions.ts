@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireStaffContext } from '@lib/staff-guard';
 import { syncFleetAvailabilityForDeparture } from '@lib/fleet-availability';
+import { sendBookingConfirmedNotice } from '@lib/booking-confirmed-notice';
 import { createCustomizedPackageFromBooking } from '@lib/create-customized-package';
 import { ApiError } from '@lib/errors';
 import { bookingService } from '@modules/booking';
@@ -34,6 +35,10 @@ export async function confirmBookingAction(bookingId: string) {
   // "cross-module side effect stays at the caller layer" convention as
   // deleteBookingAction's itinerary cleanup below.
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
+  // DR-259: BOOKING_CONFIRMED's own notice, same "cross-module
+  // orchestration at the caller layer" reasoning as the fleet-availability
+  // sync above.
+  await sendBookingConfirmedNotice(ctx, booking.organizationId, booking);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
