@@ -395,6 +395,11 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             <Alert tone="error">{t('dateChangeFailed')}</Alert>
           </div>
         )}
+        {error === 'quotationFailed' && (
+          <div className="mt-4 max-w-sm">
+            <Alert tone="error">{t('quotationFailed')}</Alert>
+          </div>
+        )}
         {/* DR-219: previously not editable at all -- the trip date shown
             above/below is always labeled "(estimated)" precisely because it
             can still move. Hardcoded to SUPERADMIN/TOUR_OPERATOR here to

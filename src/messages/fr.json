@@ -822,6 +822,7 @@
     "quotationOverrideReason": "Motif du changement du montant suggéré",
     "quotationOverrideNotice": "Une répartition des coûts existe pour cette demande. Modifier le montant ci-dessus nécessite un motif et est enregistré dans le journal d'audit.",
     "quotationReasonRequired": "Ce montant diffère du total suggéré par la répartition des coûts — indiquez un motif avant d'envoyer.",
+    "quotationFailed": "Impossible d'envoyer ce devis. La réservation a peut-être déjà changé d'état, ou vous n'avez pas la permission requise — actualisez la page et réessayez.",
     "notAuthorized": "Vous n'avez pas la permission d'effectuer cette action.",
     "dateChangeFailed": "Impossible de modifier la date du séjour. Elle est peut-être verrouillée, partagée avec une autre réservation, ou vous n'en avez pas la permission.",
     "changeTripDate": "Modifier la date du séjour",

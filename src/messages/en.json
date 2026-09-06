@@ -822,6 +822,7 @@
     "quotationOverrideReason": "Reason for changing the suggested amount",
     "quotationOverrideNotice": "A cost breakdown exists for this request. Changing the amount above requires a reason and is recorded in the audit log.",
     "quotationReasonRequired": "This amount differs from the cost breakdown's suggested total — enter a reason before sending.",
+    "quotationFailed": "Could not send this quotation. The booking may have already moved on, or you may lack permission — refresh the page and try again.",
     "notAuthorized": "You don't have permission to perform this action.",
     "dateChangeFailed": "Could not change the trip date. It may be locked, shared with another booking, or you may lack permission.",
     "changeTripDate": "Change trip date",

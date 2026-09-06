@@ -125,6 +125,14 @@ export async function acceptQuotationAction(bookingId: string) {
 // the "one level up" layer that can see both). Keeps a hand-typed quotation
 // distinguishable and audited rather than silently indistinguishable from
 // one computed straight out of Operational Rates.
+//
+// Wrapped in the same ApiError-catch-and-redirect shape as
+// confirmBookingAction/updateTripDatesAction above -- previously this was
+// the one status-transitioning action in this file with no guard at all, so
+// an ordinary/expected failure (the booking already moved on from
+// AWAITING_QUOTATION via a stale page or a double submit, a cost-breakdown
+// lookup 404, etc.) crashed to the generic "Something went wrong" error
+// boundary instead of a friendly inline message.
 export async function sendQuotationAction(bookingId: string, formData: FormData) {
   const ctx = await requireStaffContext('booking.confirm');
   const amount = Number(formData.get('amount'));
@@ -135,18 +143,23 @@ export async function sendQuotationAction(bookingId: string, formData: FormData)
   const priceMinor = Math.round(amount * 100);
   const overrideReason = String(formData.get('overrideReason') ?? '').trim() || undefined;
 
-  const breakdown = await financeService.getBookingCostBreakdown(ctx, bookingId);
-  const deviatesFromBreakdown =
-    breakdown?.suggestedTotalMinor != null && (priceMinor !== breakdown.suggestedTotalMinor || currency !== breakdown.currency);
-  if (deviatesFromBreakdown && !overrideReason) {
-    redirect(`/staff/bookings/${bookingId}?error=quotationReasonRequired`);
-  }
+  try {
+    const breakdown = await financeService.getBookingCostBreakdown(ctx, bookingId);
+    const deviatesFromBreakdown =
+      breakdown?.suggestedTotalMinor != null && (priceMinor !== breakdown.suggestedTotalMinor || currency !== breakdown.currency);
+    if (deviatesFromBreakdown && !overrideReason) {
+      redirect(`/staff/bookings/${bookingId}?error=quotationReasonRequired`);
+    }
 
-  await bookingService.sendQuotation(ctx, bookingId, {
-    priceMinor,
-    currency,
-    overrideReason: deviatesFromBreakdown ? overrideReason : undefined,
-  });
+    await bookingService.sendQuotation(ctx, bookingId, {
+      priceMinor,
+      currency,
+      overrideReason: deviatesFromBreakdown ? overrideReason : undefined,
+    });
+  } catch (err) {
+    if (err instanceof ApiError) redirect(`/staff/bookings/${bookingId}?error=quotationFailed`);
+    throw err;
+  }
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 
