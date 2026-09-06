@@ -60,7 +60,12 @@ beforeAll(async () => {
         departureId: departure.id,
         touristUserId: touristId,
         seats: 1,
-        status: 'AWAITING_DEPOSIT',
+        // DR-261: a refund tier only ever resolves above NONE once the
+        // booking has actually reached full payment (see
+        // FULLY_PAID_CANCELLATION_STATUSES) -- FULLY_PAID here, not
+        // AWAITING_DEPOSIT, is what actually exercises the far-out
+        // FULL_MINUS_DEPOSIT tier below.
+        status: 'FULLY_PAID',
         priceMinor: 10000,
         currency: 'USD',
         bookingReference,

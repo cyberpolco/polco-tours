@@ -704,20 +704,42 @@ export function emailMatches(onFile: string, candidate: string): boolean {
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+/** A refund tier only ever applies once the booking has actually reached
+ * full payment -- a booking cancelled while only the deposit has been paid
+ * forfeits that deposit and has nothing further to refund, regardless of
+ * how far out the trip is. FULLY_PAID/CONFIRMED are the two
+ * CANCELLABLE_BOOKING_STATUSES that only ever follow a successful full
+ * payment (see initiatePayment/resolvePayment's DEPOSIT_PAID/FULLY_PAID
+ * transition) -- every earlier cancellable status (AWAITING_QUOTATION/
+ * QUOTATION_SENT/AWAITING_DEPOSIT/DEPOSIT_PAID) is deliberately excluded. */
+export const FULLY_PAID_CANCELLATION_STATUSES: readonly BookingStatus[] = ['FULLY_PAID', 'CONFIRMED'];
+
 /** Cancellation & Refund Policy (see /terms) -- pure day-diff rule against
- * the booking's known travel-start date. `referenceDate` is
+ * the booking's known travel-start date, gated on full payment (see
+ * FULLY_PAID_CANCELLATION_STATUSES above). `referenceDate` is
  * Departure.startDate for a PREDEFINED_PACKAGE booking, or
  * Booking.customTravelStart for TAILOR_MADE; null (no date pinned yet --
  * e.g. an unquoted TAILOR_MADE inquiry) resolves to the most generous
- * tier, since there's no departure to be "close to" yet. Same MS_PER_DAY
- * day-diff convention as computeLateBookingSurchargeBp/fleet's
- * daysUntilExpiry. >=60 days out: full refund of whatever was paid, minus
- * the deposit. 30-59: half. 14-29: a quarter. Under 14: nothing. */
-export function resolveCancellationRefundTier(referenceDate: Date | null, now: Date = new Date()): CancellationRefundTier {
+ * tier when the booking is otherwise fully paid, since there's no
+ * departure to be "close to" yet -- in practice this never actually pays
+ * out more than 0, since a booking without a pinned date can't yet be
+ * FULLY_PAID/CONFIRMED either. Same MS_PER_DAY day-diff convention as
+ * computeLateBookingSurchargeBp/fleet's daysUntilExpiry. Percentages are
+ * always of the booking's total package price, never of amount paid --
+ * see computeCancellationRefundAmountMinor (invoicing/domain.ts). >=51
+ * days out: 70% (this is also "full refund minus the non-refundable 30%
+ * deposit" -- the ceiling anyone can ever get back). 41-50: 50%. 21-40: a
+ * quarter. 20 or fewer (including a no-show): nothing. */
+export function resolveCancellationRefundTier(
+  referenceDate: Date | null,
+  status: BookingStatus,
+  now: Date = new Date(),
+): CancellationRefundTier {
+  if (!FULLY_PAID_CANCELLATION_STATUSES.includes(status)) return 'NONE';
   if (!referenceDate) return 'FULL_MINUS_DEPOSIT';
   const daysUntilTravel = (referenceDate.getTime() - now.getTime()) / MS_PER_DAY;
-  if (daysUntilTravel >= 60) return 'FULL_MINUS_DEPOSIT';
-  if (daysUntilTravel >= 30) return 'FIFTY_PERCENT';
-  if (daysUntilTravel >= 14) return 'TWENTY_FIVE_PERCENT';
+  if (daysUntilTravel >= 51) return 'FULL_MINUS_DEPOSIT';
+  if (daysUntilTravel >= 41) return 'FIFTY_PERCENT';
+  if (daysUntilTravel >= 21) return 'TWENTY_FIVE_PERCENT';
   return 'NONE';
 }

@@ -579,11 +579,14 @@ export const bookingRepository = {
   async cancelAndReleaseReference(
     organizationId: string,
     id: string,
-    // DR-207: only set by bookingService.cancelForBookingLookup -- the
-    // guest self-service path collects and persists these; every other
-    // caller of this method (staff cancel, the guest's own 30s-grace-window
-    // buttons) leaves them null, same as before this param existed.
-    guestCancellation?: { reason: string; contactEmail: string; refundTier: CancellationRefundTier },
+    // DR-207, widened DR-261: `refundTier` is now set by every real cancel
+    // path (bookingService.cancel included) -- resolveCancellationRefundTier
+    // is pure/no-ctx, so there's no reason a staff-initiated cancel should
+    // skip computing it. `reason`/`contactEmail` stay guest-self-service-only
+    // (cancelForBookingLookup collects them; a staff cancel button has no
+    // form to collect them from). The guest's own 30s-grace-window buttons
+    // still pass nothing at all, same as before this param existed.
+    cancellation?: { reason?: string; contactEmail?: string; refundTier: CancellationRefundTier },
   ): Promise<{ booking: BookingView; previousReference: string } | null> {
     for (let attempt = 1; attempt <= MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
       try {
@@ -600,10 +603,10 @@ export const bookingRepository = {
               status: 'CANCELLED',
               holdExpiresAt: null,
               bookingReference: generateBookingReference(),
-              ...(guestCancellation && {
-                cancellationReason: guestCancellation.reason,
-                cancellationContactEmail: guestCancellation.contactEmail,
-                cancellationRefundTier: guestCancellation.refundTier,
+              ...(cancellation && {
+                cancellationReason: cancellation.reason ?? null,
+                cancellationContactEmail: cancellation.contactEmail ?? null,
+                cancellationRefundTier: cancellation.refundTier,
               }),
             },
           });

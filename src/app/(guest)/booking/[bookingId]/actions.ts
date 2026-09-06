@@ -11,12 +11,17 @@ import type { CouponActionState } from '@/components/CouponForm';
 
 export async function cancelBookingAction(bookingId: string) {
   const ctx = await requireGuestContext();
-  const booking = await bookingService.cancel(ctx, bookingId);
+  const { booking, refundTier } = await bookingService.cancel(ctx, bookingId);
   // DR-082: a cancelled booking may free up the vehicle/driver/guide it was
   // holding -- orchestrated here (not inside bookingService.cancel), same
   // "cross-module side effect stays at the caller layer" convention as
   // deleteBookingAction's itinerary cleanup.
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
+  // DR-261: this is the 30s-grace-window button, not the /find-booking
+  // self-service flow -- almost always resolves to NONE (a booking this
+  // fresh is rarely fully paid yet), but computed the same way for
+  // consistency rather than assumed.
+  await invoicingService.recordCancellationRefund(booking.organizationId, booking.id, refundTier);
   revalidatePath(`/booking/${bookingId}`);
 }
 

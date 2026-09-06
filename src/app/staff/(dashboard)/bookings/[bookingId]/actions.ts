@@ -62,8 +62,14 @@ export async function updateTripDatesAction(bookingId: string, formData: FormDat
 
 export async function cancelBookingAction(bookingId: string) {
   const ctx = await requireStaffContext('booking.cancel');
-  const booking = await bookingService.cancel(ctx, bookingId);
+  const { booking, refundTier } = await bookingService.cancel(ctx, bookingId);
   if (booking.departureId) await syncFleetAvailabilityForDeparture(booking.organizationId, booking.departureId);
+  // DR-261: same composition find-booking/result/actions.ts's guest cancel
+  // flow already does -- snapshots the system-calculated refund amount onto
+  // the invoice. Staff never overrides refundTier itself; approving the
+  // actual payout is a separate later step (the booking detail page's own
+  // refund button).
+  await invoicingService.recordCancellationRefund(booking.organizationId, booking.id, refundTier);
   revalidatePath(`/staff/bookings/${bookingId}`);
 }
 

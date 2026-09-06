@@ -203,7 +203,7 @@ describe('bookingService.lookupByBookingReference', () => {
         sessionId: 'test-session',
         mustChangePassword: false,
       };
-      const cancelled = await bookingService.cancel(ctx, cancelBookingId!);
+      const { booking: cancelled } = await bookingService.cancel(ctx, cancelBookingId!);
       expect(cancelled.status).toBe('CANCELLED');
       expect(cancelled.bookingReference).not.toBe(cancelReference);
 

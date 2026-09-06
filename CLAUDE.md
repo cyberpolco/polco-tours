@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-261** (2026-09-06). This file used to carry a running
+Current through **DR-262** (2026-09-06). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -470,13 +470,43 @@ src/
                    #   lookupByBookingReference's own reference+lastName
                    #   read-only trust boundary, since this is a write);
                    #   cancellationRefundTier is the Cancellation & Refund
-                   #   Policy tier (60+/30-59/14-29/under-14-days-before-
-                   #   departure, see resolveCancellationRefundTier)
-                   #   snapshotted at cancel time, same precedent as
-                   #   lateBookingSurchargeBp above — null for a
-                   #   staff-initiated cancel or the guest's own existing
-                   #   30s-grace-window cancel buttons, neither of which
-                   #   collects this. DR-259: `confirm()` itself no longer
+                   #   Policy tier, snapshotted at cancel time, same
+                   #   precedent as lateBookingSurchargeBp above;
+                   #   reason/contactEmail stay guest-self-service-only
+                   #   (null for a staff-initiated cancel or the guest's own
+                   #   30s-grace-window cancel buttons — see DR-262 directly
+                   #   below for why refundTier itself is no longer among
+                   #   them). DR-262 (explicit user request): revised
+                   #   Cancellation & Refund Policy — every tier is now a
+                   #   percentage of the booking's total package price
+                   #   (never of amount actually paid), and only ever
+                   #   resolves above NONE once the booking has actually
+                   #   reached full payment (FULLY_PAID_CANCELLATION_STATUSES
+                   #   = FULLY_PAID/CONFIRMED — a deposit-only cancellation
+                   #   forfeits the deposit and refunds nothing further,
+                   #   regardless of days-to-departure). New tiers: 51+ days
+                   #   before departure 70% (FULL_MINUS_DEPOSIT — same
+                   #   enum value, still literally "total minus the 30%
+                   #   deposit," the ceiling any tier can ever pay out);
+                   #   41-50 days 50%; 21-40 days 25%; 20 days or fewer, or
+                   #   a no-show, 0%. resolveCancellationRefundTier
+                   #   (booking/domain.ts) now takes the booking's own
+                   #   BookingStatus to apply this gate. Staff-initiated
+                   #   cancellation (bookingService.cancel) now computes
+                   #   this same tier too (via a shared
+                   #   resolveCancellationReferenceDate helper) rather than
+                   #   leaving it null as before — cancel() returns
+                   #   { booking, refundTier } instead of a bare BookingView,
+                   #   and every caller (staff's cancelBookingAction, the
+                   #   guest's own 30s-grace-window cancelBookingAction, and
+                   #   the REST cancel route) calls
+                   #   invoicingService.recordCancellationRefund right after,
+                   #   same composition find-booking/result/actions.ts's
+                   #   guest flow already used. Staff never overrides the
+                   #   system-calculated amount — their role stays approving/
+                   #   paying it out (the existing bookingService.refund
+                   #   "mark refunded" action), never recalculating it.
+                   #   DR-259: `confirm()` itself no longer
                    #   sends the BOOKING_CONFIRMED notice (used to, via the
                    #   plain email-only-unless-no-email `notifyGuest`
                    #   helper still used by this module's other events) --
@@ -505,9 +535,11 @@ src/
                    #   DR-207: Invoice.refundAmountMinor — the actual
                    #   minor-unit amount (recordCancellationRefund),
                    #   computed from Booking.cancellationRefundTier via
-                   #   computeCancellationRefundAmountMinor once a guest
-                   #   cancels via /find-booking, same "rate on Booking,
-                   #   money on Invoice" split as lateBookingSurchargeBp/
+                   #   computeCancellationRefundAmountMinor once any cancel
+                   #   path resolves a tier (originally guest-only via
+                   #   /find-booking; DR-262 below extends this to every
+                   #   cancel path), same "rate on Booking, money on
+                   #   Invoice" split as lateBookingSurchargeBp/
                    #   lateBookingSurchargeMinor above; refund-note-pdf.tsx
                    #   (mirrors invoice-pdf.tsx's shape) is generated inline
                    #   and handed to the guest as a one-time base64
@@ -518,6 +550,15 @@ src/
                    #   can always regenerate the same PDF on demand
                    #   (streamRefundNotePdf, /api/v1/bookings/[bookingId]/
                    #   refund-note-pdf) from the booking detail page.
+                   #   DR-262: computeCancellationRefundAmountMinor now
+                   #   takes just (tier, totalMinor) — every tier is a
+                   #   straight percentage of the booking's total package
+                   #   price, not of amount actually paid (see booking/'s
+                   #   own DR-262 comment for the full policy + full-payment
+                   #   gate); refund-note-pdf.tsx gains a totalMinor line
+                   #   ("Total package price") above the existing paidMinor
+                   #   line, the latter kept for reference only, no longer
+                   #   part of the calculation.
                    #   DR-215: applyPaymentOutcome's new notifyPaymentSucceeded
                    #   sends PAYMENT_SUCCEEDED straight over EMAIL via Resend
                    #   (notificationsService.notifyEmail), bypassing notify()'s

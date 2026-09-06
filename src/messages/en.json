@@ -213,7 +213,7 @@
       },
       "cancellation": {
         "title": "Cancellation & Refund Policy",
-        "body": "You can cancel a booking yourself at any time from Find My Booking — look up your booking, confirm your email and tell us why, and your refund is calculated automatically using the table below.\n\n60 or more days before departure: full refund of what you've paid, minus your deposit.\n30 to 59 days before departure: 50% of what you've paid.\n14 to 29 days before departure: 25% of what you've paid.\nFewer than 14 days before departure, or a no-show: no refund.\n\nYour deposit is 30% of the total price. It reflects costs we commit to hotels, vehicles and guides on your behalf in advance, so it's the one part of your payment that's never refunded once paid.\n\nIf we're the ones who have to cancel your trip — for example because of a safety advisory in the area you're visiting — you get a full refund with no deductions.\n\nVisa assistance fees and any government visa fee are never refundable, whatever the outcome of your visa application.\n\nOnce your cancellation is confirmed, our team processes your refund back to your original payment method."
+        "body": "You can cancel a booking yourself at any time from Find My Booking — look up your booking, confirm your email and tell us why, and your refund is calculated automatically using the table below.\n\nThe refund tiers below only apply once your booking has been paid in full. If only your deposit has been paid at the time of cancellation, no refund is due — the deposit itself is never refunded, whatever else applies.\n\nFor a fully-paid booking, based on your total package price:\n51 days or more before departure: 70% refunded.\n41 to 50 days before departure: 50% refunded.\n21 to 40 days before departure: 25% refunded.\n20 days or fewer before departure, or a no-show: no refund.\n\nYour deposit is 30% of the total price. It reflects costs we commit to hotels, vehicles and guides on your behalf in advance, so it's the one part of your payment that's never refunded once paid — which is also why 70% is the most that can ever be refunded, however far in advance you cancel.\n\nIf we're the ones who have to cancel your trip — for example because of a safety advisory in the area you're visiting — you get a full refund with no deductions.\n\nVisa assistance fees and any government visa fee are never refundable, whatever the outcome of your visa application.\n\nOnce your cancellation is confirmed, our team processes your refund back to your original payment method."
       }
     }
   },
@@ -712,10 +712,10 @@
       "notFound": "We couldn't verify this booking — check your email and last name and try again, or contact us."
     },
     "tierLabel": {
-      "FULL_MINUS_DEPOSIT": "a full refund of what you've paid, minus the deposit",
-      "FIFTY_PERCENT": "a 50% refund of what you've paid",
-      "TWENTY_FIVE_PERCENT": "a 25% refund of what you've paid",
-      "NONE": "no refund (per our policy at this point before departure)"
+      "FULL_MINUS_DEPOSIT": "a 70% refund of your total package price (full refund minus the non-refundable deposit)",
+      "FIFTY_PERCENT": "a 50% refund of your total package price",
+      "TWENTY_FIVE_PERCENT": "a 25% refund of your total package price",
+      "NONE": "no refund (per our policy at this point before departure, or because full payment hasn't been made yet)"
     }
   },
   "RatePage": {
@@ -844,9 +844,9 @@
     "refundAmount": "Refund amount",
     "downloadRefundNote": "Download refund note (PDF)",
     "cancellationTierLabel": {
-      "FULL_MINUS_DEPOSIT": "Full refund of amount paid, minus deposit",
-      "FIFTY_PERCENT": "50% of amount paid",
-      "TWENTY_FIVE_PERCENT": "25% of amount paid",
+      "FULL_MINUS_DEPOSIT": "70% of total package price (minus deposit)",
+      "FIFTY_PERCENT": "50% of total package price",
+      "TWENTY_FIVE_PERCENT": "25% of total package price",
       "NONE": "No refund"
     },
     "deleting": "Deleting…",

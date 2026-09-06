@@ -153,6 +153,7 @@ async function buildRefundNotePdf(
     cancelledAt: booking.updatedAt,
     reason: booking.cancellationReason ?? '',
     currency: invoice.currency,
+    totalMinor: invoice.totalMinor,
     paidMinor,
     tier: booking.cancellationRefundTier,
     refundAmountMinor: invoice.refundAmountMinor,
@@ -630,12 +631,8 @@ export const invoicingService = {
   ): Promise<{ refundAmountMinor: number; currency: Currency } | null> {
     const invoice = await invoicingRepository.findByBookingId(organizationId, bookingId);
     if (!invoice) return null;
-    const detail = await invoicingRepository.findDetail(organizationId, invoice.id);
-    const paidMinor = (detail?.payments ?? [])
-      .filter((p) => p.status === 'SUCCEEDED')
-      .reduce((sum, p) => sum + p.amountMinor, 0);
 
-    const refundAmountMinor = computeCancellationRefundAmountMinor(tier, paidMinor, invoice.depositMinor);
+    const refundAmountMinor = computeCancellationRefundAmountMinor(tier, invoice.totalMinor);
     await invoicingRepository.setRefundAmount(organizationId, bookingId, refundAmountMinor);
     return { refundAmountMinor, currency: invoice.currency };
   },

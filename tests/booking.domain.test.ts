@@ -577,32 +577,41 @@ describe('booking domain', () => {
     });
   });
 
-  describe('resolveCancellationRefundTier (DR-207)', () => {
+  describe('resolveCancellationRefundTier (DR-207, updated DR-261)', () => {
     const now = new Date('2026-01-01T00:00:00Z');
     const daysOut = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    it('returns FULL_MINUS_DEPOSIT when no reference date is pinned yet', () => {
-      expect(resolveCancellationRefundTier(null, now)).toBe('FULL_MINUS_DEPOSIT');
+    it('returns NONE regardless of days out when the booking is not fully paid', () => {
+      for (const status of ['AWAITING_QUOTATION', 'QUOTATION_SENT', 'AWAITING_DEPOSIT', 'DEPOSIT_PAID'] as const) {
+        expect(resolveCancellationRefundTier(daysOut(90), status, now)).toBe('NONE');
+        expect(resolveCancellationRefundTier(null, status, now)).toBe('NONE');
+      }
     });
 
-    it('returns FULL_MINUS_DEPOSIT at exactly 60 days out', () => {
-      expect(resolveCancellationRefundTier(daysOut(60), now)).toBe('FULL_MINUS_DEPOSIT');
+    it('returns FULL_MINUS_DEPOSIT when no reference date is pinned yet but the booking is fully paid', () => {
+      expect(resolveCancellationRefundTier(null, 'FULLY_PAID', now)).toBe('FULL_MINUS_DEPOSIT');
+      expect(resolveCancellationRefundTier(null, 'CONFIRMED', now)).toBe('FULL_MINUS_DEPOSIT');
     });
 
-    it('returns FIFTY_PERCENT just under 60 days and at exactly 30', () => {
-      expect(resolveCancellationRefundTier(daysOut(59), now)).toBe('FIFTY_PERCENT');
-      expect(resolveCancellationRefundTier(daysOut(30), now)).toBe('FIFTY_PERCENT');
+    it('returns FULL_MINUS_DEPOSIT at exactly 51 days out', () => {
+      expect(resolveCancellationRefundTier(daysOut(51), 'FULLY_PAID', now)).toBe('FULL_MINUS_DEPOSIT');
+      expect(resolveCancellationRefundTier(daysOut(90), 'CONFIRMED', now)).toBe('FULL_MINUS_DEPOSIT');
     });
 
-    it('returns TWENTY_FIVE_PERCENT just under 30 days and at exactly 14', () => {
-      expect(resolveCancellationRefundTier(daysOut(29), now)).toBe('TWENTY_FIVE_PERCENT');
-      expect(resolveCancellationRefundTier(daysOut(14), now)).toBe('TWENTY_FIVE_PERCENT');
+    it('returns FIFTY_PERCENT just under 51 days and at exactly 41', () => {
+      expect(resolveCancellationRefundTier(daysOut(50), 'FULLY_PAID', now)).toBe('FIFTY_PERCENT');
+      expect(resolveCancellationRefundTier(daysOut(41), 'FULLY_PAID', now)).toBe('FIFTY_PERCENT');
     });
 
-    it('returns NONE under 14 days out, including a past/same-day date', () => {
-      expect(resolveCancellationRefundTier(daysOut(13), now)).toBe('NONE');
-      expect(resolveCancellationRefundTier(daysOut(0), now)).toBe('NONE');
-      expect(resolveCancellationRefundTier(daysOut(-5), now)).toBe('NONE');
+    it('returns TWENTY_FIVE_PERCENT just under 41 days and at exactly 21', () => {
+      expect(resolveCancellationRefundTier(daysOut(40), 'FULLY_PAID', now)).toBe('TWENTY_FIVE_PERCENT');
+      expect(resolveCancellationRefundTier(daysOut(21), 'FULLY_PAID', now)).toBe('TWENTY_FIVE_PERCENT');
+    });
+
+    it('returns NONE at 20 days or fewer out, including a past/same-day date or no-show, even when fully paid', () => {
+      expect(resolveCancellationRefundTier(daysOut(20), 'FULLY_PAID', now)).toBe('NONE');
+      expect(resolveCancellationRefundTier(daysOut(0), 'CONFIRMED', now)).toBe('NONE');
+      expect(resolveCancellationRefundTier(daysOut(-5), 'FULLY_PAID', now)).toBe('NONE');
     });
   });
 });

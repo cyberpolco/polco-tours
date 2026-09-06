@@ -216,12 +216,11 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   let cancelAmountLabel: string | null = null;
   if (cancellable) {
     const referenceDate = tripSummary?.startDate ?? booking.customTravelStart ?? null;
-    const tier = resolveCancellationRefundTier(referenceDate);
+    const tier = resolveCancellationRefundTier(referenceDate, booking.status);
     const tCancel = await getTranslations('CancelAndRefundSection');
     cancelTierLabel = tCancel(`tierLabel.${tier}`);
     if (billingSummary) {
-      const paidMinor = billingSummary.payments.filter((p) => p.status === 'SUCCEEDED').reduce((sum, p) => sum + p.amountMinor, 0);
-      const previewAmountMinor = computeCancellationRefundAmountMinor(tier, paidMinor, billingSummary.depositMinor);
+      const previewAmountMinor = computeCancellationRefundAmountMinor(tier, billingSummary.totalMinor);
       cancelAmountLabel = format(money(previewAmountMinor, billingSummary.currency));
     }
   }

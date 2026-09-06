@@ -304,34 +304,27 @@ describe('invoicing domain', () => {
     });
   });
 
-  describe('computeCancellationRefundAmountMinor (DR-207)', () => {
-    // 100000 paid, 30000 deposit -- same 30% split splitDeposit itself uses.
-    const paidMinor = 100_000;
-    const depositMinor = 30_000;
+  describe('computeCancellationRefundAmountMinor (DR-207, updated DR-261)', () => {
+    // Every tier is now a straight percentage of the booking's total
+    // package price -- the fully-paid gate lives one layer up, in
+    // resolveCancellationRefundTier (booking/domain.ts), so this function
+    // no longer needs paidMinor/depositMinor at all.
+    const totalMinor = 100_000;
 
-    it('FULL_MINUS_DEPOSIT refunds everything except the deposit', () => {
-      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', paidMinor, depositMinor)).toBe(70_000);
+    it('FULL_MINUS_DEPOSIT refunds 70% of the total (the ceiling -- total minus the 30% deposit)', () => {
+      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', totalMinor)).toBe(70_000);
     });
 
-    it('FULL_MINUS_DEPOSIT never goes negative when only the deposit itself was paid', () => {
-      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', depositMinor, depositMinor)).toBe(0);
+    it('FIFTY_PERCENT is half of the total package price', () => {
+      expect(computeCancellationRefundAmountMinor('FIFTY_PERCENT', totalMinor)).toBe(50_000);
     });
 
-    it('FIFTY_PERCENT is half of what was actually paid, not of the total', () => {
-      expect(computeCancellationRefundAmountMinor('FIFTY_PERCENT', paidMinor, depositMinor)).toBe(50_000);
+    it('TWENTY_FIVE_PERCENT is a quarter of the total package price', () => {
+      expect(computeCancellationRefundAmountMinor('TWENTY_FIVE_PERCENT', totalMinor)).toBe(25_000);
     });
 
-    it('TWENTY_FIVE_PERCENT is a quarter of what was actually paid', () => {
-      expect(computeCancellationRefundAmountMinor('TWENTY_FIVE_PERCENT', paidMinor, depositMinor)).toBe(25_000);
-    });
-
-    it('NONE refunds nothing regardless of what was paid', () => {
-      expect(computeCancellationRefundAmountMinor('NONE', paidMinor, depositMinor)).toBe(0);
-    });
-
-    it('never refunds more than nothing when nothing was paid', () => {
-      expect(computeCancellationRefundAmountMinor('FULL_MINUS_DEPOSIT', 0, depositMinor)).toBe(0);
-      expect(computeCancellationRefundAmountMinor('FIFTY_PERCENT', 0, depositMinor)).toBe(0);
+    it('NONE refunds nothing regardless of the total price', () => {
+      expect(computeCancellationRefundAmountMinor('NONE', totalMinor)).toBe(0);
     });
   });
 });
