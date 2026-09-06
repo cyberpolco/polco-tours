@@ -3,10 +3,16 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { authService } from '@modules/auth';
-import { AddTravelerInput, bookingService } from '@modules/booking';
+import { AddTravelerInput, bookingService, SetAddonsInput } from '@modules/booking';
 import { documentsService } from '@modules/documents';
+import { invoicingService } from '@modules/invoicing';
+import type { PaymentKind } from '@prisma/client';
+import { buildGuestSetupContext } from '@lib/booking-setup-context';
 import { toE164 } from '@lib/country-codes';
 import { isStaffRole } from '@lib/rbac';
+import { ApiError } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
+import type { FinalizeAddonsResult } from '../booking/[bookingId]/addons/actions';
 import { BOOKING_SETUP_COOKIE, BOOKING_SETUP_TTL_SECONDS, createBookingSetupToken, readBookingSetupToken } from '@lib/booking-setup-token';
 
 // DR-257. The guest side of the quotation email: a guest whose 30-minute
@@ -129,6 +135,34 @@ export async function addTravelerAction(formData: FormData): Promise<void> {
   redirect(booking.requiresPassportUpload ? '/complete-booking/setup/passport' : '/complete-booking/setup');
 }
 
+/** Mirrors booking/[bookingId]/addons/actions.ts, including its
+ * returns-a-result-instead-of-redirecting contract -- AddonsForm calls this
+ * directly from a client handler and navigates itself, so an uncaught throw
+ * here would become an invisible unhandled rejection rather than a visible
+ * error. `_bookingId` is ignored on purpose: the real booking comes from the
+ * setup cookie, never from an argument the client could tamper with. */
+export async function finalizeAddonsAction(_bookingId: string, formData: FormData): Promise<FinalizeAddonsResult> {
+  const bookingId = await currentSetupBookingId();
+  if (!bookingId) return { error: true };
+
+  const traceId = newTraceId();
+  try {
+    const plainSelections = formData.getAll('addonServiceId').map((id) => ({ addonServiceId: String(id) }));
+    const flightSelections = formData.getAll('flightSelection').map((v) => JSON.parse(String(v)));
+    const esimSelections = formData.getAll('esimSelection').map((v) => JSON.parse(String(v)));
+    const input = SetAddonsInput.parse({ addons: [...plainSelections, ...flightSelections, ...esimSelections] });
+    await bookingService.setAddonsForBookingLookup(bookingId, input);
+    return { ok: true };
+  } catch (err) {
+    if (!(err instanceof ApiError)) {
+      logger(traceId).error('finalizeAddonsAction (guest setup) failed unexpectedly', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return { error: true };
+  }
+}
+
 export async function uploadPassportAction(travelerId: string, formData: FormData): Promise<void> {
   const bookingId = await currentSetupBookingId();
   if (!bookingId) redirect('/complete-booking');
@@ -159,6 +193,25 @@ export async function uploadPassportAction(travelerId: string, formData: FormDat
   // flow leans on that same fallback and a facilitator picks it up.
   const travelers = await bookingService.listTravelersForBookingSetup(bookingId);
   redirect(travelers.some((t) => !t.passportDocumentId) ? '/complete-booking/setup/passport' : '/complete-booking/setup');
+}
+
+/** Pays the booking's invoice. Runs the existing, already-tested invoicing
+ * chain (getOrCreateInvoiceForBooking -> initiatePayment -> auto-succeed,
+ * DR-074's stub) under the guest's own rebuilt context rather than a second
+ * no-ctx copy of the money maths -- see src/lib/booking-setup-context.ts.
+ *
+ * DPO is still stubbed (OI-01), so initiatePayment marks the payment
+ * succeeded immediately; when a real gateway lands this becomes a redirect
+ * to its hosted page and the rest of this flow is unchanged. */
+export async function payAction(kind: PaymentKind): Promise<void> {
+  const bookingId = await currentSetupBookingId();
+  if (!bookingId) redirect('/complete-booking');
+
+  const booking = await bookingService.getForBookingSetup(bookingId);
+  const ctx = buildGuestSetupContext(booking);
+  const invoice = await invoicingService.getOrCreateInvoiceForBooking(ctx, bookingId);
+  await invoicingService.initiatePayment(ctx, invoice.id, kind);
+  redirect('/complete-booking/setup');
 }
 
 export async function leaveSetupAction(): Promise<void> {

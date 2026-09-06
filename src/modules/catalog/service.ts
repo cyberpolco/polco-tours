@@ -686,6 +686,26 @@ export const catalogService = {
 
   /** Guest "find my booking" add-on name resolution (no-ctx). Batch, not
    * per-id -- one query for the (typically 0-4) selected add-ons. */
+  /** Just the departure's package id, for DR-257's no-session add-ons step.
+   * Deliberately narrower than exposing the whole DepartureView no-ctx. */
+  async getDeparturePackageIdForBookingLookup(organizationId: string, departureId: string): Promise<string | null> {
+    const departure = await catalogRepository.findDepartureById(organizationId, departureId);
+    return departure?.tourPackageId ?? null;
+  },
+
+  /** DR-257: the add-on catalogue as the no-session /complete-booking step
+   * needs it -- same two reads listAddonServicesForPackage/
+   * listActiveAddonServices do for the session-gated wizard, minus the ctx
+   * the guest hasn't got. The caller has already proved which booking it is
+   * acting for via the booking_setup credential. */
+  async listAddonServicesForPackageLookup(organizationId: string, packageId: string): Promise<AddonServiceView[]> {
+    return catalogRepository.listAddonServicesForPackage(organizationId, packageId);
+  },
+
+  async listActiveAddonServicesForLookup(organizationId: string): Promise<AddonServiceView[]> {
+    return catalogRepository.listActiveAddonServices(organizationId);
+  },
+
   async listAddonServicesForBookingLookup(organizationId: string, addonServiceIds: string[]): Promise<AddonServiceView[]> {
     if (addonServiceIds.length === 0) return [];
     return catalogRepository.findAddonServicesByIds(organizationId, addonServiceIds);

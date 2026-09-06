@@ -2408,6 +2408,11 @@
     "setupIntro": "A few details left before your trip is confirmed.",
     "continueSetup": "Continue",
     "setupComplete": "That's everything we need for now — thank you.",
-    "viewBooking": "View my booking"
+    "viewBooking": "View my booking",
+    "paidInFull": "Paid in full — thank you. We'll be in touch with your final details.",
+    "amountDue": "Amount due",
+    "paying": "Processing…",
+    "payDeposit": "Pay deposit ({amount})",
+    "payFull": "Pay {amount}"
   }
 }

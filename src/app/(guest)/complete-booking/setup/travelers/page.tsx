@@ -32,11 +32,10 @@ export default async function SetupTravelersPage({ searchParams }: Props) {
     bookingService.listTravelersForBookingSetup(bookingId),
   ]);
 
-  // Unlike the session-gated wizard, this flow does NOT force the add-ons
-  // step first. A booking arriving here was priced by staff as a quotation
-  // the guest has just accepted, so re-picking priced add-ons would change
-  // an already-agreed price -- see the DR-257 follow-up. Passports still
-  // only apply if staff's own setup already flagged requiresPassportUpload.
+  // Add-ons decide whether passports are collected at all, and invoicing
+  // refuses a booking whose addonsFinalizedAt is null -- so a guest landing
+  // here early (stale link, back button) is sent back to finish that first.
+  if (!booking.addonsFinalizedAt) redirect('/complete-booking/setup/addons');
   if (travelers.length >= booking.seats) redirect('/complete-booking/setup');
 
   const hasTourLead = travelers.some((traveler) => traveler.isTourLead);

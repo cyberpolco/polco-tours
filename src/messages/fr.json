@@ -2408,6 +2408,11 @@
     "setupIntro": "Encore quelques informations avant la confirmation de votre voyage.",
     "continueSetup": "Continuer",
     "setupComplete": "Nous avons tout ce qu'il nous faut pour l'instant — merci.",
-    "viewBooking": "Voir ma réservation"
+    "viewBooking": "Voir ma réservation",
+    "paidInFull": "Payé intégralement — merci. Nous reviendrons vers vous avec les derniers détails.",
+    "amountDue": "Montant dû",
+    "paying": "Traitement…",
+    "payDeposit": "Payer l'acompte ({amount})",
+    "payFull": "Payer {amount}"
   }
 }

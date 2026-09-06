@@ -10,7 +10,7 @@ import { EsimPlanPicker, type EsimPlanOption, type EsimSelection } from '@/compo
 import { FlightTicketPicker, type FlightFareOption, type FlightSelection } from '@/components/ui/FlightTicketPicker';
 import { SelectableCard } from '@/components/ui/SelectableCard';
 import { format, formatOrPending, money, type Currency } from '@lib/money';
-import { finalizeAddonsAction } from './actions';
+import { finalizeAddonsAction, type FinalizeAddonsResult } from './actions';
 
 interface AddonOption {
   id: string;
@@ -40,6 +40,12 @@ interface Props {
   esimAddonId: string | null;
   esimPlans: EsimPlanOption[];
   existingEsimSelections: EsimSelection[];
+  // DR-257: the no-session /complete-booking flow renders this same form
+  // against its own cookie-authorised action and its own next step. Both
+  // default to the session-gated wizard's behaviour, so every existing
+  // call site is unaffected.
+  submitAction?: (bookingId: string, formData: FormData) => Promise<FinalizeAddonsResult>;
+  nextHref?: string;
 }
 
 // Client-driven submit (mirrors book/[departureId]/booking-form.tsx's own
@@ -62,6 +68,8 @@ export function AddonsForm({
   esimAddonId,
   esimPlans,
   existingEsimSelections,
+  submitAction = finalizeAddonsAction,
+  nextHref,
 }: Props) {
   const router = useRouter();
   const t = useTranslations('AddonsPage');
@@ -79,12 +87,12 @@ export function AddonsForm({
     // documented in booking-form.tsx).
     const formData = new FormData(e.currentTarget);
     try {
-      const result = await finalizeAddonsAction(bookingId, formData);
+      const result = await submitAction(bookingId, formData);
       if ('error' in result) {
         setError(true);
         return;
       }
-      router.push(`/booking/${bookingId}/travelers/new`);
+      router.push(nextHref ?? `/booking/${bookingId}/travelers/new`);
     } catch {
       // Same "never let an uncaught throw become an invisible unhandled
       // promise rejection" concern as booking-form.tsx's own catch --

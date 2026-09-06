@@ -1464,6 +1464,25 @@ export const bookingService = {
     return bookingRepository.listTravelersForBooking(organizationId, bookingId);
   },
 
+  /** DR-180's packageId, resolved without a session -- which package's
+   * curated add-on list the /complete-booking add-ons step should show. */
+  async getBookingPackageIdForBookingSetup(bookingId: string): Promise<string | null> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    if (booking.departureId) {
+      return catalogService.getDeparturePackageIdForBookingLookup(organizationId, booking.departureId);
+    }
+    return booking.customizedPackageId ?? null;
+  },
+
+  /** resolveBookingCountry without a session, for the /complete-booking
+   * add-ons step (its rates are country-scoped). */
+  async getBookingCountryForBookingSetup(bookingId: string): Promise<string> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    return resolveBookingCountryForLookup(organizationId, booking);
+  },
+
   async setAddonsForBookingLookup(bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
     const organizationId = await getPrimaryOrgId();
     const booking = await this.getForBookingSetup(bookingId);
