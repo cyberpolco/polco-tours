@@ -140,33 +140,35 @@ export async function GuestFooter() {
                 </Link>
               ))}
             </div>
+            {/* Horizontal, below the social icons rather than its own
+                vertical column (explicit user request). */}
+            <nav className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              <Link href="/packages" prefetch={false} className="hover:text-amber">
+                {t('browse')}
+              </Link>
+              <Link href="/plan-my-trip" prefetch={false} className="hover:text-amber">
+                {t('planMyTrip')}
+              </Link>
+              <Link href="/find-booking" prefetch={false} className="hover:text-amber">
+                {t('findBooking')}
+              </Link>
+              <Link href="/rate" prefetch={false} className="hover:text-amber">
+                {t('rateMyTrip')}
+              </Link>
+              <Link href="/weather" prefetch={false} className="hover:text-amber">
+                {t('weather')}
+              </Link>
+              <Link href="/about" prefetch={false} className="hover:text-amber">
+                {t('about')}
+              </Link>
+              <Link href="/faq" prefetch={false} className="hover:text-amber">
+                {t('faq')}
+              </Link>
+              <Link href="/contact" prefetch={false} className="hover:text-amber">
+                {t('contact')}
+              </Link>
+            </nav>
           </div>
-          <nav className="flex flex-col gap-2 text-sm">
-            <Link href="/packages" prefetch={false} className="hover:text-amber">
-              {t('browse')}
-            </Link>
-            <Link href="/plan-my-trip" prefetch={false} className="hover:text-amber">
-              {t('planMyTrip')}
-            </Link>
-            <Link href="/find-booking" prefetch={false} className="hover:text-amber">
-              {t('findBooking')}
-            </Link>
-            <Link href="/rate" prefetch={false} className="hover:text-amber">
-              {t('rateMyTrip')}
-            </Link>
-            <Link href="/weather" prefetch={false} className="hover:text-amber">
-              {t('weather')}
-            </Link>
-            <Link href="/about" prefetch={false} className="hover:text-amber">
-              {t('about')}
-            </Link>
-            <Link href="/faq" prefetch={false} className="hover:text-amber">
-              {t('faq')}
-            </Link>
-            <Link href="/contact" prefetch={false} className="hover:text-amber">
-              {t('contact')}
-            </Link>
-          </nav>
           <p className="eyebrow text-mist">Namibia · DRC</p>
         </div>
         <div className="survey-rule mt-8 opacity-20" />
