@@ -133,8 +133,10 @@ const GUEST_EVENTS = new Set<NotificationEvent>([
   'RATING_CODE_ISSUED',
   'RATING_THANK_YOU',
   'TAILOR_MADE_REQUEST_RECEIVED',
-  'ITINERARY_APPROVED',
   'CONTACT_FORM_CONFIRMATION',
+  // DR-260: ITINERARY_APPROVED moved OUT of this set -- it now notifies the
+  // assigned staff (driver/guide/vehicle owner), never the guest, so it
+  // takes the staff/POLCO Tours wordmark like ASSIGNMENT_NOTICE_* below.
 ]);
 
 function audienceFor(event: NotificationEvent): 'guest' | 'staff' {
@@ -392,16 +394,19 @@ export const EMAIL_TEMPLATE_DEFAULTS: Record<string, Record<Locale, EmailTemplat
         'Notre équipe vous contactera bientôt avec un devis personnalisé.',
     },
   },
+  // DR-260: staff-facing since ITINERARY_APPROVED moved out of GUEST_EVENTS
+  // -- addressed to the driver/guide/vehicle owner assigned to the
+  // departure, not the guest.
   ITINERARY_APPROVED: {
     EN: {
-      eyebrow: 'Itinerary ready',
-      heading: 'Your trip plan is finalized',
-      bodyTemplate: 'The day-by-day itinerary for booking {{bookingId}} has been finalized. Log in to your booking to view or download it.',
+      eyebrow: 'Itinerary approved',
+      heading: 'An itinerary is ready to run',
+      bodyTemplate: 'The day-by-day itinerary for booking {{bookingId}} has been approved. Review it on your schedule before departure.',
     },
     FR: {
-      eyebrow: 'Itinéraire prêt',
-      heading: 'Votre programme de voyage est finalisé',
-      bodyTemplate: "L'itinéraire jour par jour de la réservation {{bookingId}} a été finalisé. Connectez-vous à votre réservation pour le consulter ou le télécharger.",
+      eyebrow: 'Itinéraire approuvé',
+      heading: 'Un itinéraire est prêt',
+      bodyTemplate: "L'itinéraire jour par jour de la réservation {{bookingId}} a été approuvé. Consultez-le dans votre planning avant le départ.",
     },
   },
   STAFF_PASSWORD_ISSUED: {
@@ -576,9 +581,11 @@ export const EMAIL_TEMPLATE_GROUPS: Array<{ groupKey: string; keys: string[] }> 
     keys: ['VISA_CONTACT_TRAVELER', 'VISA_MISSING_DOCUMENTS', 'VISA_APPROVED', 'VISA_REJECTED', 'VISA_SUBMITTED', 'VISA_RESUBMITTED', 'VISA_QUEUE_NEW_APPLICATION'],
   },
   { groupKey: 'rating', keys: ['RATING_CODE_ISSUED', 'RATING_THANK_YOU'] },
-  { groupKey: 'tripPlanning', keys: ['TAILOR_MADE_REQUEST_RECEIVED', 'ITINERARY_APPROVED'] },
+  { groupKey: 'tripPlanning', keys: ['TAILOR_MADE_REQUEST_RECEIVED'] },
   { groupKey: 'staffAccounts', keys: ['STAFF_PASSWORD_ISSUED', 'STAFF_PASSWORD_RESET', 'STAFF_ACCOUNT_DEACTIVATED', 'STAFF_ACCOUNT_REACTIVATED'] },
-  { groupKey: 'staffAssignments', keys: ['ASSIGNMENT_NOTICE_DRIVER', 'ASSIGNMENT_NOTICE_GUIDE', 'ASSIGNMENT_NOTICE_VEHICLE_OWNER'] },
+  // DR-260: ITINERARY_APPROVED joins the staff-assignment group -- it's now
+  // addressed to assigned staff, not the guest.
+  { groupKey: 'staffAssignments', keys: ['ITINERARY_APPROVED', 'ASSIGNMENT_NOTICE_DRIVER', 'ASSIGNMENT_NOTICE_GUIDE', 'ASSIGNMENT_NOTICE_VEHICLE_OWNER'] },
   { groupKey: 'contact', keys: ['CONTACT_FORM_RECEIVED', 'CONTACT_FORM_CONFIRMATION'] },
 ];
 
@@ -1065,17 +1072,17 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
   },
   ITINERARY_APPROVED: {
     EN: (d, ov) => ({
-      subject: 'Your trip plan is finalized',
+      subject: 'An itinerary is ready to run',
       body: brand('ITINERARY_APPROVED', {
         ...resolveContent('ITINERARY_APPROVED', 'EN', { bookingId: d.bookingId ?? '' }, ov),
-        cta: { label: 'View itinerary', url: FIND_BOOKING_URL },
+        cta: { label: 'View schedule', url: STAFF_SCHEDULE_URL },
       }),
     }),
     FR: (d, ov) => ({
-      subject: 'Votre programme de voyage est finalisé',
+      subject: 'Un itinéraire est prêt',
       body: brand('ITINERARY_APPROVED', {
         ...resolveContent('ITINERARY_APPROVED', 'FR', { bookingId: d.bookingId ?? '' }, ov),
-        cta: { label: 'Voir l&rsquo;itinéraire', url: FIND_BOOKING_URL },
+        cta: { label: 'Voir le planning', url: STAFF_SCHEDULE_URL },
       }),
     }),
   },
@@ -1382,8 +1389,8 @@ const SMS_TEMPLATES: Partial<Record<NotificationEvent, Record<Locale, SmsTemplat
     FR: (d) => `MUFASA SAFARIS & TOURS : merci pour votre avis sur la réservation ${d.bookingId} !`,
   },
   ITINERARY_APPROVED: {
-    EN: (d) => `MUFASA SAFARIS & TOURS: Itinerary for booking ${d.bookingId} is finalized and ready to view.`,
-    FR: (d) => `MUFASA SAFARIS & TOURS : l'itinéraire de la réservation ${d.bookingId} est finalisé et prêt à consulter.`,
+    EN: (d) => `POLCO Tours: Itinerary for booking ${d.bookingId} has been approved. Check your schedule.`,
+    FR: (d) => `POLCO Tours : l'itinéraire de la réservation ${d.bookingId} a été approuvé. Consultez votre planning.`,
   },
   TAILOR_MADE_REQUEST_RECEIVED: {
     EN: (d) => {

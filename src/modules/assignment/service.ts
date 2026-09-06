@@ -317,6 +317,35 @@ export const assignmentService = {
     return assignmentRepository.listForDeparture(organizationId, departureId);
   },
 
+  /** DR-260 (explicit user request): resolves the distinct staff user ids
+   * with a real stake in a departure -- every assignment's driver, guide,
+   * and vehicle owner (when the vehicle has one) -- so a caller can notify
+   * the people actually running the trip rather than the guest. Used by
+   * itinerary/service.ts's approveItinerary, which used to notify the
+   * guest instead; kept here (not duplicated into itinerary) since
+   * assignment already depends on fleet for exactly this driver/vehicle
+   * resolution (see createAssignment above), and itinerary has no reason
+   * to gain its own fleet dependency just for this. Same permission/
+   * visibility gate as listForDeparture -- manager-only. */
+  async listAssignedStaffUserIds(ctx: AuthContext, departureId: string): Promise<string[]> {
+    assertCan(ctx, 'assignment.write');
+    const organizationId = requireOrg(ctx);
+    await catalogService.getDepartureDetail(ctx, departureId); // 404s if not found/visible
+    const assignments = await assignmentRepository.listForDeparture(organizationId, departureId);
+
+    const userIds = new Set<string>();
+    for (const assignment of assignments) {
+      const [vehicle, driverProfile] = await Promise.all([
+        fleetService.getVehicle(ctx, assignment.vehicleId),
+        fleetService.getDriverProfile(ctx, assignment.driverProfileId),
+      ]);
+      userIds.add(driverProfile.userId);
+      if (assignment.guideUserId) userIds.add(assignment.guideUserId);
+      if (vehicle.ownerId) userIds.add(vehicle.ownerId);
+    }
+    return [...userIds];
+  },
+
   /** Insights & Decision Making (DR-038): every assignment in the org, for
    * utilization reporting. Gated on `assignment.write` (manager-only),
    * matching `listForDeparture` above -- `assignment.read` is also held by

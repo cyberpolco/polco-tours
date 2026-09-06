@@ -292,17 +292,19 @@ export const itineraryService = {
       organizationId,
     });
     const booking = await bookingService.getById(ctx, updated.bookingId);
-    // notify() would address the guest's anonymous-session placeholder --
-    // see src/lib/guest-contact.ts.
-    const contact = await bookingService.resolveGuestContactForBooking(organizationId, booking);
-    if (contact.email) {
-      await notificationsService.notifyEmail('ITINERARY_APPROVED', contact.email, contact.locale, organizationId, {
-        bookingId: booking.bookingReference,
-      });
-    } else {
-      await notificationsService.notify('ITINERARY_APPROVED', booking.touristUserId, organizationId, {
-        bookingId: booking.bookingReference,
-      });
+    // DR-260 (explicit user request): notify the assigned staff (driver/
+    // guide/vehicle owner) who actually run the trip, not the guest -- this
+    // used to email the guest instead. A booking with no departure yet (an
+    // unconverted TAILOR_MADE itinerary) has no Assignment rows to draw
+    // from; that's a no-op, not an error. Best-effort per recipient, same
+    // never-throws discipline as every other notify() call site.
+    if (booking.departureId) {
+      const staffUserIds = await assignmentService.listAssignedStaffUserIds(ctx, booking.departureId);
+      for (const userId of staffUserIds) {
+        await notificationsService.notify('ITINERARY_APPROVED', userId, organizationId, {
+          bookingId: booking.bookingReference,
+        });
+      }
     }
     return updated;
   },

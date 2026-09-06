@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-259** (2026-09-06). This file used to carry a running
+Current through **DR-260** (2026-09-06). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -675,6 +675,20 @@ src/
                    #   detail block (mirrors `PAYMENT_SUCCEEDED`'s HTML
                    #   summary table, just line-per-fact since WhatsApp/SMS
                    #   is plain text).
+                   #   DR-260 (explicit user request): `ITINERARY_APPROVED`
+                   #   moved OUT of `GUEST_EVENTS` -- itinerary's
+                   #   `approveItinerary` now sends it to the departure's
+                   #   assigned staff (driver/guide/vehicle owner) instead
+                   #   of the guest, so it takes the staff/POLCO Tours
+                   #   wordmark like `ASSIGNMENT_NOTICE_*`. Copy, subject,
+                   #   and CTA (now `STAFF_SCHEDULE_URL`, not
+                   #   `FIND_BOOKING_URL`) reworded to match; moved from the
+                   #   `tripPlanning` `EMAIL_TEMPLATE_GROUPS` entry into
+                   #   `staffAssignments`. No schema/permission/module-
+                   #   dependency change -- `itinerary` already depended on
+                   #   `assignment` (`listMyAssignments`); this just adds a
+                   #   second call (`listAssignedStaffUserIds`, see
+                   #   `assignment`'s own comment) through the same edge.
     documents/     # Document metadata + Vercel Blob gateway (private access)
     fleet/         # Vehicle + DriverProfile + GuideProfile + StarlinkKit +
                    #   MaintenanceRecord, compliance-document tracking;
@@ -710,6 +724,14 @@ src/
                    #   driver -- one person guiding and driving is a real
                    #   staffing pattern; degrades to the old rating-only
                    #   pick when the top guide has no eligible DriverProfile.
+                   #   DR-260: new listAssignedStaffUserIds(ctx, departureId)
+                   #   resolves the distinct staff user ids with a real stake
+                   #   in a departure -- every assignment's driver, guide, and
+                   #   vehicle owner (when set) -- reusing this module's
+                   #   existing fleet dependency (see createAssignment) rather
+                   #   than giving itinerary its own. Sole consumer so far:
+                   #   itinerary's approveItinerary (see that module's own
+                   #   comment).
     visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
                    #   SUPERADMIN can hard-delete an application
                    #   (isVisaDeleter), and deleteForBooking cascades that
@@ -808,7 +830,20 @@ src/
                    #   emergency-contact-from-tour-lead prefill convention
                    #   to `notes`, now defaulting from the guest's own
                    #   Booking.specialRequests (TAILOR_MADE plan-my-trip
-                   #   free text) when staff supplies none
+                   #   free text) when staff supplies none. DR-260 (explicit
+                   #   user request): approveItinerary's ITINERARY_APPROVED
+                   #   notice no longer goes to the guest -- it now goes to
+                   #   every staff member with a real stake in the booking's
+                   #   departure (driver/guide/vehicle owner), via
+                   #   assignment's new listAssignedStaffUserIds (see that
+                   #   module's own comment). A booking with no departure
+                   #   yet (an unconverted TAILOR_MADE itinerary) has no
+                   #   Assignment rows to draw from -- approving it is a
+                   #   no-op on the notification side, not an error. The
+                   #   event itself moved out of notifications/domain.ts's
+                   #   GUEST_EVENTS set (staff/POLCO Tours wordmark now,
+                   #   CTA points at the staff schedule page instead of
+                   #   find-booking) -- see that module's own comment.
     immigration/   # CountryRegulation — platform-wide visa/entry reference
                    #   data. DR-187: gains its first inbound module
                    #   dependency (visa) via a new no-ctx public
@@ -1248,12 +1283,13 @@ DR-197, `tracking` also depends on `booking` (to skip a departure from
 `syncFleetAvailabilityForDeparture`/DR-082 already uses to resync fleet
 resources on the same event) — confirmed acyclic: `booking` itself only
 imports `{auth, catalog, notifications}`, never `tracking`. Since DR-205,
-`itinerary` also depends on `notifications` (to notify the tourist once
-their itinerary is approved) and `assignment` also depends on
-`notifications` (to notify the driver/guide/vehicle-owner staff themselves
-once assigned to a departure) — both confirmed acyclic: `notifications`
-itself only imports `auth` (to resolve a recipient's `User` row in
-`notify()`), never `itinerary` or `assignment`. Also since DR-205, `visa`
+`itinerary` also depends on `notifications` (originally to notify the
+tourist once their itinerary is approved; DR-260 redirects that same send
+to the assigned staff instead — see `itinerary`'s own comment below) and
+`assignment` also depends on `notifications` (to notify the driver/guide/
+vehicle-owner staff themselves once assigned to a departure) — both
+confirmed acyclic: `notifications` itself only imports `{auth, cms}`,
+never `itinerary` or `assignment`. Also since DR-205, `visa`
 gained its first *runtime* (not just type-only) dependency on `auth` —
 `authService.listUsersByRole`, to alert every `VISA_FACILITATOR` in the org
 when a new application lands — still confirmed acyclic, same direction
