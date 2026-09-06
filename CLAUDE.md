@@ -44,12 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-259** (2026-09-06) — **except DR-257**, which was
-committed (`ff62f75`, "Let guests accept a quotation and finish setup from
-the email") without the matching `DECISION_LOG.md`/`CLAUDE.md` update the
-living-document mandate requires; that gap predates this session and
-wasn't authored here, so it's flagged rather than backfilled with
-unverified content — still needs its own pass. This file used to carry a running
+Current through **DR-259** (2026-09-06). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -198,7 +193,11 @@ src/
     (guest)/                   # tourist self-serve site — NO ACCOUNTS, ever
       page.tsx, packages/, book-package/[packageId]/, book/[departureId]/,
       booking/[bookingId]/, plan-my-trip/, find-booking/, rate/, gallery/,
-      about/, faq/, contact/, terms/, weather/ (footer-linked only, DR-113)
+      about/, faq/, contact/, terms/, weather/ (footer-linked only, DR-113),
+      complete-booking/ (DR-257: the quotation email's landing flow --
+        verify (3 factors) -> accept quote -> add-ons -> travellers ->
+        passports -> pay, for a guest whose 30-min anonymous session is
+        long gone; see the security note below)
   lib/                        # shared kernel: db, auth, auth-client, rbac, errors,
                               #   money, audit, logger, route-guard, staff-guard,
                               #   guest-guard, primary-org, country-codes, provinces,
@@ -217,6 +216,20 @@ src/
                               #   used directly by booking/ and the guest
                               #   date-picker pages — not a settings module
                               #   import, see booking/'s own comment),
+                              #   booking-setup-token (DR-257: the HMAC-signed,
+                              #   HttpOnly, 60-minute, single-booking
+                              #   `booking_setup` cookie issued after
+                              #   /complete-booking's three-factor check --
+                              #   the one bearer credential on the guest
+                              #   site; authorises ONLY that flow's setup
+                              #   writes, never cancelForBookingLookup),
+                              #   booking-setup-context (DR-257: rebuilds the
+                              #   guest's own TOURIST AuthContext from a
+                              #   verified booking so the existing invoicing/
+                              #   payment chain runs unchanged rather than
+                              #   being duplicated no-ctx -- not an
+                              #   escalation, every anti-BOLA check still
+                              #   runs and must pass),
                               #   cookie-consent + set-cookie-consent-action
                               #   (DR-207: the `cookie_consent` cookie/banner
                               #   choice gating the one non-essential guest
@@ -1415,8 +1428,25 @@ timed out, and degrades gracefully.
   rating-code) are rate-limited via `src/lib/rate-limit.ts`, real
   Redis-backed in production. DR-207's `bookingService.cancelForBookingLookup`
   (the guest self-service cancel/refund write, no-ctx) has its own tighter
-  write-rate-limit bucket via `assertWriteNotRateLimited`. Per-class rate
+  write-rate-limit bucket via `assertWriteNotRateLimited`; DR-257's
+  `verifyForBookingSetup` has its own (`booking.setup_verify`, 60min/5),
+  since it gates issuing a credential. Per-class rate
   limiting beyond these and the auth endpoints above is still not built.
+- **Guest re-entry (DR-257)** → every no-account path is otherwise a pure
+  knowledge-factor lookup, never a bearer token: reference + surname for
+  reads, + on-file email for the cancel/refund write, or a single-use
+  RatingCode. `/complete-booking` is the **one deliberate exception**: after
+  the same three-factor check it issues a `booking_setup` cookie
+  (`src/lib/booking-setup-token.ts`) — HMAC-signed, HttpOnly, 60 minutes,
+  scoped to ONE booking id, no user identity — because a five-step flow
+  cannot re-ask three factors per submit and an email in a query string
+  would leak via referrer/history. It authorises only that flow's setup
+  writes; `cancelForBookingLookup` still demands all three factors every
+  call. Its sibling `booking-setup-context.ts` rebuilds the guest's own
+  TOURIST `AuthContext` so the existing invoicing/payment chain runs
+  unchanged — deliberately not an escalation, since `userId` is the
+  booking's real `touristUserId` and every anti-BOLA check downstream still
+  runs and still has to pass.
 - **Elevation** → fail-closed RBAC (`src/lib/rbac.ts`), unmapped routes
   denied; `SUPERADMIN`/`admin.all` actions are audited. The permission
   matrix itself is a runtime-editable, SUPERADMIN-only attack surface — a
@@ -1650,22 +1680,14 @@ serverless function bundle.
   `CANCELLABLE_STATUSES` arrays across booking-detail pages; removing the
   unreachable `DRAFT` `BookingStatus` value (blocked on cleaning up leftover
   `DRAFT` test-fixture rows in the shared DB, including one in the real
-  "Lam" org); moving the guest passport upload and staff package-image
-  upload off their plain Server Actions onto the same direct-to-Blob
-  client-upload pattern DR-163 already uses for video (DR-216, explicit
-  user choice over this durable fix) — until then, a passport PDF or
-  package image between ~4.5MB and `documents/domain.ts`'s own advertised
-  10MB passport allowance still fails at Next's Server Action body-size
-  ceiling before the app's own size check ever runs.
-
-Full roadmap and testing strategy: Volume 10 (design package, not yet in repo).
-
----
-
-## Open items — cannot be decided in code
-
-Surface these to the human — don't invent answers.
-
+  "Lam" org); moving the staff package-image upload off its plain Server
+  Action onto the direct-to-Blob client-upload pattern DR-163 uses for
+  video. **The passport half of that is done (DR-216, closed by DR-257)** --
+  both guest passport surfaces now upload straight to Blob via
+  `api/v1/documents/passport-upload`, so a PDF between Vercel's ~4.5MB
+  body cap and the advertised 10MB no longer fails at the platform
+  boundary. `/staff/bookings/[bookingId]/passport` still proxies and keeps
+  the old limit.
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia
   mobile money, settlement SLA, rolling-reserve %). Blocks real payment
   processing; DPO stays stubbed behind `PaymentGateway`.
