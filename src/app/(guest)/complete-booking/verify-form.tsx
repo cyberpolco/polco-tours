@@ -5,11 +5,19 @@ import { useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/Alert';
 import { FormField } from '@/components/ui/FormField';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { verifyBookingAction, VERIFY_INITIAL_STATE } from './actions';
+import { verifyBookingAction, type VerifyState } from './actions';
 
 // Three factors, not the two /find-booking asks for: this unlocks writes
 // (accepting a price, adding travellers), so it follows the tighter
 // cancel-via-lookup precedent and also requires the email on file.
+// Defined here, not exported from ./actions -- a 'use server' file may only
+// export async functions, and exporting a plain object from one makes Next
+// throw `A "use server" file can only export async functions, found object.`
+// at runtime. Neither typecheck nor lint catches it; it surfaces only when
+// the form is actually submitted (it broke the guest contact form in
+// production, caught by CI's Playwright job).
+const VERIFY_INITIAL_STATE: VerifyState = { status: 'idle' };
+
 export function VerifyForm({ defaultReference }: { defaultReference: string }) {
   const t = useTranslations('CompleteBooking');
   const [state, formAction] = useActionState(verifyBookingAction, VERIFY_INITIAL_STATE);

@@ -8,12 +8,20 @@ import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { SubmitButton } from '@/components/ui/SubmitButton';
 import { CONTACT_TOPICS } from '@modules/contact';
-import { submitContactFormAction, CONTACT_FORM_INITIAL_STATE } from './actions';
+import { submitContactFormAction, type ContactFormState } from './actions';
 
 // DR-255: the guest contact form itself. Deliberately no redirect on
 // success (unlike the booking/rating wizards) -- this replaces itself with
 // a success panel in place, so there's no client-side navigation for the
 // DR-124 missing-loading.tsx gotcha to affect.
+// Defined here, not exported from ./actions -- a 'use server' file may only
+// export async functions, and exporting a plain object from one makes Next
+// throw `A "use server" file can only export async functions, found object.`
+// at runtime. Neither typecheck nor lint catches it; it surfaces only when
+// the form is actually submitted (it broke the guest contact form in
+// production, caught by CI's Playwright job).
+const CONTACT_FORM_INITIAL_STATE: ContactFormState = { status: 'idle' };
+
 export function ContactForm() {
   const [state, formAction] = useActionState(submitContactFormAction, CONTACT_FORM_INITIAL_STATE);
   const t = useTranslations('ContactForm');

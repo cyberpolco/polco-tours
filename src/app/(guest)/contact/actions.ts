@@ -8,8 +8,6 @@ export interface ContactFormState {
   error?: string;
 }
 
-export const CONTACT_FORM_INITIAL_STATE: ContactFormState = { status: 'idle' };
-
 // Same IP-resolution convention as ratings'/booking's own guest actions.
 export async function submitContactFormAction(_prev: ContactFormState, formData: FormData): Promise<ContactFormState> {
   const ip = (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim();

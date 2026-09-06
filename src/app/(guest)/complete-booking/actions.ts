@@ -23,8 +23,6 @@ export interface VerifyState {
   error?: string;
 }
 
-export const VERIFY_INITIAL_STATE: VerifyState = { status: 'idle' };
-
 /** Same IP-resolution convention as the other guest actions. */
 async function clientIp(): Promise<string | undefined> {
   return (await headers()).get('x-forwarded-for')?.split(',')[0]?.trim();
