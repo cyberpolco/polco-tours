@@ -21,7 +21,7 @@
     "ratingAriaLabel": "{rating} sur 5 étoiles"
   },
   "MaintenanceBanner": {
-    "message": "Ce site est actuellement en maintenance et fait l'objet de mises à jour majeures — rien de ce qui est présenté ici n'est encore opérationnel."
+    "message": "Ce site est actuellement en maintenance et fait l'objet de mises à jour majeures — rien de ce qui est présenté ici n'est encore opérationnel, y compris le paiement : aucune réservation effectuée ici n'est réellement débitée."
   },
   "StaffNav": {
     "bookings": "Réservations",
@@ -687,7 +687,7 @@
     "completeBookingCta": "Accepter le devis et continuer"
   },
   "CookieConsent": {
-    "message": "Nous utilisons quelques cookies pour vous garder connecté pendant la réservation et pour voir où les visiteurs abandonnent l'assistant Planifier mon voyage. Aucun traceur tiers.",
+    "message": "Nous utilisons un cookie pour vous garder connecté pendant la réservation. Si vous acceptez ci-dessous, nous utilisons aussi un identifiant anonyme et facultatif — jamais lié à votre nom, et automatiquement supprimé après 30 jours — pour voir où les visiteurs abandonnent l'assistant Planifier mon voyage. Aucun traceur tiers.",
     "learnMore": "En savoir plus",
     "reject": "Nécessaires uniquement",
     "accept": "Accepter"

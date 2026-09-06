@@ -21,7 +21,7 @@
     "ratingAriaLabel": "{rating} out of 5 stars"
   },
   "MaintenanceBanner": {
-    "message": "This site is currently undergoing maintenance and major updates — nothing shown here is operational yet."
+    "message": "This site is currently undergoing maintenance and major updates — nothing shown here is operational yet, including payment: no booking made here is actually charged."
   },
   "StaffNav": {
     "bookings": "Bookings",
@@ -687,7 +687,7 @@
     "completeBookingCta": "Accept quotation & continue"
   },
   "CookieConsent": {
-    "message": "We use a few cookies to keep you signed in during booking and to see where guests drop off in Plan My Trip. No third-party trackers.",
+    "message": "We use a cookie to keep you signed in during booking. If you accept below, we also set an anonymous, optional id — never linked to your name, and automatically deleted after 30 days — to see where guests drop off in Plan My Trip. No third-party trackers.",
     "learnMore": "Learn more",
     "reject": "Necessary only",
     "accept": "Accept"
