@@ -292,9 +292,18 @@ export const itineraryService = {
       organizationId,
     });
     const booking = await bookingService.getById(ctx, updated.bookingId);
-    await notificationsService.notify('ITINERARY_APPROVED', booking.touristUserId, organizationId, {
-      bookingId: booking.bookingReference,
-    });
+    // notify() would address the guest's anonymous-session placeholder --
+    // see src/lib/guest-contact.ts.
+    const contact = await bookingService.resolveGuestContactForBooking(organizationId, booking);
+    if (contact.email) {
+      await notificationsService.notifyEmail('ITINERARY_APPROVED', contact.email, contact.locale, organizationId, {
+        bookingId: booking.bookingReference,
+      });
+    } else {
+      await notificationsService.notify('ITINERARY_APPROVED', booking.touristUserId, organizationId, {
+        bookingId: booking.bookingReference,
+      });
+    }
     return updated;
   },
 

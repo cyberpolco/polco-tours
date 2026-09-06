@@ -11,6 +11,7 @@ import { invoicingService } from '@modules/invoicing';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { resolveGuestContact } from '@lib/guest-contact';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import { assertLookupNotRateLimited, recordLookupFailure } from '@lib/rate-limit';
 import { assertCan } from '@lib/rbac';
@@ -189,9 +190,8 @@ export const ratingsService = {
     // Traveler's own email, then Booking.contactEmail, then the tourist's
     // own User.email only as a last resort.
     const travelers = await bookingService.listTravelers(ctx, bookingId);
-    const lead = travelers.find((t) => t.isTourLead);
     const tourist = await authService.getUser(booking.touristUserId);
-    const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+    const { email } = resolveGuestContact({ booking, travelers, tourist });
 
     if (email) {
       await notificationsService.notifyEmail(
@@ -371,8 +371,17 @@ export const ratingsService = {
       organizationId,
       ip,
     });
-    await notificationsService.notify('RATING_THANK_YOU', booking.touristUserId, organizationId, {
-      bookingId: booking.bookingReference,
-    });
+    // Same real-address resolution as RATING_CODE_ISSUED above -- notify()
+    // would send this to the anonymous-session placeholder.
+    const thankYouContact = await bookingService.resolveGuestContactForBooking(organizationId, booking);
+    if (thankYouContact.email) {
+      await notificationsService.notifyEmail('RATING_THANK_YOU', thankYouContact.email, thankYouContact.locale, organizationId, {
+        bookingId: booking.bookingReference,
+      });
+    } else {
+      await notificationsService.notify('RATING_THANK_YOU', booking.touristUserId, organizationId, {
+        bookingId: booking.bookingReference,
+      });
+    }
   },
 };

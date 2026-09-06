@@ -13,6 +13,7 @@ import { financeService } from '@modules/finance';
 import { notificationsService, type EmailAttachment } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { resolveGuestContact } from '@lib/guest-contact';
 import { logger, newTraceId } from '@lib/logger';
 import { money } from '@lib/money';
 import { assertCan } from '@lib/rbac';
@@ -194,7 +195,7 @@ async function applyPaymentOutcome(
     await bookingService.recordPaymentReceived(ctx, result.invoice.bookingId, result.payment.kind);
     await notifyPaymentSucceeded(ctx, organizationId, result);
   } else {
-    await notificationsService.notify('PAYMENT_FAILED', result.touristUserId, organizationId, {
+    await notifyGuest(ctx, organizationId, result.invoice.bookingId, result.touristUserId, 'PAYMENT_FAILED', {
       amountMinor: result.payment.amountMinor,
       currency: result.payment.currency,
     });
@@ -235,6 +236,31 @@ async function applyPaymentOutcome(
  * attachment rather than no email on a rendering failure. Only the EMAIL
  * leg gets one; the notify() fallback branch below has no attachment
  * mechanism (WhatsApp/SMS), so it's plain text same as before this DR. */
+/** Every other guest-facing email in this module. See src/lib/guest-contact.ts:
+ * notify() would address the anonymous-session placeholder, so resolve the
+ * real address off the booking first and only fall back to notify() when
+ * there genuinely isn't one (charter rule 8). notifyPaymentSucceeded above
+ * stays separate -- it needs the booking/travelers it already fetched for
+ * the trip summary and the PDF attachment. */
+async function notifyGuest(
+  ctx: AuthContext,
+  organizationId: string,
+  bookingId: string,
+  touristUserId: string,
+  event: Parameters<typeof notificationsService.notifyEmail>[0],
+  data: Parameters<typeof notificationsService.notifyEmail>[4],
+): Promise<void> {
+  const booking = await bookingService.getById(ctx, bookingId);
+  const travelers = await bookingService.listTravelers(ctx, bookingId);
+  const tourist = await authService.getUser(touristUserId);
+  const { email, locale } = resolveGuestContact({ booking, travelers, tourist });
+  if (!email) {
+    await notificationsService.notify(event, touristUserId, organizationId, data);
+    return;
+  }
+  await notificationsService.notifyEmail(event, email, locale, organizationId, data);
+}
+
 async function notifyPaymentSucceeded(
   ctx: AuthContext,
   organizationId: string,
@@ -244,9 +270,8 @@ async function notifyPaymentSucceeded(
   try {
     const booking = await bookingService.getById(ctx, result.invoice.bookingId);
     const travelers = await bookingService.listTravelers(ctx, result.invoice.bookingId);
-    const lead = travelers.find((t) => t.isTourLead);
     const tourist = await authService.getUser(result.touristUserId);
-    const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+    const { email } = resolveGuestContact({ booking, travelers, tourist });
 
     const tripSummary = booking.departureId
       ? await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId)
@@ -394,7 +419,7 @@ export const invoicingService = {
       resourceId: invoice.id,
       organizationId,
     });
-    await notificationsService.notify('INVOICE_ISSUED', booking.touristUserId, organizationId, {
+    await notifyGuest(ctx, organizationId, bookingId, booking.touristUserId, 'INVOICE_ISSUED', {
       bookingId: booking.bookingReference,
       amountMinor: invoice.totalMinor,
       currency: invoice.currency,

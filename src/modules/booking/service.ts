@@ -7,6 +7,7 @@ import { notificationsService } from '@modules/notifications';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { resolveGuestContact, type GuestContact } from '@lib/guest-contact';
 import { getEffectiveEsimRate } from '@lib/esim-rate';
 import { getEffectiveFlightFareRate } from '@lib/flight-fare-rate';
 import { computeLateBookingSurchargeBp, getEffectiveLateBookingRate } from '@lib/late-booking-rate';
@@ -135,6 +136,36 @@ async function transition<T>(fn: () => Promise<T>): Promise<T> {
     if (err instanceof InvalidTransitionError) throw Errors.conflict(err.message);
     throw err;
   }
+}
+
+/** Sends a guest-facing notification to the guest's REAL email rather than
+ * through notify()'s fallback chain.
+ *
+ * notify() resolves EMAIL from the recipient's `User.email`, but a guest
+ * checkout has no real account -- better-auth's anonymous plugin fills that
+ * column with an undeliverable `temp@<random>.com` placeholder, so anything
+ * sent this way silently never arrives. The address the guest actually
+ * typed lives on the booking (or on the tour lead's Traveler row) instead.
+ *
+ * Same resolution order and same "fall back to notify() only when there is
+ * no real address at all" shape as invoicing's notifyPaymentSucceeded
+ * (DR-215) and visa's contactTraveler (DR-209), which fixed this identical
+ * bug for their own events. Kept as one helper here so booking's remaining
+ * guest events can adopt it without re-deriving the chain each time.
+ */
+async function notifyGuest(
+  event: Parameters<typeof notificationsService.notifyEmail>[0],
+  organizationId: string,
+  booking: BookingView,
+  data: Parameters<typeof notificationsService.notifyEmail>[4],
+): Promise<void> {
+  const { email, locale } = await bookingService.resolveGuestContactForBooking(organizationId, booking);
+
+  if (!email) {
+    await notificationsService.notify(event, booking.touristUserId, organizationId, data);
+    return;
+  }
+  await notificationsService.notifyEmail(event, email, locale, organizationId, data);
 }
 
 /** DR-198: resolves the currently-effective LateBookingRate and applies it
@@ -372,7 +403,7 @@ export const bookingService = {
       organizationId,
       ...(input.overrideReason ? { metadata: { priceMinor: input.priceMinor, currency: input.currency, reason: input.overrideReason } } : {}),
     });
-    await notificationsService.notify('QUOTATION_SENT', updated.touristUserId, organizationId, {
+    await notifyGuest('QUOTATION_SENT', organizationId, updated, {
       bookingId: updated.bookingReference,
       amountMinor: updated.priceMinor ?? undefined,
       currency: updated.currency ?? undefined,
@@ -400,7 +431,7 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
-    await notificationsService.notify('QUOTATION_ACCEPTED', updated.touristUserId, organizationId, {
+    await notifyGuest('QUOTATION_ACCEPTED', organizationId, updated, {
       bookingId: updated.bookingReference,
     });
     return updated;
@@ -426,7 +457,7 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
-    await notificationsService.notify('BOOKING_CONFIRMED', updated.touristUserId, organizationId, {
+    await notifyGuest('BOOKING_CONFIRMED', organizationId, updated, {
       bookingId: updated.bookingReference,
     });
     return updated;
@@ -511,7 +542,7 @@ export const bookingService = {
       organizationId,
       metadata: { previousBookingReference: previousReference },
     });
-    await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
+    await notifyGuest('BOOKING_CANCELLED', organizationId, updated, {
       bookingId: previousReference,
     });
     return updated;
@@ -537,7 +568,7 @@ export const bookingService = {
       resourceId: updated.id,
       organizationId,
     });
-    await notificationsService.notify('BOOKING_REFUNDED', updated.touristUserId, organizationId, {
+    await notifyGuest('BOOKING_REFUNDED', organizationId, updated, {
       bookingId: updated.bookingReference,
       amountMinor: updated.priceMinor ?? undefined,
       currency: updated.currency ?? undefined,
@@ -1235,7 +1266,7 @@ export const bookingService = {
       ip: input.ip,
       metadata: { previousBookingReference: previousReference, channel: 'guest_self_service', refundTier },
     });
-    await notificationsService.notify('BOOKING_CANCELLED', updated.touristUserId, organizationId, {
+    await notifyGuest('BOOKING_CANCELLED', organizationId, updated, {
       bookingId: previousReference,
     });
 
@@ -1249,6 +1280,17 @@ export const bookingService = {
    * ratings service pairs this with its own RatingCode check for the real
    * two-factor secret (RatingCode is single-use and 30-day-expiring, unlike
    * bookingReference), so this alone reveals nothing sensitive. */
+  /** No-ctx: the guest's real, deliverable contact details for a booking.
+   * Exposed because ratings' RATING_THANK_YOU is sent from submitRating --
+   * a public, guest-invoked write with no session to authorize a ctx-gated
+   * traveler read, same reason getBookingForRating below is no-ctx. See
+   * src/lib/guest-contact.ts for why User.email alone is not enough. */
+  async resolveGuestContactForBooking(organizationId: string, booking: BookingView): Promise<GuestContact> {
+    const travelers = await bookingRepository.listTravelersForBooking(organizationId, booking.id);
+    const tourist = await authService.getUser(booking.touristUserId);
+    return resolveGuestContact({ booking, travelers, tourist });
+  },
+
   async getBookingForRating(organizationId: string, bookingReference: string): Promise<BookingView | null> {
     return bookingRepository.findByBookingReference(organizationId, bookingReference);
   },

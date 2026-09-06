@@ -2,13 +2,14 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { Currency } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
-import { bookingService, type TravelerView } from '@modules/booking';
+import { bookingService, type BookingView, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
 import { documentsService, type DocumentSummary, type DocumentStream } from '@modules/documents';
 import { immigrationService } from '@modules/immigration';
 import { notificationsService } from '@modules/notifications';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { resolveGuestContact } from '@lib/guest-contact';
 import { assertCan } from '@lib/rbac';
 import {
   canDecide,
@@ -47,6 +48,25 @@ function requireOrg(ctx: AuthContext): string {
  * queue. Best-effort/sequential per facilitator, same as every other
  * notify() call in this module -- never throws, so a facilitator alert
  * failure can't block the application itself from being created. */
+/** Every guest-facing visa email except the decision itself. notify() would
+ * address the guest's anonymous-session placeholder rather than the address
+ * they actually typed -- see src/lib/guest-contact.ts. decideApplication
+ * resolves its own recipient inline instead, because it also needs the phone
+ * for the WhatsApp/SMS heads-up notifyEmailWithHeadsUp sends (DR-223). */
+async function notifyGuest(
+  organizationId: string,
+  booking: BookingView,
+  event: Parameters<typeof notificationsService.notifyEmail>[0],
+  data: Parameters<typeof notificationsService.notifyEmail>[4],
+): Promise<void> {
+  const { email, locale } = await bookingService.resolveGuestContactForBooking(organizationId, booking);
+  if (!email) {
+    await notificationsService.notify(event, booking.touristUserId, organizationId, data);
+    return;
+  }
+  await notificationsService.notifyEmail(event, email, locale, organizationId, data);
+}
+
 async function notifyFacilitatorQueue(organizationId: string, travelerName: string, country: string): Promise<void> {
   const facilitators = await authService.listUsersByRole(organizationId, 'VISA_FACILITATOR');
   for (const facilitator of facilitators) {
@@ -125,7 +145,7 @@ export const visaService = {
       organizationId,
     });
     const travelerName = `${traveler.firstName} ${traveler.lastName}`;
-    await notificationsService.notify('VISA_SUBMITTED', booking.touristUserId, organizationId, { travelerName, country });
+    await notifyGuest(organizationId, booking, 'VISA_SUBMITTED', { travelerName, country });
     await notifyFacilitatorQueue(organizationId, travelerName, country);
     return application;
   },
@@ -173,14 +193,13 @@ export const visaService = {
       const event = input.outcome === 'APPROVED' ? 'VISA_APPROVED' : 'VISA_REJECTED';
       const data = { travelerName, rejectionReason: input.outcome === 'REJECTED' ? (input.reason ?? undefined) : undefined };
       const travelers = await bookingService.listTravelers(ctx, booking.id);
-      const lead = travelers.find((t) => t.isTourLead);
       const tourist = await authService.getUser(booking.touristUserId);
-      const email = lead?.email ?? booking.contactEmail ?? tourist?.email ?? null;
+      const { email, phone } = resolveGuestContact({ booking, travelers, tourist });
 
       if (email) {
         await notificationsService.notifyEmailWithHeadsUp(
           event,
-          { email, phone: lead?.phone ?? tourist?.phone ?? null },
+          { email, phone },
           tourist?.preferredLocale ?? 'EN',
           organizationId,
           data,
@@ -224,7 +243,7 @@ export const visaService = {
     });
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
     if (booking) {
-      await notificationsService.notify('VISA_RESUBMITTED', booking.touristUserId, organizationId, {
+      await notifyGuest(organizationId, booking, 'VISA_RESUBMITTED', {
         travelerName: `${traveler.firstName} ${traveler.lastName}`,
       });
     }
@@ -267,7 +286,7 @@ export const visaService = {
     });
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
     if (booking) {
-      await notificationsService.notify('VISA_RESUBMITTED', booking.touristUserId, organizationId, {
+      await notifyGuest(organizationId, booking, 'VISA_RESUBMITTED', {
         travelerName: `${traveler.firstName} ${traveler.lastName}`,
       });
     }
@@ -335,7 +354,7 @@ export const visaService = {
     const booking = await bookingService.getBookingForTraveler(ctx, travelerId);
     if (!booking) throw Errors.notFound('Booking not found for this traveler');
 
-    await notificationsService.notify('VISA_MISSING_DOCUMENTS', booking.touristUserId, organizationId, {
+    await notifyGuest(organizationId, booking, 'VISA_MISSING_DOCUMENTS', {
       travelerName: `${traveler.firstName} ${traveler.lastName}`,
       country: application?.country,
     });
@@ -706,7 +725,7 @@ export const visaService = {
       metadata: { trigger: 'passport_upload' },
     });
     const travelerName = `${traveler.firstName} ${traveler.lastName}`;
-    await notificationsService.notify('VISA_SUBMITTED', booking.touristUserId, organizationId, { travelerName, country });
+    await notifyGuest(organizationId, booking, 'VISA_SUBMITTED', { travelerName, country });
     await notifyFacilitatorQueue(organizationId, travelerName, country);
   },
 
