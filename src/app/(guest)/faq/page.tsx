@@ -29,17 +29,21 @@ export default async function FaqPage() {
             (not the title above) -- explicit user request. Breaks out of
             the page's normal max-w-7xl container; the cards themselves
             (faq-list.tsx's FaqCard) are given a slightly translucent
-            background so the photo shows through behind them. */}
-        <section className="relative left-1/2 right-1/2 -mx-[50vw] mt-6 w-screen overflow-hidden px-4 py-10 sm:px-8">
+            background so the photo shows through behind them. Photo (and
+            the full-bleed breakout itself) is sm+ only -- explicit user
+            request: object-cover on this fixed-aspect photo read as
+            overstretched/zoomed-in on a phone viewport rather than a
+            deliberate backdrop. */}
+        <section className="relative mt-6 overflow-hidden py-10 sm:left-1/2 sm:right-1/2 sm:-mx-[50vw] sm:w-screen sm:px-8">
           <Image
             src="/images/hero/faq-hero.jpg"
             alt=""
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            className="hidden object-cover sm:block"
           />
-          <div className="absolute inset-0 bg-ink/10" />
+          <div className="absolute inset-0 hidden bg-ink/10 sm:block" />
           <div className="relative mx-auto max-w-7xl">
             {faqs.length === 0 ? <p className="text-mist">{t('noQuestions')}</p> : <FaqList faqs={faqs} />}
           </div>
