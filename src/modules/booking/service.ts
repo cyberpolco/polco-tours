@@ -2,10 +2,10 @@
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { AddonCode, BookingStatus, CancellationRefundTier, Currency, FlightClass, Locale, PaymentKind } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
-import { catalogService } from '@modules/catalog';
+import { catalogService, type AddonServiceView } from '@modules/catalog';
 import { notificationsService } from '@modules/notifications';
 import { getEffectiveAddonRate } from '@lib/addon-rates';
-import { audit } from '@lib/audit';
+import { audit, type AuditEntry } from '@lib/audit';
 import { Errors } from '@lib/errors';
 import { resolveGuestContact, type GuestContact } from '@lib/guest-contact';
 import { getEffectiveEsimRate } from '@lib/esim-rate';
@@ -27,6 +27,7 @@ import {
   isTravelerManifestComplete,
   lastNameMatches,
   requiresFullTravelerDetails,
+  requiresGuestSetupTravelerDetails,
   resolveCancellationRefundTier,
   toTravelerDutyView,
   type AddTravelerInput,
@@ -53,6 +54,13 @@ const LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 10;
 // (cancels a booking), so a much lower ceiling.
 const CANCEL_LOOKUP_RATE_LIMIT_WINDOW_MINUTES = 60;
 const CANCEL_LOOKUP_RATE_LIMIT_MAX_ATTEMPTS = 5;
+
+// DR-257: this one gates issuing the booking_setup credential, so it is at
+// least as tight as the cancel bucket. Note assertWriteNotRateLimited is a
+// no-op when Upstash is unconfigured (its own doc comment) -- the three
+// factors themselves, not this counter, are the real defense.
+const SETUP_VERIFY_RATE_LIMIT_WINDOW_MINUTES = 60;
+const SETUP_VERIFY_RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 // A cancelled or refunded booking is done -- a dead end for the guest
 // lookup flow and hidden from the staff dashboard's default list (see
@@ -106,6 +114,20 @@ async function resolveBookingCountry(ctx: AuthContext, booking: BookingView): Pr
   if (booking.departureId) {
     const { packageCountry } = await catalogService.getDepartureDetail(ctx, booking.departureId);
     return packageCountry;
+  }
+  if (booking.customCountry) return booking.customCountry;
+  throw Errors.conflict('This booking has no destination country');
+}
+
+/** DR-257: resolveBookingCountry's no-session twin, for the guest
+ * /complete-booking flow. Same precedence (departure's package country, then
+ * the TAILOR_MADE booking's own customCountry), just read through catalog's
+ * existing no-ctx *ForBookingLookup method instead of the ctx-gated
+ * getDepartureDetail. */
+async function resolveBookingCountryForLookup(organizationId: string, booking: BookingView): Promise<string> {
+  if (booking.departureId) {
+    const summary = await catalogService.getDepartureTripSummaryForBookingLookup(organizationId, booking.departureId);
+    if (summary?.country) return summary.country;
   }
   if (booking.customCountry) return booking.customCountry;
   throw Errors.conflict('This booking has no destination country');
@@ -166,6 +188,47 @@ async function notifyGuest(
     return;
   }
   await notificationsService.notifyEmail(event, email, locale, organizationId, data);
+}
+
+/** The three-factor check behind every no-session guest write: the booking
+ * reference resolves, the tour lead's last name matches, and the tour lead's
+ * on-file email matches. Last name alone is comparatively guessable/public,
+ * which is why a write needs the email too (DR-207) while the read-only
+ * lookup settles for two factors.
+ *
+ * Extracted from cancelForBookingLookup so the /complete-booking flow's own
+ * writes can't drift from it. Every failure is the same generic notFound --
+ * never reveal which factor was wrong (same anti-enumeration posture as
+ * getOwnedBooking's 404-not-403 elsewhere in this module).
+ *
+ * `allowedStatuses` is the caller's own gate (cancellable vs quotable vs
+ * still-in-setup); a booking outside it is treated as not found rather than
+ * as a distinguishable "wrong state" answer.
+ */
+async function verifyGuestForBooking(
+  organizationId: string,
+  input: { bookingReference: string; lastName: string; email: string },
+  allowedStatuses?: readonly BookingStatus[],
+): Promise<BookingView> {
+  const found = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
+  const booking = found && (!allowedStatuses || allowedStatuses.includes(found.status)) ? found : null;
+  const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
+  const lead = travelers.find((t) => t.isTourLead);
+  // Same DR-057 fallback as lookupByBookingReference: a TAILOR_MADE inquiry
+  // still AWAITING_QUOTATION/QUOTATION_SENT has no Traveler manifest yet, so
+  // name/email fall back to the booking's own guest-typed contact fields.
+  const nameSource = lead ?? (booking?.contactLastName ? { lastName: booking.contactLastName } : null);
+  const emailSource = lead?.email ?? booking?.contactEmail ?? null;
+
+  const verified =
+    !!booking &&
+    !!nameSource &&
+    lastNameMatches(nameSource, input.lastName) &&
+    !!emailSource &&
+    emailMatches(emailSource, input.email);
+
+  if (!booking || !verified) throw Errors.notFound('No matching booking found');
+  return booking;
 }
 
 /** DR-198: resolves the currently-effective LateBookingRate and applies it
@@ -237,6 +300,119 @@ async function finalizeHold(
     organizationId,
   });
   return booking;
+}
+
+/** The add-on pricing + write shared by the session-gated setAddons and the
+ * no-session setAddonsForBookingLookup (DR-257). Only three things differed
+ * between them -- how the destination country is resolved, how the
+ * AddonService rows are read, and who the audit actor is -- so those are
+ * parameters and the pricing itself has exactly one definition. */
+async function applyAddonSelection(
+  organizationId: string,
+  booking: BookingView,
+  bookingId: string,
+  input: SetAddonsInput,
+  country: string,
+  addons: (AddonServiceView | undefined)[],
+  actor: Pick<AuditEntry, 'actorUserId' | 'actorRole' | 'metadata'>,
+): Promise<BookingAddonView[]> {
+  interface ResolvedAddonItem {
+    addonServiceId: string;
+    priceMinor: number;
+    currency: Currency;
+    flightClass?: FlightClass;
+    airline?: string;
+    originAirportCode?: string;
+    destinationAirportCode?: string;
+    dataAllowanceGb?: number;
+  }
+
+  const resolved = await Promise.all(
+    input.addons.map(async (selection, i): Promise<{ code: AddonCode; item: ResolvedAddonItem }> => {
+      const addon = addons[i];
+      if (!addon) throw Errors.notFound('Add-on service not found');
+
+      if (addon.code === 'FLIGHT_TICKET') {
+        const { originAirportId, destinationAirportId, airline, flightClass } = selection;
+        if (!originAirportId || !destinationAirportId || !airline || !flightClass) {
+          throw Errors.validation('Flight ticket add-on requires an origin airport, destination airport, airline, and class');
+        }
+        const [origin, destination, rate] = await Promise.all([
+          bookingRepository.getActiveAirport(originAirportId),
+          bookingRepository.getActiveAirport(destinationAirportId),
+          getEffectiveFlightFareRate(originAirportId, destinationAirportId, airline, flightClass),
+        ]);
+        if (!origin) throw Errors.notFound('Origin airport not found');
+        if (!destination) throw Errors.notFound('Destination airport not found');
+        if (!rate) throw Errors.conflict('No flight fare configured for this route, airline, and class');
+        if (booking.currency && rate.currency !== booking.currency) {
+          throw Errors.conflict('Add-on currency does not match the booking currency');
+        }
+        return {
+          code: addon.code,
+          item: {
+            addonServiceId: addon.id,
+            priceMinor: rate.priceMinor,
+            currency: rate.currency,
+            flightClass,
+            airline,
+            originAirportCode: origin.iataCode,
+            destinationAirportCode: destination.iataCode,
+          },
+        };
+      }
+
+      if (addon.code === 'ESIM') {
+        const { dataAllowanceGb } = selection;
+        if (!dataAllowanceGb) throw Errors.validation('e-SIM add-on requires a data plan size');
+        const rate = await getEffectiveEsimRate(country, dataAllowanceGb);
+        if (!rate) throw Errors.conflict(`No e-SIM rate configured for ${dataAllowanceGb}GB in ${country}`);
+        if (booking.currency && rate.currency !== booking.currency) {
+          throw Errors.conflict('Add-on currency does not match the booking currency');
+        }
+        return {
+          code: addon.code,
+          item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency, dataAllowanceGb },
+        };
+      }
+
+      if (
+        selection.flightClass ||
+        selection.airline ||
+        selection.originAirportId ||
+        selection.destinationAirportId ||
+        selection.dataAllowanceGb
+      ) {
+        throw Errors.validation(`${addon.code} does not accept a flight ticket or e-SIM selection`);
+      }
+      const rate = await getEffectiveAddonRate(country, addon.code);
+      if (!rate) throw Errors.conflict(`No rate configured for ${addon.code} in ${country}`);
+      if (booking.currency && rate.currency !== booking.currency) {
+        throw Errors.conflict('Add-on currency does not match the booking currency');
+      }
+      return { code: addon.code, item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency } };
+    }),
+  );
+
+  const items = resolved.map((r) => r.item);
+  const requiresPassportUpload = resolved.some((r) => r.code === 'VISA_ASSISTANCE');
+  // Pre-quotation (booking.currency not set yet -- a TAILOR_MADE request
+  // before staff have priced it), there's no fixed currency to check
+  // against yet; the selection just needs to be internally consistent.
+  if (!booking.currency) {
+    const currencies = new Set(items.map((i) => i.currency));
+    if (currencies.size > 1) throw Errors.conflict('Selected add-ons must share one currency');
+  }
+
+  await bookingRepository.replaceAddons(organizationId, bookingId, items, requiresPassportUpload);
+  await audit({
+    ...actor,
+    action: 'booking.addons_finalized',
+    resourceType: 'Booking',
+    resourceId: bookingId,
+    organizationId,
+  });
+  return bookingRepository.listAddonsForBooking(organizationId, bookingId);
 }
 
 export const bookingService = {
@@ -908,105 +1084,10 @@ export const bookingService = {
       resolveBookingCountry(ctx, booking),
       Promise.all(input.addons.map((sel) => catalogService.getAddonService(ctx, sel.addonServiceId))),
     ]);
-
-    interface ResolvedAddonItem {
-      addonServiceId: string;
-      priceMinor: number;
-      currency: Currency;
-      flightClass?: FlightClass;
-      airline?: string;
-      originAirportCode?: string;
-      destinationAirportCode?: string;
-      dataAllowanceGb?: number;
-    }
-
-    const resolved = await Promise.all(
-      input.addons.map(async (selection, i): Promise<{ code: AddonCode; item: ResolvedAddonItem }> => {
-        const addon = addons[i];
-        if (!addon) throw Errors.notFound('Add-on service not found');
-
-        if (addon.code === 'FLIGHT_TICKET') {
-          const { originAirportId, destinationAirportId, airline, flightClass } = selection;
-          if (!originAirportId || !destinationAirportId || !airline || !flightClass) {
-            throw Errors.validation('Flight ticket add-on requires an origin airport, destination airport, airline, and class');
-          }
-          const [origin, destination, rate] = await Promise.all([
-            bookingRepository.getActiveAirport(originAirportId),
-            bookingRepository.getActiveAirport(destinationAirportId),
-            getEffectiveFlightFareRate(originAirportId, destinationAirportId, airline, flightClass),
-          ]);
-          if (!origin) throw Errors.notFound('Origin airport not found');
-          if (!destination) throw Errors.notFound('Destination airport not found');
-          if (!rate) throw Errors.conflict('No flight fare configured for this route, airline, and class');
-          if (booking.currency && rate.currency !== booking.currency) {
-            throw Errors.conflict('Add-on currency does not match the booking currency');
-          }
-          return {
-            code: addon.code,
-            item: {
-              addonServiceId: addon.id,
-              priceMinor: rate.priceMinor,
-              currency: rate.currency,
-              flightClass,
-              airline,
-              originAirportCode: origin.iataCode,
-              destinationAirportCode: destination.iataCode,
-            },
-          };
-        }
-
-        if (addon.code === 'ESIM') {
-          const { dataAllowanceGb } = selection;
-          if (!dataAllowanceGb) throw Errors.validation('e-SIM add-on requires a data plan size');
-          const rate = await getEffectiveEsimRate(country, dataAllowanceGb);
-          if (!rate) throw Errors.conflict(`No e-SIM rate configured for ${dataAllowanceGb}GB in ${country}`);
-          if (booking.currency && rate.currency !== booking.currency) {
-            throw Errors.conflict('Add-on currency does not match the booking currency');
-          }
-          return {
-            code: addon.code,
-            item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency, dataAllowanceGb },
-          };
-        }
-
-        if (
-          selection.flightClass ||
-          selection.airline ||
-          selection.originAirportId ||
-          selection.destinationAirportId ||
-          selection.dataAllowanceGb
-        ) {
-          throw Errors.validation(`${addon.code} does not accept a flight ticket or e-SIM selection`);
-        }
-        const rate = await getEffectiveAddonRate(country, addon.code);
-        if (!rate) throw Errors.conflict(`No rate configured for ${addon.code} in ${country}`);
-        if (booking.currency && rate.currency !== booking.currency) {
-          throw Errors.conflict('Add-on currency does not match the booking currency');
-        }
-        return { code: addon.code, item: { addonServiceId: addon.id, priceMinor: rate.priceMinor, currency: rate.currency } };
-      }),
-    );
-
-    const items = resolved.map((r) => r.item);
-    const requiresPassportUpload = resolved.some((r) => r.code === 'VISA_ASSISTANCE');
-    // Pre-quotation (booking.currency not set yet -- a TAILOR_MADE request
-    // before staff have priced it), there's no fixed currency to check
-    // against yet; the selection just needs to be internally consistent.
-    if (!booking.currency) {
-      const currencies = new Set(items.map((i) => i.currency));
-      if (currencies.size > 1) throw Errors.conflict('Selected add-ons must share one currency');
-    }
-
-    await bookingRepository.replaceAddons(organizationId, bookingId, items, requiresPassportUpload);
-    await audit({
+    return applyAddonSelection(organizationId, booking, bookingId, input, country, addons, {
       actorUserId: ctx.userId,
       actorRole: ctx.roles[0],
-      action: 'booking.addons_finalized',
-      resourceType: 'Booking',
-      resourceId: bookingId,
-      organizationId,
     });
-    return bookingRepository.listAddonsForBooking(organizationId, bookingId);
   },
 
   /** Read-only -- lets the Add-ons wizard step show what's already selected
@@ -1215,27 +1296,7 @@ export const bookingService = {
       });
     }
 
-    const found = await bookingRepository.findByBookingReference(organizationId, input.bookingReference);
-    const booking = found && CANCELLABLE_BOOKING_STATUSES.includes(found.status) ? found : null;
-    const travelers = booking ? await bookingRepository.listTravelersForBooking(organizationId, booking.id) : [];
-    const lead = travelers.find((t) => t.isTourLead);
-    // Same DR-057 fallback as lookupByBookingReference: a TAILOR_MADE
-    // inquiry still AWAITING_QUOTATION/QUOTATION_SENT has no Traveler
-    // manifest yet, so name/email fall back to the booking's own
-    // guest-typed contact fields.
-    const nameSource = lead ?? (booking?.contactLastName ? { lastName: booking.contactLastName } : null);
-    const emailSource = lead?.email ?? booking?.contactEmail ?? null;
-
-    const verified =
-      !!booking &&
-      !!nameSource &&
-      lastNameMatches(nameSource, input.lastName) &&
-      !!emailSource &&
-      emailMatches(emailSource, input.email);
-
-    if (!booking || !verified) {
-      throw Errors.notFound('No matching booking found');
-    }
+    const booking = await verifyGuestForBooking(organizationId, input, CANCELLABLE_BOOKING_STATUSES);
 
     // The reference date to weigh the refund tier against: a real
     // Departure.startDate for PREDEFINED_PACKAGE, or the booking's own
@@ -1271,6 +1332,188 @@ export const bookingService = {
     });
 
     return { booking: updated, refundTier };
+  },
+
+  // ------------------------------------- guest booking setup (DR-257)
+  // The /complete-booking flow, reached from the quotation email. Before
+  // this, a guest whose 30-minute anonymous session had lapsed could not
+  // accept their own quotation at all -- acceptQuotation existed only as a
+  // ctx-gated action on the session-gated /booking/[bookingId], and
+  // signIn.anonymous() only ever mints a NEW user, so there was no way back
+  // in. These are the no-session twins.
+  //
+  // verifyForBookingSetup does the one full three-factor check and is what
+  // the caller turns into a booking_setup cookie (src/lib/booking-setup-token.ts);
+  // every method below trusts that cookie's bookingId and re-resolves the
+  // booking itself rather than taking anything else from the client.
+
+  /** Three-factor check + its own strict rate-limit bucket. Deliberately
+   * separate from lookupByBookingReference's read bucket: this one gates a
+   * credential that unlocks writes. */
+  async verifyForBookingSetup(input: {
+    bookingReference: string;
+    lastName: string;
+    email: string;
+    ip: string | undefined;
+  }): Promise<BookingView> {
+    const organizationId = await getPrimaryOrgId();
+
+    if (input.ip) {
+      await assertWriteNotRateLimited({
+        organizationId,
+        action: 'booking.setup_verify',
+        ip: input.ip,
+        windowMinutes: SETUP_VERIFY_RATE_LIMIT_WINDOW_MINUTES,
+        maxAttempts: SETUP_VERIFY_RATE_LIMIT_MAX_ATTEMPTS,
+      });
+    }
+
+    const booking = await verifyGuestForBooking(organizationId, input);
+    // A cancelled/refunded booking is a dead end -- same generic notFound as
+    // a wrong last name, so this never becomes a status oracle.
+    if (CLOSED_BOOKING_STATUSES.includes(booking.status)) {
+      throw Errors.notFound('No matching booking found');
+    }
+
+    await audit({
+      action: 'booking.setup_verified',
+      resourceType: 'Booking',
+      resourceId: booking.id,
+      organizationId,
+      ip: input.ip,
+      metadata: { channel: 'guest_self_service' },
+    });
+    return booking;
+  },
+
+  /** Re-resolves the booking named by the setup cookie. Every write below
+   * starts here rather than trusting an id from the request body. */
+  async getForBookingSetup(bookingId: string): Promise<BookingView> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await bookingRepository.findById(organizationId, bookingId);
+    if (!booking || CLOSED_BOOKING_STATUSES.includes(booking.status)) {
+      throw Errors.notFound('No matching booking found');
+    }
+    return booking;
+  },
+
+  async acceptQuotationForBookingLookup(bookingId: string): Promise<BookingView> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    // The state machine is the real gate -- transition() turns an illegal
+    // FROM status into a 409 rather than silently no-oping.
+    if (booking.status !== 'QUOTATION_SENT') {
+      throw Errors.conflict('This booking has no quotation awaiting acceptance');
+    }
+
+    const updated = await transition(() => bookingRepository.updateStatus(organizationId, bookingId, 'AWAITING_DEPOSIT'));
+    if (!updated) throw Errors.notFound('Booking not found');
+    await audit({
+      actorUserId: updated.touristUserId,
+      action: 'booking.quotation_accepted',
+      resourceType: 'Booking',
+      resourceId: updated.id,
+      organizationId,
+      metadata: { channel: 'guest_self_service' },
+    });
+    await notifyGuest('QUOTATION_ACCEPTED', organizationId, updated, {
+      bookingId: updated.bookingReference,
+    });
+    return updated;
+  },
+
+  async addTravelerForBookingLookup(bookingId: string, input: AddTravelerInput): Promise<TravelerView> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
+
+    const existing = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
+    if (!canAddTraveler(existing.length, booking.seats)) {
+      throw Errors.conflict('This booking already has a traveler for every seat');
+    }
+    if (input.isTourLead && existing.some((t) => t.isTourLead)) {
+      throw Errors.conflict('This booking already has a tour lead');
+    }
+    // Same completeness rule as the session-gated addTraveler -- a booking
+    // reaching this flow is past its quotation, so it needs the operational
+    // detail a predefined booking collects (see requiresFullTravelerDetails).
+    if (requiresGuestSetupTravelerDetails(booking) && (input.age == null || !input.nationality || !input.idOrPassportNumber)) {
+      throw Errors.validation('Age, nationality, and ID/passport number are required for this booking');
+    }
+
+    const traveler = await bookingRepository.createTraveler(organizationId, bookingId, input);
+    await audit({
+      actorUserId: booking.touristUserId,
+      action: 'booking.traveler_added',
+      resourceType: 'Traveler',
+      resourceId: traveler.id,
+      organizationId,
+      metadata: { channel: 'guest_self_service' },
+    });
+    return traveler;
+  },
+
+  /** The manifest as the /complete-booking checklist needs it. Keyed off the
+   * booking the setup credential already named, so it needs no ctx and
+   * reveals nothing the guest hasn't already proved they may see. */
+  async listTravelersForBookingSetup(bookingId: string): Promise<TravelerView[]> {
+    const organizationId = await getPrimaryOrgId();
+    await this.getForBookingSetup(bookingId);
+    return bookingRepository.listTravelersForBooking(organizationId, bookingId);
+  },
+
+  async setAddonsForBookingLookup(bookingId: string, input: SetAddonsInput): Promise<BookingAddonView[]> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
+
+    const [country, rows] = await Promise.all([
+      resolveBookingCountryForLookup(organizationId, booking),
+      catalogService.listAddonServicesForBookingLookup(
+        organizationId,
+        input.addons.map((sel) => sel.addonServiceId),
+      ),
+    ]);
+    // That bulk read returns rows in DB order, but applyAddonSelection pairs
+    // addons[i] with input.addons[i] -- so realign by id rather than trusting
+    // the order, and drop inactive rows so they surface as the same
+    // "Add-on service not found" the ctx-gated getAddonService raises.
+    const byId = new Map(rows.filter((row) => row.active).map((row) => [row.id, row]));
+    const addons = input.addons.map((sel) => byId.get(sel.addonServiceId));
+
+    return applyAddonSelection(organizationId, booking, bookingId, input, country, addons, {
+      actorUserId: booking.touristUserId,
+      metadata: { channel: 'guest_self_service' },
+    });
+  },
+
+  async setTravelerPassportForBookingLookup(bookingId: string, travelerId: string, documentId: string): Promise<void> {
+    const organizationId = await getPrimaryOrgId();
+    const booking = await this.getForBookingSetup(bookingId);
+    if (isBookingLocked(booking.status)) {
+      throw Errors.conflict(`This booking is ${booking.status} and can no longer be edited`);
+    }
+    // Anti-BOLA: the credential names a booking, so the traveler must be on
+    // THAT booking -- never attach a document to someone else's manifest.
+    const travelers = await bookingRepository.listTravelersForBooking(organizationId, bookingId);
+    if (!travelers.some((t) => t.id === travelerId)) throw Errors.notFound('Traveler not found');
+    if (!booking.requiresPassportUpload) {
+      throw Errors.conflict('This booking does not require any passport uploads');
+    }
+
+    await bookingRepository.setTravelerPassport(organizationId, travelerId, documentId);
+    await audit({
+      actorUserId: booking.touristUserId,
+      action: 'booking.traveler_passport_set',
+      resourceType: 'Traveler',
+      resourceId: travelerId,
+      organizationId,
+      metadata: { channel: 'guest_self_service' },
+    });
   },
 
   /** Ratings module (DR-037): resolves a booking by its bookingReference for

@@ -585,6 +585,25 @@ export function requiresFullTravelerDetails(origin: BookingOrigin): boolean {
   return origin !== 'TAILOR_MADE';
 }
 
+/** The statuses at which a TAILOR_MADE booking is still just an inquiry --
+ * no price agreed, no manifest expected (DR-047). */
+const PRE_QUOTATION_STATUSES: BookingStatus[] = ['AWAITING_QUOTATION', 'QUOTATION_SENT'];
+
+/** DR-257: the same rule as requiresFullTravelerDetails, but status-aware,
+ * for the guest /complete-booking flow.
+ *
+ * requiresFullTravelerDetails exempts TAILOR_MADE outright because its
+ * plan-my-trip wizard collects no per-traveler data and staff shouldn't have
+ * to fabricate values to save the form. That exemption stops making sense
+ * once the guest has accepted the quote and is filling in the manifest for a
+ * real, priced trip -- at that point the trip needs the same operational
+ * detail (age, nationality, ID/passport number) a predefined booking
+ * collects, or it cannot actually be run. */
+export function requiresGuestSetupTravelerDetails(booking: Pick<BookingView, 'origin' | 'status'>): boolean {
+  if (requiresFullTravelerDetails(booking.origin)) return true;
+  return !PRE_QUOTATION_STATUSES.includes(booking.status);
+}
+
 export function hasExactlyOneTourLead(travelers: Pick<TravelerView, 'isTourLead'>[]): boolean {
   return travelers.filter((t) => t.isTourLead).length === 1;
 }

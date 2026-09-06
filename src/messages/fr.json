@@ -644,7 +644,7 @@
     "yourTripRequest": "Votre demande de voyage",
     "yourBooking": "Votre réservation",
     "receivedTripRequest": "Nous avons reçu votre demande de voyage — notre équipe vous contactera bientôt avec un devis.",
-    "quotationReadySignIn": "Votre devis est prêt : {price}. Reconnectez-vous sur l'appareil depuis lequel vous avez fait la demande pour l'accepter et continuer.",
+    "quotationReadySignIn": "Votre devis est prêt : {price}. Acceptez-le et complétez votre réservation ci-dessous — aucun compte nécessaire.",
     "requestSummary": "Résumé de la demande",
     "destinations": "Destination(s)",
     "travelDates": "Dates de voyage (à titre indicatif)",
@@ -682,7 +682,8 @@
     "feedback": "Retour d'expérience",
     "ratingCodeAvailable": "Un code d'évaluation a été émis pour votre voyage — consultez votre e-mail de confirmation ou contactez notre équipe pour l'obtenir.",
     "ratingCodeUnavailable": "Votre code d'évaluation a déjà été utilisé ou a expiré.",
-    "cancelSectionTitle": "Annuler cette réservation"
+    "cancelSectionTitle": "Annuler cette réservation",
+    "completeBookingCta": "Accepter le devis et continuer"
   },
   "CookieConsent": {
     "message": "Nous utilisons quelques cookies pour vous garder connecté pendant la réservation et pour voir où les visiteurs abandonnent l'assistant Planifier mon voyage. Aucun traceur tiers.",
@@ -2387,5 +2388,26 @@
     "surchargePercent": "Majoration (%)",
     "adding": "Ajout…",
     "add": "Ajouter"
+  },
+  "CompleteBooking": {
+    "eyebrow": "Finaliser votre réservation",
+    "verifyTitle": "Retrouver votre réservation",
+    "verifyIntro": "Saisissez les informations de votre e-mail de devis pour afficher votre voyage.",
+    "bookingReference": "Référence de réservation",
+    "lastName": "Nom de famille de la réservation",
+    "email": "Adresse e-mail de la réservation",
+    "checking": "Vérification…",
+    "continue": "Continuer",
+    "verifyFailed": "Aucune réservation ne correspond à ces informations. Vérifiez-les dans votre e-mail de devis et réessayez.",
+    "quotationTitle": "Votre devis",
+    "quotationReady": "Votre devis est prêt : {price}. Acceptez-le pour poursuivre votre réservation.",
+    "acceptQuotation": "Accepter le devis",
+    "accepting": "Acceptation…",
+    "awaitingQuotation": "Nous avons bien reçu votre demande de voyage et préparons un prix. Nous vous écrirons dès qu'il sera prêt.",
+    "setupTitle": "Finaliser votre réservation",
+    "setupIntro": "Encore quelques informations avant la confirmation de votre voyage.",
+    "continueSetup": "Continuer",
+    "setupComplete": "Nous avons tout ce qu'il nous faut pour l'instant — merci.",
+    "viewBooking": "Voir ma réservation"
   }
 }

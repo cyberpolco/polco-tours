@@ -644,7 +644,7 @@
     "yourTripRequest": "Your trip request",
     "yourBooking": "Your booking",
     "receivedTripRequest": "We've received your trip request — our team will be in touch soon with a quotation.",
-    "quotationReadySignIn": "Your quotation is ready: {price}. Sign back in on the device you requested from to accept it and continue.",
+    "quotationReadySignIn": "Your quotation is ready: {price}. Accept it and finish your booking details below — no account needed.",
     "requestSummary": "Request summary",
     "destinations": "Destination(s)",
     "travelDates": "Travel dates (estimated)",
@@ -682,7 +682,8 @@
     "feedback": "Feedback",
     "ratingCodeAvailable": "A rating code has been issued for your trip — check your confirmation email or contact our team for it.",
     "ratingCodeUnavailable": "Your rating code has already been used or has expired.",
-    "cancelSectionTitle": "Cancel this booking"
+    "cancelSectionTitle": "Cancel this booking",
+    "completeBookingCta": "Accept quotation & continue"
   },
   "CookieConsent": {
     "message": "We use a few cookies to keep you signed in during booking and to see where guests drop off in Plan My Trip. No third-party trackers.",
@@ -2387,5 +2388,26 @@
     "surchargePercent": "Surcharge (%)",
     "adding": "Adding…",
     "add": "Add"
+  },
+  "CompleteBooking": {
+    "eyebrow": "Complete your booking",
+    "verifyTitle": "Find your booking",
+    "verifyIntro": "Enter the details from your quotation email so we can bring up your trip.",
+    "bookingReference": "Booking reference",
+    "lastName": "Surname on the booking",
+    "email": "Email address on the booking",
+    "checking": "Checking…",
+    "continue": "Continue",
+    "verifyFailed": "We couldn't find a booking matching those details. Check them against your quotation email and try again.",
+    "quotationTitle": "Your quotation",
+    "quotationReady": "Your quotation is ready: {price}. Accept it to carry on with your booking.",
+    "acceptQuotation": "Accept quotation",
+    "accepting": "Accepting…",
+    "awaitingQuotation": "We've got your trip request and we're putting a price together. We'll email you as soon as it's ready.",
+    "setupTitle": "Finish your booking",
+    "setupIntro": "A few details left before your trip is confirmed.",
+    "continueSetup": "Continue",
+    "setupComplete": "That's everything we need for now — thank you.",
+    "viewBooking": "View my booking"
   }
 }

@@ -106,6 +106,51 @@ export const documentsService = {
     return toSummary(doc);
   },
 
+  /** DR-257: uploadPassport's no-session twin for the guest
+   * /complete-booking flow. This module deliberately learns nothing about
+   * bookings -- the caller has already proved, via the booking_setup
+   * credential, which booking it is acting for, and re-checks that the
+   * traveler belongs to it before attaching the returned document. Same
+   * private-Blob storage, same validation, same audit trail; only the actor
+   * differs (the booking's own anonymous tourist, not a staff user). */
+  async uploadPassportForGuest(
+    organizationId: string,
+    uploadedByUserId: string,
+    input: UploadPassportInput,
+  ): Promise<DocumentSummary> {
+    if (!isValidDocumentUpload('PASSPORT', input.contentType, input.sizeBytes)) {
+      throw Errors.validation('Invalid PASSPORT upload (unsupported content type or size)');
+    }
+
+    const pathname = pathnameFor('PASSPORT', organizationId, input.contentType);
+    let uploaded;
+    try {
+      uploaded = await blobGateway.upload(pathname, input.bytes, input.contentType);
+    } catch (err) {
+      if (err instanceof BlobGatewayError) throw Errors.internal();
+      throw err;
+    }
+
+    const doc = await documentsRepository.create(organizationId, {
+      kind: 'PASSPORT',
+      blobPathname: uploaded.pathname,
+      contentType: input.contentType,
+      sizeBytes: input.sizeBytes,
+      uploadedByUserId,
+    });
+
+    await audit({
+      actorUserId: uploadedByUserId,
+      action: 'document.uploaded',
+      resourceType: 'Document',
+      resourceId: doc.id,
+      organizationId,
+      metadata: { channel: 'guest_self_service' },
+    });
+
+    return toSummary(doc);
+  },
+
   async uploadPassport(ctx: AuthContext, input: UploadPassportInput): Promise<DocumentSummary> {
     return documentsService.uploadDocument(ctx, { ...input, kind: 'PASSPORT' });
   },

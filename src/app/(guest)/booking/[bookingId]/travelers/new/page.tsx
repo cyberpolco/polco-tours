@@ -2,20 +2,17 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireGuestContext } from '@lib/guest-guard';
-import { COUNTRY_CODES, flagEmoji, parseE164 } from '@lib/country-codes';
+import { parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
 import { BackLink } from '@/components/ui/BackLink';
 import { LinkButton } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { FormField } from '@/components/ui/FormField';
 import { Reveal } from '@/components/ui/Reveal';
-import { Select } from '@/components/ui/Select';
-import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator } from '@/components/ui/StepIndicator';
-import { SubmitButton } from '@/components/ui/SubmitButton';
 import { getBookingWizardSteps } from '../../../../booking-wizard-steps';
+import { TravelerForm } from '../../../../traveler-form';
 import { addTravelerAction } from './actions';
 
 // Real per-guest data, not a link-share target -- kept out of search
@@ -137,117 +134,19 @@ export default async function NewTravelerPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      <form action={addTravelerAction.bind(null, bookingId)} className="mt-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('firstName')} htmlFor="firstName">
-            <input
-              name="firstName"
-              required
-              defaultValue={prefillFirstName}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-          <FormField label={t('lastName')} htmlFor="lastName">
-            <input
-              name="lastName"
-              required
-              defaultValue={prefillLastName}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label={t('age')} htmlFor="age">
-            <input name="age" type="number" min={0} max={120} required className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label={t('sex')} htmlFor="sex">
-            <Select name="sex" required>
-              <option value="M">M</option>
-              <option value="F">F</option>
-              <option value="X">X</option>
-            </Select>
-          </FormField>
-        </div>
-
-        <FormField label={t('nationality')} htmlFor="nationality">
-          <Select name="nationality" required>
-            {COUNTRY_CODES.map((c) => (
-              <option key={c.alpha2} value={c.alpha2}>
-                {flagEmoji(c.alpha2)} {c.name}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-
-        <FormField label={t('idOrPassportNumber')} htmlFor="idOrPassportNumber">
-          <input name="idOrPassportNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-
-        {isAddingTourLead && (
-          <div className="space-y-4 rounded-survey border border-rule p-4">
-            <p className="text-xs uppercase tracking-wide text-mist">{t('tourLeadContactDetails')}</p>
-            <div>
-              <p className="mb-1 block text-sm text-mist">{t('phone')}</p>
-              <div className="flex gap-2">
-                <Select name="dialCode" defaultValue={prefillDialCode}>
-                  {COUNTRY_CODES.map((c) => (
-                    <option key={c.alpha2} value={c.dialCode}>
-                      {flagEmoji(c.alpha2)} +{c.dialCode}
-                    </option>
-                  ))}
-                </Select>
-                <input
-                  name="localNumber"
-                  type="tel"
-                  required
-                  defaultValue={prefillLocalNumber}
-                  placeholder={t('phonePlaceholder')}
-                  className="flex-1 rounded-survey border border-rule px-3 py-2"
-                />
-              </div>
-            </div>
-            <FormField label={t('email')} htmlFor="email">
-              <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
-            </FormField>
-            <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
-              <Select name="countryOfResidence" required>
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.alpha2} value={c.alpha2}>
-                    {flagEmoji(c.alpha2)} {c.name}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-        )}
-
-        <FormField label={t('allergies')} htmlFor="allergies" optional>
-          <input name="allergies" className="w-full rounded-survey border border-rule px-3 py-2" />
-        </FormField>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField label={t('emergencyContactName')} htmlFor="emergencyContactName" optional>
-            <input name="emergencyContactName" className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label={t('emergencyContactPhone')} htmlFor="emergencyContactPhone" optional>
-            <input name="emergencyContactPhone" className="w-full rounded-survey border border-rule px-3 py-2" />
-          </FormField>
-          <FormField label={t('relation')} htmlFor="emergencyContactRelation" optional>
-            <input
-              name="emergencyContactRelation"
-              placeholder={t('relationPlaceholder')}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
-        </div>
-
-        <SelectableCard type="checkbox" name="isTourLead" defaultChecked={!hasTourLead} disabled={hasTourLead}>
-          {t('tourLeadCheckboxLabel')}
-        </SelectableCard>
-
-        <SubmitButton>{travelerNumber === booking.seats ? t('finishTravelers') : t('addTravelerContinue')}</SubmitButton>
-      </form>
+      <TravelerForm
+        action={addTravelerAction.bind(null, bookingId)}
+        isAddingTourLead={isAddingTourLead}
+        hasTourLead={hasTourLead}
+        travelerNumber={travelerNumber}
+        seats={booking.seats}
+        prefill={{
+          firstName: prefillFirstName,
+          lastName: prefillLastName,
+          dialCode: prefillDialCode,
+          localNumber: prefillLocalNumber,
+        }}
+      />
     </div>
     </Reveal>
   );

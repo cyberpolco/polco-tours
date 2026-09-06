@@ -13,6 +13,7 @@ import { ratingsService } from '@modules/ratings';
 import { visaService, type BookingLookupVisaView } from '@modules/visa';
 import { ApiError } from '@lib/errors';
 import { Alert } from '@/components/ui/Alert';
+import { LinkButton } from '@/components/ui/Button';
 import { BackLink } from '@/components/ui/BackLink';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -252,9 +253,19 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
           <div className="mt-4 space-y-3">
             {booking.status === 'AWAITING_QUOTATION' && <Alert tone="success">{t('receivedTripRequest')}</Alert>}
             {booking.status === 'QUOTATION_SENT' && (
-              <Alert tone="success">
-                {t('quotationReadySignIn', { price: formatOrPending(booking.priceMinor, booking.currency) })}
-              </Alert>
+              <>
+                <Alert tone="success">
+                  {t('quotationReadySignIn', { price: formatOrPending(booking.priceMinor, booking.currency) })}
+                </Alert>
+                {/* DR-257: this used to tell the guest to "sign back in on
+                    the device you requested from" -- impossible, since the
+                    anonymous session expires after 30 minutes and guests
+                    have no account. /complete-booking re-verifies them
+                    properly instead. */}
+                <LinkButton href={`/complete-booking?ref=${encodeURIComponent(booking.bookingReference)}`}>
+                  {t('completeBookingCta')}
+                </LinkButton>
+              </>
             )}
           </div>
         </Reveal>

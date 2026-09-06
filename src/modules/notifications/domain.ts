@@ -211,12 +211,12 @@ export const EMAIL_TEMPLATE_DEFAULTS: Record<string, Record<Locale, EmailTemplat
     EN: {
       eyebrow: 'Your quotation',
       heading: 'Your quotation is ready',
-      bodyTemplate: 'Your quotation for booking {{bookingId}} is ready: {{amount}}. Log in to review and pay.',
+      bodyTemplate: 'Your quotation for booking {{bookingId}} is ready: {{amount}}. Open it below to accept and finish your booking details — no account needed.',
     },
     FR: {
       eyebrow: 'Votre devis',
       heading: 'Votre devis est prêt',
-      bodyTemplate: 'Votre devis pour la réservation {{bookingId}} est prêt : {{amount}}. Connectez-vous pour consulter et payer.',
+      bodyTemplate: 'Votre devis pour la réservation {{bookingId}} est prêt : {{amount}}. Ouvrez-le ci-dessous pour l’accepter et compléter votre réservation — aucun compte nécessaire.',
     },
   },
   QUOTATION_ACCEPTED: {
@@ -669,6 +669,16 @@ function brand(
 }
 
 const FIND_BOOKING_URL = 'https://mufasasafaris.com/find-booking';
+// DR-257: the quotation email is the ONLY way most guests get back in --
+// their 30-minute anonymous session is long gone by the time they read it,
+// and guests have no accounts to log into. This lands them on the
+// three-factor verify step with the reference already filled in. Safe from
+// staff edits: a cta is assembled here in code, outside the escaped,
+// staff-editable body (see applyBodyTemplate).
+const COMPLETE_BOOKING_URL = 'https://mufasasafaris.com/complete-booking';
+function completeBookingUrl(bookingReference: string): string {
+  return bookingReference ? `${COMPLETE_BOOKING_URL}?ref=${encodeURIComponent(bookingReference)}` : COMPLETE_BOOKING_URL;
+}
 const STAFF_LOGIN_URL = '/staff/login';
 const STAFF_SCHEDULE_URL = '/staff/schedule';
 const STAFF_VISA_QUEUE_URL = '/staff/visa-queue';
@@ -796,14 +806,14 @@ const TEMPLATES: Record<NotificationEvent, Record<Locale, Template>> = {
       subject: 'Your quotation is ready',
       body: brand('QUOTATION_SENT', {
         ...resolveContent('QUOTATION_SENT', 'EN', { bookingId: d.bookingId ?? '', amount: amount(d, 'en') }, ov),
-        cta: { label: 'Review &amp; accept', url: FIND_BOOKING_URL },
+        cta: { label: 'Review &amp; accept', url: completeBookingUrl(d.bookingId ?? '') },
       }),
     }),
     FR: (d, ov) => ({
       subject: 'Votre devis est prêt',
       body: brand('QUOTATION_SENT', {
         ...resolveContent('QUOTATION_SENT', 'FR', { bookingId: d.bookingId ?? '', amount: amount(d, 'fr') }, ov),
-        cta: { label: 'Consulter et accepter', url: FIND_BOOKING_URL },
+        cta: { label: 'Consulter et accepter', url: completeBookingUrl(d.bookingId ?? '') },
       }),
     }),
   },
