@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getOptionalStaffSession } from '@lib/staff-guard';
+import { getOptionalStaffSession, resolveStaffLandingPath } from '@lib/staff-guard';
 import { isStaffRole } from '@lib/rbac';
 import { StaffLoginForm } from './staff-login-form';
 
@@ -12,6 +12,6 @@ import { StaffLoginForm } from './staff-login-form';
 // being signed out, from the visitor's side.
 export default async function StaffLoginPage() {
   const ctx = await getOptionalStaffSession();
-  if (ctx && isStaffRole(ctx.roles)) redirect('/staff/bookings');
+  if (ctx && isStaffRole(ctx.roles)) redirect(resolveStaffLandingPath(ctx));
   return <StaffLoginForm />;
 }

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Role } from '@prisma/client';
+import { resolvePermissionsForRoles } from '../src/lib/rbac';
 
 // vi.mock factories are hoisted above top-level const declarations, so the
 // mock fns themselves must be created via vi.hoisted() to be safely
@@ -19,7 +21,11 @@ vi.mock('next/headers', () => ({
 // Uses the REAL next/navigation redirect() -- confirmed safe to call outside
 // a live Next request: it's a plain synchronous throw of an Error whose
 // `.digest` is shaped `NEXT_REDIRECT;${type};${url};${statusCode};`.
-import { requireStaffContext } from '../src/lib/staff-guard';
+import { requireStaffContext, resolveStaffLandingPath } from '../src/lib/staff-guard';
+
+function permissionSourceFor(roles: Role[]) {
+  return { roles, permissions: resolvePermissionsForRoles(roles) };
+}
 
 describe('requireStaffContext', () => {
   beforeEach(() => {
@@ -118,5 +124,33 @@ describe('requireStaffContext', () => {
     };
     resolveSession.mockResolvedValue(ctx);
     await expect(requireStaffContext('fleet.read')).resolves.toEqual(ctx);
+  });
+});
+
+// Real bug fix: every "where does a just-authenticated staff session land"
+// call site hardcoded '/staff/bookings', a page gated to PLATFORM_ADMIN/
+// TOUR_OPERATOR only -- a VISA_FACILITATOR-only (or TOUR_GUIDE/DRIVER/
+// VEHICLE_OWNER-only) account signed in successfully and was immediately
+// bounced to /staff/forbidden. resolveStaffLandingPath is the fix.
+describe('resolveStaffLandingPath', () => {
+  it('lands PLATFORM_ADMIN, TOUR_OPERATOR, and SUPERADMIN on Bookings (STAFF_PAGE_ACCESS.bookingsBrowse)', () => {
+    expect(resolveStaffLandingPath(permissionSourceFor(['PLATFORM_ADMIN']))).toBe('/staff/bookings');
+    expect(resolveStaffLandingPath(permissionSourceFor(['TOUR_OPERATOR']))).toBe('/staff/bookings');
+    expect(resolveStaffLandingPath(permissionSourceFor(['SUPERADMIN']))).toBe('/staff/bookings');
+  });
+
+  it('lands a VISA_FACILITATOR-only account on the Visa Queue instead of the Bookings page it cannot open', () => {
+    expect(resolveStaffLandingPath(permissionSourceFor(['VISA_FACILITATOR']))).toBe('/staff/visa-queue');
+  });
+
+  it('lands TOUR_GUIDE/DRIVER/VEHICLE_OWNER-only accounts on My Schedule instead of the Bookings page they cannot open', () => {
+    expect(resolveStaffLandingPath(permissionSourceFor(['TOUR_GUIDE']))).toBe('/staff/schedule');
+    expect(resolveStaffLandingPath(permissionSourceFor(['DRIVER']))).toBe('/staff/schedule');
+    expect(resolveStaffLandingPath(permissionSourceFor(['VEHICLE_OWNER']))).toBe('/staff/schedule');
+  });
+
+  it('a VISA_FACILITATOR paired with TOUR_OPERATOR or SUPERADMIN (ROLE_COMPATIBILITY) lands on Bookings via the other role', () => {
+    expect(resolveStaffLandingPath(permissionSourceFor(['VISA_FACILITATOR', 'TOUR_OPERATOR']))).toBe('/staff/bookings');
+    expect(resolveStaffLandingPath(permissionSourceFor(['VISA_FACILITATOR', 'SUPERADMIN']))).toBe('/staff/bookings');
   });
 });

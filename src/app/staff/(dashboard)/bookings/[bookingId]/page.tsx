@@ -72,6 +72,15 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   // comment). VISA_FACILITATOR is included: /staff/visa-queue links
   // directly into this page for the application they're processing.
   const ctx = await requireStaffRole(STAFF_PAGE_ACCESS.bookingDetail);
+  // Real bug fix, user-reported: this page shows every financial/booking-
+  // lifecycle control to whoever can reach it, but a pure VISA_FACILITATOR
+  // (no admin role alongside it) only needs traveler identity, visa status,
+  // and the itinerary as a supporting document -- not invoicing/payments/
+  // confirm/cancel/refund/delete. A facilitator who ALSO holds SUPERADMIN
+  // or TOUR_OPERATOR (the only two roles it's allowed to pair with,
+  // ROLE_COMPATIBILITY in auth/domain.ts) keeps the full view via that
+  // other role.
+  const isFacilitatorOnly = ctx.roles.every((r) => r === 'VISA_FACILITATOR');
   const t = await getTranslations('StaffBookingDetail');
   const tCommon = await getTranslations('Common');
   const tBookingStatus = await getTranslations('BookingStatusLabel');
@@ -299,14 +308,14 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             {booking.citizenship && t('citizenship', { country: countryName(booking.citizenship, tCountries) })}
           </p>
         )}
-        {booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
+        {!isFacilitatorOnly && booking.origin === 'TAILOR_MADE' && booking.priceMinor != null && !booking.departureId && (
           <form action={convertToItineraryAction.bind(null, booking.id)} className="mt-3">
             <SubmitButton variant="secondary" pendingLabel={t('convertingToItinerary')}>
               {t('convertToItinerary')}
             </SubmitButton>
           </form>
         )}
-        {booking.departureId && (
+        {!isFacilitatorOnly && booking.departureId && (
           <p className="mt-3 text-sm">
             <LinkButton href={`/staff/departures/${booking.departureId}`}>{t('assignVehicleDriverGuide')}</LinkButton>
           </p>
@@ -334,7 +343,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             )}
           </>
         )}
-        {booking.status === 'AWAITING_QUOTATION' && (
+        {!isFacilitatorOnly && booking.status === 'AWAITING_QUOTATION' && (
           <>
             {error === 'quotationReasonRequired' && (
               <div className="mt-4 max-w-sm">
@@ -376,7 +385,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             {t('suggestedFromBreakdown', { amount: format(money(costBreakdown.suggestedTotalMinor, costBreakdown.currency)) })}
           </p>
         )}
-        {booking.status === 'QUOTATION_SENT' && (
+        {!isFacilitatorOnly && booking.status === 'QUOTATION_SENT' && (
           <form action={acceptQuotationAction.bind(null, booking.id)} className="mt-4">
             <SubmitButton pendingLabel={t('accepting')}>{t('acceptQuotationOnBehalf')}</SubmitButton>
           </form>
@@ -424,86 +433,88 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
               </SubmitButton>
             </form>
           )}
-        <div className="mt-4 flex flex-col gap-2">
-          <div className="flex gap-3">
-            {/* DR-159: booking.confirm alone isn't narrow enough to hide this
-                from PLATFORM_ADMIN (it also gates refund/quotation/etc.,
-                which they keep) -- isBookingConfirmer's role set is
-                hardcoded here to match the service-layer gate exactly. */}
-            {(booking.status === 'DEPOSIT_PAID' || booking.status === 'FULLY_PAID') &&
-              (ctx.roles.includes('SUPERADMIN') || ctx.roles.includes('TOUR_OPERATOR')) && (
-                <form action={confirmBookingAction.bind(null, booking.id)}>
-                  <SubmitButton variant="success" pendingLabel={t('confirming')}>
-                    {t('confirm')}
+        {!isFacilitatorOnly && (
+          <div className="mt-4 flex flex-col gap-2">
+            <div className="flex gap-3">
+              {/* DR-159: booking.confirm alone isn't narrow enough to hide this
+                  from PLATFORM_ADMIN (it also gates refund/quotation/etc.,
+                  which they keep) -- isBookingConfirmer's role set is
+                  hardcoded here to match the service-layer gate exactly. */}
+              {(booking.status === 'DEPOSIT_PAID' || booking.status === 'FULLY_PAID') &&
+                (ctx.roles.includes('SUPERADMIN') || ctx.roles.includes('TOUR_OPERATOR')) && (
+                  <form action={confirmBookingAction.bind(null, booking.id)}>
+                    <SubmitButton variant="success" pendingLabel={t('confirming')}>
+                      {t('confirm')}
+                    </SubmitButton>
+                  </form>
+                )}
+              {CANCELLABLE_STATUSES.includes(booking.status) && (
+                <form action={cancelBookingAction.bind(null, booking.id)}>
+                  <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>
+                    {t('cancel')}
                   </SubmitButton>
                 </form>
               )}
-            {CANCELLABLE_STATUSES.includes(booking.status) && (
-              <form action={cancelBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="secondary" pendingLabel={t('cancelling')}>
-                  {t('cancel')}
-                </SubmitButton>
-              </form>
+              {booking.status === 'CANCELLED' && (
+                <form action={refundBookingAction.bind(null, booking.id)}>
+                  <SubmitButton variant="secondary" pendingLabel={t('refunding')}>
+                    {t('markRefunded')}
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
+            {/* DR-207: only set by bookingService.cancelForBookingLookup --
+                null for a staff-initiated cancel or the guest's own 30s-
+                grace-window buttons, both of which collect none of this. */}
+            {booking.cancellationRefundTier && (
+              <Card className="mt-4 space-y-2 text-sm">
+                <p className="eyebrow text-mist">{t('cancellationDetailsTitle')}</p>
+                {booking.cancellationReason && (
+                  <p>
+                    <span className="text-mist">{t('cancellationReason')}:</span> {booking.cancellationReason}
+                  </p>
+                )}
+                {booking.cancellationContactEmail && (
+                  <p>
+                    <span className="text-mist">{t('cancellationContactEmail')}:</span> {booking.cancellationContactEmail}
+                  </p>
+                )}
+                <p>
+                  <span className="text-mist">{t('cancellationTier')}:</span>{' '}
+                  {t(`cancellationTierLabel.${booking.cancellationRefundTier}`)}
+                </p>
+                {invoice?.refundAmountMinor != null && (
+                  <p>
+                    <span className="text-mist">{t('refundAmount')}:</span>{' '}
+                    <span className="font-semibold text-navy">{format(money(invoice.refundAmountMinor, invoice.currency))}</span>
+                  </p>
+                )}
+                <a
+                  href={`/api/v1/bookings/${booking.id}/refund-note-pdf?locale=en`}
+                  className="inline-block font-semibold text-amber underline"
+                >
+                  {t('downloadRefundNote')}
+                </a>
+              </Card>
             )}
-            {booking.status === 'CANCELLED' && (
-              <form action={refundBookingAction.bind(null, booking.id)}>
-                <SubmitButton variant="secondary" pendingLabel={t('refunding')}>
-                  {t('markRefunded')}
+            {/* DR-058: SUPERADMIN-only, any status -- the write control itself
+                renders only for SUPERADMIN (same convention as
+                country-regulations' canWrite) since PLATFORM_ADMIN would pass
+                this route's booking.delete permission but still 403 in
+                bookingService.deleteBooking's own isBookingDeleter check. */}
+            {ctx.roles.includes('SUPERADMIN') && (
+              <form action={deleteBookingAction.bind(null, booking.id)}>
+                <SubmitButton
+                  variant="secondary"
+                  pendingLabel={t('deleting')}
+                  confirmMessage={t('deleteBookingConfirm')}
+                >
+                  {t('deleteBooking')}
                 </SubmitButton>
               </form>
             )}
           </div>
-          {/* DR-207: only set by bookingService.cancelForBookingLookup --
-              null for a staff-initiated cancel or the guest's own 30s-
-              grace-window buttons, both of which collect none of this. */}
-          {booking.cancellationRefundTier && (
-            <Card className="mt-4 space-y-2 text-sm">
-              <p className="eyebrow text-mist">{t('cancellationDetailsTitle')}</p>
-              {booking.cancellationReason && (
-                <p>
-                  <span className="text-mist">{t('cancellationReason')}:</span> {booking.cancellationReason}
-                </p>
-              )}
-              {booking.cancellationContactEmail && (
-                <p>
-                  <span className="text-mist">{t('cancellationContactEmail')}:</span> {booking.cancellationContactEmail}
-                </p>
-              )}
-              <p>
-                <span className="text-mist">{t('cancellationTier')}:</span>{' '}
-                {t(`cancellationTierLabel.${booking.cancellationRefundTier}`)}
-              </p>
-              {invoice?.refundAmountMinor != null && (
-                <p>
-                  <span className="text-mist">{t('refundAmount')}:</span>{' '}
-                  <span className="font-semibold text-navy">{format(money(invoice.refundAmountMinor, invoice.currency))}</span>
-                </p>
-              )}
-              <a
-                href={`/api/v1/bookings/${booking.id}/refund-note-pdf?locale=en`}
-                className="inline-block font-semibold text-amber underline"
-              >
-                {t('downloadRefundNote')}
-              </a>
-            </Card>
-          )}
-          {/* DR-058: SUPERADMIN-only, any status -- the write control itself
-              renders only for SUPERADMIN (same convention as
-              country-regulations' canWrite) since PLATFORM_ADMIN would pass
-              this route's booking.delete permission but still 403 in
-              bookingService.deleteBooking's own isBookingDeleter check. */}
-          {ctx.roles.includes('SUPERADMIN') && (
-            <form action={deleteBookingAction.bind(null, booking.id)}>
-              <SubmitButton
-                variant="secondary"
-                pendingLabel={t('deleting')}
-                confirmMessage={t('deleteBookingConfirm')}
-              >
-                {t('deleteBooking')}
-              </SubmitButton>
-            </form>
-          )}
-        </div>
+        )}
       </div>
 
       {packageSummary && (
@@ -524,7 +535,10 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                 {travelers.map((tv) => (
                   <li key={tv.id}>
                     {tv.firstName} {tv.lastName} {tv.isTourLead && <span className="text-forest">{t('tourLeadParenthetical')}</span>}
-                    {tv.isTourLead && tv.emergencyContactName && (
+                    {/* Emergency contact is safety-response info, not needed
+                        for visa processing -- withheld from a pure facilitator
+                        as part of narrowing this page to their job. */}
+                    {!isFacilitatorOnly && tv.isTourLead && tv.emergencyContactName && (
                       <div className="text-xs text-mist">
                         {t('emergency', { name: tv.emergencyContactName })}
                         {tv.emergencyContactRelation && ` (${tv.emergencyContactRelation})`}
@@ -535,25 +549,27 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
                 ))}
               </ul>
             </div>
-            <div>
-              <p className="eyebrow text-mist">{t('addOns')}</p>
-              {bookingAddonsWithNames.length === 0 ? (
-                <p className="mt-2 text-sm text-mist">{t('addOnsNone')}</p>
-              ) : (
-                <ul className="mt-2 space-y-1 text-sm">
-                  {bookingAddonsWithNames.map((a) => (
-                    <li key={a.id}>
-                      {a.name} · {format(money(a.priceMinor, a.currency))}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            {!isFacilitatorOnly && (
+              <div>
+                <p className="eyebrow text-mist">{t('addOns')}</p>
+                {bookingAddonsWithNames.length === 0 ? (
+                  <p className="mt-2 text-sm text-mist">{t('addOnsNone')}</p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {bookingAddonsWithNames.map((a) => (
+                      <li key={a.id}>
+                        {a.name} · {format(money(a.priceMinor, a.currency))}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {invoice && (
+      {invoice && !isFacilitatorOnly && (
         <div>
           <div className="survey-rule mb-6" />
           <p className="eyebrow text-mist">{t('invoice')}</p>
@@ -619,7 +635,7 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
         </div>
       )}
 
-      {invoice && (
+      {invoice && !isFacilitatorOnly && (
         <div>
           <div className="survey-rule mb-6" />
           <p className="eyebrow text-mist">{t('payments')}</p>
@@ -703,10 +719,23 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
         <div className="survey-rule mb-6" />
         <p className="eyebrow text-mist">{t('itinerary')}</p>
         {itinerary ? (
-          <p className="mt-2 text-sm">
+          <p className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <Badge tone={ITINERARY_STATUS_TONE[itinerary.status]}>{tItineraryStatus(itinerary.status)}</Badge>{' '}
             <LinkButton href={`/staff/itineraries/${itinerary.id}`}>{t('openItinerary')}</LinkButton>
+            {/* itinerary.read (VISA_FACILITATOR has it too, see rbac.ts) --
+                a visa officer routinely needs the approved day-by-day
+                itinerary as a supporting document for an application; a
+                direct download link here saves the extra hop through the
+                itinerary detail page, which already offers the same link
+                once APPROVED. */}
+            {itinerary.status === 'APPROVED' && (
+              <a href={`/api/v1/itineraries/${itinerary.id}/summary-pdf`} className="font-semibold text-amber underline">
+                {t('downloadItineraryPdf')}
+              </a>
+            )}
           </p>
+        ) : isFacilitatorOnly ? (
+          <p className="mt-2 text-sm text-mist">{t('itineraryNotYetAvailable')}</p>
         ) : (
           <form action={createItineraryAction.bind(null, booking.id)} className="mt-2">
             <SubmitButton variant="secondary" pendingLabel={t('creatingItinerary')}>

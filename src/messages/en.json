@@ -882,6 +882,8 @@
     "reason": "Reason: {reason}",
     "itinerary": "Itinerary",
     "openItinerary": "Open itinerary",
+    "downloadItineraryPdf": "Download itinerary (PDF)",
+    "itineraryNotYetAvailable": "No itinerary has been created for this booking yet.",
     "creatingItinerary": "Creating…",
     "createItinerary": "Create itinerary",
     "ratingCode": "Rating Code",

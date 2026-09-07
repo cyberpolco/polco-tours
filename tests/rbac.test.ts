@@ -234,6 +234,12 @@ describe('ROLE_PERMISSIONS map (DR-159)', () => {
     expect(granted('PLATFORM_ADMIN', 'visa.process')).toBe(false);
   });
 
+  it('VISA_FACILITATOR can read (not write/approve) an itinerary -- needed as a visa-application supporting document', () => {
+    expect(granted('VISA_FACILITATOR', 'itinerary.read')).toBe(true);
+    expect(granted('VISA_FACILITATOR', 'itinerary.write')).toBe(false);
+    expect(granted('VISA_FACILITATOR', 'itinerary.approve')).toBe(false);
+  });
+
   it('TOUR_GUIDE no longer reads documents (DR-159, narrowed to TOUR_OPERATOR/VISA_FACILITATOR) and never processed visas', () => {
     expect(granted('TOUR_GUIDE', 'documents.read')).toBe(false);
     expect(granted('TOUR_GUIDE', 'visa.process')).toBe(false);

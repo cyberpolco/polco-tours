@@ -64,7 +64,7 @@ export function StaffLoginForm() {
       setError(signInError.message ?? t('signInFailed'));
       return;
     }
-    router.push('/staff/bookings');
+    router.push('/staff');
   }
 
   return (

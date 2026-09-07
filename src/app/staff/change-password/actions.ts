@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { requireAnyStaffSession } from '@lib/staff-guard';
+import { requireAnyStaffSession, resolveStaffLandingPath } from '@lib/staff-guard';
 import { authService } from '@modules/auth';
 
 // The actual password change itself happens client-side (authClient
@@ -14,5 +14,5 @@ import { authService } from '@modules/auth';
 export async function clearMustChangePasswordAction(): Promise<void> {
   const ctx = await requireAnyStaffSession();
   await authService.clearMustChangePassword(ctx.userId);
-  redirect('/staff/bookings');
+  redirect(resolveStaffLandingPath(ctx));
 }

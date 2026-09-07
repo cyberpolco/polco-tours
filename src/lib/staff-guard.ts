@@ -2,7 +2,17 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { authService, type AuthContext } from '@modules/auth';
-import { assertAnyRole, assertCan, isStaffRole, type Permission, type RoleName } from './rbac';
+import {
+  assertAnyRole,
+  assertCan,
+  can,
+  hasAnyRole,
+  isStaffRole,
+  STAFF_PAGE_ACCESS,
+  type Permission,
+  type PermissionSource,
+  type RoleName,
+} from './rbac';
 
 /**
  * For Server Components/Actions under src/app/staff/(dashboard)/... -- the
@@ -93,4 +103,21 @@ export async function requireStaffRole(anyRole: readonly RoleName[]): Promise<Au
     redirect('/staff/forbidden');
   }
   return ctx;
+}
+
+/**
+ * Real bug fix: every "where does a just-authenticated staff session land"
+ * call site (login/page.tsx, staff-login-form.tsx, change-password's
+ * clearMustChangePasswordAction) hardcoded '/staff/bookings' -- but that
+ * page is gated by STAFF_PAGE_ACCESS.bookingsBrowse
+ * (PLATFORM_ADMIN/TOUR_OPERATOR only, DR-159), so a VISA_FACILITATOR-only
+ * (or TOUR_GUIDE/DRIVER/VEHICLE_OWNER-only) account signed in successfully
+ * and was immediately bounced to /staff/forbidden. Order mirrors each
+ * role's own first reachable link in nav.tsx's LINKS.
+ */
+export function resolveStaffLandingPath(ctx: PermissionSource): string {
+  if (hasAnyRole(ctx, STAFF_PAGE_ACCESS.bookingsBrowse)) return '/staff/bookings';
+  if (can(ctx, 'visa.process')) return '/staff/visa-queue';
+  if (can(ctx, 'assignment.read')) return '/staff/schedule';
+  return '/staff/profile';
 }

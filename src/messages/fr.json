@@ -882,6 +882,8 @@
     "reason": "Motif : {reason}",
     "itinerary": "Itinéraire",
     "openItinerary": "Ouvrir l'itinéraire",
+    "downloadItineraryPdf": "Télécharger l'itinéraire (PDF)",
+    "itineraryNotYetAvailable": "Aucun itinéraire n'a encore été créé pour cette réservation.",
     "creatingItinerary": "Création…",
     "createItinerary": "Créer l'itinéraire",
     "ratingCode": "Code d'évaluation",

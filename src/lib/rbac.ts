@@ -242,7 +242,10 @@ export const ROLE_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permissio
   // booking.read is needed to resolve a traveler by bookingId+travelerId
   // (visa/service.ts's findTraveler) -- without it every visa route 500s.
   // catalog.read is needed because submitApplication also calls
-  // catalogService.getDepartureDetail.
+  // catalogService.getDepartureDetail. itinerary.read (read-only -- write/
+  // approve stay ungranted): a visa officer routinely needs the approved
+  // day-by-day itinerary as a supporting document for an application, and
+  // had no way to view or download one at all before this.
   VISA_FACILITATOR: [
     'catalog.read',
     'booking.read',
@@ -251,6 +254,7 @@ export const ROLE_PERMISSIONS: Record<Exclude<RoleName, 'SUPERADMIN'>, Permissio
     'visa.process',
     'profile.write',
     'country_regulation.read',
+    'itinerary.read',
   ],
   TOURIST: [
     'catalog.read',
