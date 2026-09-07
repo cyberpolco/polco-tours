@@ -329,6 +329,23 @@ export const bookingRepository = {
     });
   },
 
+  /** DR-265: distinct from hasActiveBookingForDeparture above -- ANY
+   * remaining status counts (including COMPLETED, unlike that check, which
+   * would wrongly say "no active booking" for a departure whose trip
+   * already finished, and DEPOSIT_PAID/FULLY_PAID/CONFIRMED-not-yet-started,
+   * which that check also excludes). This answers a narrower question:
+   * "has every booking that ever existed on this departure been deleted,"
+   * not "is this departure's trip currently active." */
+  async hasAnyBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
+    return withOrg(organizationId, async (tx) => {
+      const match = await tx.booking.findFirst({
+        where: { departureId, deletedAt: null },
+        select: { id: true },
+      });
+      return match !== null;
+    });
+  },
+
   async createHold(organizationId: string, params: CreateHoldParams): Promise<BookingView> {
     return withOrg(organizationId, async (tx) => {
       // Serializes concurrent hold attempts on the SAME departure so two

@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-264** (2026-09-07). This file used to carry a running
+Current through **DR-265** (2026-09-07). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -775,6 +775,12 @@ src/
                    #   than giving itinerary its own. Sole consumer so far:
                    #   itinerary's approveItinerary (see that module's own
                    #   comment).
+                   #   DR-265 (real bug found): listMyAssignments (backs
+                   #   /staff/schedule + GET /api/v1/assignments/mine) now
+                   #   drops an assignment once every booking on its
+                   #   departure has been hard-deleted (DR-241) -- new
+                   #   assignment -> booking dependency,
+                   #   bookingService.hasAnyBookingForDeparture.
     visa/          # VisaApplication lifecycle, facilitator queue; DR-151:
                    #   SUPERADMIN can hard-delete an application
                    #   (isVisaDeleter), and deleteForBooking cascades that
@@ -1403,6 +1409,13 @@ ops-leadership set, plus `VISA_FACILITATOR` when the guest's topic is Visa
 & Immigration) and on `notifications` (`notify`/`notifyEmail`) — both
 confirmed acyclic: `auth` imports nothing from `contact`, and
 `notifications` itself only imports `{auth, cms}`, never `contact`.
+Since DR-265, `assignment` also depends on `booking`
+(`bookingService.hasAnyBookingForDeparture`, a real bug fix: `Assignment`
+belongs to `Departure`, not `Booking`, so DR-241's immediate booking
+hard-delete never cleaned it up — a driver/guide/vehicle-owner's own "My
+Schedule" kept showing an assignment forever after the one booking behind
+its departure was deleted) — confirmed acyclic: `booking` itself only
+imports `{auth, catalog, notifications}`, never `assignment`.
 
 ---
 

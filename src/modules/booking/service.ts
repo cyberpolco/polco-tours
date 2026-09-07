@@ -460,6 +460,18 @@ export const bookingService = {
     return bookingRepository.hasActiveBookingForDeparture(organizationId, departureId);
   },
 
+  /** DR-265: no-ctx, same "caller already has authority" convention as
+   * hasActiveBookingForDeparture above -- backs assignmentService
+   * .listMyAssignments, which drops an assignment from a staff member's own
+   * schedule once every booking that ever existed on its departure has been
+   * hard-deleted (DR-241 made booking deletion immediate; Assignment
+   * belongs to Departure, not Booking, so it's never itself cleaned up when
+   * a booking is deleted -- a departure can still have OTHER live bookings
+   * behind it). */
+  async hasAnyBookingForDeparture(organizationId: string, departureId: string): Promise<boolean> {
+    return bookingRepository.hasAnyBookingForDeparture(organizationId, departureId);
+  },
+
   async createHold(ctx: AuthContext, input: CreateBookingInput): Promise<BookingView> {
     assertCan(ctx, 'booking.create');
     const organizationId = requireOrg(ctx);

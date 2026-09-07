@@ -3,6 +3,7 @@
 import { Prisma } from '@prisma/client';
 import type { AuthContext } from '@modules/auth';
 import { authService } from '@modules/auth';
+import { bookingService } from '@modules/booking';
 import { catalogService, hasDepartureEnded, type DepartureView } from '@modules/catalog';
 import { fleetService, maintenanceRecencyScore, type DriverProfileView, type GuideProfileView, type VehicleView } from '@modules/fleet';
 import { notificationsService } from '@modules/notifications';
@@ -424,6 +425,25 @@ export const assignmentService = {
     // Managers use listForDeparture (per-departure) instead of a flat "mine" view.
     const byId = new Map<string, AssignmentView>();
     for (const list of lists) for (const a of list) byId.set(a.id, a);
-    return [...byId.values()];
+    const assignments = [...byId.values()];
+
+    // DR-265 (real bug found): Assignment belongs to Departure, not Booking
+    // (shared across every booking on that departure) -- so DR-241's
+    // immediate booking hard-delete never touches it, and this list kept
+    // showing a driver/guide/vehicle-owner an assignment for a departure
+    // whose one-and-only booking had been deleted, forever. Drops an
+    // assignment once every booking that ever existed on its departure is
+    // gone -- checked once per distinct departure, not per assignment.
+    const departureIds = [...new Set(assignments.map((a) => a.departureId))];
+    const liveDepartureIds = new Set(
+      (
+        await Promise.all(
+          departureIds.map(async (id) => ({ id, hasBooking: await bookingService.hasAnyBookingForDeparture(organizationId, id) })),
+        )
+      )
+        .filter((r) => r.hasBooking)
+        .map((r) => r.id),
+    );
+    return assignments.filter((a) => liveDepartureIds.has(a.departureId));
   },
 };
