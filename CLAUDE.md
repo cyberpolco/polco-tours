@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-262** (2026-09-06). This file used to carry a running
+Current through **DR-263** (2026-09-07). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -844,6 +844,23 @@ src/
                    #   WhatsApp/SMS "check your email" heads-up alongside
                    #   the full email, added the same DR, new SMS templates
                    #   for both events which previously had none).
+                   #   DR-263 (explicit user request): the generic staff
+                   #   booking-detail page (bookings/[bookingId], not this
+                   #   module) narrowed what a pure VISA_FACILITATOR sees
+                   #   there down to traveler identity/visa status/itinerary
+                   #   -- invoice, payments, coupon, confirm/cancel/refund/
+                   #   delete, and quotation controls are now hidden from
+                   #   them (a facilitator who also holds SUPERADMIN/
+                   #   TOUR_OPERATOR, ROLE_COMPATIBILITY's only allowed
+                   #   pairings, keeps the full view via that other role).
+                   #   VISA_FACILITATOR also gained itinerary.read
+                   #   (ROLE_PERMISSIONS, rbac.ts -- read-only, itinerary
+                   #   .write/.approve stay ungranted) since they had no way
+                   #   to view or download an itinerary at all before this,
+                   #   despite routinely needing the approved day-by-day
+                   #   itinerary as a supporting document for an
+                   #   application; the booking-detail page's itinerary
+                   #   section gained a direct download link for it.
     itinerary/     # Itinerary + ItineraryDay (per-day hotelId/restaurantId,
                    #   DR-083; pickup/dropoff lat-long, DR-088; activityIds,
                    #   DR-120, additive to the still-editable free-text
@@ -1451,6 +1468,11 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   `withAuth`) — used wherever the item's old gating permission is also
   load-bearing for an unrelated internal composition elsewhere, so it can't
   itself be narrowed (e.g. the general Bookings/Packages list pages, DR-159).
+  A just-authenticated staff session's landing page is resolved from this
+  same role/permission state, not hardcoded (`resolveStaffLandingPath`,
+  `staff-guard.ts`, DR-263 — fixed a real bug where every landing redirect
+  hardcoded `/staff/bookings`, which a `VISA_FACILITATOR`-only or
+  `TOUR_GUIDE`/`DRIVER`/`VEHICLE_OWNER`-only account can't open at all).
 - **Launch tenancy (DR-005):** single operator **Lam** (Namibia + DRC), seeded
   as `lam@polcotours.com` with role `SUPERADMIN` (PLATFORM_ADMIN + own-org
   TOUR_OPERATOR). Multi-tenant isolation stays on so more operators can onboard
