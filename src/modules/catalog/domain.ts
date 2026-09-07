@@ -213,6 +213,32 @@ export function isPublishedStatus(status: PackageStatus): boolean {
   return status === 'PUBLISHED_AVAILABLE' || status === 'PUBLISHED_UNAVAILABLE';
 }
 
+// DR-264: the browser now uploads package images directly to Vercel Blob
+// (bypassing this app's Server Action body-size ceiling, see
+// api/v1/catalog/package-image-upload/route.ts) and hands the create/update
+// actions an already-compressed webp URL instead of raw file bytes. Since
+// that URL now arrives as ordinary form data rather than being computed
+// entirely server-side within the same request, this checks it actually
+// matches catalogService.uploadPackageImage's own compressed-output shape
+// (our public Blob store, package-images/ prefix, .webp extension) before
+// it's trusted as a package's image -- cheap insurance against a tampered
+// submission smuggling in an arbitrary/uncompressed URL, now that the trust
+// boundary has moved.
+export function isCompressedPackageImageUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    (url.hostname === 'public.blob.vercel-storage.com' || url.hostname.endsWith('.public.blob.vercel-storage.com')) &&
+    url.pathname.includes('/package-images/') &&
+    url.pathname.endsWith('.webp')
+  );
+}
+
 /** A tourist can only act on a live, staff-marked-available package + a
  * still-running departure + an actual price to charge (DR-039 -- defensive;
  * updatePackage already refuses to PUBLISH a package with no price at all).

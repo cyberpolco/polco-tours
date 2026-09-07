@@ -20,6 +20,7 @@ const {
   PublicImageBlobGatewayError,
   PublicImageCompressionError,
   isValidPublicImageUpload,
+  isTrustedPublicBlobUrl,
   publicImageExtension,
   MAX_PUBLIC_IMAGE_SIZE_BYTES,
 } = await import('../src/lib/public-image-blob');
@@ -87,6 +88,33 @@ describe('public-image-blob (DR-114, DR-163)', () => {
       expect(publicImageExtension('image/png')).toBe('png');
       expect(publicImageExtension('image/webp')).toBe('webp');
       expect(publicImageExtension('image/jpeg')).toBe('jpg');
+    });
+  });
+
+  // DR-264: guards the one server-side fetch() against a client-supplied
+  // URL (finalizing a direct-to-Blob raw upload) -- must reject anything
+  // that isn't genuinely our own public Blob store, or this is an SSRF gate
+  // with a hole in it.
+  describe('isTrustedPublicBlobUrl (DR-264)', () => {
+    it('accepts our own public Blob store host', () => {
+      expect(isTrustedPublicBlobUrl('https://abc123.public.blob.vercel-storage.com/x.jpg')).toBe(true);
+      expect(isTrustedPublicBlobUrl('https://public.blob.vercel-storage.com/x.jpg')).toBe(true);
+    });
+
+    it('rejects a different host', () => {
+      expect(isTrustedPublicBlobUrl('https://evil.example.com/x.jpg')).toBe(false);
+    });
+
+    it('rejects a host merely containing the real one as a suffix trick', () => {
+      expect(isTrustedPublicBlobUrl('https://public.blob.vercel-storage.com.evil.com/x.jpg')).toBe(false);
+    });
+
+    it('rejects non-https', () => {
+      expect(isTrustedPublicBlobUrl('http://abc123.public.blob.vercel-storage.com/x.jpg')).toBe(false);
+    });
+
+    it('rejects a malformed URL', () => {
+      expect(isTrustedPublicBlobUrl('not-a-url')).toBe(false);
     });
   });
 });

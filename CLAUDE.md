@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-263** (2026-09-07). This file used to carry a running
+Current through **DR-264** (2026-09-07). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -1808,14 +1808,18 @@ serverless function bundle.
   `CANCELLABLE_STATUSES` arrays across booking-detail pages; removing the
   unreachable `DRAFT` `BookingStatus` value (blocked on cleaning up leftover
   `DRAFT` test-fixture rows in the shared DB, including one in the real
-  "Lam" org); moving the staff package-image upload off its plain Server
+  "Lam" org). Moving the staff package-image upload off its plain Server
   Action onto the direct-to-Blob client-upload pattern DR-163 uses for
-  video. **The passport half of that is done (DR-216, closed by DR-257)** --
-  both guest passport surfaces now upload straight to Blob via
-  `api/v1/documents/passport-upload`, so a PDF between Vercel's ~4.5MB
-  body cap and the advertised 10MB no longer fails at the platform
-  boundary. `/staff/bookings/[bookingId]/passport` still proxies and keeps
-  the old limit.
+  video is **now done too (DR-264)**, same as the passport half before it
+  (DR-216, closed by DR-257) -- unlike passport/video, a package image
+  upload couldn't just become "raw bytes = final asset," since DR-163's
+  webp-compression guarantee had to be preserved, so the browser uploads
+  the raw file to Blob first and a small follow-up call
+  (`finalizePackageImageUpload`) fetches it back server-side, compresses it
+  through the unchanged `uploadPackageImage` path, and deletes the raw
+  temp blob. `/staff/bookings/[bookingId]/passport` is the one upload
+  surface left still proxying file bytes through a Server Action (keeps
+  the old ~4.5MB body-cap limit).
 - **OI-01** DPO written commercial terms (fee %, EUR support, DRC/Namibia
   mobile money, settlement SLA, rolling-reserve %). Blocks real payment
   processing; DPO stays stubbed behind `PaymentGateway`.

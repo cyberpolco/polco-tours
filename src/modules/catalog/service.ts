@@ -1,15 +1,20 @@
 // catalog module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
 import type { PackageStatus, Role } from '@prisma/client';
+import { del } from '@vercel/blob';
 import type { AuthContext } from '@modules/auth';
 import { audit } from '@lib/audit';
 import { Errors } from '@lib/errors';
+import { logger, newTraceId } from '@lib/logger';
 import { money, type Money } from '@lib/money';
 import { getPrimaryOrgId } from '@lib/primary-org';
 import {
+  isTrustedPublicBlobUrl,
   isValidPublicImageUpload,
+  MAX_PUBLIC_IMAGE_SIZE_BYTES,
   publicImageBlobGateway,
   publicImageExtension,
+  PUBLIC_IMAGE_BLOB_TOKEN,
   PublicImageBlobGatewayError,
   PublicImageCompressionError,
 } from '@lib/public-image-blob';
@@ -52,6 +57,12 @@ export interface UploadPackageImageInput {
   contentType: string;
   sizeBytes: number;
   bytes: Buffer;
+}
+
+export interface FinalizePackageImageInput {
+  /** The raw, not-yet-compressed Blob URL the browser uploaded directly to
+   * (see api/v1/catalog/package-image-upload/route.ts). */
+  tempUrl: string;
 }
 
 export interface DepartureDetail {
@@ -197,6 +208,51 @@ export const catalogService = {
       if (err instanceof PublicImageCompressionError) throw Errors.validation('Unable to process image');
       if (err instanceof PublicImageBlobGatewayError) throw Errors.internal();
       throw err;
+    }
+  },
+
+  /** DR-264: the browser uploads the raw file straight to Vercel Blob (see
+   * api/v1/catalog/package-image-upload/route.ts) to get around this app's
+   * Server Action body-size ceiling, then calls this to fetch those bytes
+   * back server-side, run them through the exact same uploadPackageImage
+   * (DR-163 webp-compression) path above, and delete the temporary raw
+   * upload -- "every public image is compressed to webp" stays true with
+   * no exception; only the client-to-server leg for the raw bytes moves
+   * off this app's own request body limit. */
+  async finalizePackageImageUpload(ctx: AuthContext, input: FinalizePackageImageInput): Promise<{ url: string }> {
+    assertCan(ctx, 'catalog.write');
+    if (!isTrustedPublicBlobUrl(input.tempUrl)) {
+      throw Errors.validation('Invalid upload reference');
+    }
+    let response: Response;
+    try {
+      response = await fetch(input.tempUrl);
+    } catch {
+      throw Errors.validation('Unable to read uploaded image');
+    }
+    if (!response.ok) {
+      throw Errors.validation('Unable to read uploaded image');
+    }
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && Number(contentLength) > MAX_PUBLIC_IMAGE_SIZE_BYTES) {
+      throw Errors.validation('Invalid image upload (unsupported content type or size)');
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+    try {
+      return await catalogService.uploadPackageImage(ctx, { contentType, sizeBytes: bytes.length, bytes });
+    } finally {
+      // Best-effort cleanup of the temporary raw upload regardless of
+      // outcome -- an orphaned raw blob is a storage-cost nit, never a
+      // correctness issue (it's never referenced by any package), so a
+      // failure here is logged and swallowed rather than surfaced.
+      try {
+        await del(input.tempUrl, { token: PUBLIC_IMAGE_BLOB_TOKEN });
+      } catch (err) {
+        logger(newTraceId()).warn('failed to delete temporary raw package-image upload', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   },
 

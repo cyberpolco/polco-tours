@@ -7,7 +7,13 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError, Errors } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
-import { AddPackageItineraryDayInput, UpdatePackageItineraryDayInput, UpdatePackageInput, catalogService } from '@modules/catalog';
+import {
+  AddPackageItineraryDayInput,
+  UpdatePackageItineraryDayInput,
+  UpdatePackageInput,
+  catalogService,
+  isCompressedPackageImageUrl,
+} from '@modules/catalog';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
@@ -28,32 +34,35 @@ export async function updatePackageAction(packageId: string, formData: FormData)
   // instead of showing staff the actual reason. Same "catch every ApiError
   // generically, redirect with ?error=&detail=" convention as
   // departures/[departureId]/actions.ts's createAssignmentAction (DR-079).
-  // DR-114's uploadPackageImage call below is wrapped in the same try --
-  // an oversized/wrong-type file (Errors.validation) or a Blob failure
-  // (Errors.internal) are exactly the same class of "real, expected
-  // ApiError" this block already exists to catch.
+  // The image-count/reference validation below is wrapped in the same try
+  // -- too many images or a tampered image reference (Errors.validation) is
+  // exactly the same class of "real, expected ApiError" this block already
+  // exists to catch.
   try {
     // DR-114/DR-172: kept existing images (whichever weren't checked for
-    // removal) + newly uploaded ones, in that order -- capped at 3 BEFORE
-    // uploading anything, so a too-many mistake never burns a Blob upload
-    // it'll just discard. Neither box touched at all (no removals, no new
-    // files) reproduces the exact current imageUrls, same net effect as the
-    // old single-image field's "leave empty -> unchanged" shape.
+    // removal) + newly uploaded ones, in that order -- capped at 3. Neither
+    // box touched at all (no removals, no new files) reproduces the exact
+    // current imageUrls, same net effect as the old single-image field's
+    // "leave empty -> unchanged" shape.
+    // DR-264: new images now arrive as already-compressed webp URLs
+    // (PackageImageUploader + finalizePackageImageUploadAction uploaded
+    // them directly to Blob and compressed them before this action ever
+    // ran), submitted under `newImageUrls` rather than raw file bytes under
+    // `images` -- so no upload happens in this action anymore, just
+    // validation. isCompressedPackageImageUrl guards against a tampered
+    // submission smuggling in a URL that didn't actually come from that
+    // pipeline, now that it arrives as ordinary form data.
     const existing = await catalogService.getPackage(ctx, packageId);
     const removedUrls = new Set(formData.getAll('removeImages').filter((u): u is string => typeof u === 'string'));
     const keptUrls = existing.imageUrls.filter((url) => !removedUrls.has(url));
-    const newImages = formData.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
-    if (keptUrls.length + newImages.length > 3) {
+    const newImageUrls = formData.getAll('newImageUrls').filter((u): u is string => typeof u === 'string' && u.length > 0);
+    if (keptUrls.length + newImageUrls.length > 3) {
       throw Errors.validation('You can upload at most 3 images per package');
     }
-    const uploadedUrls = await Promise.all(
-      newImages.map(async (image) => {
-        const bytes = Buffer.from(await image.arrayBuffer());
-        const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
-        return uploaded.url;
-      }),
-    );
-    const imageUrls = [...keptUrls, ...uploadedUrls];
+    if (newImageUrls.some((u) => !isCompressedPackageImageUrl(u))) {
+      throw Errors.validation('Invalid image upload reference');
+    }
+    const imageUrls = [...keptUrls, ...newImageUrls];
 
     // DR-039: price is no longer typed here -- it's computed by the finance
     // module's cost breakdown (or set there via an audited override). This

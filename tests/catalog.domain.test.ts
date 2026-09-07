@@ -5,6 +5,7 @@ import {
   formatPackageReference,
   hasDepartureEnded,
   isBookable,
+  isCompressedPackageImageUrl,
   isPackageVisible,
   isDepartureVisible,
   isPublishedStatus,
@@ -262,5 +263,36 @@ describe('catalog domain', () => {
       const result = UpdatePackageInput.safeParse({ imageUrls: ['https://a', 'https://b', 'https://c', 'https://d'] });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+// DR-264: a direct-to-Blob package-image upload hands the create/update
+// Server Actions a URL via ordinary form data instead of computing it
+// entirely server-side in the same request -- this is the check that
+// stands in for that lost guarantee, confirming a submitted URL actually
+// matches catalogService.uploadPackageImage's own compressed-output shape.
+describe('isCompressedPackageImageUrl (DR-264)', () => {
+  it('accepts our own public Blob store output shape', () => {
+    expect(isCompressedPackageImageUrl('https://abc123.public.blob.vercel-storage.com/package-images/x.webp')).toBe(true);
+  });
+
+  it('rejects a different host', () => {
+    expect(isCompressedPackageImageUrl('https://evil.example.com/package-images/x.webp')).toBe(false);
+  });
+
+  it('rejects a host merely containing the real one as a suffix trick', () => {
+    expect(isCompressedPackageImageUrl('https://public.blob.vercel-storage.com.evil.com/package-images/x.webp')).toBe(false);
+  });
+
+  it('rejects a non-package-images path', () => {
+    expect(isCompressedPackageImageUrl('https://abc123.public.blob.vercel-storage.com/cms-media/x.webp')).toBe(false);
+  });
+
+  it('rejects a non-webp extension (the raw, not-yet-compressed upload shape)', () => {
+    expect(isCompressedPackageImageUrl('https://abc123.public.blob.vercel-storage.com/package-images/raw/x.jpg')).toBe(false);
+  });
+
+  it('rejects a malformed URL', () => {
+    expect(isCompressedPackageImageUrl('not-a-url')).toBe(false);
   });
 });

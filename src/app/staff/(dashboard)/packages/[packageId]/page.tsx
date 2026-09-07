@@ -31,6 +31,7 @@ import {
   updatePackageAction,
   updateTemplateDayAction,
 } from './actions';
+import { PackageImageUploader } from '../package-image-uploader';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
@@ -280,14 +281,12 @@ export default async function PackageDetailPage({ params, searchParams }: Props)
             ))}
           </div>
         )}
+        {/* DR-264: each newly picked file now uploads directly to Blob from
+            the browser and is handed back already-compressed as a hidden
+            `newImageUrls` input, rather than proxying raw bytes through
+            updatePackageAction. */}
         <FormField label={t('image')} htmlFor="images" optional>
-          <input
-            name="images"
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
-            className="w-full rounded-survey border border-rule px-3 py-2 file:mr-3 file:rounded-pill file:border-0 file:bg-navy file:px-3 file:py-1 file:text-sm file:text-bone"
-          />
+          <PackageImageUploader namespace="StaffPackageDetail" fieldName="newImageUrls" />
         </FormField>
         <p className="text-xs text-mist">{t('imagesHint')}</p>
         <p className="text-xs text-mist">{t('durationNotice')}</p>

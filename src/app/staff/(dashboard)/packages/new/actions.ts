@@ -6,7 +6,7 @@ import { requireStaffContext } from '@lib/staff-guard';
 import { ApiError, Errors } from '@lib/errors';
 import { logger, newTraceId } from '@lib/logger';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
-import { CreatePackageInput, catalogService } from '@modules/catalog';
+import { CreatePackageInput, catalogService, isCompressedPackageImageUrl } from '@modules/catalog';
 
 const PACKAGE_TAGS = ['WILDLIFE', 'ADVENTURE', 'RELAXATION', 'FAMILY', 'CULTURE', 'LUXURY', 'BUDGET', 'CAMPING', 'ADRENALINE', 'BIRDWATCHING', 'HONEYMOON', 'SELF_DRIVE'] as const;
 
@@ -22,28 +22,30 @@ export async function createPackageAction(formData: FormData): Promise<void> {
     .filter((c): c is string => typeof c === 'string' && (OPERATING_COUNTRY_CODES as readonly string[]).includes(c));
   const countries = Array.from(new Set([country, ...additionalCountries]));
 
-  // DR-115: an oversized/wrong-type file (Errors.validation) or a Blob
-  // failure (Errors.internal) is a real, expected ApiError -- caught below
-  // and surfaced via ?error=&detail= instead of crashing to Next's generic
-  // error page, same convention as the edit page's updatePackageAction.
+  // DR-115: too many images or a tampered image reference (Errors.validation,
+  // see isCompressedPackageImageUrl below) is a real, expected ApiError --
+  // caught below and surfaced via ?error=&detail= instead of crashing to
+  // Next's generic error page, same convention as the edit page's
+  // updatePackageAction.
   let pkg;
   try {
     // DR-114/DR-172: staff upload real files instead of pasting a URL --
-    // optional, same "no file selected -> stays unset" shape as passport
-    // upload's own `instanceof File && size > 0` check (uploadPassportAction),
-    // now for up to 3 files at once. Checked BEFORE uploading anything, so a
-    // too-many-files mistake never burns a Blob upload it'll just discard.
-    const images = formData.getAll('images').filter((f): f is File => f instanceof File && f.size > 0);
-    if (images.length > 3) {
+    // optional, same "none selected -> stays unset" shape as before.
+    // DR-264: the browser now uploads each file directly to Blob and hands
+    // this action back an already-compressed webp URL (PackageImageUploader
+    // + finalizePackageImageUploadAction) instead of raw file bytes, so no
+    // upload happens in this action at all anymore -- just validation.
+    // isCompressedPackageImageUrl guards against a tampered submission
+    // smuggling in a URL that didn't actually come from that pipeline, now
+    // that it arrives as ordinary form data rather than being computed
+    // entirely server-side in this same request.
+    const imageUrls = formData.getAll('imageUrls').filter((u): u is string => typeof u === 'string' && u.length > 0);
+    if (imageUrls.length > 3) {
       throw Errors.validation('You can upload at most 3 images per package');
     }
-    const imageUrls = await Promise.all(
-      images.map(async (image) => {
-        const bytes = Buffer.from(await image.arrayBuffer());
-        const uploaded = await catalogService.uploadPackageImage(ctx, { contentType: image.type, sizeBytes: image.size, bytes });
-        return uploaded.url;
-      }),
-    );
+    if (imageUrls.some((u) => !isCompressedPackageImageUrl(u))) {
+      throw Errors.validation('Invalid image upload reference');
+    }
 
     // DR-039: no priceMinor here -- a new package starts unpriced until the
     // finance module's cost breakdown computes one.

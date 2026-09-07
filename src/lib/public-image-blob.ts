@@ -109,7 +109,10 @@ export const publicImageBlobGateway: PublicImageBlobGateway = new VercelPublicIm
 // (content's About/FAQ images, catalog's package images) -- one vocabulary
 // of allowed types/size rather than each module inventing its own.
 export const MAX_PUBLIC_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-const PUBLIC_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// Exported (DR-264) so a client-token route minting a token for a raw,
+// not-yet-compressed direct-to-Blob upload (catalog's package-image upload)
+// can restrict it to the same vocabulary, rather than re-declaring its own.
+export const PUBLIC_IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export function isValidPublicImageUpload(contentType: string, sizeBytes: number): boolean {
   return PUBLIC_IMAGE_CONTENT_TYPES.includes(contentType) && sizeBytes > 0 && sizeBytes <= MAX_PUBLIC_IMAGE_SIZE_BYTES;
@@ -119,4 +122,21 @@ export function publicImageExtension(contentType: string): string {
   if (contentType === 'image/png') return 'png';
   if (contentType === 'image/webp') return 'webp';
   return 'jpg';
+}
+
+// DR-264: guards the one place this app does a server-side `fetch()`
+// against a client-supplied URL -- finalizing a package image that was
+// uploaded directly to Blob from the browser (bypassing this app's Server
+// Action body-size ceiling) means the server has to read those raw bytes
+// back from wherever the client says they landed. Confirms that's actually
+// our own public Blob store before fetching anything, rather than trusting
+// an arbitrary caller-supplied URL (SSRF).
+export function isTrustedPublicBlobUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  return url.protocol === 'https:' && (url.hostname === 'public.blob.vercel-storage.com' || url.hostname.endsWith('.public.blob.vercel-storage.com'));
 }
