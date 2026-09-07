@@ -16,7 +16,7 @@
 // look -- see the pre-photo commit these constants replaced (git blame this
 // file) for where each "mobile" half of a pair below comes from.
 
-// Named -aerial to distinguish it from the pre-existing victoria-falls.png,
+// Named -aerial to distinguish it from the pre-existing victoria-falls.webp,
 // which is a different (ground-level, gorge-and-bridge) shot still used by
 // the homepage carousel.
 export const WEATHER_HERO_IMAGE = '/images/hero/victoria-falls-aerial.jpg';

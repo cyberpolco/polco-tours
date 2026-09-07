@@ -50,15 +50,15 @@ export const metadata: Metadata = {
 // before it renders meaningfully.
 const HERO_SLOT_FALLBACKS: Record<string, { image: string; gradient: string }> = {
   sossusvlei: {
-    image: '/images/hero/sossusvlei.png',
+    image: '/images/hero/sossusvlei.webp',
     gradient: 'linear-gradient(100deg, rgba(59,31,58,0.92) 0%, rgba(59,31,58,0.6) 32%, rgba(214,91,46,0.28) 56%, rgba(214,91,46,0) 80%)',
   },
   virunga: {
-    image: '/images/hero/virunga.png',
+    image: '/images/hero/virunga.webp',
     gradient: 'linear-gradient(100deg, rgba(15,25,20,0.94) 0%, rgba(15,25,20,0.75) 40%, rgba(18,43,44,0.4) 62%, rgba(47,110,79,0) 85%)',
   },
   'victoria-falls': {
-    image: '/images/hero/victoria-falls.png',
+    image: '/images/hero/victoria-falls.webp',
     gradient: 'linear-gradient(100deg, rgba(18,34,47,0.92) 0%, rgba(18,34,47,0.6) 32%, rgba(42,107,120,0.28) 56%, rgba(42,107,120,0) 80%)',
   },
 };

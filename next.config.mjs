@@ -46,6 +46,12 @@ const nextConfig = {
   // remotePatterns entry needed since it's the identical Blob host.
   images: {
     remotePatterns: [{ protocol: 'https', hostname: '*.public.blob.vercel-storage.com' }],
+    // AVIF first (smaller than WebP at equivalent quality on photos), WebP
+    // as the fallback for browsers that can't decode AVIF -- next/image
+    // already negotiates via the request's Accept header, this just adds
+    // AVIF to the set it's allowed to pick from (was WebP-only, Next's
+    // built-in default).
+    formats: ['image/avif', 'image/webp'],
   },
   // Security headers applied to every response (Vol. 8 §8.3, A05 Misconfiguration).
   async headers() {
