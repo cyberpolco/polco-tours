@@ -1,6 +1,6 @@
 // invoicing module — service. Business logic; orchestrates repository + rbac.
 // Callable by other modules ONLY through index.ts (module boundary rule).
-import type { Currency, InvoiceStatus, Locale, PaymentKind, PaymentStatus } from '@prisma/client';
+import { Prisma, type Currency, type InvoiceStatus, type Locale, type PaymentKind, type PaymentStatus } from '@prisma/client';
 import { authService, type AuthContext } from '@modules/auth';
 import { bookingService, isBookingLocked, type BookingView, type CancellationRefundTier, type TravelerView } from '@modules/booking';
 import { catalogService } from '@modules/catalog';
@@ -400,17 +400,31 @@ export const invoicingService = {
       lateBookingSurchargeBp: booking.lateBookingSurchargeBp,
     });
 
-    const invoice = await invoicingRepository.create(organizationId, {
-      bookingId,
-      currency: billable.currency,
-      subtotalMinor: subtotal.minor,
-      couponCode: null,
-      discountBp: null,
-      taxRateBp: rateBp,
-      ...amounts,
-      platformFeeRateBp,
-      lateBookingSurchargeRateBp: booking.lateBookingSurchargeBp,
-    });
+    let invoice: InvoiceView;
+    try {
+      invoice = await invoicingRepository.create(organizationId, {
+        bookingId,
+        currency: billable.currency,
+        subtotalMinor: subtotal.minor,
+        couponCode: null,
+        discountBp: null,
+        taxRateBp: rateBp,
+        ...amounts,
+        platformFeeRateBp,
+        lateBookingSurchargeRateBp: booking.lateBookingSurchargeBp,
+      });
+    } catch (err) {
+      // bookingId @unique -- a concurrent call (e.g. a Next.js prefetch
+      // racing the real navigation into this same page) can also observe
+      // `existing` as null and try to create at the same time; the loser
+      // hits this constraint rather than a real conflict. Return the
+      // winner's row instead of crashing the page.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const raced = await invoicingRepository.findByBookingId(organizationId, bookingId);
+        if (raced) return raced;
+      }
+      throw err;
+    }
 
     await audit({
       actorUserId: ctx.userId,
