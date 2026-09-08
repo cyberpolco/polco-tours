@@ -1,10 +1,12 @@
 // DR-134: shared pure helper for folding tax + a platform fee onto a
-// tax/fee-exclusive subtotal. Deliberately NOT wired into invoicing's own
-// computeInvoiceAmounts (invoicing/domain.ts) -- that function stays exactly
-// as-is so this addition carries zero risk of regressing the existing,
-// tested invoicing/coupon formula. Kept here (not finance/domain.ts) since
-// it has no dependency on finance's own types and is a general "apply tax +
-// fee" primitive, same tier as money.ts's taxOf.
+// tax/fee-exclusive subtotal. DR-268: now the single implementation of that
+// step, consumed by both `finance` (package cost-plus pricing) and
+// `invoicing`'s own `computeInvoiceAmounts` (invoicing/domain.ts, applied to
+// the discounted subtotal there) -- previously invoicing reimplemented the
+// identical tax-then-platform-fee formula itself, kept in sync with this
+// file only by a comment. Kept here (not finance/domain.ts) since it has no
+// dependency on finance's own types and is a general "apply tax + fee"
+// primitive, same tier as money.ts's taxOf.
 import { money, taxOf, type Currency } from './money';
 
 export interface TaxAndFeeComponents {
