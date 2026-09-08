@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-266** (2026-09-08). This file used to carry a running
+Current through **DR-267** (2026-09-08). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -593,6 +593,19 @@ src/
                    #   depend on invoicing — can attach the identical PDF to
                    #   the BOOKING_CONFIRMED notice too, same
                    #   degrades-to-`[]`-on-failure contract.
+                   #   DR-267 (CI-surfaced bug): getOrCreateInvoiceForBooking's
+                   #   check-then-act (findByBookingId returning null, then
+                   #   create) had no atomicity against Invoice.bookingId's
+                   #   own @unique constraint — two near-simultaneous
+                   #   requests for the same booking page (a Link prefetch
+                   #   racing the real navigation is the suspected trigger)
+                   #   could both see "no invoice yet" and both attempt to
+                   #   create one, crashing the loser with an uncaught
+                   #   P2002 instead of a normal duplicate-row response. Now
+                   #   catches P2002 and re-fetches the winner's row instead
+                   #   of throwing, same convention assignment's own
+                   #   createAssignment already uses for its
+                   #   @@unique([departureId, vehicleId]) race.
     notifications/ # WhatsApp→SMS→email fallback gateways, no repository.ts.
                    #   DR-205: 28 NotificationEvent kinds (up from 11) across
                    #   every guest booking/visa/rating/itinerary lifecycle
