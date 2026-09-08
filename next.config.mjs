@@ -82,6 +82,28 @@ const nextConfig = {
       { source: '/quiz/results', destination: '/plan-my-trip', permanent: true },
       { source: '/tailor-made', destination: '/plan-my-trip', permanent: true },
       { source: '/staff/quote-requests', destination: '/staff/bookings', permanent: true },
+      // SEO: production answers on 3 live hostnames today (the Vercel
+      // default domain, the bare custom domain, and its www variant) --
+      // left unconsolidated, that's duplicate content across 3 URLs per
+      // page. mufasasafaris.com (no www) is already the de facto canonical
+      // host every other absolute-URL consumer in this app hardcodes
+      // (hero-opengraph.tsx, notifications/email-template.ts, sitemap.ts/
+      // robots.ts), so a host-based 301 collapses the other two onto it.
+      // `has: [{ type: 'host', ... }]` only matches a request that actually
+      // arrives with that Host header, so a request to the canonical host
+      // itself never matches these and there's no redirect loop.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.mufasasafaris.com' }],
+        destination: 'https://mufasasafaris.com/:path*',
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'polco-tours.vercel.app' }],
+        destination: 'https://mufasasafaris.com/:path*',
+        permanent: true,
+      },
     ];
   },
   // DR-163: `sharp` (public-image-blob.ts) is server-only, but is

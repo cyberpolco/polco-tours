@@ -51,8 +51,36 @@ export default async function PackageDetailPage({ params }: Props) {
 
   const tTags = await getTranslations('TripTags');
 
+  // Product structured data (schema.org/JSON-LD) -- Offer is only included
+  // once this package is actually bookable (real price + availability),
+  // matching the same `bookable` gate the page's own booking CTA uses;
+  // Google's rich-result guidance for Offer requires a real price, so a
+  // still-unpriced/DRAFT package (priceMinor null) renders the Product
+  // block with no Offer at all rather than a fabricated "0.00" one.
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: pkg.title,
+    description: pkg.description,
+    image: pkg.imageUrls,
+    ...(bookable && pkg.priceMinor != null
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: (pkg.priceMinor / 100).toFixed(2),
+            priceCurrency: pkg.currency,
+            availability: 'https://schema.org/InStock',
+            url: `https://mufasasafaris.com/packages/${pkg.slug ?? pkg.id}`,
+          },
+        }
+      : {}),
+  };
+
   return (
     <div>
+      {/* See (guest)/layout.tsx's own comment on why this is a plain
+          <script>, not next/script. */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <BackLink href="/packages">{t('allPackages')}</BackLink>
 
       {/* Full-bleed hero echoing the homepage carousel's own scrim
