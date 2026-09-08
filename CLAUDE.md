@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-265** (2026-09-07). This file used to carry a running
+Current through **DR-266** (2026-09-08). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -151,7 +151,7 @@ gaps a fresh Postgres would hit).
 | Scheduled jobs | Upstash QStash `@upstash/qstash 2.11.2` — seven schedules registered and live in production (`sweep-bookings` every 15 min; `sweep-fleet-availability`/DR-082 and `sweep-user-dormancy`/DR-084 both daily, registered 2026-08-10; `sweep-fleet-cooldowns`/DR-107 hourly and `purge-wizard-progress`/DR-155 daily, both registered 2026-08-19; `sweep-test-orgs`/DR-235 hourly, purges leftover `tests/api/*.test.ts`-fixture organizations, registered 2026-09-04; `sweep-rating-code-issuance`/DR-261 daily at 19:00 UTC, registered 2026-09-06) |
 | Email / WA / SMS | Resend · Baileys (WhatsApp) · Africa's Talking — Resend has a verified sending domain (`mufasasafaris.com`, `RESEND_FROM_EMAIL="Mufasa Safaris & Tours <info@mufasasafaris.com>"`, DR-205, resolves OI-05 — delivers to any recipient now, not just the account owner) and Africa's Talking is real and live (see Open Items for its low-balance caveat). WhatsApp is `baileys` `6.7.24` (DR-258, explicit user choice over the originally-planned Meta WhatsApp Business Cloud API) — an unofficial, QR-paired WhatsApp Web client, run as its own always-on process (`whatsapp-bridge/` at the repo root, **not** a dependency of this Next.js app) since it needs a persistent WebSocket a Vercel serverless function can't hold open; `notifications/gateway.ts`'s `BaileysWhatsAppGateway` is a plain HTTP client to that bridge (`WHATSAPP_BRIDGE_URL`/`WHATSAPP_BRIDGE_SECRET`), never a direct `baileys` import. No host is provisioned yet and no number is paired (OI-21/OI-22) |
 | Tests | Vitest (unit + RLS), Playwright `1.61.1` (E2E) |
-| Observability | Sentry + Vercel Analytics + Axiom (structured logs) |
+| Observability | **Vercel Analytics `2.0.1`** (DR-266, `<Analytics />` in the true root `src/app/layout.tsx`) — live. Sentry and Axiom are **not actually integrated** despite being long-listed here: no `@sentry/*` package, no Sentry config file, and no Axiom wiring exist anywhere in the repo; `SENTRY_DSN` is set in Vercel Production but nothing reads it. Discovered during DR-266's incident response, when root-causing an outage had to rely entirely on raw `vercel logs` instead of an error tracker. Sentry/Axiom integration is real remaining work, not yet scheduled. |
 | Geo/map viz | `@visx/geo`+`@visx/responsive`+`@visx/tooltip`+`@visx/event` `4.0.0`, `topojson-client` `3.1.0`, `world-atlas` `2.0.2` — homepage Africa/Namibia/DRC map. Not `react-simple-maps` (no React 19 support) |
 | Interactive maps | Google Maps JS API (DR-077) — loaded directly via `next/script`, no npm package (a hand-written type shim shared by `src/components/ui/MapLocationPicker.tsx` and `ItineraryCircuitMap.tsx`, `google-maps-types.ts`, not `@types/google.maps`). Powers the pickup-location picker (departure/Starlink-kit staff forms, ItineraryDay pickup/dropoff) and the read-only whole-circuit map on the staff Map tab (DR-089, whole-circuit since DR-150); `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` live in production (OI-13, resolved 2026-08-08) |
 | Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's whole-circuit PDF map image (DR-150: every day in its own color, one call covering the whole itinerary instead of one per day); `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
@@ -263,7 +263,15 @@ src/
                               #   receipt PDF attached, called from the
                               #   booking-confirm route/Server Action right
                               #   after bookingService.confirm() succeeds,
-                              #   same convention as fleet-availability)
+                              #   same convention as fleet-availability),
+                              #   public-content-cache (DR-266: cachedPublicRead,
+                              #   a thin unstable_cache wrapper w/ a shared 60s
+                              #   revalidate window, for the staff-edited CMS/
+                              #   catalog reads on the guest site's highest-
+                              #   traffic pages — the page itself still renders
+                              #   fresh per request, cookie-driven locale
+                              #   included in every cache key; see the Gotchas
+                              #   entry on this incident for why)
   modules/                    # feature modules — independent, reusable
     auth/          # User/Membership/Session, RBAC resolution, multi-role support.
                    #   DR-221: fixed a real bug where creating a 2+-role
@@ -1936,6 +1944,21 @@ serverless function bundle.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
+- **OI-24** (DR-266) The Vercel Hobby team (`cyberpolco`) exhausted its
+  monthly Fluid Active CPU allowance (4 hrs) on 2026-09-08 and the site went
+  fully unreachable — a hard cap on that plan, not a throttle. DR-266 fixed
+  the two concrete contributors found (a dead-image-404 render storm, and
+  uncached DB reads on the 4 highest-traffic guest pages) and added a
+  per-IP rate-limit Firewall rule (30 req/10s, `challenge` on exceed —
+  live in production), but the underlying billing-plan decision is still
+  open: wait for the monthly reset (check Vercel dashboard → Settings →
+  Usage for the exact date) or upgrade to Pro (removes the hard cap
+  entirely; usage-based billing instead). Left to the user — not something
+  a code fix can resolve on its own. Also worth deciding once traffic
+  patterns are clearer: whether `/`'s `force-dynamic` and the cookie-
+  driven-locale pages' forced-dynamic rendering are worth a bigger
+  rendering-architecture change (this DR deliberately left that
+  untouched, see its own decision-log entry).
 **Resolved:** OI-23 (DR-261's `RatingCode.issuedByUserId` nullable schema
 change pushed to the shared Neon DB via `npm run db:push` with a
 user-provided `neondb_owner` credential — first attempt hit the same
@@ -2323,3 +2346,35 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   package-reference.ts`'s `testPackageReference()` (adds a random
   component) for any new fixture needing one instead of reintroducing the
   `Date.now()` shortcut.
+- **Vercel Hobby's monthly Fluid Active CPU allowance (4 hrs) is a hard
+  cap, not a throttle** — once exhausted, every serverless function starts
+  erroring and the whole site goes unreachable, with no graceful
+  degradation. Real incident, 2026-09-08 (DR-266): this happened the day
+  after publishing `sitemap.xml`/`robots.txt` for the first time. Two
+  concrete, unrelated contributors compounded: (1) **renaming/removing a
+  public asset without a redirect turns every stale request for it into a
+  full serverless render**, not a cheap static 404 — a file under
+  `public/` that Vercel's CDN can serve directly becomes, the moment it no
+  longer exists, a request that falls through to the Next.js function and
+  renders the entire not-found boundary (whatever that costs: middleware,
+  root layout, any data fetching in it). Add a `next.config.mjs` redirect
+  for the old path whenever a committed `public/` asset is renamed or
+  removed, even if no code references the old path any more — a browser
+  tab, CDN edge cache, or crawler holding pre-deploy HTML can still request
+  it. (2) **Publishing a sitemap for the first time is itself a real load
+  event** — crawlers that previously had zero discovery signal for a page
+  will hit it, and on a page whose rendering can't be static (this app's
+  cookie-driven, no-URL-prefixing locale scheme forces every guest page
+  dynamic, see the i18n tech-stack row), every hit re-runs that page's full
+  DB-read set from scratch with no caching at all. `src/lib/public-content-
+  cache.ts`'s `cachedPublicRead` (a thin `unstable_cache` wrapper, locale
+  included in the key) is the fix applied so far, scoped to the 4 pages
+  actually hit in this incident (`/`, `/packages`, `/plan-my-trip`,
+  `/terms`) — extend it to any other guest page whose CMS/catalog reads
+  turn out to matter once traffic grows further, but don't wrap a call
+  whose result's `Date` fields are actually consumed downstream (see that
+  file's own comment on why). Diagnosing this incident needed `vercel
+  logs`/`vercel metrics` read directly against the real production
+  deployment — `vercel usage`'s billing breakdown and any per-route metrics
+  query both require Observability Plus (Pro-plan-only) and 404/error out
+  on Hobby; raw request logs were the only thing actually available.

@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { catalogService } from '@modules/catalog';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { cachedPublicRead } from '@lib/public-content-cache';
 import { Reveal, RevealGroup } from '@/components/ui/Reveal';
 import { TravelBackdrop } from '@/components/ui/TravelBackdrop';
 import { PackageCard } from '../package-card';
@@ -24,7 +25,10 @@ export default async function PackagesPage({ searchParams }: Props) {
   const t = await getTranslations('PackagesPage');
   const tCountries = await getTranslations('Countries');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock('packages', locale);
+  // Only this static CMS text block is cached here, not listPublicPackages
+  // above -- that call is parameterized by guest-supplied country/search
+  // query params, an effectively unbounded key space not worth caching.
+  const cms = await cachedPublicRead(() => cmsService.getPublicTextBlock('packages', locale), ['cms.getPublicTextBlock', 'packages', locale])();
 
   function pillHref(nextCountry?: string): string {
     const params = new URLSearchParams();

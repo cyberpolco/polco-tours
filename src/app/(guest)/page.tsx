@@ -8,6 +8,7 @@ import { cmsService, type CmsLocale } from '@modules/cms';
 import { AFRICA_COUNTRY_NAME_BY_ALPHA2 } from '@lib/africa-country-ids';
 import { AfricaMapLazy as AfricaMap } from '@/components/AfricaMapLazy';
 import type { OperatingCountryMapEntry } from '@/components/AfricaMap';
+import { cachedPublicRead } from '@lib/public-content-cache';
 import { HeroCarousel, type HeroSlide } from '@/components/HeroCarousel';
 import { PartnersMarquee, type Partner } from '@/components/PartnersMarquee';
 import { StickyMobileCta } from '@/components/StickyMobileCta';
@@ -135,7 +136,7 @@ export default async function HomePage() {
   // homepage visitor.
   let heroItems: Awaited<ReturnType<typeof cmsService.listPublicMediaItems>> = [];
   try {
-    heroItems = await cmsService.listPublicMediaItems('home-hero');
+    heroItems = await cachedPublicRead(() => cmsService.listPublicMediaItems('home-hero'), ['cms.listPublicMediaItems', 'home-hero'])();
   } catch (error) {
     console.error('Failed to load hero media for homepage', error);
   }
@@ -169,7 +170,10 @@ export default async function HomePage() {
       const hardcodedText = HARDCODED_TEXT[item.slotKey];
       let text = null;
       try {
-        text = await cmsService.getPublicTextBlock(`home-hero.${item.slotKey}`, locale);
+        text = await cachedPublicRead(
+          () => cmsService.getPublicTextBlock(`home-hero.${item.slotKey}`, locale),
+          ['cms.getPublicTextBlock', `home-hero.${item.slotKey}`, locale],
+        )();
       } catch (error) {
         console.error('Failed to load hero text for homepage', error);
       }
@@ -204,7 +208,7 @@ export default async function HomePage() {
     { name: 'Mufasa Safaris & Tours' },
   ];
   try {
-    const partnerItems = await cmsService.listPublicMediaItems('partners');
+    const partnerItems = await cachedPublicRead(() => cmsService.listPublicMediaItems('partners'), ['cms.listPublicMediaItems', 'partners'])();
     const named = partnerItems.filter((item) => item.name);
     if (named.length > 0) {
       PARTNERS = named.map((item) => ({ name: item.name!, logoUrl: item.url ?? undefined }));
@@ -221,8 +225,11 @@ export default async function HomePage() {
   let mapText: Awaited<ReturnType<typeof cmsService.getPublicTextBlock>> = null;
   let operatingCountries: OperatingCountryMapEntry[] = FALLBACK_OPERATING_COUNTRIES;
   try {
-    mapText = await cmsService.getPublicTextBlock('home-map', locale);
-    const rows = await cmsService.listPublicOperatingCountries();
+    mapText = await cachedPublicRead(
+      () => cmsService.getPublicTextBlock('home-map', locale),
+      ['cms.getPublicTextBlock', 'home-map', locale],
+    )();
+    const rows = await cachedPublicRead(() => cmsService.listPublicOperatingCountries(), ['cms.listPublicOperatingCountries'])();
     if (rows.length > 0) {
       operatingCountries = rows.map((row) => ({
         countryCode: row.countryCode,
@@ -244,7 +251,7 @@ export default async function HomePage() {
   // packages", not a 500 for every visitor landing on the homepage.
   let featured: Awaited<ReturnType<typeof catalogService.listPublicPackages>> = [];
   try {
-    featured = (await catalogService.listPublicPackages()).slice(0, 3);
+    featured = (await cachedPublicRead(() => catalogService.listPublicPackages(), ['catalog.listPublicPackages'])()).slice(0, 3);
   } catch (error) {
     console.error('Failed to load featured packages for homepage', error);
   }

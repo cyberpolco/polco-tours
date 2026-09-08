@@ -104,6 +104,16 @@ const nextConfig = {
         destination: 'https://mufasasafaris.com/:path*',
         permanent: true,
       },
+      // c63012f renamed these 2 homepage hero carousel images to .webp --
+      // no code references the old .png paths any more, but a browser/CDN/
+      // crawler still holding pre-deploy cached HTML keeps requesting them.
+      // Without this, that 404 falls through to a full serverless render of
+      // the not-found boundary (real production incident, 2026-09-08: this
+      // was hit repeatedly enough to help exhaust the Hobby plan's monthly
+      // Active CPU allowance) -- a config-level redirect resolves it in the
+      // routing layer instead, before any rendering happens.
+      { source: '/images/hero/sossusvlei.png', destination: '/images/hero/sossusvlei.webp', permanent: true },
+      { source: '/images/hero/victoria-falls.png', destination: '/images/hero/victoria-falls.webp', permanent: true },
     ];
   },
   // DR-163: `sharp` (public-image-blob.ts) is server-only, but is

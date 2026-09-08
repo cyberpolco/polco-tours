@@ -5,6 +5,7 @@ import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
 import { OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { getEffectiveLateBookingRate } from '@lib/late-booking-rate';
+import { cachedPublicRead } from '@lib/public-content-cache';
 import { Card } from '@/components/ui/Card';
 import PlanMyTripForm, { type PlanMyTripSite } from './plan-my-trip-form';
 
@@ -40,7 +41,10 @@ async function resolveLocale(): Promise<CmsLocale> {
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('PlanMyTripPage');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock('plan-my-trip', locale);
+  const cms = await cachedPublicRead(
+    () => cmsService.getPublicTextBlock('plan-my-trip', locale),
+    ['cms.getPublicTextBlock', 'plan-my-trip', locale],
+  )();
   return { title: cms?.eyebrow ?? t('eyebrow'), description: cms?.body ?? t('subhead') };
 }
 
@@ -63,9 +67,9 @@ export default async function PlanMyTripPage({ searchParams }: Props) {
   const t = await getTranslations('PlanMyTripPage');
   const locale = await resolveLocale();
   const [cms, mediaItems, lateBookingRate] = await Promise.all([
-    cmsService.getPublicTextBlock('plan-my-trip', locale),
-    cmsService.listPublicMediaItems('gallery'),
-    tryGetLateBookingRate(),
+    cachedPublicRead(() => cmsService.getPublicTextBlock('plan-my-trip', locale), ['cms.getPublicTextBlock', 'plan-my-trip', locale])(),
+    cachedPublicRead(() => cmsService.listPublicMediaItems('gallery'), ['cms.listPublicMediaItems', 'gallery'])(),
+    cachedPublicRead(() => tryGetLateBookingRate(), ['lateBookingRate.effective'])(),
   ]);
   // Gallery sites are the single source of truth for this step's "sites to
   // visit" picker too (DR-167) -- a site with no name/country set yet is

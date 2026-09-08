@@ -3,6 +3,7 @@ import { Archivo, Special_Elite } from 'next/font/google';
 import localFont from 'next/font/local';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale } from 'next-intl/server';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 // "Horizon" typography (DR-156, replacing the prior Fraunces/IBM Plex trio,
@@ -58,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale} className={`${bigShouldersStencilDisplay.variable} ${archivo.variable} ${specialElite.variable}`}>
       <body>
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <Analytics />
       </body>
     </html>
   );

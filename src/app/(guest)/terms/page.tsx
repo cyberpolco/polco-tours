@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
+import { cachedPublicRead } from '@lib/public-content-cache';
 import { Reveal } from '@/components/ui/Reveal';
 
 // Same direct-cookie-read convention as (guest)/about/page.tsx.
@@ -26,7 +27,10 @@ interface Props {
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('Terms');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock('terms.tos', locale);
+  const cms = await cachedPublicRead(
+    () => cmsService.getPublicTextBlock('terms.tos', locale),
+    ['cms.getPublicTextBlock', 'terms.tos', locale],
+  )();
   const body = cms?.body ?? t('sections.tos.body');
   return { title: t('title'), description: body.split('\n\n')[0] };
 }
@@ -46,7 +50,10 @@ export default async function TermsPage({ searchParams }: Props) {
   const activeTab: TabKey = (TABS as readonly string[]).includes(tab ?? '') ? (tab as TabKey) : 'tos';
   const t = await getTranslations('Terms');
   const locale = await resolveLocale();
-  const cms = await cmsService.getPublicTextBlock(`terms.${activeTab}`, locale);
+  const cms = await cachedPublicRead(
+    () => cmsService.getPublicTextBlock(`terms.${activeTab}`, locale),
+    ['cms.getPublicTextBlock', `terms.${activeTab}`, locale],
+  )();
 
   return (
     <Reveal>
