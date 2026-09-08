@@ -5,6 +5,7 @@ import type { Currency, InvoiceStatus, PaymentKind, PaymentStatus } from '@prism
 import { z } from 'zod';
 import type { CancellationRefundTier } from '@modules/booking';
 import { discountOf, money, taxOf } from '@lib/money';
+import { applyTaxAndPlatformFee } from '@lib/pricing';
 
 export interface InvoiceView {
   id: string;
@@ -138,25 +139,31 @@ export interface InvoiceAmounts {
  * place this math is written -- used by both getOrCreateInvoiceForBooking
  * (discountBp omitted) and applyCoupon/removeCoupon (set/omitted
  * respectively), so the ordering can never drift between the no-discount
- * and with-discount paths. */
+ * and with-discount paths. The tax+platform-fee step itself (DR-268) is
+ * delegated to `applyTaxAndPlatformFee` (`@lib/pricing`) -- the same
+ * primitive `finance` uses for a package's cost-plus pricing -- rather than
+ * reimplementing that formula here a second time. */
 export function computeInvoiceAmounts(input: InvoiceAmountsInput): InvoiceAmounts {
   const subtotal = money(input.subtotalMinor, input.currency);
   const discountBp = input.discountBp ?? 0;
   const discountMinor = discountBp > 0 ? discountOf(subtotal, discountBp).minor : 0;
-  const discountedSubtotal = money(subtotal.minor - discountMinor, input.currency);
-  const tax = taxOf(discountedSubtotal, input.taxRateBp);
-  const preFeeTotal = money(discountedSubtotal.minor + tax.minor, input.currency);
-  const platformFee = taxOf(preFeeTotal, input.platformFeeRateBp);
-  const preSurchargeTotal = money(preFeeTotal.minor + platformFee.minor, input.currency);
+  const discountedSubtotalMinor = subtotal.minor - discountMinor;
+  const { taxMinor, platformFeeMinor, totalMinor: preSurchargeTotalMinor } = applyTaxAndPlatformFee(
+    discountedSubtotalMinor,
+    input.currency,
+    input.taxRateBp,
+    input.platformFeeRateBp,
+  );
   const lateBookingSurchargeBp = input.lateBookingSurchargeBp ?? 0;
-  const lateBookingSurchargeMinor = lateBookingSurchargeBp > 0 ? taxOf(preSurchargeTotal, lateBookingSurchargeBp).minor : 0;
-  const totalMinor = preSurchargeTotal.minor + lateBookingSurchargeMinor;
+  const lateBookingSurchargeMinor =
+    lateBookingSurchargeBp > 0 ? taxOf(money(preSurchargeTotalMinor, input.currency), lateBookingSurchargeBp).minor : 0;
+  const totalMinor = preSurchargeTotalMinor + lateBookingSurchargeMinor;
   const depositAllowed = lateBookingSurchargeBp === 0;
   const { depositMinor, balanceMinor } = depositAllowed ? splitDeposit(totalMinor) : { depositMinor: totalMinor, balanceMinor: 0 };
   return {
     discountMinor,
-    taxMinor: tax.minor,
-    platformFeeMinor: platformFee.minor,
+    taxMinor,
+    platformFeeMinor,
     lateBookingSurchargeMinor,
     depositAllowed,
     totalMinor,

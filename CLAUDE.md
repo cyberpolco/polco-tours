@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-267** (2026-09-08). This file used to carry a running
+Current through **DR-268** (2026-09-08). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -525,7 +525,16 @@ src/
                    #   BOTH email and WhatsApp, not a single fallback chain
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
-                   #   applied via a shared computeInvoiceAmounts helper);
+                   #   applied via a shared computeInvoiceAmounts helper).
+                   #   DR-268: computeInvoiceAmounts' tax+platform-fee step
+                   #   is delegated to src/lib/pricing.ts's
+                   #   applyTaxAndPlatformFee (the same primitive finance's
+                   #   cost-plus pricing already used, DR-134) instead of
+                   #   reimplementing that formula inline — removes a
+                   #   real DRY violation (two independent copies of the
+                   #   tax-then-platform-fee math) found by an architecture
+                   #   audit; no behavior change, no new module dependency
+                   #   (pricing.ts is a src/lib/ helper, not a module);
                    #   DR-198: Invoice.lateBookingSurchargeMinor/
                    #   lateBookingSurchargeRateBp/depositAllowed —
                    #   Booking.lateBookingSurchargeBp's snapshot, itemized on
