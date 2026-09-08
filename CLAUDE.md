@@ -1446,6 +1446,26 @@ hard-delete never cleaned it up — a driver/guide/vehicle-owner's own "My
 Schedule" kept showing an assignment forever after the one booking behind
 its departure was deleted) — confirmed acyclic: `booking` itself only
 imports `{auth, catalog, notifications}`, never `assignment`.
+**Documentation-completeness fix (no code change):** an architecture audit
+found four real, already-live cross-module dependencies that had never been
+written down here — not undocumented as of any particular DR, just missed
+at the time each landed. `insights` also depends on `catalog`
+(`catalogService.listPackages`/`listDepartures`/`getDepartureDetail`, for
+the dashboard's package/departure figures); `invoicing` also depends on
+`catalog` (`catalogService.getDepartureTripSummaryForBookingLookup`/
+`getDepartureDetail`/`listTemplateDaysForItineraryCopy`, resolving trip/
+package facts an invoice needs to render or copy); `tracking` also depends
+on `catalog` (`catalogService.getDepartureDetail`/`getPackage`, for the
+live-tracking view's trip/package labels); and `ratings` also depends on
+`catalog` (`catalogService.getDepartureWindow`), `fleet`
+(`fleetService.listDriverProfilesForRating`/`recordDriverRatingAggregate`/
+`recordGuideRatingAggregateByUserId`/`listDriverProfiles`/
+`listGuideProfiles`, writing back the rating aggregates those profiles
+display) and `invoicing` (`invoicingService.getInvoiceStatusForBooking`/
+`getOrCreateInvoiceForBooking`, gating a Rating Code's issuance on
+payment). All four confirmed acyclic: `catalog` itself only imports `auth`,
+and `fleet` only imports `{auth, documents}` — neither reaches back into
+`insights`/`invoicing`/`tracking`/`ratings`.
 
 ---
 
