@@ -91,7 +91,16 @@ const nextConfig = {
       // robots.ts), so a host-based 301 collapses the other two onto it.
       // `has: [{ type: 'host', ... }]` only matches a request that actually
       // arrives with that Host header, so a request to the canonical host
-      // itself never matches these and there's no redirect loop.
+      // itself never matches these -- but that alone does NOT guarantee no
+      // redirect loop (DR-269, real production incident: the site was
+      // fully unreachable for ~2 days). The Vercel project's own Domain
+      // settings can independently redirect a hostname too, before a
+      // request ever reaches this app-level rule -- if that platform-level
+      // redirect disagrees with which host is canonical here, the two
+      // configs fight each other forever. The www rule below only works
+      // because the Vercel Domain config for www.mufasasafaris.com is kept
+      // in sync (redirects straight to the apex, matching this rule) --
+      // check that config first before touching either side of this again.
       {
         source: '/:path*',
         has: [{ type: 'host', value: 'www.mufasasafaris.com' }],

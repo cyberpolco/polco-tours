@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-268** (2026-09-08). This file used to carry a running
+Current through **DR-269** (2026-09-09). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -1986,22 +1986,18 @@ serverless function bundle.
   (the edit form's `RoleCheckboxGroup` will flag it and disable Save) until
   a SUPERADMIN fixes its role set. Worth a one-time audit query before or
   shortly after this ships.
-- **OI-24** (DR-266) The Vercel Hobby team (`cyberpolco`) exhausted its
-  monthly Fluid Active CPU allowance (4 hrs) on 2026-09-08 and the site went
-  fully unreachable — a hard cap on that plan, not a throttle. DR-266 fixed
-  the two concrete contributors found (a dead-image-404 render storm, and
-  uncached DB reads on the 4 highest-traffic guest pages) and added a
-  per-IP rate-limit Firewall rule (30 req/10s, `challenge` on exceed —
-  live in production), but the underlying billing-plan decision is still
-  open: wait for the monthly reset (check Vercel dashboard → Settings →
-  Usage for the exact date) or upgrade to Pro (removes the hard cap
-  entirely; usage-based billing instead). Left to the user — not something
-  a code fix can resolve on its own. Also worth deciding once traffic
-  patterns are clearer: whether `/`'s `force-dynamic` and the cookie-
-  driven-locale pages' forced-dynamic rendering are worth a bigger
-  rendering-architecture change (this DR deliberately left that
-  untouched, see its own decision-log entry).
-**Resolved:** OI-23 (DR-261's `RatingCode.issuedByUserId` nullable schema
+- **OI-24 — RESOLVED 2026-09-09.** The user upgraded the `cyberpolco` Vercel
+  team from Hobby to Pro (confirmed via `/v2/teams/{id}` → `billing.plan:
+  "pro"`), removing the hard Fluid Active CPU cap DR-266 hit. Still worth
+  deciding once traffic patterns are clearer: whether `/`'s
+  `force-dynamic` and the cookie-driven-locale pages' forced-dynamic
+  rendering are worth a bigger rendering-architecture change (DR-266
+  deliberately left that untouched, see its own decision-log entry) — not
+  blocking, just a future cost-optimization opportunity under usage-based
+  Pro billing.
+
+**Resolved:** OI-24 (Vercel team upgraded Hobby → Pro, removing the Fluid
+Active CPU hard cap — 2026-09-09), OI-23 (DR-261's `RatingCode.issuedByUserId` nullable schema
 change pushed to the shared Neon DB via `npm run db:push` with a
 user-provided `neondb_owner` credential — first attempt hit the same
 transient `P1001` Neon-pooler flakiness documented elsewhere in this file,
@@ -2219,6 +2215,32 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   live in production (`vercel ls --prod`, check deployment age) — ideally
   before or immediately after the `db push`, not "at some point after
   pushing to git."
+- **A host-based redirect in `next.config.mjs`'s `has: [{ type: 'host',
+  ... }]` rules and a Vercel project's own Domain-level redirect setting
+  are two completely independent places a hostname's canonical-domain
+  decision can be encoded — if they disagree on which host is canonical,
+  they fight each other forever.** Real incident, DR-269 (2026-09-09): the
+  Vercel Domain config for `mufasasafaris.com` (set 2026-07-27) redirected
+  apex → `www`; `next.config.mjs`'s own SEO-consolidation rule (added
+  2026-09-07) redirected `www` → apex — an infinite loop
+  (`ERR_TOO_MANY_REDIRECTS`) across every live hostname, confirmed with
+  `curl -v` showing each host 308-ing back to the other with no page ever
+  rendering. The app-level rule's own comment claimed "there's no redirect
+  loop" — true only for requests that already arrive on the canonical
+  host, which says nothing about what a platform-level Domain redirect
+  might do to a request *before* it ever reaches this app. When adding or
+  changing an app-level canonical-host redirect, check the Vercel
+  dashboard's Domains tab (or `vercel api "/v9/projects/{id}/domains"`)
+  for that same hostname first — they must agree, and only one side should
+  own the decision (this repo settled on: Vercel Domain config owns it,
+  `next.config.mjs`'s host rules should only cover hosts that have no
+  platform-level redirect of their own, like `polco-tours.vercel.app`).
+  Diagnosed and fixed without a browser: `curl -v` shows every redirect
+  hop, and `vercel api -X PATCH "/v9/projects/{id}/domains/{domain}"`
+  (with `-F redirect=... -F redirectStatusCode=...`) can flip a Domain's
+  redirect target directly — clear the target's own redirect first if it
+  has one, since the API rejects pointing a redirect at a host that is
+  itself still redirecting ("Redirects cannot be chained").
 - **`@visx/responsive`'s `ParentSize` collapses to 0 height if you only
   give it a Tailwind height class** — its own inline `style={{height:
   '100%'}}` wins over any CSS class. Pass `style={{ height: N }}` as a prop
