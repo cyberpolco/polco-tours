@@ -3,7 +3,7 @@ import Image from 'next/image';
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { cmsService, type CmsLocale } from '@modules/cms';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClassName } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Alert } from '@/components/ui/Alert';
@@ -12,6 +12,11 @@ import { Reveal } from '@/components/ui/Reveal';
 interface Props {
   searchParams: Promise<{ submitted?: string }>;
 }
+
+// Google Business Profile review link -- a fixed marketing destination, not
+// staff-editable content (unlike DR-200's footer social links), so kept as
+// a plain constant here rather than a new CmsMediaItem list.
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CaeP-SJhg5qSEBI/review';
 
 // Same direct-cookie-read convention as (guest)/about/page.tsx.
 async function resolveLocale(): Promise<CmsLocale> {
@@ -78,6 +83,38 @@ export default async function RatePage({ searchParams }: Props) {
           </form>
         </Card>
       </section>
+
+      <div className="mt-10 flex justify-center px-4">
+        <Card className="w-full max-w-md text-center">
+          <p className="eyebrow text-mist">{t('googleReviewEyebrow')}</p>
+          <h2 className="mt-1 text-xl font-bold text-navy">{t('googleReviewTitle')}</h2>
+          <p className="mt-2 text-sm text-mist">{t('googleReviewBody')}</p>
+
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <a
+              href={GOOGLE_REVIEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex rounded-card border border-rule p-2"
+            >
+              <Image
+                src="/images/rate/google-review-qr.png"
+                alt={t('googleReviewQrAlt')}
+                width={160}
+                height={160}
+              />
+            </a>
+            <a
+              href={GOOGLE_REVIEW_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClassName('primary', 'default')}
+            >
+              {t('googleReviewButton')}
+            </a>
+          </div>
+        </Card>
+      </div>
     </Reveal>
   );
 }

@@ -725,7 +725,12 @@
     "subhead": "Saisissez votre référence de réservation et le code d'évaluation qui vous a été envoyé — disponible une fois votre voyage terminé.",
     "bookingReference": "Référence de réservation",
     "ratingCode": "Code d'évaluation",
-    "continueLabel": "Continuer"
+    "continueLabel": "Continuer",
+    "googleReviewEyebrow": "Vous avez aimé votre voyage ?",
+    "googleReviewTitle": "Laissez-nous un avis Google",
+    "googleReviewBody": "Scannez le code QR ou appuyez sur le bouton ci-dessous pour partager votre expérience sur notre profil Google Business.",
+    "googleReviewQrAlt": "Code QR menant à la page d'avis de notre profil Google Business",
+    "googleReviewButton": "Laisser un avis Google"
   },
   "RateResultPage": {
     "enterRefAndCode": "Saisissez votre référence de réservation et votre code d'évaluation.",

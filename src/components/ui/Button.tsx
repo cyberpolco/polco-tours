@@ -37,7 +37,11 @@ const SIZE_CLASSES = {
 type Variant = keyof typeof VARIANT_CLASSES;
 type Size = keyof typeof SIZE_CLASSES;
 
-function buttonClassName(variant: Variant, size: Size, className?: string): string {
+// Exported so a plain external `<a>` (which can't safely go through
+// `LinkButton`/next/link's `LinkProps`-only prop surface -- it needs
+// `target`/`rel`, not a typed internal `href`) can still share the exact
+// same visual recipe instead of duplicating the className stack.
+export function buttonClassName(variant: Variant, size: Size, className?: string): string {
   return [
     'inline-flex items-center justify-center rounded-pill font-semibold outline-none',
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0',

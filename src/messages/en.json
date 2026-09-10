@@ -725,7 +725,12 @@
     "subhead": "Enter your booking reference and the Rating Code you were sent — available once your tour is complete.",
     "bookingReference": "Booking reference",
     "ratingCode": "Rating Code",
-    "continueLabel": "Continue"
+    "continueLabel": "Continue",
+    "googleReviewEyebrow": "Loved your trip?",
+    "googleReviewTitle": "Leave us a Google review",
+    "googleReviewBody": "Scan the QR code or tap the button below to share your experience on our Google Business Profile.",
+    "googleReviewQrAlt": "QR code linking to our Google Business Profile review page",
+    "googleReviewButton": "Leave a Google review"
   },
   "RateResultPage": {
     "enterRefAndCode": "Enter your booking reference and Rating Code.",
