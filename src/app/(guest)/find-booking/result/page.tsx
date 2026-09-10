@@ -197,7 +197,9 @@ export default async function FindBookingResultPage({ searchParams }: Props) {
   // this same no-ctx lookup is safe).
   const destinationCountry = tripSummary?.country ?? booking.customCountry ?? null;
   const travelerNationalities = [...new Set(travelers.map((tv) => tv.nationality).filter((n): n is string => n !== null))];
-  const visaRequirementsInfo = destinationCountry ? await immigrationService.getPublicVisaRequirements(destinationCountry) : null;
+  const visaRequirementsInfo = destinationCountry
+    ? await immigrationService.getPublicVisaRequirements(destinationCountry, locale === 'fr' ? 'fr' : 'en')
+    : null;
 
   // Deliberately redacted -- never the raw RatingCode.code (see
   // ratingsService.getRatingCodeStatusForBookingLookup's own comment).

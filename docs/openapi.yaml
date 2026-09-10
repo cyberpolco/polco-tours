@@ -3879,9 +3879,12 @@ components:
         id: { type: string, format: uuid }
         country: { type: string, minLength: 2, maxLength: 2, description: ISO-3166 alpha-2, unique }
         visaRequirements: { type: string }
+        visaRequirementsFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to visaRequirements when null' }
         requiredDocuments: { type: string }
+        requiredDocumentsFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to requiredDocuments when null' }
         processingTimeDays: { type: integer, nullable: true }
         entryConditions: { type: string }
+        entryConditionsFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to entryConditions when null' }
         immigrationFeeMinor: { type: integer, nullable: true, description: Integer minor units (BR-02), paired with feeCurrency }
         feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF], nullable: true }
         embassyName: { type: string, nullable: true }
@@ -3889,8 +3892,11 @@ components:
         embassyPhone: { type: string, nullable: true }
         embassyEmail: { type: string, nullable: true }
         healthRequirements: { type: string }
+        healthRequirementsFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to healthRequirements when null' }
         travelAdvisories: { type: string, nullable: true }
+        travelAdvisoriesFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to travelAdvisories when null' }
         specialRestrictions: { type: string, nullable: true }
+        specialRestrictionsFr: { type: string, nullable: true, description: 'DR-270: staff-entered French translation, falls back to specialRestrictions when null' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
@@ -3900,9 +3906,12 @@ components:
       properties:
         country: { type: string, minLength: 2, maxLength: 2 }
         visaRequirements: { type: string, minLength: 1 }
+        visaRequirementsFr: { type: string }
         requiredDocuments: { type: string, minLength: 1 }
+        requiredDocumentsFr: { type: string }
         processingTimeDays: { type: integer, minimum: 0 }
         entryConditions: { type: string, minLength: 1 }
+        entryConditionsFr: { type: string }
         immigrationFeeMinor: { type: integer, minimum: 0 }
         feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF] }
         embassyName: { type: string, maxLength: 200 }
@@ -3910,17 +3919,23 @@ components:
         embassyPhone: { type: string, maxLength: 50 }
         embassyEmail: { type: string, format: email }
         healthRequirements: { type: string, minLength: 1 }
+        healthRequirementsFr: { type: string }
         travelAdvisories: { type: string }
+        travelAdvisoriesFr: { type: string }
         specialRestrictions: { type: string }
+        specialRestrictionsFr: { type: string }
 
     UpdateCountryRegulationInput:
       type: object
       description: Same as CreateCountryRegulationInput minus country (the natural key, immutable after creation), all optional.
       properties:
         visaRequirements: { type: string, minLength: 1 }
+        visaRequirementsFr: { type: string }
         requiredDocuments: { type: string, minLength: 1 }
+        requiredDocumentsFr: { type: string }
         processingTimeDays: { type: integer, minimum: 0 }
         entryConditions: { type: string, minLength: 1 }
+        entryConditionsFr: { type: string }
         immigrationFeeMinor: { type: integer, minimum: 0 }
         feeCurrency: { type: string, enum: [USD, EUR, NAD, CDF] }
         embassyName: { type: string, maxLength: 200 }
@@ -3928,5 +3943,8 @@ components:
         embassyPhone: { type: string, maxLength: 50 }
         embassyEmail: { type: string, format: email }
         healthRequirements: { type: string, minLength: 1 }
+        healthRequirementsFr: { type: string }
         travelAdvisories: { type: string }
+        travelAdvisoriesFr: { type: string }
         specialRestrictions: { type: string }
+        specialRestrictionsFr: { type: string }

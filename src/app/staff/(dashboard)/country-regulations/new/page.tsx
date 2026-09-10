@@ -35,14 +35,23 @@ export default async function NewCountryRegulationPage() {
         <FormField label={t('visaRequirements')} htmlFor="visaRequirements">
           <textarea name="visaRequirements" required rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        <FormField label={t('visaRequirementsFr')} htmlFor="visaRequirementsFr" optional>
+          <textarea name="visaRequirementsFr" rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
         <FormField label={t('requiredDocuments')} htmlFor="requiredDocuments">
           <textarea name="requiredDocuments" required rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
+        <FormField label={t('requiredDocumentsFr')} htmlFor="requiredDocumentsFr" optional>
+          <textarea name="requiredDocumentsFr" rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('processingTimeDaysLabel')} htmlFor="processingTimeDays" optional>
           <input name="processingTimeDays" type="number" min="0" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('entryConditions')} htmlFor="entryConditions">
           <textarea name="entryConditions" required rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
+        <FormField label={t('entryConditionsFr')} htmlFor="entryConditionsFr" optional>
+          <textarea name="entryConditionsFr" rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
           <FormField label={t('immigrationFee')} htmlFor="fee" optional>
@@ -75,11 +84,20 @@ export default async function NewCountryRegulationPage() {
         <FormField label={t('healthRequirements')} htmlFor="healthRequirements">
           <textarea name="healthRequirements" required rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        <FormField label={t('healthRequirementsFr')} htmlFor="healthRequirementsFr" optional>
+          <textarea name="healthRequirementsFr" rows={3} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
         <FormField label={t('travelAdvisories')} htmlFor="travelAdvisories" optional>
           <textarea name="travelAdvisories" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
+        <FormField label={t('travelAdvisoriesFr')} htmlFor="travelAdvisoriesFr" optional>
+          <textarea name="travelAdvisoriesFr" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
         <FormField label={t('specialRestrictions')} htmlFor="specialRestrictions" optional>
           <textarea name="specialRestrictions" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
+        </FormField>
+        <FormField label={t('specialRestrictionsFr')} htmlFor="specialRestrictionsFr" optional>
+          <textarea name="specialRestrictionsFr" rows={2} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <SubmitButton>{t('addCountrySubmit')}</SubmitButton>
       </form>

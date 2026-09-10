@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-269** (2026-09-09). This file used to carry a running
+Current through **DR-270** (2026-09-10). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -157,7 +157,7 @@ gaps a fresh Postgres would hit).
 | Server-side maps/geocoding | Google Static Maps API + Geocoding API (DR-088/089) — `GOOGLE_MAPS_SERVER_API_KEY`, server-only, never `NEXT_PUBLIC_`-prefixed. `src/modules/itinerary/gateway.ts` (`StaticMapsGateway`) renders the Map tab's whole-circuit PDF map image (DR-150: every day in its own color, one call covering the whole itinerary instead of one per day); `scripts/backfill-coordinates.ts` is the Geocoding API's only consumer, run by hand |
 | Weather data | Google Maps Platform Weather API (DR-113) — reuses the same server-only `GOOGLE_MAPS_SERVER_API_KEY`, not a new credential; that key's Google Cloud project still needs the Weather API product enabled + added to its restriction list (OI-14) before this serves live data (degrades gracefully to town/seasonal-notes-only until then). `src/modules/weather/gateway.ts` (`GoogleWeatherGateway`) calls `currentConditions:lookup`/`forecast/days:lookup`, one bounded retry on a genuine failure (never on timeout), no circuit breaker — call volume is bounded by `src/lib/weather-cache.ts` (Upstash Redis) instead |
 | PDF generation | `@react-pdf/renderer` `4.5.1` (DR-089) — this repo's first PDF-generation capability; `src/modules/itinerary/map-pdf.tsx` lays out the Map tab's whole-circuit PDF (DR-150: one combined Static Maps image covering every day + a color-keyed, day-grouped stop list). `src/modules/insights/insights-pdf.tsx` (DR-193) is the same idea for the Insights dashboard — a caller-chosen subset of the live summary's sections, as tables/stat rows rather than charts (no server-renderable equivalent to the dashboard's rings/donuts/funnels here). Every generated PDF embeds the app's own Archivo/Special Elite type roles via `src/lib/pdf-fonts.ts` (DR-161), not Helvetica |
-| i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (country-regulations text, package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
+| i18n | `next-intl` `4.13.2` — cookie-based EN/FR locale, no URL prefixing. Full EN+FR chrome coverage across both the guest site and the staff dashboard (login, settings, every module page) — `NextIntlClientProvider` lives at the true root (`src/app/layout.tsx`), covering both trees with one instance. Deliberate exclusions, decided as chrome-vs-content: staff-authored prose (package marketing copy/itinerary-day descriptions, About/FAQ body content) — only its surrounding labels are translated; raw permission slugs and `Role` enum values on the admin Permissions/Users pages; the exhaustive world country-name list (`COUNTRY_CODES`, nationality/citizenship/dial-code selects) and per-country province lists (`PROVINCES_BY_COUNTRY`) — both treated as large static reference datasets, out of scope. Country-regulation text is the one staff-authored-prose exception (DR-270): `CountryRegulation`'s 6 prose fields each carry an optional, staff-entered French sibling column (never machine-translated), falling back to English until staff fills one in. Message catalogs: `src/messages/en.json`/`fr.json`, flat per-page/shared namespaces (`Common`, `Countries`, `*StatusLabel` per enum, etc.) |
 | Motion | `framer-motion` `12.42.2` (DR-068) — scroll-reveal/hover micro-interactions + the homepage `HeroCarousel`; every animated surface respects `prefers-reduced-motion` |
 
 Do not swap any of these without a DR entry.
@@ -950,7 +950,29 @@ src/
                    #   visaRequirements text) — this one's read directly
                    #   from a guest page ((guest)/find-booking/result), not
                    #   from another module's service, so it isn't a new
-                   #   module-to-module dependency
+                   #   module-to-module dependency. DR-270 (explicit user
+                   #   request): the 6 staff-authored prose fields
+                   #   (visaRequirements/requiredDocuments/entryConditions/
+                   #   healthRequirements/travelAdvisories/
+                   #   specialRestrictions) each gain a nullable `*Fr`
+                   #   sibling column -- deliberately NOT a CmsTextBlock-
+                   #   style extra row-per-locale, since this table mixes
+                   #   locale-invariant reference facts (fee/embassy/
+                   #   processingTimeDays) with locale-variant prose in ONE
+                   #   row per country; a row-per-locale design would need
+                   #   every edit to sync those invariant fields across
+                   #   rows, the way CmsAboutEntry's own row-per-locale
+                   #   design already has to. getPublicVisaRequirements now
+                   #   takes the guest's locale and returns the French
+                   #   column when staff has entered one, via a new pure
+                   #   resolveLocalizedRegulationText (domain.ts),
+                   #   falling back to the always-required English column
+                   #   otherwise. Staff's create/edit/detail pages
+                   #   (/staff/country-regulations) gained an optional
+                   #   French twin field directly beneath each of the 6
+                   #   English ones. Real French translations (written
+                   #   directly, not machine-translated) were populated for
+                   #   all 5 existing rows against the live shared Neon DB.
     ratings/       # Tourist-facing driver/guide/agency reviews (RatingCode,
                    #   Review, ReviewSubjectRating) — distinct from itinerary's
                    #   staff-only hotel/restaurant ratings; DR-148: SUPERADMIN
@@ -1558,12 +1580,16 @@ First-time DB setup: `cp .env.example .env` (fill Neon `DATABASE_URL` pooled +
   internals/stack traces to clients.
 - **i18n:** full EN + FR parity for UI chrome (labels, buttons, headings,
   errors) across the guest site *and* the staff dashboard. Staff-authored
-  prose (country-regulation text, package marketing copy, About/FAQ body
-  content) and large static reference lists (world country names, provinces,
-  permission slugs, `Role` values) are deliberately left untranslated — see
-  the i18n row in the tech stack table. A future bilingual field on those
-  content tables (rather than chrome-only translation) is a possible later
-  enhancement, not yet decided.
+  prose (package marketing copy, About/FAQ body content) and large static
+  reference lists (world country names, provinces, permission slugs, `Role`
+  values) are deliberately left untranslated — see the i18n row in the tech
+  stack table. **Country-regulation prose is the one exception (DR-270):**
+  `CountryRegulation`'s 6 prose fields each carry an optional French sibling
+  column, staff-entered (never machine-translated), falling back to the
+  English text when no French version exists yet. A future bilingual field
+  on the remaining content tables (package copy, About/FAQ) is a possible
+  later enhancement, not yet decided — DR-270 deliberately scoped to
+  country-regulation text only, per explicit user instruction.
 
 ---
 

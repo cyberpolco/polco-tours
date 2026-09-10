@@ -48,8 +48,16 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             <dd className="whitespace-pre-wrap">{regulation.visaRequirements}</dd>
           </div>
           <div>
+            <dt className="text-mist">{t('visaRequirementsFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.visaRequirementsFr ?? '—'}</dd>
+          </div>
+          <div>
             <dt className="text-mist">{t('requiredDocuments')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.requiredDocuments}</dd>
+          </div>
+          <div>
+            <dt className="text-mist">{t('requiredDocumentsFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.requiredDocumentsFr ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-mist">{t('processingTime')}</dt>
@@ -58,6 +66,10 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
           <div>
             <dt className="text-mist">{t('entryConditions')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.entryConditions}</dd>
+          </div>
+          <div>
+            <dt className="text-mist">{t('entryConditionsFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.entryConditionsFr ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-mist">{t('immigrationFee')}</dt>
@@ -81,12 +93,24 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             <dd className="whitespace-pre-wrap">{regulation.healthRequirements}</dd>
           </div>
           <div>
+            <dt className="text-mist">{t('healthRequirementsFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.healthRequirementsFr ?? '—'}</dd>
+          </div>
+          <div>
             <dt className="text-mist">{t('travelAdvisories')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.travelAdvisories ?? '—'}</dd>
           </div>
           <div>
+            <dt className="text-mist">{t('travelAdvisoriesFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.travelAdvisoriesFr ?? '—'}</dd>
+          </div>
+          <div>
             <dt className="text-mist">{t('specialRestrictions')}</dt>
             <dd className="whitespace-pre-wrap">{regulation.specialRestrictions ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-mist">{t('specialRestrictionsFr')}</dt>
+            <dd className="whitespace-pre-wrap">{regulation.specialRestrictionsFr ?? '—'}</dd>
           </div>
         </dl>
         </Card>
@@ -111,11 +135,27 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
+        <FormField label={t('visaRequirementsFr')} htmlFor="visaRequirementsFr" optional>
+          <textarea
+            name="visaRequirementsFr"
+            defaultValue={regulation.visaRequirementsFr ?? ''}
+            rows={3}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <FormField label={t('requiredDocuments')} htmlFor="requiredDocuments">
           <textarea
             name="requiredDocuments"
             defaultValue={regulation.requiredDocuments}
             required
+            rows={3}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
+        <FormField label={t('requiredDocumentsFr')} htmlFor="requiredDocumentsFr" optional>
+          <textarea
+            name="requiredDocumentsFr"
+            defaultValue={regulation.requiredDocumentsFr ?? ''}
             rows={3}
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
@@ -134,6 +174,14 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             name="entryConditions"
             defaultValue={regulation.entryConditions}
             required
+            rows={3}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
+        <FormField label={t('entryConditionsFr')} htmlFor="entryConditionsFr" optional>
+          <textarea
+            name="entryConditionsFr"
+            defaultValue={regulation.entryConditionsFr ?? ''}
             rows={3}
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
@@ -195,6 +243,14 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
+        <FormField label={t('healthRequirementsFr')} htmlFor="healthRequirementsFr" optional>
+          <textarea
+            name="healthRequirementsFr"
+            defaultValue={regulation.healthRequirementsFr ?? ''}
+            rows={3}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <FormField label={t('travelAdvisories')} htmlFor="travelAdvisories" optional>
           <textarea
             name="travelAdvisories"
@@ -203,10 +259,26 @@ export default async function CountryRegulationDetailPage({ params }: Props) {
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
+        <FormField label={t('travelAdvisoriesFr')} htmlFor="travelAdvisoriesFr" optional>
+          <textarea
+            name="travelAdvisoriesFr"
+            defaultValue={regulation.travelAdvisoriesFr ?? ''}
+            rows={2}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
         <FormField label={t('specialRestrictions')} htmlFor="specialRestrictions" optional>
           <textarea
             name="specialRestrictions"
             defaultValue={regulation.specialRestrictions ?? ''}
+            rows={2}
+            className="w-full rounded-survey border border-rule px-3 py-2"
+          />
+        </FormField>
+        <FormField label={t('specialRestrictionsFr')} htmlFor="specialRestrictionsFr" optional>
+          <textarea
+            name="specialRestrictionsFr"
+            defaultValue={regulation.specialRestrictionsFr ?? ''}
             rows={2}
             className="w-full rounded-survey border border-rule px-3 py-2"
           />

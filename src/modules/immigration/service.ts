@@ -6,10 +6,12 @@ import { Errors } from '@lib/errors';
 import { assertCan } from '@lib/rbac';
 import {
   isCountryRegulationWriter,
+  resolveLocalizedRegulationText,
   type CountryRegulationPublicFee,
   type CountryRegulationPublicVisaInfo,
   type CountryRegulationView,
   type CreateCountryRegulationInput,
+  type RegulationLocale,
   type UpdateCountryRegulationInput,
 } from './domain';
 import { immigrationRepository } from './repository';
@@ -51,10 +53,13 @@ export const immigrationService = {
   // getPublicFee above. Returns null (never throws) when no regulation is
   // on file for the country yet -- the caller simply omits the section
   // rather than showing a broken one, same graceful-degradation convention
-  // as getPublicFee/weather's gateway.
-  async getPublicVisaRequirements(country: string): Promise<CountryRegulationPublicVisaInfo | null> {
+  // as getPublicFee/weather's gateway. DR-270: takes the guest's locale and
+  // returns the French text when staff has entered one, else the always-
+  // required English column.
+  async getPublicVisaRequirements(country: string, locale: RegulationLocale = 'en'): Promise<CountryRegulationPublicVisaInfo | null> {
     const regulation = await immigrationRepository.findByCountry(country.toUpperCase());
-    return regulation ? { visaRequirements: regulation.visaRequirements } : null;
+    if (!regulation) return null;
+    return { visaRequirements: resolveLocalizedRegulationText(regulation.visaRequirements, regulation.visaRequirementsFr, locale) };
   },
 
   async createRegulation(ctx: AuthContext, input: CreateCountryRegulationInput): Promise<CountryRegulationView> {

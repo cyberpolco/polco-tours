@@ -622,6 +622,24 @@ model CountryRegulation {
   travelAdvisories    String? @db.Text // current advisory summary -- nullable, not every country has an active one
   specialRestrictions String? @db.Text // e.g. DRC's BR-07 security-zone posture -- nullable, most countries have none
 
+  // DR-270 (explicit user request): French translation of the 6 prose
+  // fields above, nullable, one column per field rather than a
+  // CmsTextBlock-style extra row-per-locale -- this table mixes
+  // locale-invariant reference facts (fee/embassy/processingTimeDays) with
+  // locale-variant prose in ONE row per country, and a row-per-locale
+  // design would force every edit to sync those invariant fields across
+  // rows (the sync CmsAboutEntry's own row-per-locale design already has
+  // to do). A sibling nullable column keeps the single row as the one
+  // source of truth for the non-text fields. Guest-facing rendering falls
+  // back to the English column when the French one is null (see
+  // immigration/domain.ts's resolveLocalizedRegulationText).
+  visaRequirementsFr    String? @db.Text
+  requiredDocumentsFr   String? @db.Text
+  entryConditionsFr     String? @db.Text
+  healthRequirementsFr  String? @db.Text
+  travelAdvisoriesFr    String? @db.Text
+  specialRestrictionsFr String? @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

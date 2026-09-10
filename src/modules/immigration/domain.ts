@@ -6,9 +6,12 @@ export interface CountryRegulationView {
   id: string;
   country: string;
   visaRequirements: string;
+  visaRequirementsFr: string | null;
   requiredDocuments: string;
+  requiredDocumentsFr: string | null;
   processingTimeDays: number | null;
   entryConditions: string;
+  entryConditionsFr: string | null;
   immigrationFeeMinor: number | null;
   feeCurrency: Currency | null;
   embassyName: string | null;
@@ -16,10 +19,27 @@ export interface CountryRegulationView {
   embassyPhone: string | null;
   embassyEmail: string | null;
   healthRequirements: string;
+  healthRequirementsFr: string | null;
   travelAdvisories: string | null;
+  travelAdvisoriesFr: string | null;
   specialRestrictions: string | null;
+  specialRestrictionsFr: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// DR-270: the only two locales staff can enter regulation prose in --
+// mirrors cms's SUPPORTED_LOCALES rather than importing it (would be a
+// needless cross-module dependency for a 2-value literal type).
+export const REGULATION_LOCALES = ['en', 'fr'] as const;
+export type RegulationLocale = (typeof REGULATION_LOCALES)[number];
+
+// Picks the French sibling of a prose field when the guest is browsing in
+// French AND staff has actually entered one; falls back to the always-
+// required English column otherwise (a country with no French translation
+// yet still shows correct information, just untranslated).
+export function resolveLocalizedRegulationText(en: string, fr: string | null, locale: RegulationLocale): string {
+  return locale === 'fr' && fr ? fr : en;
 }
 
 // DR-184: minimal, no-ctx-safe projection for other modules (e.g. visa) to
@@ -43,9 +63,12 @@ export interface CountryRegulationPublicVisaInfo {
 export const CreateCountryRegulationInput = z.object({
   country: z.string().length(2),
   visaRequirements: z.string().min(1),
+  visaRequirementsFr: z.string().optional(),
   requiredDocuments: z.string().min(1),
+  requiredDocumentsFr: z.string().optional(),
   processingTimeDays: z.number().int().nonnegative().optional(),
   entryConditions: z.string().min(1),
+  entryConditionsFr: z.string().optional(),
   immigrationFeeMinor: z.number().int().nonnegative().optional(),
   feeCurrency: z.enum(['USD', 'EUR', 'NAD', 'CDF']).optional(),
   embassyName: z.string().max(200).optional(),
@@ -53,8 +76,11 @@ export const CreateCountryRegulationInput = z.object({
   embassyPhone: z.string().max(50).optional(),
   embassyEmail: z.string().email().optional(),
   healthRequirements: z.string().min(1),
+  healthRequirementsFr: z.string().optional(),
   travelAdvisories: z.string().optional(),
+  travelAdvisoriesFr: z.string().optional(),
   specialRestrictions: z.string().optional(),
+  specialRestrictionsFr: z.string().optional(),
 });
 export type CreateCountryRegulationInput = z.infer<typeof CreateCountryRegulationInput>;
 
