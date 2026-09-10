@@ -434,11 +434,13 @@ export const invoicingService = {
       resourceId: invoice.id,
       organizationId,
     });
-    await notifyGuest(ctx, organizationId, bookingId, booking.touristUserId, 'INVOICE_ISSUED', {
-      bookingId: booking.bookingReference,
-      amountMinor: invoice.totalMinor,
-      currency: invoice.currency,
-    });
+    // Explicit user request: the INVOICE_ISSUED email was dropped -- in the
+    // live guest checkout flow (DPO still stubbed, DR-074, so payment
+    // auto-succeeds) this fires immediately before PAYMENT_SUCCEEDED, so the
+    // guest got two emails seconds apart for the same event. The
+    // NotificationEvent/template/CMS-override entry are left in place
+    // (harmless, unused) rather than torn out everywhere, in case a future
+    // flow needs "invoice created, not yet paid" as its own notice.
     return invoice;
   },
 
