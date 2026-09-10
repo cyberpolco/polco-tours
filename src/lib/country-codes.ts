@@ -234,6 +234,17 @@ export const COUNTRY_CODES_BY_ALPHA2: Record<string, CountryCode> = Object.fromE
 );
 
 /**
+ * COUNTRY_CODES itself stays in its original hand-curated (business-priority,
+ * then rough-region) order -- several existing pages render it as-is and
+ * aren't part of this change. This is a derived, alphabetical-by-name copy
+ * for the booking/plan-my-trip nationality, country-of-residence, citizenship,
+ * and dial-code pickers (explicit user request) -- `name` is always English
+ * regardless of locale (see CLAUDE.md's i18n exclusions), so one static sort
+ * order is correct for every locale.
+ */
+export const COUNTRY_CODES_ALPHABETICAL: CountryCode[] = [...COUNTRY_CODES].sort((a, b) => a.name.localeCompare(b.name));
+
+/**
  * The 5 countries POLCO TOURS actually operates in (Namibia, DRC, Zambia,
  * Zimbabwe, and -- since DR-218 -- Botswana) -- shared source for anywhere
  * that needs to restrict to (or name) just these, e.g. TourPackage's

@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES_ALPHABETICAL, flagEmoji } from '@lib/country-codes';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { SelectableCard } from '@/components/ui/SelectableCard';
@@ -51,7 +51,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
 
       <FormField label={t('nationality')} htmlFor="nationality">
         <Select name="nationality" required>
-          {COUNTRY_CODES.map((c) => (
+          {COUNTRY_CODES_ALPHABETICAL.map((c) => (
             <option key={c.alpha2} value={c.alpha2}>
               {flagEmoji(c.alpha2)} {c.name}
             </option>
@@ -70,7 +70,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
             <p className="mb-1 block text-sm text-mist">{t('phone')}</p>
             <div className="flex gap-2">
               <Select name="dialCode" defaultValue={prefill?.dialCode}>
-                {COUNTRY_CODES.map((c) => (
+                {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                   <option key={c.alpha2} value={c.dialCode}>
                     {flagEmoji(c.alpha2)} +{c.dialCode}
                   </option>
@@ -92,7 +92,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
           </FormField>
           <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
             <Select name="countryOfResidence" required>
-              {COUNTRY_CODES.map((c) => (
+              {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>

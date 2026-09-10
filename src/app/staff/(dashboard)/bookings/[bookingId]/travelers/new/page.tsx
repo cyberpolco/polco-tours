@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireStaffContext } from '@lib/staff-guard';
-import { COUNTRY_CODES, COUNTRY_CODES_BY_ALPHA2, flagEmoji, OPERATING_COUNTRY_CODES, parseE164 } from '@lib/country-codes';
+import { COUNTRY_CODES_ALPHABETICAL, COUNTRY_CODES_BY_ALPHA2, flagEmoji, OPERATING_COUNTRY_CODES, parseE164 } from '@lib/country-codes';
 import { authService } from '@modules/auth';
 import { bookingService, isBookingLocked } from '@modules/booking';
 import { Alert } from '@/components/ui/Alert';
@@ -174,7 +174,7 @@ export default async function NewTravelerPage({ params }: Props) {
             defaultValue={isTailorMade ? '' : isAddingTourLead ? (booking.citizenship ?? undefined) : undefined}
           >
             {isTailorMade && <option value="">{t('notSpecified')}</option>}
-            {COUNTRY_CODES.map((c) => (
+            {COUNTRY_CODES_ALPHABETICAL.map((c) => (
               <option key={c.alpha2} value={c.alpha2}>
                 {flagEmoji(c.alpha2)} {c.name}
               </option>
@@ -203,7 +203,7 @@ export default async function NewTravelerPage({ params }: Props) {
                 <p className="mb-1 block text-sm text-mist">{t('phone')}</p>
                 <div className="flex gap-2">
                   <Select name="dialCode" defaultValue="264">
-                    {COUNTRY_CODES.map((c) => (
+                    {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                       <option key={c.alpha2} value={c.dialCode}>
                         {flagEmoji(c.alpha2)} +{c.dialCode}
                       </option>
@@ -239,7 +239,7 @@ export default async function NewTravelerPage({ params }: Props) {
             ) : (
               <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
                 <Select name="countryOfResidence" required>
-                  {COUNTRY_CODES.map((c) => (
+                  {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                     <option key={c.alpha2} value={c.alpha2}>
                       {flagEmoji(c.alpha2)} {c.name}
                     </option>

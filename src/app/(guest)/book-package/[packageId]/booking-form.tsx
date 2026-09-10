@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Select } from '@/components/ui/Select';
 import { authClient } from '@lib/auth-client';
-import { COUNTRY_CODES, flagEmoji } from '@lib/country-codes';
+import { COUNTRY_CODES_ALPHABETICAL, flagEmoji } from '@lib/country-codes';
 import { createGuestPackageBookingAction } from './actions';
 
 interface Props {
@@ -127,7 +127,7 @@ export default function BookingForm({ packageId, durationDays, lateBookingRate }
         <p className="mb-1 text-sm text-mist">{t('phoneNotice')}</p>
         <div className="flex gap-2">
           <Select name="dialCode" defaultValue="264">
-            {COUNTRY_CODES.map((c) => (
+            {COUNTRY_CODES_ALPHABETICAL.map((c) => (
               <option key={c.alpha2} value={c.dialCode}>
                 {flagEmoji(c.alpha2)} +{c.dialCode}
               </option>

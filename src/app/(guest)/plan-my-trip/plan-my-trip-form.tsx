@@ -12,7 +12,7 @@ import { SelectableCard } from '@/components/ui/SelectableCard';
 import { StepIndicator, type StepIndicatorStepDetail } from '@/components/ui/StepIndicator';
 import type { WizardStepIconKey } from '@/components/ui/wizard-step-icons';
 import { authClient } from '@lib/auth-client';
-import { COUNTRY_CODES, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
+import { COUNTRY_CODES_ALPHABETICAL, flagEmoji, OPERATING_COUNTRY_CODES } from '@lib/country-codes';
 import { createPlanMyTripRequestAction, recordWizardStepAction } from './actions';
 
 // Order-matched to STEPS below (destination -> contact) -- shares the
@@ -220,16 +220,21 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
         <div>
           <p className="mb-2 text-sm text-mist">{t('whichCountries')}</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {DESTINATION_CODES.map((code) => (
-              <SelectableCard
-                key={code}
-                type="checkbox"
-                checked={countries.includes(code)}
-                onChange={() => setCountries((c) => toggle(c, code))}
-              >
-                {flagEmoji(code)} {tCountries(code)}
-              </SelectableCard>
-            ))}
+            {/* Explicit user request: alphabetical by the label actually
+                shown, so the order is correct in both EN and FR rather than
+                sorted once in a fixed language. */}
+            {[...DESTINATION_CODES]
+              .sort((a, b) => tCountries(a).localeCompare(tCountries(b)))
+              .map((code) => (
+                <SelectableCard
+                  key={code}
+                  type="checkbox"
+                  checked={countries.includes(code)}
+                  onChange={() => setCountries((c) => toggle(c, code))}
+                >
+                  {flagEmoji(code)} {tCountries(code)}
+                </SelectableCard>
+              ))}
           </div>
         </div>
       )}
@@ -348,7 +353,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
               <option value="" disabled>
                 {t('selectACountry')}
               </option>
-              {COUNTRY_CODES.map((c) => (
+              {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
@@ -360,7 +365,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
               <option value="" disabled>
                 {t('selectACountry')}
               </option>
-              {COUNTRY_CODES.map((c) => (
+              {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                 <option key={c.alpha2} value={c.alpha2}>
                   {flagEmoji(c.alpha2)} {c.name}
                 </option>
@@ -417,7 +422,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
             <p className="mb-1 text-sm text-mist">{t('phoneNotice')}</p>
             <div className="flex gap-2">
               <Select value={dialCode} onChange={(e) => setDialCode(e.target.value)}>
-                {COUNTRY_CODES.map((c) => (
+                {COUNTRY_CODES_ALPHABETICAL.map((c) => (
                   <option key={c.alpha2} value={c.dialCode}>
                     {flagEmoji(c.alpha2)} +{c.dialCode}
                   </option>
