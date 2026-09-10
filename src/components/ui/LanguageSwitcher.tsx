@@ -40,7 +40,12 @@ export function LanguageSwitcher() {
   return (
     <div
       role="radiogroup"
-      aria-label="Language"
+      // Not "Language" -- Playwright's getByLabel (and several a11y
+      // testing-library queries) do a case-insensitive SUBSTRING match by
+      // default, and "Language" contains "age", which collided with the
+      // traveler form's real Age field (getByLabel('Age') resolved to both
+      // this element and the age <input>, breaking 3 e2e specs in CI).
+      aria-label="Locale"
       className={`relative inline-flex shrink-0 rounded-pill border border-bone/25 bg-ink/25 p-0.5 ${isPending ? 'opacity-60' : ''}`}
     >
       {/* The sliding thumb -- purely decorative (aria-hidden), position and
