@@ -57,7 +57,14 @@ export function ContactForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label={t('nameLabel')} htmlFor="contact-name">
-            <input id="contact-name" name="name" required maxLength={120} className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink" />
+            <input
+              id="contact-name"
+              name="name"
+              required
+              maxLength={120}
+              autoComplete="off"
+              className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink"
+            />
           </FormField>
           <FormField label={t('emailLabel')} htmlFor="contact-email">
             <input
@@ -66,6 +73,7 @@ export function ContactForm() {
               type="email"
               required
               maxLength={254}
+              autoComplete="off"
               className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink"
             />
           </FormField>
@@ -73,7 +81,13 @@ export function ContactForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label={t('phoneLabel')} htmlFor="contact-phone" optional>
-            <input id="contact-phone" name="phone" maxLength={30} className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink" />
+            <input
+              id="contact-phone"
+              name="phone"
+              maxLength={30}
+              autoComplete="off"
+              className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink"
+            />
           </FormField>
           <FormField label={t('topicLabel')} htmlFor="contact-topic">
             <Select id="contact-topic" name="topic" required defaultValue="">
@@ -97,6 +111,7 @@ export function ContactForm() {
             minLength={10}
             maxLength={4000}
             rows={5}
+            autoComplete="off"
             className="w-full rounded-card border border-rule bg-bone px-3 py-2 text-sm text-ink"
           />
         </FormField>

@@ -63,10 +63,10 @@ export default async function FindBookingPage() {
 
           <form method="get" action="/find-booking/result" className="mt-6 space-y-4">
             <FormField label={t('bookingReference')} htmlFor="bookingReference">
-              <input name="bookingReference" required className="w-full rounded-survey border border-rule px-3 py-2 uppercase" />
+              <input name="bookingReference" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2 uppercase" />
             </FormField>
             <FormField label={t('tourLeadLastName')} htmlFor="lastName">
-              <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+              <input name="lastName" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
             <Button type="submit">{t('submit')}</Button>
           </form>

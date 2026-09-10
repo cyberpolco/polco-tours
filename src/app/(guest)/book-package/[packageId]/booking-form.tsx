@@ -116,10 +116,10 @@ export default function BookingForm({ packageId, durationDays, lateBookingRate }
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label={t('firstName')} htmlFor="firstName">
-          <input name="firstName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="firstName" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('lastName')} htmlFor="lastName">
-          <input name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="lastName" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
       </div>
 
@@ -137,6 +137,7 @@ export default function BookingForm({ packageId, durationDays, lateBookingRate }
             name="localNumber"
             type="tel"
             required
+            autoComplete="off"
             placeholder={t('phonePlaceholder')}
             className="flex-1 rounded-survey border border-rule px-3 py-2"
           />

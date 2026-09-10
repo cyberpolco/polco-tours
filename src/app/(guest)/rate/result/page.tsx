@@ -106,7 +106,7 @@ export default async function RateResultPage({ searchParams }: Props) {
               </FormField>
             </div>
             <FormField label={t('comments')} htmlFor="overallComment" optional>
-              <textarea name="overallComment" rows={3} maxLength={1000} className="w-full rounded-survey border border-rule px-3 py-2" />
+              <textarea name="overallComment" rows={3} maxLength={1000} autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
             </FormField>
           </div>
 
@@ -126,6 +126,7 @@ export default async function RateResultPage({ searchParams }: Props) {
                       name={`comment_driver_${d.driverProfileId}`}
                       rows={2}
                       maxLength={1000}
+                      autoComplete="off"
                       placeholder={t('optionalComment')}
                       className="w-full rounded-survey border border-rule px-3 py-2"
                     />
@@ -151,6 +152,7 @@ export default async function RateResultPage({ searchParams }: Props) {
                       name={`comment_guide_${g.guideUserId}`}
                       rows={2}
                       maxLength={1000}
+                      autoComplete="off"
                       placeholder={t('optionalComment')}
                       className="w-full rounded-survey border border-rule px-3 py-2"
                     />

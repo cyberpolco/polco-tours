@@ -73,11 +73,12 @@ export default async function RatePage({ searchParams }: Props) {
               <input
                 name="bookingReference"
                 required
+                autoComplete="off"
                 className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
               />
             </FormField>
             <FormField label={t('ratingCode')} htmlFor="ratingCode">
-              <input name="ratingCode" required className="w-full rounded-survey border border-rule px-3 py-2 uppercase" />
+              <input name="ratingCode" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2 uppercase" />
             </FormField>
             <Button type="submit">{t('continueLabel')}</Button>
           </form>

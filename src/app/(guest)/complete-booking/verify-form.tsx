@@ -31,15 +31,16 @@ export function VerifyForm({ defaultReference }: { defaultReference: string }) {
           id="bookingReference"
           name="bookingReference"
           required
+          autoComplete="off"
           defaultValue={defaultReference}
           className="w-full rounded-survey border border-rule px-3 py-2 uppercase"
         />
       </FormField>
       <FormField label={t('lastName')} htmlFor="lastName">
-        <input id="lastName" name="lastName" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        <input id="lastName" name="lastName" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
       <FormField label={t('email')} htmlFor="email">
-        <input id="email" name="email" type="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        <input id="email" name="email" type="email" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
 
       <SubmitButton pendingLabel={t('checking')}>{t('continue')}</SubmitButton>

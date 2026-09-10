@@ -29,10 +29,10 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
     <form action={action} className="mt-6 space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <FormField label={t('firstName')} htmlFor="firstName">
-          <input name="firstName" required defaultValue={prefill?.firstName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="firstName" required autoComplete="off" defaultValue={prefill?.firstName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('lastName')} htmlFor="lastName">
-          <input name="lastName" required defaultValue={prefill?.lastName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="lastName" required autoComplete="off" defaultValue={prefill?.lastName ?? ''} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
       </div>
 
@@ -60,7 +60,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
       </FormField>
 
       <FormField label={t('idOrPassportNumber')} htmlFor="idOrPassportNumber">
-        <input name="idOrPassportNumber" required className="w-full rounded-survey border border-rule px-3 py-2" />
+        <input name="idOrPassportNumber" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
 
       {isAddingTourLead && (
@@ -80,6 +80,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
                 name="localNumber"
                 type="tel"
                 required
+                autoComplete="off"
                 defaultValue={prefill?.localNumber ?? ''}
                 placeholder={t('phonePlaceholder')}
                 className="flex-1 rounded-survey border border-rule px-3 py-2"
@@ -87,7 +88,7 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
             </div>
           </div>
           <FormField label={t('email')} htmlFor="email">
-            <input type="email" name="email" required className="w-full rounded-survey border border-rule px-3 py-2" />
+            <input type="email" name="email" required autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
           </FormField>
           <FormField label={t('countryOfResidence')} htmlFor="countryOfResidence">
             <Select name="countryOfResidence" required>
@@ -102,18 +103,18 @@ export async function TravelerForm({ action, isAddingTourLead, hasTourLead, trav
       )}
 
       <FormField label={t('allergies')} htmlFor="allergies" optional>
-        <input name="allergies" className="w-full rounded-survey border border-rule px-3 py-2" />
+        <input name="allergies" autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
       </FormField>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FormField label={t('emergencyContactName')} htmlFor="emergencyContactName" optional>
-          <input name="emergencyContactName" className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="emergencyContactName" autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('emergencyContactPhone')} htmlFor="emergencyContactPhone" optional>
-          <input name="emergencyContactPhone" className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="emergencyContactPhone" autoComplete="off" className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
         <FormField label={t('relation')} htmlFor="emergencyContactRelation" optional>
-          <input name="emergencyContactRelation" placeholder={t('relationPlaceholder')} className="w-full rounded-survey border border-rule px-3 py-2" />
+          <input name="emergencyContactRelation" autoComplete="off" placeholder={t('relationPlaceholder')} className="w-full rounded-survey border border-rule px-3 py-2" />
         </FormField>
       </div>
 

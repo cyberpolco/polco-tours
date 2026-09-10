@@ -320,6 +320,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
             value={customDescription}
             onChange={(e) => setCustomDescription(e.target.value)}
             rows={4}
+            autoComplete="off"
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
@@ -376,6 +377,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
             value={specialRequests}
             onChange={(e) => setSpecialRequests(e.target.value)}
             rows={2}
+            autoComplete="off"
             className="w-full rounded-survey border border-rule px-3 py-2"
           />
         </FormField>
@@ -388,6 +390,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
+                autoComplete="off"
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
@@ -395,6 +398,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
+                autoComplete="off"
                 className="w-full rounded-survey border border-rule px-3 py-2"
               />
             </FormField>
@@ -405,6 +409,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="off"
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
@@ -422,6 +427,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
                 type="tel"
                 value={localNumber}
                 onChange={(e) => setLocalNumber(e.target.value)}
+                autoComplete="off"
                 placeholder={t('phonePlaceholder')}
                 className="flex-1 rounded-survey border border-rule px-3 py-2"
               />

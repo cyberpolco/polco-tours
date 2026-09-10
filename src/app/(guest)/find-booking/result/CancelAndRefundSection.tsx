@@ -80,6 +80,7 @@ export function CancelAndRefundSection({ bookingReference, lastName, locale, tie
               name="email"
               type="email"
               required
+              autoComplete="off"
               className="w-full rounded-survey border border-rule px-3 py-2"
             />
           </FormField>
@@ -88,6 +89,7 @@ export function CancelAndRefundSection({ bookingReference, lastName, locale, tie
               id="cancel-reason"
               name="reason"
               required
+              autoComplete="off"
               rows={3}
               maxLength={1000}
               className="w-full rounded-survey border border-rule px-3 py-2"
