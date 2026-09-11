@@ -36,6 +36,7 @@ export default function BookingForm({ packageId, durationDays, lateBookingRate }
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
+  const [seats, setSeats] = useState(1);
   const today = new Date().toISOString().slice(0, 10);
   // Display-only preview -- the authoritative end date is always computed
   // server-side (catalogService.createDepartureForBooking), this just
@@ -103,16 +104,37 @@ export default function BookingForm({ packageId, durationDays, lateBookingRate }
         </Alert>
       )}
 
-      <FormField label={t('seats')} htmlFor="seats">
-        <input
-          name="seats"
-          type="number"
-          min={1}
-          defaultValue={1}
-          required
-          className="w-full rounded-survey border border-rule px-3 py-2"
-        />
-      </FormField>
+      <div>
+        <p className="mb-1 text-sm text-mist">{t('seats')}</p>
+        {/* Explicit user request (same fix as plan-my-trip, DR-273): a plain
+            number input couldn't be edited reliably on mobile -- +/- buttons
+            replace it here too. No upper cap -- unlike the departure booking
+            form's own stepper, this booking has no pre-existing Departure to
+            bound seats against (DR-054). */}
+        <input type="hidden" name="seats" value={seats} />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSeats((s) => Math.max(1, s - 1))}
+            disabled={seats <= 1}
+            aria-label={t('decreaseTravelers')}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-navy text-xl font-semibold text-navy transition-colors duration-200 hover:bg-navy hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bone disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            −
+          </button>
+          <span className="w-8 text-center text-lg font-semibold text-ink" aria-live="polite">
+            {seats}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSeats((s) => s + 1)}
+            aria-label={t('increaseTravelers')}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-navy text-xl font-semibold text-navy transition-colors duration-200 hover:bg-navy hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bone"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <FormField label={t('firstName')} htmlFor="firstName">

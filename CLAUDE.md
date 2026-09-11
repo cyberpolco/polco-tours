@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-271** (2026-09-11). This file used to carry a running
+Current through **DR-273** (2026-09-11). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -2479,3 +2479,22 @@ lives in `docs/decisions/DECISION_LOG.md` and git history.
   deployment — `vercel usage`'s billing breakdown and any per-route metrics
   query both require Observability Plus (Pro-plan-only) and 404/error out
   on Hobby; raw request logs were the only thing actually available.
+- **A page-level "is setup done yet" gate computed from unrelated fields can
+  silently be permanently true/false for one entire booking origin/status
+  combination, hiding the rest of the page from it forever.** Real incident,
+  DR-272 (2026-09-11, user-reported: "sites selected on plan-my-trip can't
+  be seen on the staff side"). `bookings/[bookingId]/page.tsx`'s
+  `setupComplete = addonsDone && travelersDone && passportDone` early-return
+  gate was written for two different situations that happen to share this
+  page (a `PREDEFINED_PACKAGE` booking needing its manifest immediately, and
+  a post-quotation-acceptance `TAILOR_MADE` booking finishing DR-111's
+  guest-side setup) — but for a fresh `TAILOR_MADE` inquiry still
+  `AWAITING_QUOTATION`, `addonsDone`/`travelersDone` can never become true
+  (there's no manifest to build yet), so the gate silently never let staff
+  past the bare seat-count checklist to see the guest's actual trip-request
+  context or the Send Quotation control, for the entire lifetime of every
+  such booking until this fix. When a boolean gate combines fields from
+  more than one booking origin/lifecycle stage, check explicitly whether
+  each origin/status combination it's meant to cover can actually satisfy
+  it — "can this ever become true for this specific case" is a different
+  question from "does the code compile/render without crashing."

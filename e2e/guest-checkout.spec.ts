@@ -19,7 +19,8 @@ test.describe('guest checkout (DR-016)', () => {
     await expect(page.getByRole('heading', { name: 'Tour packages' })).toBeVisible();
 
     await page.goto(`/book/${departureId}`);
-    await page.getByLabel('Seats').fill('1');
+    // Seats defaults to 1 already (DR-273's +/- stepper replaced the old
+    // fillable number input) -- nothing to fill for a capacity:1 fixture.
     await page.getByLabel('First name').fill('Guest');
     await page.getByLabel('Last name').fill('Traveler');
     await page.locator('select[name="dialCode"]').selectOption('264');

@@ -294,15 +294,35 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
 
       {step === 2 && (
         <div className="space-y-4">
-          <FormField label={t('travelers')} htmlFor="seats">
-            <input
-              type="number"
-              min={1}
-              value={seats}
-              onChange={(e) => setSeats(Math.max(1, Number(e.target.value)))}
-              className="w-full rounded-survey border border-rule px-3 py-2"
-            />
-          </FormField>
+          <div>
+            <p className="mb-1 text-sm text-mist">{t('travelers')}</p>
+            {/* Explicit user request: a plain number input couldn't be
+                edited on mobile (deleting the single starting digit to
+                retype a new one is unreliable with a touch keyboard) --
+                +/- buttons replace it everywhere, never going below 1. */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSeats((s) => Math.max(1, s - 1))}
+                disabled={seats <= 1}
+                aria-label={t('decreaseTravelers')}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-navy text-xl font-semibold text-navy transition-colors duration-200 hover:bg-navy hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bone disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-lg font-semibold text-ink" aria-live="polite">
+                {seats}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSeats((s) => s + 1)}
+                aria-label={t('increaseTravelers')}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-navy text-xl font-semibold text-navy transition-colors duration-200 hover:bg-navy hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bone"
+              >
+                +
+              </button>
+            </div>
+          </div>
           {neededCoTravelers > 0 && (
             <div className="space-y-3">
               <p className="text-xs text-mist">{t('coTravelerNamesHint')}</p>

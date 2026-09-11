@@ -114,7 +114,20 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
   const passportDone = !booking.requiresPassportUpload || travelers.every((tv) => !!tv.passportDocumentId);
   const setupComplete = addonsDone && travelersDone && passportDone;
 
-  if (!setupComplete) {
+  // DR-272 (user-reported bug): a TAILOR_MADE booking still awaiting/pending
+  // a quotation has no real Traveler manifest or finalized add-ons to
+  // "finish setting up" yet -- that's guest-side work which only starts once
+  // a quotation is accepted (DR-111). The setup-checklist gate below exists
+  // for that later stage (and for PREDEFINED_PACKAGE bookings, which do need
+  // it immediately) -- applying it to a fresh inquiry hid the entire rich
+  // trip-request context (destination/dates/description/tags/sites/add-on
+  // interest/residence/citizenship/contact email) AND the Send Quotation
+  // control behind a checklist that can't be completed yet, since there is
+  // no price/manifest to check off. Reported directly: staff couldn't see
+  // which sites the guest picked on plan-my-trip for exactly this reason.
+  const isPreQuotationTailorMade = booking.origin === 'TAILOR_MADE' && (booking.status === 'AWAITING_QUOTATION' || booking.status === 'QUOTATION_SENT');
+
+  if (!setupComplete && !isPreQuotationTailorMade) {
     const nextHref = !addonsDone
       ? `/staff/bookings/${bookingId}/addons`
       : !travelersDone

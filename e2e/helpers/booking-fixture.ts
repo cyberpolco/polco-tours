@@ -235,3 +235,49 @@ export async function seedStaffAndTailorMadeAwaitingQuotation(): Promise<{ staff
 
   return { staffUserId: staff.id, bookingId };
 }
+
+/**
+ * DR-272 regression fixture: a genuinely fresh plan-my-trip inquiry -- no
+ * add-ons finalized yet, no Traveler rows at all, just the guest's own
+ * preferences (preferredSites among them). Reproduces the user-reported
+ * bug where staff couldn't see which sites the guest picked: the booking-
+ * detail page used to gate its entire trip-request context block (and the
+ * Send Quotation control) behind a "finish setup" checklist that a booking
+ * at this exact stage can never complete (no manifest to check off yet).
+ */
+export async function seedFreshTailorMadeInquiry(opts: { preferredSites: string[] }): Promise<{ staffUserId: string; bookingId: string }> {
+  const org = await prisma.organization.findFirstOrThrow({ where: { isPrimary: true } });
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const [staff, tourist] = await Promise.all([
+    prisma.user.create({
+      data: { email: `e2e-staff-${suffix}@example.test`, role: 'TOUR_OPERATOR', organizationId: org.id, emailVerified: true },
+    }),
+    prisma.user.create({
+      data: { email: `e2e-tourist-${suffix}@example.test`, role: 'TOURIST', organizationId: org.id, emailVerified: true },
+    }),
+  ]);
+
+  const bookingId = await withOrg(org.id, async (tx) => {
+    const booking = await tx.booking.create({
+      data: {
+        organizationId: org.id,
+        origin: 'TAILOR_MADE',
+        touristUserId: tourist.id,
+        seats: 1,
+        bookingReference: generateBookingReference(),
+        customCountry: 'NA',
+        customTravelStart: new Date('2027-06-01'),
+        customTravelEnd: new Date('2027-06-10'),
+        status: 'AWAITING_QUOTATION',
+        preferredSites: opts.preferredSites,
+        preferredCountries: ['NA'],
+        contactFirstName: 'Fresh',
+        contactLastName: 'Inquiry',
+      },
+    });
+    return booking.id;
+  });
+
+  return { staffUserId: staff.id, bookingId };
+}

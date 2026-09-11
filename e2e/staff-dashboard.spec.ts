@@ -1,7 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { createVerifiedStaffUser } from './helpers/staff-user';
 import { sessionCookiesFor } from './helpers/session-cookie';
-import { seedStaffAndBooking, seedStaffAndCompleteBooking, seedStaffAndTailorMadeAwaitingQuotation } from './helpers/booking-fixture';
+import {
+  seedFreshTailorMadeInquiry,
+  seedStaffAndBooking,
+  seedStaffAndCompleteBooking,
+  seedStaffAndTailorMadeAwaitingQuotation,
+} from './helpers/booking-fixture';
 import { seedStaffAndUnpricedPackage } from './helpers/catalog-fixture';
 
 test.describe('staff dashboard (DR-014)', () => {
@@ -135,6 +140,22 @@ test.describe('staff dashboard (DR-014)', () => {
     await page.goto(`/staff/bookings/${bookingId}`);
     await expect(page.getByRole('button', { name: 'Send quotation' })).toBeVisible();
     await expect(page.getByText('Application error')).not.toBeVisible();
+  });
+
+  // DR-272 regression: user-reported bug -- staff couldn't see which sites a
+  // guest picked on plan-my-trip. A fresh inquiry (no add-ons finalized, no
+  // Traveler rows yet) used to be forced through the "finish setup"
+  // checklist view, which never shows the trip-request context block (or
+  // the Send Quotation control) at all -- and that checklist can never be
+  // completed at this stage anyway, since there's no price/manifest yet.
+  test('booking detail shows the trip-request context (incl. sites) immediately for a fresh TAILOR_MADE inquiry', async ({ page }) => {
+    const { staffUserId, bookingId } = await seedFreshTailorMadeInquiry({ preferredSites: ['Etosha National Park', 'Sossusvlei'] });
+    await page.context().addCookies(await sessionCookiesFor(staffUserId));
+
+    await page.goto(`/staff/bookings/${bookingId}`);
+    await expect(page.getByText('Booking setup')).not.toBeVisible();
+    await expect(page.getByText('Sites of interest: Etosha National Park, Sossusvlei')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send quotation' })).toBeVisible();
   });
 
   // DR-115 incident regression: catalogService.updatePackage's DR-039 publish
