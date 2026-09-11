@@ -91,6 +91,7 @@ export function StaffLoginForm() {
               name="email"
               type="email"
               required
+              autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-survey border border-navy-line bg-navy-soft px-3 py-2 text-bone"
