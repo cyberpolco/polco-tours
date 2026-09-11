@@ -56,6 +56,13 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
+function withNameAt(list: string[], index: number, value: string): string[] {
+  const next = [...list];
+  while (next.length <= index) next.push('');
+  next[index] = value;
+  return next;
+}
+
 // BUDGET and LUXURY are contradictory trip preferences -- selecting one
 // clears the other, in both directions.
 const MUTUALLY_EXCLUSIVE_TAGS: Record<string, string> = { BUDGET: 'LUXURY', LUXURY: 'BUDGET' };
@@ -117,6 +124,13 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
   const [customTravelStart, setCustomTravelStart] = useState('');
   const [customTravelEnd, setCustomTravelEnd] = useState('');
   const [seats, setSeats] = useState(1);
+  // DR-271 (explicit user request): a name for every OTHER traveler in the
+  // party -- entry i is "traveler i+2" (traveler 1 is the tour lead,
+  // collected separately in the contact step below). Indices beyond
+  // `seats - 1` are ignored/trimmed on submit, not eagerly spliced here, so
+  // typing something and then lowering the seat count doesn't lose it if
+  // the guest raises it again.
+  const [coTravelerNames, setCoTravelerNames] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [sites, setSites] = useState<string[]>([]);
   const [customDescription, setCustomDescription] = useState('');
@@ -138,10 +152,14 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
   // DR-198: preview only -- the real decision is made server-side against
   // the actual submission moment (bookingService.createTailorMadeRequest).
   const isLateBooking = lateBookingRate ? daysUntil(customTravelStart) < lateBookingRate.thresholdDays : false;
+  const neededCoTravelers = Math.max(0, seats - 1);
+  const coTravelerNamesValid = Array.from({ length: neededCoTravelers }, (_, i) => coTravelerNames[i]?.trim()).every(
+    (name) => !!name,
+  );
   const canAdvance = [
     countries.length > 0,
     datesValid,
-    seats >= 1,
+    seats >= 1 && coTravelerNamesValid,
     true, // preferences (tags) -- optional
     true, // sites -- optional
     true, // your trip (description) -- optional (DR-048)
@@ -191,6 +209,7 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
         email,
         dialCode,
         localNumber,
+        coTravelerNames: coTravelerNames.slice(0, neededCoTravelers),
       });
       if ('error' in result) {
         setError(result.error);
@@ -274,15 +293,33 @@ export default function PlanMyTripForm({ initialDestination, sites: allSites, la
       )}
 
       {step === 2 && (
-        <FormField label={t('travelers')} htmlFor="seats">
-          <input
-            type="number"
-            min={1}
-            value={seats}
-            onChange={(e) => setSeats(Math.max(1, Number(e.target.value)))}
-            className="w-full rounded-survey border border-rule px-3 py-2"
-          />
-        </FormField>
+        <div className="space-y-4">
+          <FormField label={t('travelers')} htmlFor="seats">
+            <input
+              type="number"
+              min={1}
+              value={seats}
+              onChange={(e) => setSeats(Math.max(1, Number(e.target.value)))}
+              className="w-full rounded-survey border border-rule px-3 py-2"
+            />
+          </FormField>
+          {neededCoTravelers > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs text-mist">{t('coTravelerNamesHint')}</p>
+              {Array.from({ length: neededCoTravelers }, (_, i) => (
+                <FormField key={i} label={t('coTravelerNameLabel', { number: i + 2 })} htmlFor={`coTraveler-${i}`}>
+                  <input
+                    id={`coTraveler-${i}`}
+                    value={coTravelerNames[i] ?? ''}
+                    onChange={(e) => setCoTravelerNames((names) => withNameAt(names, i, e.target.value))}
+                    autoComplete="off"
+                    className="w-full rounded-survey border border-rule px-3 py-2"
+                  />
+                </FormField>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {step === 3 && (

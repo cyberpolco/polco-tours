@@ -44,7 +44,7 @@ clearance; nobody has raised that as a separate concern, so no new open
 item was created for it.
 
 
-Current through **DR-270** (2026-09-10). This file used to carry a running
+Current through **DR-271** (2026-09-11). This file used to carry a running
 narrative of every decision inline — that duplicated
 `docs/decisions/DECISION_LOG.md` (the canonical, dated record) and made this
 file balloon past its size limit. It was trimmed back to the charter's own
@@ -523,6 +523,17 @@ src/
                    #   since it needs invoicing's invoice PDF (booking must
                    #   never depend on invoicing) and always sends over
                    #   BOTH email and WhatsApp, not a single fallback chain
+                   #   DR-271 (explicit user request): Booking.coTravelerNames
+                   #   String[] -- a name for every OTHER traveler in the
+                   #   party at plan-my-trip submission time (the tour
+                   #   lead's own name is already contactFirstName/
+                   #   contactLastName, DR-057); CreateTailorMadeInput
+                   #   requires exactly seats - 1 entries. Deliberately NOT
+                   #   real Traveler rows -- those still only get created in
+                   #   the post-quotation setup wizard (DR-111/DR-257),
+                   #   since Traveler.sex is required and this step never
+                   #   collects it; this is staff context only, same tier as
+                   #   preferredTags/preferredSites.
     invoicing/     # Invoice + Payment (DPO stubbed behind PaymentGateway);
                    #   Invoice.discountMinor/couponCode/discountBp (DR-104,
                    #   applied via a shared computeInvoiceAmounts helper).

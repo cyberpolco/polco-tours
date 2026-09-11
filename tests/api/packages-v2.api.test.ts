@@ -152,6 +152,7 @@ describe('tailor-made booking -> operational itinerary -> resource assignment (D
       customDescription: 'Itinerary-bridge fixture trip.',
       countryOfResidence: 'US',
       citizenship: 'US',
+      coTravelerNames: ['Second Guest'],
     });
     const createRes = await createTailorMade(createReq, { params: Promise.resolve({}) });
     expect(createRes.status).toBe(201);

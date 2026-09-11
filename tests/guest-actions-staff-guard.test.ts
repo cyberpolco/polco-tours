@@ -140,6 +140,7 @@ describe('guest booking wizards never overwrite a staff session\'s own profile (
       email: 'hanna@example.test',
       dialCode: '+264',
       localNumber: '811234567',
+      coTravelerNames: ['Co Traveler'],
     });
     expect(result).toEqual({ bookingId: 'booking-4' });
     expect(updateProfile).not.toHaveBeenCalled();
@@ -162,6 +163,7 @@ describe('guest booking wizards never overwrite a staff session\'s own profile (
       email: 'real@example.test',
       dialCode: '+264',
       localNumber: '811234567',
+      coTravelerNames: ['Co Traveler'],
     });
     expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ name: 'Real Guest' }));
   });
@@ -235,6 +237,7 @@ describe('guest booking wizards snapshot the browsing locale onto preferredLocal
       email: 'real-fr@example.test',
       dialCode: '+264',
       localNumber: '811234567',
+      coTravelerNames: ['Co Traveler'],
     });
     expect(updateProfile).toHaveBeenCalledWith(GUEST_CTX, expect.objectContaining({ preferredLocale: 'FR' }));
   });
@@ -302,6 +305,7 @@ describe('guest booking wizards reject an email already belonging to a staff acc
       email: STAFF_PUBLIC_USER.email,
       dialCode: '+264',
       localNumber: '811234567',
+      coTravelerNames: ['Co Traveler'],
     });
     expect(result).toEqual({ error: expect.stringContaining('already associated with an account') });
     expect(createTailorMadeRequest).not.toHaveBeenCalled();
@@ -325,6 +329,7 @@ describe('guest booking wizards reject an email already belonging to a staff acc
       email: 'nobody@example.test',
       dialCode: '+264',
       localNumber: '811234567',
+      coTravelerNames: ['Co Traveler'],
     });
     expect(result).toEqual({ bookingId: 'booking-6' });
   });

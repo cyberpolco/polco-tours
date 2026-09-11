@@ -66,6 +66,11 @@ export interface CreatePlanMyTripPayload {
   email: string;
   dialCode: string;
   localNumber: string;
+  // DR-271 (explicit user request): a name for every OTHER traveler in the
+  // party -- the tour lead's own name is firstName/lastName above. Must have
+  // exactly `seats - 1` entries; CreateTailorMadeInput enforces this
+  // server-side regardless of what the wizard's own step-2 validation did.
+  coTravelerNames: string[];
 }
 
 // Mirrors (guest)/book/[departureId]/actions.ts's createGuestBookingAction --
@@ -137,6 +142,7 @@ export async function createPlanMyTripRequestAction(payload: CreatePlanMyTripPay
       preferredAddons: payload.preferredAddons,
       countryOfResidence: payload.countryOfResidence.trim().toUpperCase(),
       citizenship: payload.citizenship.trim().toUpperCase(),
+      coTravelerNames: payload.coTravelerNames.map((n) => n.trim()).filter((n) => n.length > 0),
     });
     // Confirmation email language follows the guest's own site-wide locale
     // cookie (DR-023) -- notifications' Locale enum is uppercase ('EN'/'FR'),

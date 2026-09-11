@@ -989,6 +989,18 @@ model Booking {
   // already sets separately for account-profile purposes.
   contactFirstName       String?       @db.VarChar(100)
   contactLastName        String?       @db.VarChar(100)
+  // DR-271 (explicit user request): the name of every OTHER traveler in the
+  // party -- the tour lead's own name is already contactFirstName/
+  // contactLastName above, so this array holds exactly `seats - 1` entries.
+  // Deliberately plain "Full Name" strings, not split first/last like the
+  // tour lead's own fields: nothing reads a co-traveler's name for a
+  // last-name-match lookup the way /find-booking does for the tour lead, so
+  // splitting them would add structure nothing consumes. Staff-facing
+  // context only, same tier as preferredTags/preferredSites above -- real,
+  // full Traveler rows (age/nationality/passport/etc.) still only get
+  // created in the post-quotation setup wizard (DR-111), unchanged; this is
+  // just "a name for every seat" collected up front, per explicit request.
+  coTravelerNames        String[]      @default([])
   // DR-048: guest-expressed add-on interest (same AddonCode enum
   // BookingAddon/AddonService use for a real priced predefined-package
   // add-on) -- staff context only here, no priced AddonService/BookingAddon

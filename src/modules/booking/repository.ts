@@ -65,6 +65,7 @@ export interface CreateTailorMadeParams {
   preferredAddons?: AddonCode[];
   countryOfResidence?: string;
   citizenship?: string;
+  coTravelerNames?: string[]; // DR-271
 }
 
 export interface SendQuotationParams {
@@ -102,6 +103,7 @@ function toBookingView(b: Booking): BookingView {
     contactEmail: b.contactEmail,
     contactFirstName: b.contactFirstName,
     contactLastName: b.contactLastName,
+    coTravelerNames: b.coTravelerNames,
     preferredAddons: b.preferredAddons,
     countryOfResidence: b.countryOfResidence,
     citizenship: b.citizenship,
@@ -409,6 +411,7 @@ export const bookingRepository = {
             contactEmail: params.email,
             contactFirstName: params.firstName,
             contactLastName: params.lastName,
+            coTravelerNames: params.coTravelerNames ?? [],
             preferredAddons: params.preferredAddons ?? [],
             countryOfResidence: params.countryOfResidence,
             citizenship: params.citizenship,

@@ -141,6 +141,27 @@ export default async function BookingDetailPage({ params, searchParams }: Props)
             <li className={travelersDone ? 'text-forest' : 'text-ink'}>
               {travelersDone ? '✓' : '○'} {t('travelersCount', { current: travelers.length, total: booking.seats })}
             </li>
+            {/* DR-271: names the guest already gave us at plan-my-trip
+                submission time (tour lead's own contactFirstName/
+                contactLastName + every coTravelerNames entry) -- shown here
+                because this is the ONLY view a fresh TAILOR_MADE inquiry
+                (still AWAITING_QUOTATION, addonsFinalizedAt null) actually
+                reaches; the real per-seat Traveler manifest above is still
+                empty at this point. */}
+            {booking.origin === 'TAILOR_MADE' && (booking.contactFirstName || booking.coTravelerNames.length > 0) && (
+              <li className="text-mist">
+                {t('travelerNamesOnFile', {
+                  list: [
+                    booking.contactFirstName && booking.contactLastName
+                      ? `${booking.contactFirstName} ${booking.contactLastName} ${t('tourLeadParenthetical')}`
+                      : null,
+                    ...booking.coTravelerNames,
+                  ]
+                    .filter((n): n is string => !!n)
+                    .join(', '),
+                })}
+              </li>
+            )}
             {booking.requiresPassportUpload && (
               <li className={passportDone ? 'text-forest' : 'text-ink'}>
                 {passportDone ? '✓' : '○'}{' '}

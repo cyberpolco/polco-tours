@@ -24,7 +24,12 @@ test.describe('plan my trip (TAILOR_MADE)', () => {
     await page.getByLabel('Travel end').fill('2027-06-10');
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Step 2: travelers -- default of 1 is valid, nothing to fill.
+    // Step 2: travelers -- raising seats above 1 requires a name for every
+    // other traveler (DR-271); the tour lead's own name is collected later,
+    // at step 8.
+    await page.getByLabel('Travelers').fill('2');
+    await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await page.getByLabel("Traveler 2's name").fill('Second Traveler');
     await page.getByRole('button', { name: 'Next' }).click();
 
     // Step 3: preferences -- optional, skip.

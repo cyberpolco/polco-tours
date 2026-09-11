@@ -309,6 +309,7 @@ describe('booking domain', () => {
       lastName: 'Traveler',
       countryOfResidence: 'US',
       citizenship: 'GB',
+      coTravelerNames: ['Co Traveler'],
     };
 
     it('accepts preferredTags/preferredSites as optional arrays', () => {
@@ -410,6 +411,35 @@ describe('booking domain', () => {
       const { citizenship: _citizenship, ...withoutCitizenship } = base;
       const result = CreateTailorMadeInput.safeParse(withoutCitizenship);
       expect(result.success).toBe(false);
+    });
+
+    // DR-271 (explicit user request): a name for every OTHER seat is
+    // required -- the tour lead's own is firstName/lastName above.
+    describe('coTravelerNames', () => {
+      it('rejects fewer co-traveler names than seats - 1', () => {
+        const result = CreateTailorMadeInput.safeParse({ ...base, seats: 3, coTravelerNames: ['Only One'] });
+        expect(result.success).toBe(false);
+      });
+
+      it('rejects more co-traveler names than seats - 1', () => {
+        const result = CreateTailorMadeInput.safeParse({ ...base, seats: 2, coTravelerNames: ['One', 'Two'] });
+        expect(result.success).toBe(false);
+      });
+
+      it('accepts exactly seats - 1 co-traveler names', () => {
+        const result = CreateTailorMadeInput.safeParse({ ...base, seats: 3, coTravelerNames: ['Second Traveler', 'Third Traveler'] });
+        expect(result.success).toBe(true);
+      });
+
+      it('accepts a solo traveler (seats: 1) with no co-traveler names', () => {
+        const result = CreateTailorMadeInput.safeParse({ ...base, seats: 1, coTravelerNames: [] });
+        expect(result.success).toBe(true);
+      });
+
+      it('rejects a blank co-traveler name', () => {
+        const result = CreateTailorMadeInput.safeParse({ ...base, seats: 2, coTravelerNames: [''] });
+        expect(result.success).toBe(false);
+      });
     });
   });
 

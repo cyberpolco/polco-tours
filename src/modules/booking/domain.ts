@@ -131,6 +131,12 @@ export interface BookingView {
   // TAILOR_MADE booking's quotation is accepted).
   contactFirstName: string | null;
   contactLastName: string | null;
+  // DR-271: every OTHER traveler's name (the tour lead's own is
+  // contactFirstName/contactLastName above) -- exactly `seats - 1` entries
+  // for a TAILOR_MADE booking, empty for a PREDEFINED_PACKAGE one. Staff
+  // context only, same tier as preferredTags/preferredSites; real Traveler
+  // rows still only get created in the post-quotation setup wizard.
+  coTravelerNames: string[];
   // DR-048: guest-expressed add-on interest (staff context, no priced
   // AddonService/BookingAddon row -- there's no package to attach one to
   // yet) + the guest's own residence/citizenship (relevant to the
@@ -216,6 +222,11 @@ export const CreateTailorMadeInput = z
     preferredAddons: z.array(z.enum(ADDON_CODES)).optional(),
     countryOfResidence: z.string().length(2),
     citizenship: z.string().length(2),
+    // DR-271 (explicit user request): a name for every OTHER seat -- the
+    // tour lead's own is firstName/lastName above, so this must have
+    // exactly `seats - 1` entries (enforced by the refine below, server-side,
+    // never trusting the wizard's own client-side check).
+    coTravelerNames: z.array(z.string().min(1).max(200)).default([]),
   })
   // BUDGET and LUXURY are contradictory trip preferences -- the guest/staff
   // forms already prevent selecting both client-side, this is the backend
@@ -223,6 +234,10 @@ export const CreateTailorMadeInput = z
   .refine((v) => !(v.preferredTags?.includes('BUDGET') && v.preferredTags?.includes('LUXURY')), {
     message: 'Budget and Luxury are mutually exclusive preferences -- pick one',
     path: ['preferredTags'],
+  })
+  .refine((v) => v.coTravelerNames.length === v.seats - 1, {
+    message: 'Provide a name for every traveler in the party',
+    path: ['coTravelerNames'],
   });
 export type CreateTailorMadeInput = z.infer<typeof CreateTailorMadeInput>;
 

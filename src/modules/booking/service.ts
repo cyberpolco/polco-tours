@@ -542,6 +542,7 @@ export const bookingService = {
       preferredAddons: input.preferredAddons,
       countryOfResidence: input.countryOfResidence,
       citizenship: input.citizenship,
+      coTravelerNames: input.coTravelerNames,
     });
 
     await audit({

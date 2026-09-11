@@ -3177,6 +3177,10 @@ components:
           format: uuid
           description: Staff-only -- lets an operator submit this on a tourist's behalf. Ignored for a tourist caller.
         specialRequests: { type: string, maxLength: 1000 }
+        coTravelerNames:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 200 }
+          description: 'DR-271: a name for every OTHER traveler in the party -- the tour lead''s own name is firstName/lastName (not shown in this already-incomplete schema block, see the real CreateTailorMadeInput in src/modules/booking/domain.ts). Must have exactly seats - 1 entries.'
 
     SendQuotationInput:
       type: object

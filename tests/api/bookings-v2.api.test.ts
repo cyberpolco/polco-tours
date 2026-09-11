@@ -84,6 +84,7 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customDescription: 'A private Etosha + Sossusvlei combo, 6 days.',
       countryOfResidence: 'US',
       citizenship: 'US',
+      coTravelerNames: ['Second Guest'],
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -121,6 +122,7 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       seats: 3,
       countryOfResidence: 'US',
       citizenship: 'US',
+      coTravelerNames: ['Second Guest', 'Third Guest'],
     });
     notificationSendMock.mockClear();
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
@@ -192,6 +194,7 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       preferredSites: ['Etosha National Park', 'Sossusvlei'],
       countryOfResidence: 'US',
       citizenship: 'US',
+      coTravelerNames: ['Second Guest'],
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
@@ -215,6 +218,7 @@ describe('POST /api/v1/bookings/tailor-made', () => {
       customDescription: 'A multi-country Southern Africa combo.',
       countryOfResidence: 'US',
       citizenship: 'US',
+      coTravelerNames: ['Second Guest'],
     });
     const res = await createTailorMade(req, { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
